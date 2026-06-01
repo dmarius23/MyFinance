@@ -1,0 +1,40 @@
+# ---- OS / editor ----
+.DS_Store
+~$*
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# ---- Java / Maven (backend) ----
+target/
+build/
+*.class
+*.jar
+*.war
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+
+# ---- Node / Vite (frontend) ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+coverage/
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ---- Logs / tmp ----
+*.log
+logs/
+tmp/
+
+# ---- Supabase ----
+.supabase/

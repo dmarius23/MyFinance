@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyFinance Accounting Portal — Business Requirements Document</title>
+<style>
+  :root { --blue: #1F4E79; --mid-blue: #2E75B6; --light-blue: #D6E4F0; --grey: #F2F2F2; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #333; line-height: 1.6; max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+  h1 { font-size: 24px; color: var(--blue); margin: 40px 0 16px 0; padding-bottom: 6px; border-bottom: 2px solid var(--mid-blue); }
+  h2 { font-size: 18px; color: var(--mid-blue); margin: 28px 0 12px 0; }
+  h3 { font-size: 15px; color: #404040; margin: 20px 0 8px 0; font-weight: bold; }
+  p { margin: 8px 0; }
+  ul { margin: 8px 0 8px 24px; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px 0; font-size: 13px; }
+  th { background: var(--light-blue); font-weight: bold; text-align: left; padding: 8px 12px; border: 1px solid #ccc; }
+  td { padding: 8px 12px; border: 1px solid #ccc; vertical-align: top; }
+  tr:nth-child(even) td { background: var(--grey); }
+  .cover { text-align: center; padding: 120px 0 60px 0; border-bottom: 3px solid var(--mid-blue); margin-bottom: 40px; }
+  .cover h1 { font-size: 42px; border: none; margin: 0; padding: 0; text-transform: uppercase; letter-spacing: 2px; }
+  .cover .subtitle { font-size: 22px; color: var(--mid-blue); margin: 8px 0 16px 0; }
+  .cover .client { font-size: 18px; color: #555; margin-bottom: 30px; }
+  .meta-table { width: 360px; margin: 0 auto; }
+  .meta-table td, .meta-table th { font-size: 14px; }
+  .mermaid { margin: 16px 0; }
+  .diagram-img { max-width: 100%; margin: 16px 0; }
+  .phase-tag { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 3px; margin-left: 8px; }
+  .phase-poc { background: #FFF3CD; color: #856404; }
+  .phase-mvp { background: #D4EDDA; color: #155724; }
+  .phase-future { background: #E2E3E5; color: #383D41; }
+  @media print { body { max-width: none; } .cover { page-break-after: always; } h1 { page-break-before: always; } }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>MyFinance Accounting Portal</h1>
+  <div class="subtitle">Business Requirements Document</div>
+  <div class="client">Accounting Firm (multi-tenant SaaS)</div>
+  <table class="meta-table">
+    <tr><th>Version</th><td>1.0</td></tr>
+    <tr><th>Date</th><td>31 May 2026</td></tr>
+    <tr><th>Client</th><td>Accounting Firm (multi-tenant SaaS)</td></tr>
+    <tr><th>Status</th><td>Draft</td></tr>
+  </table>
+</div>
+
+<h1>1. Executive Summary</h1>
+<p>MyFinance is a multi-tenant SaaS portal connecting accounting firms with the client companies (legal entities) whose accounting they manage. It centralizes document exchange, financial reporting, fiscal-declaration handling, payroll distribution, notifications, and internal task tracking in one secure system.</p>
+<p>Its two differentiators versus the firm's current tooling are client-driven document upload with automatic detection of missing documents (reconciled against the bank statement), and automatic extraction of the amounts owed to the state from fiscal declaration PDFs — replacing a manual data-entry form.</p>
+<p>The product is designed to be sold to multiple accounting firms, so multi-tenancy, per-tenant isolation, audit, and GDPR-compliant data handling are first-class concerns.</p>
+<h1>2. Goals &amp; Objectives</h1>
+<ul>
+  <li>Let client representatives upload source documents (bank statements, invoices, receipts) and see, in real time, what is still missing for the period.</li>
+  <li>Automatically extract amounts owed to the state from fiscal declarations and send templated payment emails with deadlines and the correct treasury accounts.</li>
+  <li>Give accounting-firm employees a single dashboard showing every client company's monthly status (documents, reports, taxes, payroll).</li>
+  <li>Centralize financial-statement and payroll distribution with per-month sent-status tracking.</li>
+  <li>Provide configurable notifications (email + in-app) for missing documents and period deadlines.</li>
+  <li>Operate as a secure, auditable, GDPR-compliant multi-tenant SaaS sellable to many accounting firms.</li>
+</ul>
+<h1>3. Stakeholders &amp; Users</h1>
+<table><thead><tr><th>Role</th><th>Description</th><th>Access</th><th>Count</th></tr></thead><tbody>
+<tr><td>Platform Super-Admin</td><td>Operates the SaaS platform; provisions and manages accounting-firm tenants, plans, limits, and feature flags.</td><td>Cross-tenant administration; no tenant data access (no impersonation in MVP).</td><td>Small platform team</td></tr>
+<tr><td>Tenant Admin</td><td>Administrator within one accounting firm; manages employees, settings, and feature configuration within plan limits.</td><td>Full access within own tenant.</td><td>1+ per firm</td></tr>
+<tr><td>Employee (Accountant)</td><td>Accounting-firm staff; manage companies, documents, reports, declarations, payroll, notifications, and tasks.</td><td>All client companies within own tenant (MVP).</td><td>Several per firm</td></tr>
+<tr><td>Company Representative</td><td>Client-company user; uploads documents and views their own company's reports, payroll, and status.</td><td>Strictly scoped to their own company.</td><td>1+ per client company</td></tr>
+</tbody></table>
+<h1>4. Module Overview</h1>
+<p>The system is organized into the following functional modules. This module structure is the authoritative breakdown used by estimation and story writing.</p>
+<table><thead><tr><th>ID</th><th>Module</th><th>Description</th></tr></thead><tbody>
+<tr><td>MOD-01</td><td>Tenant Administration</td><td>Super-admin provisioning and lifecycle of accounting-firm tenants, plans, limits, and feature flags.</td></tr>
+<tr><td>MOD-02</td><td>Users, Accounts &amp; Access</td><td>Roles, authentication (email+password, Google OAuth, TOTP MFA), and multi-tenant access scoping.</td></tr>
+<tr><td>MOD-03</td><td>Client Company Management</td><td>Client companies, contacts, lightweight HR registry, tax profile, and treasury accounts.</td></tr>
+<tr><td>MOD-04</td><td>Document Intake &amp; Reconciliation</td><td>Multi-channel document upload and detection of missing documents against the bank statement.</td></tr>
+<tr><td>MOD-05</td><td>Document Extraction Engine</td><td>Shared extraction: text-PDF parsing, structured invoice/declaration parsing, and receipt OCR.</td></tr>
+<tr><td>MOD-06</td><td>Financial Statements &amp; Reports</td><td>Trial-balance upload, branded monthly report PDF, and email to representative with sent-status.</td></tr>
+<tr><td>MOD-07</td><td>Fiscal Declarations &amp; State Payments</td><td>Declaration extraction, verification gate, and templated state-payment email with treasury accounts.</td></tr>
+<tr><td>MOD-08</td><td>Payroll (State de plata)</td><td>Manual upload, viewing, and emailing of monthly payroll documents to representatives.</td></tr>
+<tr><td>MOD-09</td><td>Notifications Engine</td><td>Email and in-app notifications; manual reminders, preset toggleable rules, and document requests.</td></tr>
+<tr><td>MOD-10</td><td>Internal Tasks</td><td>Simple employee-only task board (To do / In progress / Done) with deadlines and optional company link.</td></tr>
+<tr><td>MOD-11</td><td>Dashboards</td><td>Employee monthly control tower across companies and a simple representative landing page.</td></tr>
+<tr><td>MOD-12</td><td>Audit, Security &amp; GDPR</td><td>Immutable audit log, encryption, and retention-aware data deletion.</td></tr>
+<tr><td>MOD-13</td><td>AI Chatbot &amp; Knowledge Base</td><td>Representative-facing grounded Q&amp;A over own account data and an admin-managed knowledge base.</td></tr>
+<tr><td>MOD-14</td><td>Mobile / PWA</td><td>Responsive web plus an installable PWA with camera capture and web push.</td></tr>
+</tbody></table>
+<h1>5. Phasing Strategy</h1>
+<p>Requirements are tagged by phase to indicate delivery priority.</p>
+<h3>Proof of Concept (PoC)</h3>
+<ul>
+  <li>Extract amounts per tax type from ANAF fiscal-declaration PDFs (structured parse with OCR/manual fallback).</li>
+  <li>Parse a text-based bank-statement PDF into transactions.</li>
+  <li>OCR a receipt photo and extract amount + counterparty.</li>
+  <li>Reconcile uploaded invoices/receipts against the bank statement and flag missing documents.</li>
+  <li>Auto-fill a state-payment email (amounts + deadline + treasury account).</li>
+  <li>Minimal authentication and company setup to support the above.</li>
+</ul>
+<h3>Minimum Viable Product (MVP)</h3>
+<ul>
+  <li>MOD-01 to MOD-12 in full (multi-tenant).</li>
+  <li>Bounded representative-facing chatbot + knowledge base (MOD-13).</li>
+  <li>Responsive web and installable PWA with camera capture and web push (MOD-14).</li>
+  <li>Authentication: email+password, Google OAuth, TOTP MFA for staff.</li>
+  <li>Notifications via email + in-app.</li>
+</ul>
+<h3>Future Releases</h3>
+<ul>
+  <li>WhatsApp Business API notification channel.</li>
+  <li>e-Factura / ANAF SPV integration as a primary invoice source.</li>
+  <li>In-app two-way messaging between firm and representatives.</li>
+  <li>Native mobile application.</li>
+  <li>Per-employee payslip distribution and automated payslip/tax-document distribution.</li>
+  <li>Payroll sync agent or direct payroll-system integration.</li>
+  <li>Per-tenant template customization.</li>
+  <li>Per-employee client-company access restriction.</li>
+  <li>Database-per-tenant isolation as a premium tier.</li>
+</ul>
+<h1>6. Functional Requirements</h1>
+<h2>6.1 Tenant Administration</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-001</td><td>The system shall allow a platform super-admin to create, view, edit, suspend, reactivate, and archive accounting-firm tenants.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-002</td><td>The system shall record per tenant: firm name, fiscal code (CUI), primary contact, status, plan/tier, and creation date.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-003</td><td>On tenant creation, the system shall provision an initial tenant-admin account and send an invitation email to set a password.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-004</td><td>The system shall let the super-admin set per-tenant limits and feature flags (max users, max client companies, and toggles for chatbot, WhatsApp, and email-agent).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-005</td><td>The system shall enforce tenant data isolation so no user can access another tenant's data.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-006</td><td>The system shall allow optional per-tenant branding (firm name and logo) for a white-label appearance.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-007</td><td>The system shall record all super-admin actions in the audit log.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Suspending a tenant disables all its users' access and pauses its automated jobs (scheduled notifications, email-ingestion agent) but retains data.</li>
+  <li>The tenant administration module is visible only to platform super-admins.</li>
+  <li>Plan limits are hard-enforced: actions that would exceed a limit are blocked.</li>
+  <li>Archiving or deleting a tenant triggers a GDPR purge that requires explicit confirmation and respects the legal retention window.</li>
+  <li>Super-admins cannot impersonate or enter tenant data in MVP.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Onboard a firm: super-admin creates tenant -&gt; sets plan, limits, feature flags -&gt; invites tenant admin -&gt; tenant admin completes firm setup.</p>
+<p>Offboard a firm: suspend -&gt; grace period (data retained) -&gt; optional archive/purge.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Expired or re-sent tenant-admin invitation.</li>
+  <li>A suspended tenant must not fire scheduled emails or run its email-ingestion agent.</li>
+  <li>Tenant identifier/subdomain uniqueness conflict.</li>
+  <li>An action attempts to exceed a hard plan limit (blocked).</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>Provisioned -&gt; Active: tenant created and admin onboarded.</li>
+  <li>Active -&gt; Suspended: super-admin suspends (access disabled, data retained).</li>
+  <li>Suspended -&gt; Active: super-admin reactivates.</li>
+  <li>Active/Suspended -&gt; Archived/Purged: offboarding after retention rules.</li>
+</ul>
+<h2>6.2 Users, Accounts &amp; Access</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-008</td><td>The system shall support roles within a tenant: Tenant Admin, Employee, and Company Representative, in addition to the cross-tenant platform super-admin.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-009</td><td>The system shall authenticate users by email and password, with email verification, password reset, and account lockout after repeated failures.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-009b</td><td>The system shall support Google sign-in (OAuth 2.0 / OpenID Connect) as an authentication option for all user types.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-009c</td><td>The system shall require multi-factor authentication (TOTP) for employees and admins; representatives may use it optionally. Google Workspace 2FA satisfies the requirement for employees signing in via Google.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-010</td><td>The system shall let a Tenant Admin or Employee invite Company Representatives by email; representatives join by invitation only.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-011</td><td>The system shall allow a client company to have multiple representative accounts; each representative account is linked to exactly one company.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-012</td><td>The system shall scope every Company Representative strictly to the data of their linked company.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-013</td><td>The system shall let a Tenant Admin manage employees (invite, assign role, deactivate) within the tenant's hard-enforced plan limits.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-014</td><td>The system shall record authentication events and access-control changes in the audit log.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-014b</td><td>The system shall associate each company with a responsible employee to enable future per-employee access restriction (not enforced in MVP).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>A representative sees only their linked company and nothing else in the tenant.</li>
+  <li>All employees can access all client companies within the tenant in MVP; the model carries a responsible-person link for future restriction.</li>
+  <li>Deactivating a user revokes access immediately but preserves audit history.</li>
+  <li>The last remaining Tenant Admin cannot be deactivated.</li>
+  <li>Employee and representative accounts count against the tenant's hard plan limit; invites are blocked once the limit is reached.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Employee onboarding: Tenant Admin invites -&gt; assigns role -&gt; employee accepts and sets password (and configures MFA).</p>
+<p>Representative onboarding: employee adds the company -&gt; invites representative(s) -&gt; representative accepts and lands in a portal scoped to their company.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Invitation sent to an already-registered email.</li>
+  <li>Plan limit reached at invite time (hard block).</li>
+  <li>Reactivating a previously deactivated user.</li>
+  <li>Account-linking when the same email exists via both Google and password.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>Invited -&gt; Active: user accepts invitation and sets credentials.</li>
+  <li>Active -&gt; Deactivated: admin deactivates (access revoked, history retained).</li>
+  <li>Deactivated -&gt; Active: admin reactivates.</li>
+</ul>
+<h2>6.3 Client Company Management</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-015</td><td>The system shall let employees create, edit, and mark client companies active or inactive.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-016</td><td>The system shall record per company: legal name, entity type (SRL, PFA, II, etc.), fiscal code (CUI/CIF), trade-register number, address/locality, VAT status (payer y/n + monthly/quarterly), tax regime (micro vs profit), and a responsible employee.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-017</td><td>The system shall maintain a tax profile per company indicating which obligations apply (impozit micro/profit, impozit salarii, TVA, contributii sociale, CAM, impozit chirie, impozit dividende).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-018</td><td>The system shall store treasury/bank accounts per company, keyed by tax type and locality, used to populate state-payment emails.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-019</td><td>The system shall manage company contacts and a lightweight client-employee registry (name, role, hire/termination date, status).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-020</td><td>The system shall let employees deactivate or delete a company, with deletion following the retention-aware GDPR process and being audited.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-020b</td><td>The system shall pre-fill standard Romanian payment deadlines (e.g. the 25th, with VAT cadence) and allow per company/month override.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>A company belongs to exactly one tenant; CUI is unique within a tenant.</li>
+  <li>Inactive companies drop out of active workflows and notifications but retain data.</li>
+  <li>A state-payment email cannot be sent for a tax type that has no configured treasury account.</li>
+  <li>VAT period (monthly/quarterly) drives reporting cadence.</li>
+  <li>Only obligations in the company's tax profile are expected and shown.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Add company: enter legal/fiscal details -&gt; set tax profile -&gt; add treasury accounts per tax -&gt; assign responsible employee -&gt; invite representative(s).</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Mid-year tax regime change (micro -&gt; profit) with an effective date and preserved history.</li>
+  <li>VAT registration starting or ceasing mid-period.</li>
+  <li>Attempting a state-payment email with a missing treasury account (blocked + prompt).</li>
+  <li>Duplicate CUI within the tenant.</li>
+  <li>Client-employee termination tracking.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>Onboarding -&gt; Active: company setup completed.</li>
+  <li>Active -&gt; Inactive: employee marks inactive (data retained).</li>
+  <li>Inactive -&gt; Active: employee reactivates.</li>
+</ul>
+<h2>6.4 Document Intake &amp; Reconciliation</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-021</td><td>The system shall accept document uploads (PDF or photo) via three channels: representative portal upload, employee upload on behalf of a company, and an email-ingestion agent that imports attachments from the firm's mailbox (Gmail/M365 via OAuth).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-022</td><td>The system shall classify each document (bank statement / invoice / receipt) and associate it with a company and a period (month or quarter per the company's VAT cadence).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-023</td><td>The system shall parse the bank statement into transactions and reconcile them against uploaded invoices/receipts, identifying transactions with no supporting document.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-024</td><td>The system shall show the uploader a real-time completeness view of what is still missing for the period.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-025</td><td>The system shall maintain a per-company, per-period status (Not started / Partial / Complete) used by dashboards and reminders.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026</td><td>The email-ingestion agent shall route documents it cannot confidently assign to a company into a manual triage queue.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026b</td><td>The system shall auto-match high-confidence bank-to-document pairs and queue low-confidence or ambiguous matches for human confirmation.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026c</td><td>For each bank transaction the system shall decide whether a supporting invoice/receipt is required and record the decision source as SYSTEM_RULE (deterministic base rule), LEARNED_RULE (adaptive rule learned from accountant decisions), or ACCOUNTANT_SET (manual). No LLM is used; classification is fully deterministic and explainable.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026d</td><td>The system shall apply deterministic base rules using structured signals: incoming/credit amounts are income (no document); payments to Treasury IBANs (CAM, contributii, impozit, TVA) are covered by declarations; transfers between the company's own accounts need no document; salary descriptions are covered by payroll; leasing payments require the leasing invoice; other supplier debits require an invoice/receipt.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026e</td><td>The system shall let an accountant override any transaction's document-requirement flag (e.g. mark 'no document needed' with an optional reason); the manual override always takes precedence and is recorded in the audit log.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026f</td><td>When an accountant sets a document-requirement decision, the system shall learn an adaptive rule for that company keyed on the counterparty account (IBAN) and normalized description, and shall automatically apply that decision to matching transactions in later periods so the accountant is not asked again.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-026g</td><td>The system shall drive the missing-documents list and reminder emails only from transactions that require a document and remain unmatched.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>A period is Complete when the bank statement is uploaded and every transaction requiring a supporting document has a matched one.</li>
+  <li>Cadence (monthly/quarterly) follows the company's VAT period.</li>
+  <li>Duplicate uploads (same invoice twice) are detected.</li>
+  <li>Cash receipts that legitimately never appear on the bank statement are supported.</li>
+  <li>Imports the agent cannot map go to triage, not silently dropped.</li>
+  <li>Document-requirement decisions follow precedence: a manual accountant decision wins over a learned rule, which wins over a base rule. The system adapts to each firm's corrections over time (no LLM).</li>
+  <li>Only transactions that require a document and remain unmatched contribute to the missing-documents list and trigger client reminders.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Representative flow: upload bank statement + receipts/invoices -&gt; extraction -&gt; reconciliation -&gt; missing items shown live -&gt; representative adds missing -&gt; status becomes Complete.</p>
+<p>Email-agent flow: email arrives -&gt; attachments pulled -&gt; classified -&gt; matched to company (or triage) -&gt; same reconciliation pipeline.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Blurry photo or low-confidence extraction routed to manual review.</li>
+  <li>Multiple bank accounts or multi-page statements per company per month.</li>
+  <li>Amount matches but date differs -&gt; suggested match needing confirmation.</li>
+  <li>Foreign-currency transactions.</li>
+  <li>Employee manually matching or marking a transaction as 'no document needed'.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>CompanyPeriod: Empty -&gt; Partial -&gt; Complete -&gt; (Reopened).</li>
+  <li>Document: Uploaded -&gt; Extracted -&gt; Matched | Unmatched -&gt; (Confirmed).</li>
+</ul>
+<h2>6.5 Document Extraction Engine</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-027</td><td>The system shall extract the amounts to pay per tax type, plus period and deadline, from ANAF smart-declaration PDFs by reading the embedded declaration XML (e.g. the d212.xml inside a D212), parsing the named fields directly (e.g. impozit_venit, CASS, dif_de_plata).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-027a</td><td>The system shall support multiple ANAF declaration types (e.g. D212, D300, D301, D112, D100) via a per-declaration-type XML mapper behind a single extractor interface, so new declaration schemas can be added without changing the rest of the system.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-027b</td><td>The system shall validate extracted declaration amounts against the declaration's own total field (e.g. component taxes must sum to dif_de_plata) and flag any mismatch for review before the figures can drive a payment email.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-028</td><td>The system shall extract from invoices (text PDF or XML) the counterparty (furnizor/debitor), counterparty IBAN, date, due date, total, VAT, and document number; for photographed receipts it shall use OCR and return a per-field confidence score.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-029</td><td>The system shall parse readable bank-statement PDFs into normalized transactions (date, amount, direction, counterparty, counterparty IBAN, reference, running balance) using a per-bank parser behind a single BankStatementParser interface, so additional banks (BRD, BT, BCR, ING, etc.) can be added without changing reconciliation.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-030</td><td>The system shall extract trial-balance / profit-situation data (account code, account name, amounts) from readable PDFs and cross-check the parsed lines against the document's stated totals before generating a report.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-031</td><td>The system shall route any field below a confidence threshold (OCR) or any failed cross-check (structured documents) to human review, and feed corrections back.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-032</td><td>The system shall support Romanian (diacritics) and RON plus foreign currencies.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Structured/electronic sources are always preferred over OCR: ANAF declarations are read from embedded XML; invoices from XML or text PDF; bank statements and balances from readable-PDF text. OCR is used ONLY for photographed receipts.</li>
+  <li>All declarations and bank statements provided to the system are readable (machine-text) PDFs, not scanned images; declaration types and bank layouts vary, handled by pluggable per-type/per-bank parsers.</li>
+  <li>Structured extractions are validated by an internal cross-check (declaration component taxes sum to the stated total; balance lines sum to the stated totals) before the values may post or drive an email.</li>
+  <li>Nothing below the OCR confidence threshold, and nothing that fails a cross-check, is auto-committed.</li>
+  <li>Each extraction is audited: source document -&gt; extracted values -&gt; reviewer.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Detect type and format -&gt; pick extractor (structured parse vs OCR/AI) -&gt; extract -&gt; confidence check -&gt; auto-accept or queue review -&gt; persist normalized data for the consuming module.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Low-resolution or rotated photos.</li>
+  <li>Multi-page or handwritten receipts.</li>
+  <li>A declaration that is a flat scan with no embedded data (OCR fallback).</li>
+  <li>An unsupported bank layout (manual-entry fallback).</li>
+  <li>Mixed-language documents.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>ExtractionJob: Pending -&gt; Extracted -&gt; (Needs Review -&gt; Reviewed) -&gt; Committed.</li>
+</ul>
+<h2>6.6 Financial Statements &amp; Reports</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-033</td><td>The system shall let an employee upload a trial balance (fisa de balanta) per company per month.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-034</td><td>The system shall generate a formatted, branded monthly report PDF from the extracted balance data, viewable in-app and downloadable.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-035</td><td>The system shall let an employee email the report to the company representative using a standard branded template.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-036</td><td>The system shall track, per company per month, whether the report email has been sent, surfaced on the dashboard.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-037</td><td>The system shall let a representative view their own company's reports only, read-only.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>One active trial balance per company per month; re-upload creates a new version.</li>
+  <li>Re-uploading after a report was sent regenerates the report and flags it as changed.</li>
+  <li>Report templates are fixed in MVP (per-tenant customization is Future).</li>
+</ul>
+<h3>Workflows</h3>
+<p>Employee uploads balance -&gt; extraction -&gt; report generated -&gt; review -&gt; view/download -&gt; send to representative -&gt; status Sent.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Balance re-uploaded after sending (regenerate + flag).</li>
+  <li>Low-confidence extraction needing review.</li>
+  <li>Representative with no reports yet.</li>
+  <li>Correction and re-send.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>MonthlyReport: NoBalance -&gt; BalanceUploaded -&gt; Generated -&gt; Sent -&gt; (Resent).</li>
+</ul>
+<h2>6.7 Fiscal Declarations &amp; State Payments</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-038</td><td>The system shall let an employee upload the monthly fiscal declaration PDF(s) per company, as separate files per tax.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-039</td><td>The system shall extract the amount owed per tax type plus period and deadline, populating a monthly tax summary (impozit micro/profit/salarii, TVA, contributii sociale, CAM, chirie, dividende).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-040</td><td>The system shall require a verification step: the responsible person reviews extracted amounts and marks the record Verified before any email can be sent.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-041</td><td>The system shall compose a payment email from a template, auto-filling amounts, deadline, and the treasury account per tax (by tax type/locality).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-042</td><td>The system shall send the email to the representative from the app and track sent/not-sent per company per month.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-043</td><td>The system shall allow manual entry/correction of amounts as a fallback (flat-scan declarations, OCR fallback, adjustments).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Only taxes in the company's profile are expected.</li>
+  <li>Every payable amount must resolve to a treasury account; a missing account blocks sending and prompts to fix company setup.</li>
+  <li>Verification (Verificat) is mandatory before send.</li>
+  <li>Zero / 'fara TVA de plata' amounts are handled.</li>
+  <li>Re-sending after a change is allowed and audited.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Upload declaration(s) -&gt; extract -&gt; amounts populate the monthly summary -&gt; responsible person reviews -&gt; mark Verified -&gt; compose email (auto-filled) -&gt; send -&gt; status Sent.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Flat-scan declaration -&gt; OCR/manual fallback.</li>
+  <li>Amounts changed after sending -&gt; re-verify and re-send.</li>
+  <li>Missing treasury account.</li>
+  <li>Multiple declarations per month.</li>
+  <li>Company exempt from a tax (skip it).</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>MonthlyTaxObligation: NoDeclaration -&gt; Extracted -&gt; Verified -&gt; EmailSent -&gt; (Resent).</li>
+</ul>
+<h2>6.8 Payroll (State de plata)</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-044</td><td>The system shall hold the monthly payroll files (state de plata, payslips) per company via manual upload.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-045</td><td>The system shall let an employee view/download payroll and email it to the representative, tracking sent/not-sent per month.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-046</td><td>The system shall let a representative view their own company's payroll, read-only.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-047</td><td>Payroll data shall be treated as sensitive: encrypted at rest, access-controlled, and audited.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Files are stored per company per month; corrected payroll creates a new version.</li>
+  <li>Sent status is tracked monthly, consistent with reports and tax emails.</li>
+  <li>Payslip distribution in MVP is to the representative only (per-employee distribution is Future).</li>
+</ul>
+<h3>Workflows</h3>
+<p>Payroll computed externally -&gt; employee uploads file(s) -&gt; view -&gt; email to representative -&gt; status Sent.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Corrected/re-uploaded payroll after sending.</li>
+  <li>Multiple files per month.</li>
+  <li>Mapping payslips to individual client employees (Future).</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>MonthlyPayroll: NoFile -&gt; Uploaded -&gt; Sent -&gt; (Resent).</li>
+</ul>
+<h2>6.9 Notifications Engine</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-048</td><td>The system shall let an employee send a manual reminder to a company's representative, pre-filled with the missing documents for the period.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-049</td><td>The system shall send scheduled automatic notifications based on preset rules (e.g. quarter-end / start-of-period reminders to all active companies).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-050</td><td>The system shall support channels email and in-app in MVP, with WhatsApp gated behind a tenant feature flag (Future).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-051</td><td>The system shall let an employee issue a document request; the representative is notified and sees a pending request item.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-052</td><td>The system shall track delivery (sent / delivered / failed) per notification and feed the audit log.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-052b</td><td>The system shall let an admin enable or disable automatic sending for each preset rule.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Only active companies receive automatic notifications; a suspended tenant fires none.</li>
+  <li>WhatsApp is available only where the tenant flag is on and the representative has a number (Future).</li>
+  <li>Notifications use system templates with variable substitution (template customization is Future).</li>
+  <li>Failed deliveries are retried or flagged.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Manual: employee picks company + missing items -&gt; channel -&gt; send -&gt; tracked.</p>
+<p>Automatic: scheduler evaluates enabled rules -&gt; resolves active-company recipients -&gt; sends -&gt; tracks.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Email bounce or undelivered message -&gt; retry and flag.</li>
+  <li>Representative without a WhatsApp number -&gt; fall back to email.</li>
+  <li>Duplicate suppression.</li>
+  <li>Send-time timezone / quiet hours.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>Notification: Queued -&gt; Sent -&gt; Delivered | Failed.</li>
+</ul>
+<h2>6.10 Internal Tasks</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-053</td><td>The system shall let employees create, edit, and delete tasks with title, details, responsible employee, create date, and deadline/target date.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-054</td><td>The system shall let tasks move between statuses (To do / In progress / Done) and be viewed as a board and a list, filterable by status, assignee, and optionally company.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-055</td><td>The system shall highlight overdue tasks and notify the assignee in-app as the deadline approaches.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-056</td><td>Tasks shall be employee-only (never visible to representatives) and tenant-scoped.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>A task may optionally reference a client company.</li>
+  <li>Simple status flow with no approvals.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Create -&gt; assign -&gt; move across statuses -&gt; complete.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Overdue highlighting.</li>
+  <li>Reassignment.</li>
+  <li>Deletion or archive of completed tasks.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>Task: To do -&gt; In progress -&gt; Done.</li>
+</ul>
+<h2>6.11 Dashboards</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-057</td><td>The system shall present an employee dashboard listing all companies with, per selected period, document completeness, report sent, tax verification + email, and payroll sent status.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-057a</td><td>The dashboard shall display, for the selected month, a summary tile per section (Statements &amp; invoices, Taxes &amp; payments, Payroll, Reports) showing the count of companies that are fully done, partially done, and not started; each tile links to its section.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-057b</td><td>The dashboard shall display a 'new companies' tile for the selected month showing companies onboarded that month, split into in-setup and finished, with their names.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-058</td><td>Each company row shall also show open document requests, an overdue flag, and last contact/activity.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-059</td><td>The dashboard shall be filterable by month, status, responsible employee, and outstanding items, with drill-down to a company/period.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-060</td><td>The system shall show a tenant overview with key counts (active companies, items pending, overdue tasks, notifications sent).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-061</td><td>The system shall give representatives a simple landing page of their own company's status, pending document requests, and latest reports.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Employees see all companies (MVP); representatives see only their own.</li>
+  <li>Status reflects near-real-time data from the source modules.</li>
+  <li>Month is the primary pivot.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Employee opens dashboard -&gt; scans the month across companies -&gt; clicks into anything outstanding.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Many companies (pagination/performance).</li>
+  <li>Switching months.</li>
+  <li>Companies onboarded mid-month.</li>
+  <li>Empty states.</li>
+</ul>
+<h2>6.12 Audit, Security &amp; GDPR</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-062</td><td>The system shall maintain an immutable audit log of all actions by representatives, employees, super-admins, and automated processes, queryable by an admin.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-063</td><td>The system shall let an employee delete a client company's data on the representative's request, following the retention-aware process and recorded in the audit log.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-064</td><td>The system shall encrypt sensitive identifying data at rest and enforce TLS/HTTPS in transit.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-065</td><td>The system shall enforce tenant isolation and role scoping and record access-control changes.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Retention-aware deletion: revoke access and anonymize non-required personal data immediately; retain legally-required accounting records for the retention window; full purge after expiry.</li>
+  <li>Audit entries are immutable and retained per policy.</li>
+  <li>Accounting-records retention obligations take precedence over immediate erasure.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Every action writes an audit entry.</p>
+<p>Deletion request -&gt; employee initiates -&gt; confirmation -&gt; anonymize/purge per retention rules -&gt; audit recorded.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Erasure-vs-retention conflict.</li>
+  <li>Audit-log volume and retention.</li>
+  <li>Exporting audit for an authority.</li>
+</ul>
+<h3>State Transitions</h3>
+<ul>
+  <li>DeletionRequest: Requested -&gt; Anonymized -&gt; (Retention window) -&gt; Purged.</li>
+</ul>
+<h2>6.13 AI Chatbot &amp; Knowledge Base</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-066</td><td>The system shall provide a representative-facing chatbot that answers questions over the user's own company data (e.g. amounts due, deadlines, document completeness, latest report).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-067</td><td>The system shall answer general fiscal questions from a curated, admin-managed knowledge base (retrieval-grounded).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-068</td><td>The system shall let admins manage knowledge-base articles (create/edit/publish).</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-069</td><td>Chatbot interactions shall be audited, strictly data-scoped, read-only, and feature-flag gated per tenant, with a 'not a substitute for your accountant' disclaimer and escalation to a human on low confidence.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>Answers are retrieval-grounded (from the knowledge base or the user's own data); no free-hand authoritative tax/legal advice.</li>
+  <li>Strict data scoping: a representative's chatbot can only access their own company's data.</li>
+  <li>Broader account-data Q&amp;A requires a grounding/guardrails spike to validate accuracy and safety.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Representative asks a question -&gt; system retrieves grounded context (own data or KB) -&gt; generates a scoped answer with disclaimer -&gt; escalates to a human when confidence is low.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Ambiguous or out-of-scope questions.</li>
+  <li>Low-confidence answers (escalate).</li>
+  <li>Attempts to access another company's data (denied).</li>
+</ul>
+<h2>6.14 Mobile / PWA</h2>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Phase</th></tr></thead><tbody>
+<tr><td>FR-070</td><td>The entire portal shall be responsive and mobile-friendly for all users.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+<tr><td>FR-071</td><td>Representatives shall have an installable PWA with camera capture for photographing receipts, uploading, and viewing status/reports, plus web push notifications.</td><td><span class="phase-tag phase-mvp">MVP</span></td></tr>
+</tbody></table>
+<h3>Business Rules</h3>
+<ul>
+  <li>A PWA (not a native app) is used in MVP; a native app is Future.</li>
+  <li>Camera capture targets the receipt-photo upload use case.</li>
+</ul>
+<h3>Workflows</h3>
+<p>Representative installs PWA -&gt; snaps a receipt -&gt; uploads -&gt; sees updated completeness and reports.</p>
+<h3>Edge Cases &amp; Error Handling</h3>
+<ul>
+  <li>Offline capture queued for later upload.</li>
+  <li>Web push permission declined.</li>
+</ul>
+<h1>7. Diagrams</h1>
+<h3>Domain Model</h3>
+<p>Core business entities and their relationships.</p>
+<pre class="mermaid">
+graph TD
+  Tenant[Accounting Firm Tenant] --&gt; Employee[Employee]
+  Tenant --&gt; Company[Client Company]
+  Company --&gt; Rep[Representative]
+  Company --&gt; Treasury[Treasury Account]
+  Company --&gt; Doc[Document]
+  Company --&gt; TB[Trial Balance]
+  Company --&gt; Decl[Fiscal Declaration]
+  Company --&gt; Payroll[Payroll]
+  Doc --&gt; Bank[Bank Statement]
+  TB --&gt; Report[Financial Report]
+  Decl --&gt; TaxSum[Monthly Tax Summary]
+  TaxSum --&gt; Treasury
+  Employee --&gt; Task[Task]
+  Tenant --&gt; Notif[Notification]
+  Tenant --&gt; Audit[Audit Entry]
+</pre>
+<h3>Monthly Document Upload and Reconciliation</h3>
+<p>Upload, extraction, reconciliation, and completeness.</p>
+<pre class="mermaid">
+flowchart TD
+  A[Upload: rep / employee / email-agent] --&gt; B[Classify document and period]
+  B --&gt; C[Extraction Engine]
+  C --&gt; D[Parse bank statement transactions]
+  C --&gt; E[Extract invoice/receipt data]
+  D --&gt; F[Reconcile transactions vs documents]
+  E --&gt; F
+  F --&gt; G{All required docs matched?}
+  G -- No --&gt; H[Show missing documents live]
+  H --&gt; A
+  G -- Yes --&gt; I[Period status: Complete]
+</pre>
+<h3>Fiscal Declaration to State-Payment Email</h3>
+<p>From declaration upload to the templated payment email.</p>
+<pre class="mermaid">
+flowchart TD
+  A[Upload declaration PDFs per tax] --&gt; B[Extract amounts, period, deadline]
+  B --&gt; C[Aggregate monthly tax summary]
+  C --&gt; D[Responsible person reviews]
+  D --&gt; E{Verified?}
+  E -- No --&gt; D
+  E -- Yes --&gt; F[Compose email: amounts + deadline + treasury accounts]
+  F --&gt; G{Treasury account present for each tax?}
+  G -- No --&gt; H[Block send and prompt to fix setup]
+  G -- Yes --&gt; I[Send email and record Sent status]
+</pre>
+<h3>Per-Company Monthly Status</h3>
+<p>Lifecycle of a company's monthly accounting cycle.</p>
+<pre class="mermaid">
+stateDiagram-v2
+  [*] --&gt; Empty
+  Empty --&gt; Partial: documents uploaded
+  Partial --&gt; Complete: all required documents matched
+  Complete --&gt; Reported: financial report sent
+  Reported --&gt; Sent: tax-payment email sent
+  Sent --&gt; [*]
+  Partial --&gt; Empty: period reopened
+</pre>
+<h1>8. Non-Functional Requirements</h1>
+<h2>8.1 Performance</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Concurrent Users</td><td>Medium MVP target: ~10-30 accounting firms, ~1,000-3,000 client companies, ~1,000-3,000 representatives, with pronounced upload concurrency around month-end and quarter-end.</td></tr><tr><td>Response Time</td><td>Interactive pages and uploads should feel responsive under normal load; document extraction is asynchronous with progress feedback.</td></tr><tr><td>Data Volume</td><td>Document-heavy: monthly bank statements, invoices, receipts, declarations, reports, and payroll per company; sized for thousands of companies.</td></tr><tr><td>Throughput</td><td>Must absorb month-/quarter-end upload bursts via asynchronous extraction queues.</td></tr></tbody></table><h2>8.2 Reliability &amp; Availability</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Uptime</td><td>Business-hours focus in MVP; brief off-hours maintenance windows acceptable.</td></tr><tr><td>Failover</td><td>Managed-cloud resilience; to be detailed in technical design.</td></tr><tr><td>Backup</td><td>Daily backups with point-in-time recovery.</td></tr><tr><td>Degradation</td><td>If extraction or a third-party service is unavailable, uploads are accepted and queued; users are informed.</td></tr></tbody></table><h2>8.3 Security &amp; Compliance</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Authentication</td><td>Email+password, Google OAuth (OIDC), and TOTP MFA required for employees/admins.</td></tr><tr><td>Authorization</td><td>Role-based access control with multi-tenant isolation enforced via row-level security; representatives strictly scoped to their company.</td></tr><tr><td>Encryption</td><td>Sensitive identifying/PII data encrypted at rest; TLS/HTTPS in transit; field-level encryption for sensitive fields.</td></tr><tr><td>Compliance</td><td>GDPR; retention-aware erasure reconciled with Romanian accounting-records retention obligations.</td></tr><tr><td>Audit Logging</td><td>Immutable audit log of all user and automated actions.</td></tr></tbody></table><h2>8.4 Deployment &amp; Environments</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Model</td><td>Multi-tenant SaaS on EU-region managed cloud (AWS/Azure/GCP) for data residency.</td></tr><tr><td>Environments</td><td>Development, staging, and production.</td></tr><tr><td>Cicd</td><td>Automated CI/CD pipeline.</td></tr><tr><td>Constraints</td><td>EU data residency; provider/region to be confirmed in architecture.</td></tr></tbody></table><h2>8.5 Scalability</h2>
+<p>Shared database with tenant_id and row-level security; horizontal scaling of stateless app and asynchronous extraction workers. Database-per-tenant reserved as a future premium isolation tier.</p>
+<h2>8.6 Monitoring &amp; Logging</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Metrics</td><td>System health, errors, and business metrics including extraction outcomes and notification delivery.</td></tr><tr><td>Alerting</td><td>Alerting on failures and degraded performance.</td></tr><tr><td>Log Retention</td><td>Application and audit logs retained per policy.</td></tr></tbody></table><h2>8.7 Data Management</h2>
+<table><thead><tr><th>Aspect</th><th>Requirement</th></tr></thead><tbody><tr><td>Retention</td><td>Legally-required accounting records retained for the statutory period; audit log retained per policy.</td></tr><tr><td>Migration</td><td>Manual/minimal in MVP: companies imported via spreadsheet; no full historical migration.</td></tr><tr><td>Backup</td><td>Daily backups with point-in-time recovery.</td></tr><tr><td>Archival</td><td>Retention-aware archival and purge after the legal window.</td></tr></tbody></table><h2>8.8 Integrations</h2>
+<table><thead><tr><th>System</th><th>Method</th><th>Format</th><th>Direction</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Transactional Email Provider</td><td>API/SMTP</td><td>MIME</td><td>Outbound</td><td>Report, tax-payment, payroll, and notification emails.</td></tr>
+<tr><td>Gmail / Microsoft 365</td><td>OAuth 2.0 API</td><td>MIME/JSON</td><td>Inbound</td><td>Email-ingestion agent pulls document attachments.</td></tr>
+<tr><td>Google Identity</td><td>OAuth 2.0 / OIDC</td><td>JWT</td><td>Inbound</td><td>Google sign-in for all user types.</td></tr>
+<tr><td>Document AI / OCR Service</td><td>API</td><td>PDF/Image -&gt; JSON</td><td>Bidirectional</td><td>Receipt OCR (receipts only); bank statements and invoices parsed structurally.</td></tr>
+<tr><td>WhatsApp Business API</td><td>API</td><td>JSON</td><td>Outbound</td><td>Future: notification channel behind feature flag.</td></tr>
+<tr><td>e-Factura / ANAF SPV</td><td>API</td><td>XML</td><td>Inbound</td><td>Future: structured invoice source.</td></tr>
+</tbody></table>
+<h2>8.9 UI &amp; Platform</h2>
+<p>Responsive web (bilingual Romanian + English) plus an installable PWA with camera capture and web push for representatives.</p>
+<h2>8.10 Technology Stack</h2>
+<p>Leaning Java / Spring Boot backend (open to alternatives); frontend to be confirmed in the architecture phase. EU-region managed cloud.</p>
+<h1>9. Out of Scope</h1>
+<p>The following are explicitly excluded:</p>
+<ul>
+  <li>WhatsApp notification channel (Future).</li>
+  <li>e-Factura / ANAF SPV integration (Future).</li>
+  <li>In-app two-way messaging between firm and representatives (Future).</li>
+  <li>Native mobile application (Future).</li>
+  <li>Per-employee payslip distribution and automated payslip/tax-document distribution (Future).</li>
+  <li>Payroll sync agent or direct payroll-system integration (Future).</li>
+  <li>Per-tenant template customization (Future).</li>
+  <li>Per-employee client-company access restriction (Future).</li>
+  <li>Tenant subscription billing/payments (provisioning only in MVP).</li>
+</ul>
+<h1>10. Assumptions &amp; Constraints</h1>
+<p>The following are assumed to be true:</p>
+<ul>
+  <li>Bank statements are provided as readable (machine-text) PDFs, not scanned images. Layouts vary by bank (BRD, BT, BCR, ING, etc.) and are handled by pluggable per-bank parsers. (Validated on a real BRD statement.)</li>
+  <li>Invoices are available as structured PDF or XML; only photographed receipts require OCR. (Validated on a real BT Leasing invoice — supplier, IBAN, total, due date.)</li>
+  <li>Payroll is computed in an external system and uploaded manually.</li>
+  <li>Fiscal declarations are ANAF smart PDFs carrying embedded declaration XML; amounts are read from named XML fields and validated against the declaration's own total. Multiple declaration types (D212, D300, D301, D112, ...) are supported via per-type XML mappers. (Validated on a real D212 — total to pay 10,520 RON = 800 income tax + 9,720 CASS.)</li>
+  <li>The trial-balance / profit-situation is a readable PDF whose parsed lines cross-check to stated totals. (Validated on a real Situație profit — class 6/7 sums matched the document to the cent.)</li>
+  <li>Standard Romanian payment deadlines apply unless overridden per company/month.</li>
+  <li>The product is operated as multi-tenant SaaS hosted in an EU region.</li>
+</ul>
+<h1>11. Open Questions</h1>
+<table><thead><tr><th>#</th><th>Question</th><th>Impact</th></tr></thead><tbody>
+<tr><td>OQ-1</td><td>Extraction validated on real samples (BRD bank statement, BT Leasing invoice, Situatie profit, ANAF D212). Remaining: collect a few more bank layouts and declaration types to build out the parser/mapper library.</td><td>Extraction risk for MOD-05 is largely retired; remaining work is adding per-bank parsers and per-declaration XML mappers.</td></tr>
+<tr><td>OQ-2</td><td>What is the acceptable receipt-OCR accuracy target and human-review rate?</td><td>Drives MOD-05 effort and the review workflow in MOD-04.</td></tr>
+<tr><td>OQ-3</td><td>What grounding and guardrails are acceptable for broader chatbot account-data Q&amp;A?</td><td>Determines MOD-13 scope, safety, and cost; subject of a spike.</td></tr>
+<tr><td>OQ-4</td><td>What is the exact statutory retention period for the firm's accounting records?</td><td>Defines the retention-aware erasure policy in MOD-12.</td></tr>
+<tr><td>OQ-5</td><td>What rules map an inbound email to a company for the email-ingestion agent?</td><td>Shapes MOD-04 auto-import vs triage behavior.</td></tr>
+<tr><td>OQ-6</td><td>What is the precise month-end concurrency profile?</td><td>Confirms performance sizing and queue capacity.</td></tr>
+</tbody></table>
+<h1>12. Glossary</h1>
+<p>Key terms used in this document:</p>
+<table><thead><tr><th>Term</th><th>Definition</th></tr></thead><tbody>
+<tr><td>Tenant</td><td>An accounting firm that subscribes to the platform; the unit of data isolation.</td></tr>
+<tr><td>Representative</td><td>A user belonging to a client company who uploads documents and views their company's data.</td></tr>
+<tr><td>Client Company / Legal Entity (persoana juridica)</td><td>A business whose accounting the firm manages.</td></tr>
+<tr><td>Treasury Account</td><td>The bank/treasury account where a specific tax must be paid; varies by tax type and locality.</td></tr>
+<tr><td>Trial Balance (fisa de balanta)</td><td>An accounting summary uploaded monthly, used to generate the financial report.</td></tr>
+<tr><td>Fiscal Declaration</td><td>An ANAF tax declaration (e.g. D112, D300) from which amounts owed to the state are extracted.</td></tr>
+<tr><td>Reconciliation</td><td>Matching uploaded invoices/receipts against bank-statement transactions to detect missing documents.</td></tr>
+<tr><td>State de plata</td><td>The monthly payroll document for a client company.</td></tr>
+<tr><td>Verificat / Netrimis</td><td>Status markers: amounts verified by the responsible person; email not yet sent.</td></tr>
+<tr><td>PWA</td><td>Progressive Web App: an installable, mobile-friendly web application with offline and camera capabilities.</td></tr>
+</tbody></table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+
+</body>
+</html>

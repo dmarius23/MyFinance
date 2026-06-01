@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyFinance Accounting Portal — Solution Architecture</title>
+<style>
+:root{--blue:#1F4E79;--mid:#2E75B6;--light:#D6E4F0;--grey:#f5f7fa;--border:#d8dee6;--text:#1f2933;}
+*{box-sizing:border-box;}
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text);line-height:1.55;max-width:980px;margin:0 auto;padding:48px 28px 96px;background:#fff;}
+h1{color:var(--blue);font-size:30px;border-bottom:3px solid var(--blue);padding-bottom:10px;margin-top:8px;}
+h2{color:var(--blue);font-size:22px;margin-top:38px;border-bottom:1px solid var(--border);padding-bottom:6px;}
+h3{color:var(--mid);font-size:17px;margin-top:24px;}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top;}
+th{background:var(--light);color:var(--blue);}
+tr:nth-child(even) td{background:var(--grey);}
+code{background:var(--grey);padding:1px 5px;border-radius:4px;font-size:13px;}
+pre.mermaid{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;margin:18px 0;overflow-x:auto;}
+hr{border:none;border-top:1px solid var(--border);margin:28px 0;}
+ul{padding-left:22px;}
+strong{color:#10243e;}
+@media print{body{padding:0;} h2{page-break-after:avoid;} table,pre{page-break-inside:avoid;}}
+</style></head>
+<body>
+<h1 id="myfinance-accounting-portal--solution-architecture">MyFinance Accounting Portal — Solution Architecture</h1>
+<p><strong>Client:</strong> Accounting Firm (multi-tenant SaaS) · <strong>Version:</strong> 1.0 · <strong>Status:</strong> Draft · <strong>Date:</strong> 31 May 2026</p>
+<hr />
+<h2 id="1-executive-summary">1. Executive Summary</h2>
+<p>MyFinance is a multi-tenant SaaS portal connecting accounting firms with the client companies whose accounting they manage. It centralizes document exchange, reconciliation, financial reporting, fiscal-declaration handling, payroll distribution, notifications, tasks, and a client-facing assistant.</p>
+<p>The architecture is a <strong>modular monolith</strong> (Java / Spring Boot) exposing a REST API to a <strong>React PWA</strong>, with <strong>asynchronous workers</strong> handling the heavy, bursty work — document extraction, reconciliation, and outbound email/notifications. Identity, data, and files are consolidated on <strong>Supabase</strong> (managed <strong>PostgreSQL</strong> with <code>tenant_id</code> + row-level security, <strong>Supabase Auth</strong>, <strong>Supabase Storage</strong>, and <strong>pgvector</strong>), with <strong>Redis</strong> for caching and the job queue. Receipt photos are extracted with <strong>Claude vision</strong> (via AWS Bedrock, EU region); bank-statement and invoice PDFs are parsed structurally in-process (Apache PDFBox + tabula-java). The backend and async worker run <strong>always-on on a low-cost EU host (Hetzner)</strong> — deliberately not serverless, because the workers are long-running — the React frontend is served from cheap static hosting (Vercel/Cloudflare), and everything sits in the <strong>EU region</strong> for GDPR data residency.</p>
+<p>The design deliberately favors low build and run cost for a one-team, medium-scale MVP, while keeping clean module boundaries (mapped to MOD-01…14) so the system can be decomposed later if scale demands it.</p>
+<h2 id="2-goals--constraints">2. Goals &amp; Constraints</h2>
+<p><strong>Goals</strong></p>
+<ul>
+<li>Enable client-driven document upload with real-time missing-document detection (the core differentiator).</li>
+<li>Automatically extract amounts owed to the state from fiscal declarations and send templated payment emails.</li>
+<li>Give employees a single monthly control-tower dashboard across all client companies.</li>
+<li>Operate as a secure, auditable, GDPR-compliant multi-tenant SaaS sellable to many firms.</li>
+<li>Keep MVP build and run cost low; ship a PoC that de-risks extraction first.</li>
+</ul>
+<p><strong>Constraints</strong></p>
+<ul>
+<li>Backend Java / Spring Boot on Hetzner (cheap always-on EU host); Supabase for Auth + Postgres + Storage; frontend React on Vercel/Cloudflare.</li>
+<li>EU data residency; business-hours availability target for MVP. (Supabase is EU-hosted on AWS Frankfurt but US-incorporated — Schrems II exposure accepted for MVP, EU-sovereign fallback noted.)</li>
+<li>Medium scale: ~10–30 tenants, ~1–3k companies, ~1–3k representatives, with month-/quarter-end upload bursts.</li>
+<li>Multi-tenant from day one (shared DB + row-level security); provisioning only (no billing) in MVP.</li>
+<li>Bilingual UI (Romanian + English).</li>
+<li>Manual/minimal data migration (spreadsheet import; no full historical migration).</li>
+</ul>
+<h2 id="3-considerations-checklist">3. Considerations Checklist</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Concern</th>
+<th>Applicable</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Architectural style &amp; patterns</td>
+<td>Yes</td>
+<td>Modular monolith + async workers</td>
+</tr>
+<tr class="even">
+<td>Component / module decomposition</td>
+<td>Yes</td>
+<td>Mapped to MOD-01…14</td>
+</tr>
+<tr class="odd">
+<td>Bounded contexts (DDD)</td>
+<td>Deferred</td>
+<td>Module boundaries now; full DDD only if split later</td>
+</tr>
+<tr class="even">
+<td>API design &amp; versioning</td>
+<td>Yes</td>
+<td>REST, URI-versioned</td>
+</tr>
+<tr class="odd">
+<td>Data model</td>
+<td>Yes</td>
+<td>Relational, PostgreSQL</td>
+</tr>
+<tr class="even">
+<td>Data classification &amp; retention</td>
+<td>Yes</td>
+<td>PII + statutory accounting-records retention</td>
+</tr>
+<tr class="odd">
+<td>Data migration / coexistence</td>
+<td>Deferred</td>
+<td>Manual/minimal import in MVP</td>
+</tr>
+<tr class="even">
+<td>Integration architecture</td>
+<td>Yes</td>
+<td>Email, Gmail/M365, Google OAuth, Document-AI</td>
+</tr>
+<tr class="odd">
+<td>Event-driven / messaging</td>
+<td>Yes (light)</td>
+<td>Job queue for extraction/email, not full event sourcing</td>
+</tr>
+<tr class="even">
+<td>Deployment model &amp; environments</td>
+<td>Yes</td>
+<td>Dev/Staging/Prod, EU cloud</td>
+</tr>
+<tr class="odd">
+<td>Network topology</td>
+<td>Yes</td>
+<td>Public edge / private app / data tiers</td>
+</tr>
+<tr class="even">
+<td>Infrastructure as Code</td>
+<td>Yes</td>
+<td>Terraform</td>
+</tr>
+<tr class="odd">
+<td>Release strategy</td>
+<td>Yes</td>
+<td>Rolling + feature flags</td>
+</tr>
+<tr class="even">
+<td>CI/CD pipeline</td>
+<td>Yes</td>
+<td>Build/test/scan/deploy</td>
+</tr>
+<tr class="odd">
+<td>Multi-region / DR</td>
+<td>No</td>
+<td>Single EU region acceptable for MVP; backups + PITR</td>
+</tr>
+<tr class="even">
+<td>Authentication</td>
+<td>Yes</td>
+<td>Email+password, Google OAuth, TOTP MFA</td>
+</tr>
+<tr class="odd">
+<td>Authorization</td>
+<td>Yes</td>
+<td>RBAC + tenant RLS</td>
+</tr>
+<tr class="even">
+<td>Data protection (encryption, PII)</td>
+<td>Yes</td>
+<td>TLS, encryption at rest, field-level for sensitive</td>
+</tr>
+<tr class="odd">
+<td>API security</td>
+<td>Yes</td>
+<td>Rate limiting, validation, CORS</td>
+</tr>
+<tr class="even">
+<td>Compliance (GDPR)</td>
+<td>Yes</td>
+<td>EU residency, DSR, retention-aware erasure</td>
+</tr>
+<tr class="odd">
+<td>Audit logging</td>
+<td>Yes</td>
+<td>Immutable audit log incl. automated actions</td>
+</tr>
+<tr class="even">
+<td>Secrets management</td>
+<td>Yes</td>
+<td>Managed secrets store</td>
+</tr>
+<tr class="odd">
+<td>Network security</td>
+<td>Yes</td>
+<td>WAF, private DB, egress control</td>
+</tr>
+<tr class="even">
+<td>Session management</td>
+<td>Yes</td>
+<td>Short-lived tokens + refresh</td>
+</tr>
+<tr class="odd">
+<td>Security headers</td>
+<td>Yes</td>
+<td>HSTS/CSP/etc. on web</td>
+</tr>
+<tr class="even">
+<td>Supply-chain security</td>
+<td>Deferred</td>
+<td>SCA/secret scanning in CI; SBOM later</td>
+</tr>
+<tr class="odd">
+<td>AppSec pipeline</td>
+<td>Yes (light)</td>
+<td>SAST/SCA/secret scan in CI</td>
+</tr>
+<tr class="even">
+<td>Threat model (STRIDE)</td>
+<td>Yes</td>
+<td>Sensitive data + public exposure</td>
+</tr>
+<tr class="odd">
+<td>Privacy by design / residency</td>
+<td>Yes</td>
+<td>EU residency, data minimization</td>
+</tr>
+<tr class="even">
+<td>Incident response</td>
+<td>Deferred</td>
+<td>Basic runbooks for MVP</td>
+</tr>
+<tr class="odd">
+<td>Performance &amp; SLOs</td>
+<td>Yes</td>
+<td>Interactive UX; async extraction</td>
+</tr>
+<tr class="even">
+<td>Caching strategy</td>
+<td>Yes</td>
+<td>Redis + CDN</td>
+</tr>
+<tr class="odd">
+<td>Database performance</td>
+<td>Yes</td>
+<td>Indexes, tenant-aware queries</td>
+</tr>
+<tr class="even">
+<td>Async processing &amp; backpressure</td>
+<td>Yes</td>
+<td>Queue with retries/DLQ</td>
+</tr>
+<tr class="odd">
+<td>Rate limiting / throttling</td>
+<td>Yes</td>
+<td>Per-tenant/per-user</td>
+</tr>
+<tr class="even">
+<td>Load/stress/soak testing</td>
+<td>Deferred</td>
+<td>Targeted load test before launch</td>
+</tr>
+<tr class="odd">
+<td>Scalability strategy</td>
+<td>Yes</td>
+<td>Stateless app + worker scaling</td>
+</tr>
+<tr class="even">
+<td>Sharding / partitioning</td>
+<td>No</td>
+<td>Medium scale; not needed</td>
+</tr>
+<tr class="odd">
+<td>Read/write split</td>
+<td>Deferred</td>
+<td>Add read replica when reporting load grows</td>
+</tr>
+<tr class="even">
+<td>Consistency model</td>
+<td>Yes</td>
+<td>Strong (single primary)</td>
+</tr>
+<tr class="odd">
+<td>Capacity planning</td>
+<td>Yes</td>
+<td>Sized for month-end bursts</td>
+</tr>
+<tr class="even">
+<td>Geographic distribution / edge</td>
+<td>No</td>
+<td>Single EU region</td>
+</tr>
+<tr class="odd">
+<td>Reliability &amp; resilience</td>
+<td>Yes</td>
+<td>Retries, circuit breakers, graceful degradation</td>
+</tr>
+<tr class="even">
+<td>RTO/RPO per component</td>
+<td>Yes</td>
+<td>Defined per data store</td>
+</tr>
+<tr class="odd">
+<td>Retry / circuit breaker</td>
+<td>Yes</td>
+<td>On external calls (OCR, email, Gmail/M365)</td>
+</tr>
+<tr class="even">
+<td>Graceful degradation</td>
+<td>Yes</td>
+<td>Accept-and-queue when extraction down</td>
+</tr>
+<tr class="odd">
+<td>Chaos testing</td>
+<td>No</td>
+<td>Premature for MVP</td>
+</tr>
+<tr class="even">
+<td>Health checks</td>
+<td>Yes</td>
+<td>Liveness/readiness</td>
+</tr>
+<tr class="odd">
+<td>Observability — logging</td>
+<td>Yes</td>
+<td>Structured + correlation IDs</td>
+</tr>
+<tr class="even">
+<td>Observability — metrics</td>
+<td>Yes</td>
+<td>RED/USE + business metrics</td>
+</tr>
+<tr class="odd">
+<td>Distributed tracing</td>
+<td>Deferred</td>
+<td>Single deployable; add if split</td>
+</tr>
+<tr class="even">
+<td>Dashboards &amp; alerting</td>
+<td>Yes</td>
+<td>Error + delivery + extraction dashboards</td>
+</tr>
+<tr class="odd">
+<td>On-call &amp; runbooks</td>
+<td>Deferred</td>
+<td>Lightweight for MVP</td>
+</tr>
+<tr class="even">
+<td>Maintainability &amp; code org</td>
+<td>Yes</td>
+<td>Modular packages, clear boundaries</td>
+</tr>
+<tr class="odd">
+<td>Testing strategy</td>
+<td>Yes</td>
+<td>Unit/integration/contract/E2E</td>
+</tr>
+<tr class="even">
+<td>API versioning &amp; deprecation</td>
+<td>Yes</td>
+<td>URI versioning</td>
+</tr>
+<tr class="odd">
+<td>Architecture fitness functions</td>
+<td>No</td>
+<td>Premature for MVP</td>
+</tr>
+<tr class="even">
+<td>Cost / FinOps</td>
+<td>Yes</td>
+<td>Low-cost EU stack, per-tenant cost awareness</td>
+</tr>
+<tr class="odd">
+<td>Internationalization (i18n)</td>
+<td>Yes</td>
+<td>Romanian + English</td>
+</tr>
+<tr class="even">
+<td>Localization workflow</td>
+<td>Yes</td>
+<td>Message catalogs</td>
+</tr>
+<tr class="odd">
+<td>Time zones &amp; currency</td>
+<td>Yes</td>
+<td>UTC storage; RON + foreign currency</td>
+</tr>
+<tr class="even">
+<td>Accessibility (WCAG)</td>
+<td>Yes (target)</td>
+<td>WCAG 2.2 AA target for client-facing UI</td>
+</tr>
+<tr class="odd">
+<td>Multi-tenancy / isolation</td>
+<td>Yes</td>
+<td>Pool model: shared DB + RLS</td>
+</tr>
+<tr class="even">
+<td>AI/ML model lifecycle</td>
+<td>Yes</td>
+<td>Chatbot (RAG/LLM) + OCR service</td>
+</tr>
+<tr class="odd">
+<td>NFR traceability</td>
+<td>Yes</td>
+<td>Section 18</td>
+</tr>
+<tr class="even">
+<td>ADRs</td>
+<td>Yes</td>
+<td>Section 19</td>
+</tr>
+<tr class="odd">
+<td>Technical risks</td>
+<td>Yes</td>
+<td>Section 20</td>
+</tr>
+<tr class="even">
+<td>Phasing (PoC/MVP/Future)</td>
+<td>Yes</td>
+<td>Section 17</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-architectural-style--patterns">4. Architectural Style &amp; Patterns</h2>
+<p><strong>Primary style:</strong> Modular monolith with separate asynchronous workers. A single Spring Boot deployable hosts all domain modules behind a REST API; a worker process consumes a job queue for extraction, reconciliation, report generation, and outbound messaging.</p>
+<p><strong>Rationale:</strong> One team, medium scale, and tight coupling around a shared monthly accounting cycle make a modular monolith dramatically cheaper to build, test, deploy, and operate than microservices, while clean module boundaries keep future decomposition open. Only the genuinely bursty/slow work is offloaded to async workers.</p>
+<p><strong>Internal architecture:</strong> Layered / hexagonal per module — domain logic isolated behind ports, with adapters for persistence, object storage, OCR, email, and identity providers. This keeps the OCR/Document-AI provider and the email/Gmail integrations swappable.</p>
+<p><strong>Patterns applied:</strong> Repository, ports-and-adapters (anti-corruption layer around external services), background-job queue with idempotent consumers, outbox-style reliable email/notification dispatch, feature flags for tenant capabilities, and an extraction "strategy" interface selecting structured-parse vs. OCR per document type.</p>
+<h2 id="5-technology-stack">5. Technology Stack</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Layer</th>
+<th>Technology</th>
+<th>Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Backend</td>
+<td>Java 21, Spring Boot 3 (Web, Security, Data JPA, Validation)</td>
+<td>Team preference; mature, productive, strong ecosystem</td>
+</tr>
+<tr class="even">
+<td>Async workers</td>
+<td>Spring + queue consumers (same codebase, separate process)</td>
+<td>Reuse domain code; isolate heavy/bursty work</td>
+</tr>
+<tr class="odd">
+<td>Job queue</td>
+<td>Redis (or a managed queue)</td>
+<td>Simple, cheap; backs extraction/email jobs with retries/DLQ</td>
+</tr>
+<tr class="even">
+<td>Database</td>
+<td>Supabase PostgreSQL (EU/Frankfurt) with Row-Level Security + pgvector</td>
+<td>Managed Postgres; RLS hardens tenant isolation; pgvector for chatbot; consolidated with Auth/Storage</td>
+</tr>
+<tr class="odd">
+<td>Authentication</td>
+<td>Supabase Auth (email+password, Google OAuth/OIDC, TOTP MFA)</td>
+<td>Covers all auth requirements out of the box (TOTP free); Spring validates Supabase JWTs</td>
+</tr>
+<tr class="even">
+<td>Cache / queue</td>
+<td>Redis (on Hetzner) or Postgres pgmq</td>
+<td>Caching, rate-limit counters, background-job queue</td>
+</tr>
+<tr class="odd">
+<td>Object storage</td>
+<td>Supabase Storage (S3-compatible)</td>
+<td>Document and generated-PDF storage, consolidated with DB/Auth</td>
+</tr>
+<tr class="even">
+<td>Frontend</td>
+<td>React + Vite (SPA), installable PWA</td>
+<td>Simplest standard path; cheap static hosting; camera + web push</td>
+</tr>
+<tr class="odd">
+<td>PDF parsing</td>
+<td>Apache PDFBox (readable-PDF text), tabula-java (bank-statement &amp; balance tables), JAXB/Jackson-XML for <strong>embedded ANAF declaration XML</strong> (e.g. <code>d212.xml</code>) and e-Factura. Per-bank parsers behind one BankStatementParser port; per-declaration-type XML mappers behind one extractor port. Avoid iText (AGPL).</td>
+<td>Validated on real BRD statement, BT Leasing invoice, Situație profit, and ANAF D212 — all readable PDFs / embedded XML, parsed in-process with no per-page cost. Structured extracts self-cross-check (declaration component taxes sum to total; balance lines sum to stated totals). OCR only for photo receipts.</td>
+</tr>
+<tr class="even">
+<td>Receipt OCR</td>
+<td>Claude vision via AWS Bedrock (EU region) — structured JSON extraction; self-hosted PaddleOCR as EU-sovereign fallback</td>
+<td>Only photo receipts need OCR; behind a swappable adapter; benchmark in PoC; amounts always re-verified in reconciliation</td>
+</tr>
+<tr class="odd">
+<td>Email (outbound)</td>
+<td>Amazon SES (EU region) via Spring JavaMailSender; Thymeleaf templates; SPF/DKIM/DMARC</td>
+<td>Cheapest with solid deliverability; EU residency</td>
+</tr>
+<tr class="even">
+<td>Email ingestion</td>
+<td>Gmail API / Microsoft Graph (OAuth 2.0)</td>
+<td>Email-agent pulls document attachments</td>
+</tr>
+<tr class="odd">
+<td>Notifications</td>
+<td>In-app via Supabase Realtime; web push via Web Push API + VAPID (nl.martijndwars:web-push); email via SES</td>
+<td>Cheap, leverages Supabase; WhatsApp (Future) behind flag</td>
+</tr>
+<tr class="even">
+<td>AI assistant</td>
+<td>Claude (LLM + vision) via managed API + pgvector retrieval over KB + scoped account data</td>
+<td>Grounded representative chatbot; same vendor as receipt OCR</td>
+</tr>
+<tr class="odd">
+<td>IaC</td>
+<td>Terraform</td>
+<td>Reproducible EU infrastructure</td>
+</tr>
+<tr class="even">
+<td>CI/CD</td>
+<td>GitHub Actions (build, test, SAST/SCA/secret scan, deploy)</td>
+<td>Standard, low cost</td>
+</tr>
+<tr class="odd">
+<td>Observability</td>
+<td>Structured logging + metrics + dashboards/alerting (provider-native or Grafana stack)</td>
+<td>Production operability</td>
+</tr>
+<tr class="even">
+<td>Hosting</td>
+<td>Frontend on Vercel/Cloudflare Pages; Java/Spring <strong>backend + worker always-on on Hetzner</strong> (cheap EU); Supabase (managed) for DB/Auth/Storage</td>
+<td>Cost-optimized, EU residency; always-on host required for long-running workers</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-system-architecture--module-mapping">6. System Architecture &amp; Module Mapping</h2>
+<p>The system is one backend with internal modules, a React PWA, an async worker, and a small set of external services.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Modules</th>
+<th>Responsibility</th>
+<th>Interfaces</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Web API (Spring Boot)</td>
+<td>MOD-01…13</td>
+<td>REST API, auth, business logic, orchestration</td>
+<td>HTTPS/REST to frontend; DB; queue; object storage</td>
+</tr>
+<tr class="even">
+<td>React PWA</td>
+<td>MOD-02, 04, 06, 07, 08, 11, 13, 14</td>
+<td>All user UIs; camera capture; web push</td>
+<td>REST to Web API</td>
+</tr>
+<tr class="odd">
+<td>Extraction Worker</td>
+<td>MOD-04, 05, 06, 07</td>
+<td>OCR/parse documents, reconcile, generate reports</td>
+<td>Queue consumer; OCR API; object storage; DB</td>
+</tr>
+<tr class="even">
+<td>Notification Worker</td>
+<td>MOD-09</td>
+<td>Send email + in-app; scheduled rules; delivery tracking</td>
+<td>Queue consumer; email provider; DB</td>
+</tr>
+<tr class="odd">
+<td>Email-Ingestion Agent</td>
+<td>MOD-04</td>
+<td>Poll Gmail/M365, import attachments, triage</td>
+<td>Gmail/Graph API; queue; object storage</td>
+</tr>
+<tr class="even">
+<td>Identity &amp; Access</td>
+<td>MOD-01, 02</td>
+<td>Tenancy, roles, auth, MFA, OAuth, RLS context</td>
+<td>DB; Google OIDC</td>
+</tr>
+<tr class="odd">
+<td>Knowledge/Chatbot service</td>
+<td>MOD-13</td>
+<td>Retrieval-grounded Q&amp;A, KB management</td>
+<td>LLM API; pgvector; DB (scoped)</td>
+</tr>
+<tr class="even">
+<td>PostgreSQL</td>
+<td>all</td>
+<td>System of record (tenant-scoped via RLS)</td>
+<td>SQL</td>
+</tr>
+<tr class="odd">
+<td>Object Storage</td>
+<td>MOD-04…08</td>
+<td>Documents, generated PDFs</td>
+<td>S3 API</td>
+</tr>
+<tr class="even">
+<td>Redis</td>
+<td>cross-cutting</td>
+<td>Cache, sessions, queue, rate limits</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="61-c4--system-context">6.1 C4 — System Context</h3>
+<pre class="mermaid">flowchart TB
+  rep([Company Representative])
+  emp([Accounting Employee])
+  admin([Tenant Admin])
+  super([Platform Super-Admin])
+  sys[[MyFinance Accounting Portal]]
+  email[(Transactional Email)]
+  gmail[(Gmail / Microsoft 365)]
+  google[(Google Identity / OAuth)]
+  ocr[(Managed Document-AI / OCR)]
+  llm[(LLM API)]
+  rep --> sys
+  emp --> sys
+  admin --> sys
+  super --> sys
+  sys --> email
+  sys --> gmail
+  sys --> google
+  sys --> ocr
+  sys --> llm
+</pre>
+<h3 id="62-c4--containers">6.2 C4 — Containers</h3>
+<pre class="mermaid">flowchart TB
+  subgraph Client
+    pwa[React PWA / Web]
+  end
+  subgraph Backend[Hetzner EU - always-on]
+    api[Spring Boot Web API]
+    exw[Extraction Worker]
+    ntw[Notification Worker]
+    agent[Email-Ingestion Agent]
+    redis[(Redis: cache/queue)]
+  end
+  subgraph Supabase[Supabase EU - Frankfurt]
+    db[(Postgres + RLS + pgvector)]
+    auth[(Supabase Auth)]
+    obj[(Supabase Storage)]
+  end
+  ocr[(Document-AI/OCR)]
+  email[(Email Provider)]
+  gmail[(Gmail/M365)]
+  llm[(LLM API)]
+  pwa -->|REST/HTTPS| api
+  pwa -->|sign-in| auth
+  api -->|validate JWT| auth
+  api --> db
+  api --> obj
+  api --> redis
+  api -->|enqueue| redis
+  redis --> exw
+  redis --> ntw
+  exw --> ocr
+  exw --> db
+  exw --> obj
+  ntw --> email
+  ntw --> db
+  agent --> gmail
+  agent --> redis
+  api --> llm
+</pre>
+<h2 id="7-data-model">7. Data Model</h2>
+<p>Core entities (tenant-scoped). Every table carries <code>tenant_id</code> and is protected by row-level security.</p>
+<pre class="mermaid">erDiagram
+  TENANT ||--o{ USER : has
+  TENANT ||--o{ COMPANY : has
+  COMPANY ||--o{ REPRESENTATIVE : has
+  USER }o--|| ROLE : holds
+  COMPANY ||--o{ TREASURY_ACCOUNT : has
+  COMPANY ||--o{ COMPANY_EMPLOYEE : has
+  COMPANY ||--o{ DOCUMENT : has
+  DOCUMENT ||--o{ BANK_TRANSACTION : yields
+  DOCUMENT ||--o{ EXTRACTION_JOB : processed_by
+  COMPANY ||--o{ PERIOD_STATUS : tracks
+  COMPANY ||--o{ TRIAL_BALANCE : has
+  TRIAL_BALANCE ||--|| FINANCIAL_REPORT : generates
+  COMPANY ||--o{ FISCAL_DECLARATION : has
+  FISCAL_DECLARATION ||--o{ TAX_LINE : contains
+  COMPANY ||--o{ MONTHLY_TAX_SUMMARY : has
+  COMPANY ||--o{ PAYROLL_DOCUMENT : has
+  COMPANY ||--o{ DOCUMENT_REQUEST : has
+  TENANT ||--o{ NOTIFICATION : sends
+  TENANT ||--o{ EMAIL_LOG : records
+  TENANT ||--o{ AUDIT_ENTRY : records
+  COMPANY ||--o{ TASK : referenced_by
+  TENANT ||--o{ KB_ARTICLE : has
+</pre>
+<p>Key entities: Tenant, User (role, mfa), Company (type, CUI, VAT status, tax regime, responsible employee), Representative (one company), TreasuryAccount (tax type + locality + IBAN), Document (type, period, source, file ref, status), BankTransaction (date, amount, direction, partner name, partner IBAN, description, matchedDocumentId, <strong>requiresDocument</strong>, <strong>decisionSource</strong> = SYSTEM_RULE/LEARNED_RULE/ACCOUNTANT_SET, <strong>category</strong>, overrideReason), TransactionRule (per-company learned rule: (partner IBAN, normalized description) → requiresDocument, created from accountant decisions), ExtractionJob (confidence, review state), PeriodStatus (per company/month), TrialBalance, FinancialReport, FiscalDeclaration + TaxLine, MonthlyTaxSummary (amounts per tax, deadline, verification + email status), PayrollDocument, DocumentRequest (what was asked of a company + status), Notification, EmailLog (what was emailed, to whom, when, delivery status), AuditEntry, Task, KBArticle (with embedding for retrieval).</p>
+<h2 id="8-data-architecture--classification--retention">8. Data Architecture — Classification &amp; Retention</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Class</th>
+<th>Examples</th>
+<th>Controls</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Public</td>
+<td>KB articles (published)</td>
+<td>Standard access control</td>
+</tr>
+<tr class="even">
+<td>Internal</td>
+<td>Tasks, dashboards, period status</td>
+<td>Tenant-scoped RBAC</td>
+</tr>
+<tr class="odd">
+<td>Confidential</td>
+<td>Financial reports, tax amounts, bank transactions</td>
+<td>RBAC + encryption at rest + audit</td>
+</tr>
+<tr class="even">
+<td>Sensitive PII</td>
+<td>Identifiers (CUI/CNP), payroll/salary, contact data</td>
+<td>Field-level encryption, strict scoping, masked in logs</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Retention:</strong> Legally-required accounting records are retained for the statutory period (to be confirmed with the firm; Romania commonly multi-year). Retention-aware erasure on request: revoke access and anonymize non-required PII immediately, retain mandated records for the window, full purge after. Audit log retained per policy and immutable. Storage: OLTP in PostgreSQL; documents/PDFs in object storage; KB embeddings in pgvector.</p>
+<h2 id="9-api--integration-design">9. API &amp; Integration Design</h2>
+<p>REST over HTTPS, JSON, <strong>URI-versioned</strong> (<code>/api/v1</code>). OpenAPI is the contract source of truth with a breaking-change CI gate. Synchronous request/response for interactive operations; <strong>asynchronous</strong> (enqueue + status polling/web push) for extraction, report generation, and bulk email. Anti-corruption adapters wrap every external service.</p>
+<table>
+<thead>
+<tr class="header">
+<th>System</th>
+<th>Protocol</th>
+<th>Format</th>
+<th>Direction</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Amazon SES (EU)</td>
+<td>API/SMTP</td>
+<td>MIME</td>
+<td>Outbound</td>
+<td>Reports, tax/payroll emails, notifications; SPF/DKIM/DMARC</td>
+</tr>
+<tr class="even">
+<td>Gmail / Microsoft 365</td>
+<td>OAuth 2.0 API</td>
+<td>MIME/JSON</td>
+<td>Inbound</td>
+<td>Email-ingestion agent</td>
+</tr>
+<tr class="odd">
+<td>Google Identity (via Supabase Auth)</td>
+<td>OAuth 2.0 / OIDC</td>
+<td>JWT</td>
+<td>Inbound</td>
+<td>Sign-in for all user types</td>
+</tr>
+<tr class="even">
+<td>Claude vision (AWS Bedrock, EU)</td>
+<td>HTTPS API</td>
+<td>Image → JSON</td>
+<td>Bidirectional</td>
+<td>Receipt OCR only; PaddleOCR self-hosted fallback</td>
+</tr>
+<tr class="odd">
+<td>WhatsApp Business API</td>
+<td>HTTPS API</td>
+<td>JSON</td>
+<td>Outbound</td>
+<td>Future (feature-flagged)</td>
+</tr>
+<tr class="even">
+<td>e-Factura / ANAF SPV</td>
+<td>HTTPS API</td>
+<td>XML</td>
+<td>Inbound</td>
+<td>Future</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-asynchronous-processing">10. Asynchronous Processing</h2>
+<p>A Redis-backed job queue decouples slow/bursty work. Jobs: <code>extract-document</code>, <code>reconcile-period</code>, <code>generate-report</code>, <code>send-email</code>, <code>run-notification-rule</code>, <code>ingest-mailbox</code>. Consumers are <strong>idempotent</strong> (keyed by document/period/message id), with <strong>exponential backoff + DLQ</strong> for poison messages. Outbound email/notification uses an outbox pattern so a crash never double-sends or loses a message. Backpressure: queue-depth limits + accept-and-queue uploads when extraction is saturated (month-end bursts).</p>
+<h2 id="11-key-process-flows">11. Key Process Flows</h2>
+<p><strong>Document intake → reconciliation</strong></p>
+<pre class="mermaid">sequenceDiagram
+  participant Rep
+  participant API
+  participant Store as Object Storage
+  participant Q as Queue
+  participant W as Extraction Worker
+  participant OCR
+  Rep->>API: Upload bank statement + receipts/invoices
+  API->>Store: Store files
+  API->>Q: enqueue extract-document
+  Q->>W: process
+  W->>OCR: OCR receipt photos (receipts only)
+  W->>W: Parse bank PDF + invoice XML/PDF
+  W->>API: Store transactions + extracted data
+  W->>W: Classify each txn: needs document? (base rules + learned rules)
+  W->>API: Reconcile, compute missing docs
+  API-->>Rep: Real-time completeness (web push)
+</pre>
+<p><strong>Transaction document-requirement classification (MOD-04) — adaptive rules, no LLM.</strong> Each parsed bank transaction carries a <code>requiresDocument</code> decision plus a <code>decisionSource</code> of <strong>SYSTEM_RULE</strong>, <strong>LEARNED_RULE</strong>, or <strong>ACCOUNTANT_SET</strong>. A deterministic <strong>base rule engine</strong> resolves the unambiguous majority using structured signals: direction (incoming/credit = income → none); counterparty IBAN prefix (<code>…TREZ…</code> = Treasury → covered by declaration; the company's own IBANs → internal transfer → none); description keywords (<code>salariu</code> → payroll; <code>leasing</code>/<code>rată</code> → leasing invoice; <code>comision</code>/<code>taxă</code> → bank fee); otherwise a supplier debit → invoice required. The system is <strong>adaptive</strong>: when an accountant marks a transaction "no document needed" (or the reverse), it stores a <strong>learned rule</strong> for that company keyed on <code>(partner IBAN, normalized description)</code>; in later periods any transaction matching that signature is auto-classified the same way (decisionSource = LEARNED_RULE), so the firm is never asked twice. An <strong>accountant override</strong> always wins, is audited, and creates/updates the learned rule. Only <code>requiresDocument &amp;&amp; unmatched</code> transactions drive the missing-documents list and reminder emails. Validated on a real BRD statement: of 6 transactions only the supplier and leasing debits genuinely required a document. No LLM is used; classification is fully deterministic and explainable. Consistent with the golden rule — no money figure auto-drives an email without the accountant gate.</p>
+<p><strong>Fiscal declaration → state-payment email</strong></p>
+<pre class="mermaid">sequenceDiagram
+  participant Emp as Employee
+  participant API
+  participant W as Extraction Worker
+  participant N as Notification Worker
+  Emp->>API: Upload declaration PDFs (per tax)
+  API->>W: extract amounts/deadline
+  W->>API: Populate monthly tax summary
+  Emp->>API: Review and mark Verified
+  API->>API: Validate treasury account per tax
+  Emp->>API: Send payment email
+  API->>N: enqueue send-email (amounts+deadline+accounts)
+  N-->>Emp: Sent status recorded
+</pre>
+<p><strong>Per-company monthly status</strong></p>
+<pre class="mermaid">stateDiagram-v2
+  [*] --> Empty
+  Empty --> Partial: documents uploaded
+  Partial --> Complete: all required docs matched
+  Complete --> Reported: financial report sent
+  Reported --> Sent: tax-payment email sent
+  Sent --> [*]
+  Partial --> Empty: period reopened
+</pre>
+<h2 id="12-deployment-architecture">12. Deployment Architecture</h2>
+<p><strong>Model:</strong> Multi-tenant SaaS, single EU region. Cost-optimized split hosting.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Environment</th>
+<th>Purpose</th>
+<th>Data</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dev</td>
+<td>Development/integration</td>
+<td>Synthetic</td>
+</tr>
+<tr class="even">
+<td>Staging</td>
+<td>Pre-prod validation, UAT</td>
+<td>Anonymized/synthetic</td>
+</tr>
+<tr class="odd">
+<td>Production</td>
+<td>Live</td>
+<td>Real (EU residency)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Topology:</strong> Public edge (CDN + WAF) → React frontend on static hosting (Vercel/Cloudflare); <strong>Java/Spring API + async worker always-on on a Hetzner EU host</strong>; <strong>Supabase (EU/Frankfurt)</strong> provides managed PostgreSQL (+ Auth, Storage, pgvector); Redis on Hetzner. Documents served via signed URLs. TLS terminated at the edge; certificates auto-managed. The backend is intentionally not serverless — the extraction/email-ingestion/notification workers are long-running and stateful, which serverless platforms (e.g. Vercel functions) cannot host within their execution limits.</p>
+<p><strong>IaC:</strong> Terraform for Hetzner infra; Supabase managed. <strong>CI/CD:</strong> GitHub Actions — build → unit/integration tests → SAST/SCA/secret scan → deploy; rolling deploys with feature flags. <strong>DR:</strong> Supabase automated backups + point-in-time recovery for PostgreSQL; object storage versioning; documented restore procedure.</p>
+<pre class="mermaid">flowchart TB
+  subgraph Edge
+    cdn[CDN + WAF]
+    fe[React PWA static hosting]
+  end
+  subgraph App[Hetzner App Tier - EU - always-on]
+    api[Web API]
+    exw[Extraction Worker]
+    ntw[Notification Worker]
+    agent[Email Agent]
+    redis[(Redis)]
+  end
+  subgraph Supa[Supabase - EU Frankfurt]
+    db[(PostgreSQL + RLS)]
+    auth[(Auth)]
+    obj[(Storage)]
+  end
+  user([Users]) --> cdn --> fe --> api
+  fe --> auth
+  api --> db
+  api --> auth
+  api --> redis
+  api --> obj
+  exw --> db
+  exw --> obj
+  ntw --> db
+</pre>
+<h2 id="13-security-architecture">13. Security Architecture</h2>
+<ul>
+<li><strong>Authentication:</strong> <strong>Supabase Auth</strong> — email+password (verified, lockout), Google OAuth (OIDC), and <strong>TOTP MFA required for employees/admins</strong> (TOTP is free on Supabase); Google Workspace 2FA satisfies it for Google sign-in. The Spring backend acts as a resource server validating Supabase-issued JWTs, with <code>tenant_id</code> and role carried as JWT claims.</li>
+<li><strong>Authorization:</strong> RBAC (Super-Admin, Tenant Admin, Employee, Representative) + <strong>Supabase PostgreSQL row-level security</strong> binding every query to <code>tenant_id</code> (the backend sets the tenant context per request); representatives further scoped to their company.</li>
+<li><strong>Data protection:</strong> TLS 1.2+ in transit; encryption at rest; <strong>field-level encryption</strong> for sensitive PII and payroll; PII masked in logs.</li>
+<li><strong>API security:</strong> input validation, output encoding, per-tenant/per-user rate limiting, strict CORS, signed URLs for document access.</li>
+<li><strong>Audit:</strong> immutable audit log of all user and automated actions.</li>
+<li><strong>Secrets:</strong> managed secret store; no secrets in code/config; rotation supported.</li>
+<li><strong>Network:</strong> WAF at edge, private DB/Redis, controlled egress to whitelisted external APIs.</li>
+<li><strong>Sessions:</strong> short-lived access tokens + rotating refresh tokens; revocation on logout/deactivation.</li>
+<li><strong>Web headers:</strong> HSTS, CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy.</li>
+<li><strong>AppSec in CI:</strong> SAST, dependency scanning (SCA), secret scanning.</li>
+</ul>
+<h2 id="14-threat-model-stride-abridged">14. Threat Model (STRIDE, abridged)</h2>
+<p>Trust boundaries: Internet ↔︎ Edge ↔︎ App ↔︎ Data; and Tenant ↔︎ Tenant (logical).</p>
+<table>
+<thead>
+<tr class="header">
+<th>ID</th>
+<th>Category</th>
+<th>Asset</th>
+<th>Threat</th>
+<th>Mitigation</th>
+<th>Residual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>T1</td>
+<td>Spoofing</td>
+<td>Auth</td>
+<td>Credential stuffing</td>
+<td>MFA, lockout, OAuth, rate limit</td>
+<td>Low</td>
+</tr>
+<tr class="even">
+<td>T2</td>
+<td>Tampering</td>
+<td>Documents</td>
+<td>Altered file in transit/store</td>
+<td>TLS, signed URLs, integrity checks</td>
+<td>Low</td>
+</tr>
+<tr class="odd">
+<td>T3</td>
+<td>Repudiation</td>
+<td>Actions</td>
+<td>Denying an action</td>
+<td>Immutable audit log</td>
+<td>Low</td>
+</tr>
+<tr class="even">
+<td>T4</td>
+<td>Info disclosure</td>
+<td>Cross-tenant data</td>
+<td>Query leaks another tenant</td>
+<td>RLS + tenant context + tests</td>
+<td>Low</td>
+</tr>
+<tr class="odd">
+<td>T5</td>
+<td>Info disclosure</td>
+<td>PII/payroll</td>
+<td>Sensitive data exposure</td>
+<td>Field-level encryption, masking, RBAC</td>
+<td>Low</td>
+</tr>
+<tr class="even">
+<td>T6</td>
+<td>DoS</td>
+<td>Upload/extraction</td>
+<td>Month-end flood</td>
+<td>Queue backpressure, rate limits, autoscale</td>
+<td>Medium</td>
+</tr>
+<tr class="odd">
+<td>T7</td>
+<td>Elevation</td>
+<td>Roles</td>
+<td>Privilege escalation</td>
+<td>Server-side authz checks, least privilege</td>
+<td>Low</td>
+</tr>
+<tr class="even">
+<td>T8</td>
+<td>Info disclosure</td>
+<td>Chatbot</td>
+<td>Prompt-injection leaking other data</td>
+<td>Strict scoping, grounded retrieval, no cross-tenant context</td>
+<td>Medium</td>
+</tr>
+</tbody>
+</table>
+<p>OWASP Top 10 / API Top 10 sweep included in the AppSec checklist.</p>
+<h2 id="15-performance-scalability--reliability">15. Performance, Scalability &amp; Reliability</h2>
+<p><strong>Performance/SLOs (targets):</strong> interactive pages p95 &lt; ~1s under normal load; uploads accepted immediately with async extraction and progress feedback; extraction throughput sized to absorb month-/quarter-end bursts. Caching: CDN for static, Redis for hot reads; tenant-aware indexes on <code>(tenant_id, company_id, period)</code>.</p>
+<p><strong>Scalability:</strong> Web API and workers are <strong>stateless</strong> and scale horizontally; extraction workers scale on queue depth (the month-end lever). PostgreSQL scales vertically first; a <strong>read replica</strong> is added for reporting when needed (deferred). No sharding at this scale. Strong consistency via a single primary.</p>
+<p><strong>Reliability:</strong> retries with backoff + circuit breakers on OCR/email/Gmail; graceful degradation (accept-and-queue when extraction/OCR is down); liveness/readiness health checks; daily backups + PITR. RTO target hours, RPO ≤ 24h (tightened later if needed).</p>
+<h2 id="16-observability-maintainability-cost-i18n-multi-tenancy-ai">16. Observability, Maintainability, Cost, i18n, Multi-tenancy, AI</h2>
+<p><strong>Observability:</strong> structured JSON logs with correlation IDs (no PII), RED/USE metrics plus business metrics (extraction success rate, email delivery, period completeness), dashboards and alerting on failures and queue backlog.</p>
+<p><strong>Maintainability:</strong> modular package structure with enforced boundaries; tests at unit/integration/contract/E2E levels; OpenAPI-generated client; ADRs in-repo.</p>
+<p><strong>Cost / FinOps:</strong> lean EU stack — Hetzner always-on host for backend + worker (low monthly fixed cost), Supabase (~$25/mo Pro for DB + Auth + Storage at our scale), cheap static frontend hosting (Vercel/Cloudflare), and pay-per-use Document-AI used only for receipts (results cached). Resource tagging by env/module; budget alerts; per-tenant cost awareness via tenant tagging on usage metrics. This stack keeps fixed monthly cost low and scales spend mainly with OCR/LLM usage.</p>
+<p><strong>i18n / a11y:</strong> UI in Romanian + English via message catalogs (ICU); UTC storage with locale display; RON + foreign-currency handling with explicit rounding; WCAG 2.2 AA target for client-facing screens.</p>
+<p><strong>Dashboard read-model (MOD-11):</strong> the employee dashboard aggregates, per selected month, a summary tile per section (Statements &amp; invoices, Taxes &amp; payments, Payroll, Reports) counting companies fully-done / partial / not-started, plus a new-companies tile (onboarded this month: in-setup / finished), above the per-company status table. Backed by read-model aggregates over PeriodStatus / MonthlyTaxSummary / EmailLog / company onboarding date — no new authoritative entities.</p>
+<p><strong>Multi-tenancy:</strong> pool model — shared database with <code>tenant_id</code> and row-level security; per-tenant feature flags and limits (hard-enforced); tenant suspension pauses jobs; tenant data export/deletion supports GDPR. Database-per-tenant reserved as a future premium tier.</p>
+<p><strong>AI/ML:</strong> (1) <strong>OCR</strong> via managed Document-AI behind a strategy interface, used only for receipts, with confidence thresholds and human review. (2) <strong>Chatbot</strong> — representative-facing, retrieval-grounded over the KB (pgvector) and the user's own scoped data; read-only; disclaimers; low-confidence escalation; audited; feature-flag gated. Broader account-data Q&amp;A flagged for a grounding/guardrails spike.</p>
+<h2 id="17-phasing">17. Phasing</h2>
+<ul>
+<li><strong>PoC:</strong> prove extraction + reconciliation on real samples (ANAF declaration parse, bank-PDF parse, receipt OCR, missing-doc reconciliation, state-payment email auto-fill). Simplified infra: single small environment, managed Postgres, OCR API; minimal auth/company setup. Goal: de-risk accuracy and cost.</li>
+<li><strong>MVP:</strong> full MOD-01…12 multi-tenant, bounded chatbot (MOD-13), responsive web + PWA (MOD-14); production-grade security, audit, CI/CD, observability, backups; email + in-app notifications.</li>
+<li><strong>Future:</strong> WhatsApp channel, e-Factura/ANAF SPV, in-app messaging, native app, per-employee payslip distribution, payroll integration, template customization, per-employee access restriction, database-per-tenant tier, read replicas, distributed tracing.</li>
+</ul>
+<h2 id="18-quality-attribute-traceability-nfr--design">18. Quality-Attribute Traceability (NFR ↔︎ Design)</h2>
+<table>
+<thead>
+<tr class="header">
+<th>NFR</th>
+<th>Architectural response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Multi-tenant isolation</td>
+<td>Shared DB + RLS + tenant context + cross-tenant tests</td>
+</tr>
+<tr class="even">
+<td>GDPR / data residency</td>
+<td>EU region, field-level encryption, retention-aware erasure, audit</td>
+</tr>
+<tr class="odd">
+<td>Security (sensitive financial data)</td>
+<td>MFA, RBAC, encryption, audit, WAF, AppSec CI</td>
+</tr>
+<tr class="even">
+<td>Month-end concurrency</td>
+<td>Async workers + queue backpressure + horizontal scaling</td>
+</tr>
+<tr class="odd">
+<td>Business-hours availability</td>
+<td>Managed services, health checks, backups + PITR</td>
+</tr>
+<tr class="even">
+<td>Bilingual UI</td>
+<td>i18n message catalogs (RO/EN)</td>
+</tr>
+<tr class="odd">
+<td>Auditability</td>
+<td>Immutable audit log incl. automated actions</td>
+</tr>
+<tr class="even">
+<td>Low cost</td>
+<td>Lean EU split hosting, pay-per-use OCR, modular monolith</td>
+</tr>
+<tr class="odd">
+<td>Extraction accuracy</td>
+<td>Structured-parse-first, OCR for receipts only, confidence + human review</td>
+</tr>
+</tbody>
+</table>
+<h2 id="19-key-architectural-decisions-adrs">19. Key Architectural Decisions (ADRs)</h2>
+<ul>
+<li><strong>ADR-1 Modular monolith over microservices.</strong> Context: one team, medium scale, cost focus. Options: microservices, serverless, modular monolith. Chosen: modular monolith + async workers. Rationale: lowest build/run cost, clean boundaries preserved. Consequence: must enforce module boundaries; vertical scaling first.</li>
+<li><strong>ADR-2 Shared DB + RLS for multi-tenancy (on Supabase Postgres).</strong> Options: DB-per-tenant, schema-per-tenant, pool+RLS. Chosen: pool + Supabase Postgres row-level security + field-level encryption. Rationale: cost and operability at this scale; RLS is Supabase's native model; isolation hardened in the DB. Consequence: rigorous tenant-context discipline; DB-per-tenant available later as premium.</li>
+<li><strong>ADR-3 OCR only for receipts.</strong> Context: bank statements are text PDFs, invoices structured. Chosen: structural parsing in-process; managed Document-AI only for receipt photos. Rationale: cuts the hardest/most expensive path to one document type. Consequence: provider behind an interface; benchmarked in PoC.</li>
+<li><strong>ADR-4 React SPA/PWA + Spring Boot API.</strong> Chosen: simplest standard frontend, cheap static hosting, becomes the PWA. Consequence: split hosting (frontend vs backend) for cost.</li>
+<li><strong>ADR-5 Java/Spring on Hetzner over Node-on-Vercel.</strong> Context: cost focus; Node-on-Vercel was considered. Options: (a) Node/TS API on Vercel functions, (b) keep Java/Spring on a cheap always-on host. Chosen: keep Java/Spring (team fit) on Hetzner; frontend on Vercel/Cloudflare. Rationale: Node's run-cost saving is marginal, and serverless (Vercel functions) cannot host the long-running extraction/email-ingestion/notification workers within execution limits — an always-on host is required regardless. Consequence: backend is always-on; Vercel used only for the frontend.</li>
+<li><strong>ADR-7 Claude vision for receipt OCR.</strong> Context: only photo receipts need OCR (PDFs parsed in-process); an LLM is already in the stack for the chatbot. Options: managed Document-AI (Textract/Document AI), self-hosted OCR (PaddleOCR/Tesseract), Claude vision. Chosen: Claude vision via AWS Bedrock (EU region) by default, structured JSON output; self-hosted PaddleOCR as EU-sovereign fallback; benchmark in PoC. Rationale: structured reasoned extraction without per-template setup, same vendor as the chatbot, negligible cost at receipt volume. Consequence: extracted amounts are non-authoritative and must pass reconciliation/confidence checks before posting.</li>
+<li><strong>ADR-6 Supabase for Auth + Postgres + Storage.</strong> Context: minimize build and run cost. Chosen: consolidate identity, database, object storage, and pgvector on Supabase (EU/Frankfurt); Spring validates Supabase JWTs. Rationale: Supabase Auth covers email/password + Google OAuth + free TOTP MFA out of the box, RLS fits multi-tenancy, and one managed service (~$25/mo Pro at our scale) replaces three components. Consequence: Supabase is US-incorporated (Schrems II exposure) even on EU hosting — accepted for MVP, with a self-hosted/EU-native Postgres fallback documented for strict-sovereignty clients.</li>
+</ul>
+<h2 id="20-technical-risks">20. Technical Risks</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Receipt OCR accuracy below expectations</td>
+<td>Medium</td>
+<td>High</td>
+<td>PoC benchmark; confidence + human review; structured sources preferred</td>
+</tr>
+<tr class="even">
+<td>Bank-statement PDF format variety</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Parser per layout + manual-entry fallback; validate on samples</td>
+</tr>
+<tr class="odd">
+<td>Chatbot broader Q&amp;A leaks/hallucinates</td>
+<td>Medium</td>
+<td>High</td>
+<td>Grounding spike, strict scoping, disclaimers, escalation</td>
+</tr>
+<tr class="even">
+<td>Month-end load spikes</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Queue backpressure + worker autoscaling + load test</td>
+</tr>
+<tr class="odd">
+<td>Cross-tenant data leak</td>
+<td>Low</td>
+<td>High</td>
+<td>RLS + tenant-context tests + code review</td>
+</tr>
+<tr class="even">
+<td>Email deliverability (taxes/reports)</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Reputable provider, SPF/DKIM/DMARC, bounce handling</td>
+</tr>
+<tr class="odd">
+<td>Cost creep (OCR/LLM usage)</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Usage caps, caching, receipts-only OCR, model selection by query</td>
+</tr>
+</tbody>
+</table>
+<h2 id="21-open-items">21. Open Items</h2>
+<ul>
+<li>Extraction validated on real samples (BRD bank statement, BT Leasing invoice, Situație profit, ANAF D212) — all readable PDFs / embedded XML, self-validating. Remaining: build out the per-bank parser and per-declaration XML-mapper library from a few more layouts/types.</li>
+<li>Confirm statutory accounting-records retention period for the erasure policy.</li>
+<li>Confirm month-end concurrency profile for capacity sizing.</li>
+<li>Decide final OCR provider during the PoC (backend host set to Hetzner; Supabase for Auth/DB/Storage).</li>
+<li>Define email→company mapping rules for the ingestion agent.</li>
+<li>Revisit Supabase data-sovereignty (Schrems II) if a client requires strict EU-only legal control; document self-hosted/EU-native Postgres fallback.</li>
+</ul>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true, theme:'neutral', securityLevel:'loose', flowchart:{useMaxWidth:true}});
+</script>
+</body></html>
