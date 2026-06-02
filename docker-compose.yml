@@ -1,0 +1,87 @@
+# Local development stack for MyFinance.
+#   docker compose up db redis        # just the backing services (run apps from your IDE)
+#   docker compose up --build          # full stack incl. backend, worker, frontend
+#
+# Requires Docker (Desktop or colima). The backend runs Flyway migrations on startup; under the
+# 'local' profile it also loads demo seed data. The worker reuses the same image with the web
+# server disabled and migrations off.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myfinance
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d myfinance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://db:5432/myfinance
+      DB_APP_USER: myfinance_app
+      DB_APP_PASSWORD: myfinance_app
+      DB_ADMIN_URL: jdbc:postgresql://db:5432/myfinance
+      DB_ADMIN_USER: postgres
+      DB_ADMIN_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      # SUPABASE_JWKS_URI: https://YOUR-PROJECT.supabase.co/auth/v1/.well-known/jwks.json
+    ports:
+      - "8080:8080"
+
+  worker:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: worker,local
+      SPRING_FLYWAY_ENABLED: "false"   # backend owns migrations
+      DB_URL: jdbc:postgresql://db:5432/myfinance
+      DB_APP_USER: myfinance_app
+      DB_APP_PASSWORD: myfinance_app
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    command: ["sh", "-c", "java -Dspring.main.web-application-type=none -jar app.jar"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  db-data:
