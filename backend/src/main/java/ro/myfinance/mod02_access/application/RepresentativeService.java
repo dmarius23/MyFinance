@@ -49,6 +49,11 @@ public class RepresentativeService {
             throw new ConflictException("A user with email " + email + " already exists in this tenant");
         }
 
+        // NOTE: the external invite happens before the local persistence. If a save below fails or
+        // the tx rolls back, the Supabase auth user + invite email are NOT rolled back, leaving an
+        // orphaned auth user. The existsByEmail pre-check narrows this but doesn't eliminate it.
+        // TODO(MOD-02): when the real Supabase adapter is enabled, add a compensating delete (or move
+        // to persist-then-invite via the outbox) so a failed persistence can't orphan an auth user.
         var invited = inviter.invite(email, new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId));
         AppUser rep = users.save(new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE));
         rep.setStatus(UserStatus.INVITED);

@@ -39,12 +39,12 @@ export function CompanyDetail() {
 
 function TreasurySection({ companyId, accounts }: { companyId: string; accounts: { id: string; taxType: string; iban: string; label: string | null }[] }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ taxType: "", iban: "", label: "" });
+  const [form, setForm] = useState({ taxType: "", locality: "", iban: "", label: "" });
   const add = useMutation({
     mutationFn: () => companiesApi.addTreasury(companyId, form),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["treasury", companyId] });
-      setForm({ taxType: "", iban: "", label: "" });
+      setForm({ taxType: "", locality: "", iban: "", label: "" });
     },
   });
   return (
@@ -58,6 +58,7 @@ function TreasurySection({ companyId, accounts }: { companyId: string; accounts:
       </ul>
       <form style={{ display: "flex", gap: 8, marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
         <input placeholder="Tax type" required value={form.taxType} onChange={(e) => setForm({ ...form, taxType: e.target.value })} />
+        <input placeholder="Locality" value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} />
         <input placeholder="IBAN" required value={form.iban} onChange={(e) => setForm({ ...form, iban: e.target.value })} />
         <input placeholder="Label" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
         <button className="primary" type="submit" disabled={add.isPending}>Add</button>

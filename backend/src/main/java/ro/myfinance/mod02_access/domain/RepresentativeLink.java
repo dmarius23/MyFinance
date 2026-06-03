@@ -48,10 +48,6 @@ public class RepresentativeLink {
         return companyId;
     }
 
-    public void setCompanyId(UUID companyId) {
-        this.companyId = companyId;
-    }
-
     public UUID getTenantId() {
         return tenantId;
     }

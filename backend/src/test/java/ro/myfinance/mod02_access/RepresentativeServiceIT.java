@@ -54,7 +54,7 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void reinvitingSameEmailToSecondCompanyMovesTheRep() {
+    void reinvitingSameEmailIsRejected() {
         UUID company1 = asTenantWithCompany();
         UUID company2 = companies.create("Second SRL", "RO-REP2-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
         AppUser rep = representatives.inviteRepresentative(company1, "dup@client.ro", "Dup");
