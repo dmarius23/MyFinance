@@ -18,6 +18,10 @@ const resources = {
       "auth.login": "Autentificare",
       "auth.logout": "Deconectare",
       "common.loading": "Se încarcă…",
+      "companies.add": "Adaugă firmă",
+      "company.representatives": "Reprezentanți",
+      "company.treasury": "Conturi trezorerie",
+      "company.invite": "Invită reprezentant",
     },
   },
   en: {
@@ -34,6 +38,10 @@ const resources = {
       "auth.login": "Sign in",
       "auth.logout": "Sign out",
       "common.loading": "Loading…",
+      "companies.add": "Add company",
+      "company.representatives": "Representatives",
+      "company.treasury": "Treasury accounts",
+      "company.invite": "Invite representative",
     },
   },
 };
