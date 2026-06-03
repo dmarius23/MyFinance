@@ -10,4 +10,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 
     // Tenant scoping is enforced by RLS; these counts back plan-limit checks.
     long countByRoleAndStatus(Role role, UserStatus status);
+
+    boolean existsByEmail(String email);
 }
