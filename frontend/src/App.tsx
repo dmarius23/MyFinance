@@ -4,6 +4,7 @@ import { PagePlaceholder } from "./components/PagePlaceholder";
 import { RequireRole } from "./auth/RequireRole";
 import { Login } from "./pages/Login";
 import { Companies } from "./pages/Companies";
+import { CompanyDetail } from "./pages/CompanyDetail";
 import { RepHome } from "./pages/RepHome";
 
 /**
@@ -25,6 +26,7 @@ export default function App() {
         <Route element={<FirmLayout />}>
           <Route path="/dashboard" element={<PagePlaceholder title="Dashboard" module="MOD-11" />} />
           <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:id" element={<CompanyDetail />} />
           <Route path="/statements" element={<PagePlaceholder title="Statements & invoices" module="MOD-04/05" />} />
           <Route path="/taxes" element={<PagePlaceholder title="Taxes & payments" module="MOD-07" />} />
           <Route path="/payroll" element={<PagePlaceholder title="Payroll" module="MOD-08" />} />
