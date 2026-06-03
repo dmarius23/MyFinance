@@ -4,6 +4,13 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
 
+# Redis isn't required for local dev (jobs are enqueued lazily); don't let its health check mark
+# the app DOWN. In prod the worker + Redis run, so the check stays enabled there.
+management:
+  health:
+    redis:
+      enabled: false
+
 logging:
   level:
     ro.myfinance: DEBUG
