@@ -38,8 +38,8 @@ public class AccessService {
     /** Invite a user (placeholder — Supabase invite + email is wired in alongside Auth). */
     public AppUser inviteUser(String email, String name, Role role) {
         UUID tenantId = currentTenant();
-        // TODO(MOD-02): trigger Supabase invite; enforce plan-limit on active user count.
-        return users.save(new AppUser(tenantId, email, name, role));
+        // TODO(MOD-02): staff invites should also go through Supabase; until then mint a local id.
+        return users.save(new AppUser(UUID.randomUUID(), tenantId, email, name, role));
     }
 
     public AppUser setRole(UUID userId, Role role) {

@@ -3,30 +3,25 @@ package ro.myfinance.mod02_access.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
-import java.io.Serializable;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
- * MOD-02 — links a representative user to the single company they may access (MVP: one rep → one
- * company). Representative requests are additionally constrained to this {@code company_id},
- * enforced server-side.
+ * MOD-02 — links a representative user to the single company they may access. A company has many
+ * representatives; each representative belongs to exactly one company (FR-011), so the primary key
+ * is the user id. Representative requests are additionally constrained to this company_id server-side.
  */
 @Entity
 @Table(name = "representative_link")
-@IdClass(RepresentativeLink.Key.class)
 public class RepresentativeLink {
 
     @Id
     @Column(name = "user_id")
     private UUID userId;
 
-    @Id
-    @Column(name = "company_id")
+    @Column(name = "company_id", nullable = false)
     private UUID companyId;
 
     @Column(name = "tenant_id", nullable = false)
@@ -53,37 +48,11 @@ public class RepresentativeLink {
         return companyId;
     }
 
-    public UUID getTenantId() {
-        return tenantId;
+    public void setCompanyId(UUID companyId) {
+        this.companyId = companyId;
     }
 
-    /** Composite key. */
-    public static class Key implements Serializable {
-        private UUID userId;
-        private UUID companyId;
-
-        public Key() {
-        }
-
-        public Key(UUID userId, UUID companyId) {
-            this.userId = userId;
-            this.companyId = companyId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (!(o instanceof Key key)) {
-                return false;
-            }
-            return Objects.equals(userId, key.userId) && Objects.equals(companyId, key.companyId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(userId, companyId);
-        }
+    public UUID getTenantId() {
+        return tenantId;
     }
 }

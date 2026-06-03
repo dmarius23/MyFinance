@@ -4,8 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -23,7 +21,6 @@ import ro.myfinance.common.security.Role;
 public class AppUser {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "tenant_id", nullable = false, updatable = false)
@@ -55,7 +52,8 @@ public class AppUser {
     protected AppUser() {
     }
 
-    public AppUser(UUID tenantId, String email, String name, Role role) {
+    public AppUser(UUID id, UUID tenantId, String email, String name, Role role) {
+        this.id = id;
         this.tenantId = tenantId;
         this.email = email;
         this.name = name;
