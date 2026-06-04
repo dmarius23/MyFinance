@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, type CreateCompanyInput } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
+import { Field } from "./Field";
 
 export function AddCompanyModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -60,15 +61,6 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
         </div>
       </form>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "block", marginBottom: 10 }}>
-      <span style={{ display: "block", color: "var(--text-muted)", fontSize: 13 }}>{label}</span>
-      {children}
-    </label>
   );
 }
 

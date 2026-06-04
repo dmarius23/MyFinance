@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { companiesApi } from "../api/companies";
+import { companiesApi, type Company } from "../api/companies";
 import { representativesApi } from "../api/representatives";
 import { ApiError } from "../lib/apiClient";
-import { vatStatusKey } from "../domain/vat";
+import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
+import { Field } from "../components/Field";
 
 /** MOD-03 — company detail: general info, treasury accounts, representatives. */
 export function CompanyDetail() {
-  const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useQuery({ queryKey: ["company", id], queryFn: () => companiesApi.get(id) });
   const treasury = useQuery({ queryKey: ["treasury", id], queryFn: () => companiesApi.listTreasury(id) });
@@ -22,22 +22,98 @@ export function CompanyDetail() {
   const c = company.data!;
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div className="card">
-        <h1 style={{ marginTop: 0 }}>{c.legalName}</h1>
-        <dl style={grid}>
-          <Row k="CUI" v={c.cui} />
-          <Row k="Entity type" v={c.entityType ?? "—"} />
-          <Row k="Locality" v={c.locality ?? "—"} />
-          <Row k={t("company.vatStatus")} v={c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"} />
-          <Row k={t("company.vatPeriod")} v={c.vatPeriod ?? "—"} />
-          <Row k="Status" v={c.status} />
-        </dl>
-      </div>
-
+      <GeneralInfoSection company={c} />
       <TreasurySection companyId={id} accounts={treasury.data ?? []} />
       <RepresentativesSection companyId={id} />
     </div>
   );
+}
+
+function GeneralInfoSection({ company }: { company: Company }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState(() => toForm(company));
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["company", company.id] });
+    void qc.invalidateQueries({ queryKey: ["companies"] });
+  };
+
+  const save = useMutation({
+    mutationFn: () => companiesApi.update(company.id, form),
+    onSuccess: () => { invalidate(); setEditing(false); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to save"),
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: () =>
+      companiesApi.setStatus(company.id, company.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"),
+    onSuccess: invalidate,
+  });
+
+  if (!editing) {
+    return (
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h1 style={{ marginTop: 0 }}>{company.legalName}</h1>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => { setForm(toForm(company)); setError(null); setEditing(true); }}>Edit</button>
+            <button onClick={() => toggleStatus.mutate()} disabled={toggleStatus.isPending}>
+              {company.status === "ACTIVE" ? "Deactivate" : "Activate"}
+            </button>
+          </div>
+        </div>
+        <dl style={grid}>
+          <Row k="CUI" v={company.cui} />
+          <Row k="Entity type" v={company.entityType ?? "—"} />
+          <Row k="Locality" v={company.locality ?? "—"} />
+          <Row k={t("company.vatStatus")} v={company.vatStatus ? t(vatStatusKey(company.vatStatus), { defaultValue: company.vatStatus }) : "—"} />
+          <Row k={t("company.vatPeriod")} v={company.vatPeriod ?? "—"} />
+          <Row k="Status" v={company.status} />
+        </dl>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <h1 style={{ marginTop: 0 }}>Edit company</h1>
+      <form onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}>
+        <Field label="Legal name *"><input required value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} /></Field>
+        <Field label="CUI"><input value={company.cui} disabled /></Field>
+        <Field label="Entity type"><input value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value })} placeholder="SRL" /></Field>
+        <Field label="Locality"><input value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} /></Field>
+        <Field label={t("company.vatStatus")}>
+          <select value={form.vatStatus} onChange={(e) => setForm({ ...form, vatStatus: e.target.value })}>
+            <option value="">—</option>
+            {VAT_STATUSES.map((v) => (
+              <option key={v} value={v}>{t(vatStatusKey(v))}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("company.vatPeriod")}><input value={form.vatPeriod} onChange={(e) => setForm({ ...form, vatPeriod: e.target.value })} placeholder="MONTHLY" /></Field>
+        {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+          <button className="primary" type="submit" disabled={save.isPending}>
+            {save.isPending ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function toForm(c: Company) {
+  return {
+    legalName: c.legalName,
+    entityType: c.entityType ?? "",
+    locality: c.locality ?? "",
+    vatStatus: c.vatStatus ?? "",
+    vatPeriod: c.vatPeriod ?? "",
+  };
 }
 
 function TreasurySection({ companyId, accounts }: { companyId: string; accounts: { id: string; taxType: string; iban: string; label: string | null }[] }) {
