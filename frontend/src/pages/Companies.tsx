@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
+import { vatStatusKey } from "../domain/vat";
 
 /** MOD-03 — manage companies: list + add; rows link to detail. */
 export function Companies() {
+  const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["companies"],
@@ -35,7 +38,7 @@ export function Companies() {
               <th style={{ padding: 8 }}>CUI</th>
               <th style={{ padding: 8 }}>Type</th>
               <th style={{ padding: 8 }}>Locality</th>
-              <th style={{ padding: 8 }}>VAT</th>
+              <th style={{ padding: 8 }}>{t("company.vat")}</th>
               <th style={{ padding: 8 }}>Status</th>
             </tr>
           </thead>
@@ -46,7 +49,7 @@ export function Companies() {
                 <td style={{ padding: 8 }}>{c.cui}</td>
                 <td style={{ padding: 8 }}>{c.entityType ?? "—"}</td>
                 <td style={{ padding: 8 }}>{c.locality ?? "—"}</td>
-                <td style={{ padding: 8 }}>{c.vatStatus ?? "—"}</td>
+                <td style={{ padding: 8 }}>{c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"}</td>
                 <td style={{ padding: 8 }}>{c.status}</td>
               </tr>
             ))}

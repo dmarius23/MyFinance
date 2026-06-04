@@ -112,10 +112,12 @@ button.primary {
   color: #fff;
 }
 
-.card label input {
+.card label input,
+.card label select {
   width: 100%;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-top: 4px;
+  background: var(--surface);
 }

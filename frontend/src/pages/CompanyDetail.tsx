@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { representativesApi } from "../api/representatives";
 import { ApiError } from "../lib/apiClient";
+import { vatStatusKey } from "../domain/vat";
 
 /** MOD-03 — company detail: general info, treasury accounts, representatives. */
 export function CompanyDetail() {
+  const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useQuery({ queryKey: ["company", id], queryFn: () => companiesApi.get(id) });
   const treasury = useQuery({ queryKey: ["treasury", id], queryFn: () => companiesApi.listTreasury(id) });
@@ -25,8 +28,8 @@ export function CompanyDetail() {
           <Row k="CUI" v={c.cui} />
           <Row k="Entity type" v={c.entityType ?? "—"} />
           <Row k="Locality" v={c.locality ?? "—"} />
-          <Row k="VAT status" v={c.vatStatus ?? "—"} />
-          <Row k="VAT period" v={c.vatPeriod ?? "—"} />
+          <Row k={t("company.vatStatus")} v={c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"} />
+          <Row k={t("company.vatPeriod")} v={c.vatPeriod ?? "—"} />
           <Row k="Status" v={c.status} />
         </dl>
       </div>

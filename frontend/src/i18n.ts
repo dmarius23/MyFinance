@@ -22,6 +22,11 @@ const resources = {
       "company.representatives": "Reprezentanți",
       "company.treasury": "Conturi trezorerie",
       "company.invite": "Invită reprezentant",
+      "company.vat": "TVA",
+      "company.vatStatus": "Status TVA",
+      "company.vatPeriod": "Perioadă TVA",
+      "vatStatus.VAT_PAYER": "Plătitor TVA",
+      "vatStatus.NON_VAT_PAYER": "Neplătitor TVA",
     },
   },
   en: {
@@ -42,6 +47,11 @@ const resources = {
       "company.representatives": "Representatives",
       "company.treasury": "Treasury accounts",
       "company.invite": "Invite representative",
+      "company.vat": "VAT",
+      "company.vatStatus": "VAT status",
+      "company.vatPeriod": "VAT period",
+      "vatStatus.VAT_PAYER": "VAT payer",
+      "vatStatus.NON_VAT_PAYER": "Non-VAT payer",
     },
   },
 };
