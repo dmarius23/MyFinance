@@ -40,6 +40,11 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${SUPABASE_JWKS_URI:https://YOUR-PROJECT.supabase.co/auth/v1/.well-known/jwks.json}
+          # Supabase signs access tokens with ES256 (ECC). Without this, the decoder defaults to
+          # RS256 only and rejects valid tokens ("Another algorithm expected").
+          jws-algorithms:
+            - ES256
+            - RS256
 
 management:
   endpoints:
