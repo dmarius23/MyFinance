@@ -16,13 +16,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.company.adapter.web.CompanyDtos.CompanyResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.CreateCompanyRequest;
-import ro.myfinance.company.adapter.web.CompanyDtos.CreateTreasuryAccountRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.SetStatusRequest;
-import ro.myfinance.company.adapter.web.CompanyDtos.TreasuryAccountResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.UpdateCompanyRequest;
 import ro.myfinance.company.application.CompanyService;
 
-/** MOD-03 — client company management. Firm staff (admin/employee) only. */
+/** Client company management. Firm staff (admin/employee) only. */
 @RestController
 @RequestMapping("/api/v1/companies")
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'EMPLOYEE')")
@@ -60,18 +58,5 @@ public class CompanyController {
     @PatchMapping("/{id}/status")
     public CompanyResponse setStatus(@PathVariable UUID id, @Valid @RequestBody SetStatusRequest r) {
         return CompanyResponse.from(service.setStatus(id, r.status()));
-    }
-
-    @GetMapping("/{id}/treasury-accounts")
-    public List<TreasuryAccountResponse> listTreasuryAccounts(@PathVariable UUID id) {
-        return service.listTreasuryAccounts(id).stream().map(TreasuryAccountResponse::from).toList();
-    }
-
-    @PostMapping("/{id}/treasury-accounts")
-    @ResponseStatus(HttpStatus.CREATED)
-    public TreasuryAccountResponse addTreasuryAccount(@PathVariable UUID id,
-                                                      @Valid @RequestBody CreateTreasuryAccountRequest r) {
-        return TreasuryAccountResponse.from(
-                service.addTreasuryAccount(id, r.taxType(), r.locality(), r.iban(), r.label()));
     }
 }

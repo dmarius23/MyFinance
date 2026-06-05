@@ -8,25 +8,21 @@ import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
-import ro.myfinance.company.adapter.persistence.TreasuryAccountRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.company.domain.CompanyStatus;
-import ro.myfinance.company.domain.TreasuryAccount;
 
 /**
- * MOD-03 — client company management. Tenant id always comes from {@link TenantContext}, never the
- * client. CUI is unique per tenant.
+ * Client company management. Tenant id always comes from {@link TenantContext}, never the client.
+ * CUI is unique per tenant.
  */
 @Service
 @Transactional
 public class CompanyService {
 
     private final CompanyRepository companies;
-    private final TreasuryAccountRepository treasuryAccounts;
 
-    public CompanyService(CompanyRepository companies, TreasuryAccountRepository treasuryAccounts) {
+    public CompanyService(CompanyRepository companies) {
         this.companies = companies;
-        this.treasuryAccounts = treasuryAccounts;
     }
 
     @Transactional(readOnly = true)
@@ -72,19 +68,6 @@ public class CompanyService {
         Company company = get(id);
         company.setStatus(status);
         return company;
-    }
-
-    @Transactional(readOnly = true)
-    public List<TreasuryAccount> listTreasuryAccounts(UUID companyId) {
-        get(companyId); // ensure visible within tenant
-        return treasuryAccounts.findByCompanyId(companyId);
-    }
-
-    public TreasuryAccount addTreasuryAccount(UUID companyId, String taxType, String locality,
-                                              String iban, String label) {
-        get(companyId);
-        return treasuryAccounts.save(
-                new TreasuryAccount(currentTenant(), companyId, taxType, locality, iban, label));
     }
 
     private UUID currentTenant() {

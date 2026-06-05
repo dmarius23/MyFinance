@@ -20,7 +20,7 @@ class CompanyServiceIT extends AbstractPostgresIT {
     private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
 
     @Autowired CompanyService companies;
-    @Autowired JdbcTemplate jdbc; // uses the app (RLS) datasource
+    @Autowired JdbcTemplate jdbc;
 
     @AfterEach
     void clear() {
@@ -28,8 +28,6 @@ class CompanyServiceIT extends AbstractPostgresIT {
     }
 
     private void asTenant(UUID tenantId) {
-        // Bind the tenant FIRST so RlsDataSource sets app.tenant_id on the JdbcTemplate connection.
-        // Inserting the tenant row whose id == app.tenant_id satisfies the tenant RLS WITH CHECK.
         TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         jdbc.update("insert into tenant(id, name, status, plan) values (?, ?, 'ACTIVE', 'STANDARD') on conflict do nothing",
                 tenantId, "T-" + tenantId);
@@ -41,7 +39,7 @@ class CompanyServiceIT extends AbstractPostgresIT {
         companies.create("Alpha SRL", "RO-A-1", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null);
 
         asTenant(TENANT_B);
-        companies.create("Beta SRL", "RO-B-1", "SRL", "Bucuresti", "NON_PAYER", "QUARTERLY", null);
+        companies.create("Beta SRL", "RO-B-1", "SRL", "București", "NON_VAT_PAYER", "QUARTERLY", null);
 
         assertThat(companies.list()).hasSize(1);
         assertThat(companies.list().get(0).getLegalName()).isEqualTo("Beta SRL");
@@ -53,13 +51,5 @@ class CompanyServiceIT extends AbstractPostgresIT {
         companies.create("Alpha SRL", "RO-DUP", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null);
         assertThatThrownBy(() -> companies.create("Alpha2 SRL", "RO-DUP", "SRL", "Cluj", null, null, null))
                 .isInstanceOf(ConflictException.class);
-    }
-
-    @Test
-    void addsAndListsTreasuryAccounts() {
-        asTenant(TENANT_A);
-        var company = companies.create("Alpha SRL", "RO-TA", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null);
-        companies.addTreasuryAccount(company.getId(), "VAT", "Cluj", "RO49AAAA1B31007593840000", "TVA");
-        assertThat(companies.listTreasuryAccounts(company.getId())).hasSize(1);
     }
 }
