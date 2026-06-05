@@ -6,6 +6,7 @@ import { Login } from "./pages/Login";
 import { Companies } from "./pages/Companies";
 import { CompanyDetail } from "./pages/CompanyDetail";
 import { RepHome } from "./pages/RepHome";
+import { Settings } from "./pages/Settings";
 
 /**
  * Routing — one route per page (no stacked sections). Guards are UX-only; the server enforces
@@ -33,6 +34,13 @@ export default function App() {
           <Route path="/reports" element={<PagePlaceholder title="Reports" module="MOD-06" />} />
           <Route path="/notifications" element={<PagePlaceholder title="Notifications" module="MOD-09" />} />
           <Route path="/tasks" element={<PagePlaceholder title="Tasks" module="MOD-10" />} />
+        </Route>
+      </Route>
+
+      {/* Settings — TENANT_ADMIN only */}
+      <Route element={<RequireRole allow={["TENANT_ADMIN"]} />}>
+        <Route element={<FirmLayout />}>
+          <Route path="/settings" element={<Settings />} />
         </Route>
       </Route>
 

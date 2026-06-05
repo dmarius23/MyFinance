@@ -30,6 +30,7 @@ export function FirmLayout() {
             </NavLink>
           ))}
           {role === "SUPER_ADMIN" && <NavLink to="/admin/tenants">{t("nav.tenants")}</NavLink>}
+          {role === "TENANT_ADMIN" && <NavLink to="/settings">{t("nav.settings")}</NavLink>}
         </nav>
       </aside>
       <header className="topbar">
