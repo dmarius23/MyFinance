@@ -4,6 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, type CreateCompanyInput } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
+import { ENTITY_TYPES } from "../domain/company";
+import { VAT_PERIODS, vatPeriodKey } from "../domain/company";
+import { ROMANIAN_COUNTIES } from "../domain/counties";
 import { Field } from "./Field";
 
 export function AddCompanyModal({ onClose }: { onClose: () => void }) {
@@ -30,7 +33,7 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
     <div style={overlay} onClick={onClose}>
       <form
         className="card"
-        style={{ width: 460 }}
+        style={{ width: 480, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
@@ -39,10 +42,24 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
         }}
       >
         <h2 style={{ marginTop: 0 }}>Add company</h2>
-        <Field label="Legal name *"><input required value={form.legalName} onChange={set("legalName")} /></Field>
-        <Field label="CUI *"><input required value={form.cui} onChange={set("cui")} /></Field>
-        <Field label="Entity type"><input value={form.entityType ?? ""} onChange={set("entityType")} placeholder="SRL" /></Field>
-        <Field label="Locality"><input value={form.locality ?? ""} onChange={set("locality")} /></Field>
+        <Field label="Legal name *">
+          <input required value={form.legalName} onChange={set("legalName")} />
+        </Field>
+        <Field label="CUI *">
+          <input required value={form.cui} onChange={set("cui")} />
+        </Field>
+        <Field label={t("company.entityType")}>
+          <select value={form.entityType ?? ""} onChange={set("entityType")}>
+            <option value="">—</option>
+            {ENTITY_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </Field>
+        <Field label={t("company.fiscalResidence")}>
+          <select value={form.locality ?? ""} onChange={set("locality")}>
+            <option value="">—</option>
+            {ROMANIAN_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
         <Field label={t("company.vatStatus")}>
           <select value={form.vatStatus ?? ""} onChange={set("vatStatus")}>
             <option value="">—</option>
@@ -51,7 +68,14 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label={t("company.vatPeriod")}><input value={form.vatPeriod ?? ""} onChange={set("vatPeriod")} placeholder="MONTHLY" /></Field>
+        <Field label={t("company.vatPeriod")}>
+          <select value={form.vatPeriod ?? ""} onChange={set("vatPeriod")}>
+            <option value="">—</option>
+            {VAT_PERIODS.map((v) => (
+              <option key={v} value={v}>{t(vatPeriodKey(v))}</option>
+            ))}
+          </select>
+        </Field>
         {error && <p style={{ color: "#dc2626" }}>{error}</p>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
           <button type="button" onClick={onClose}>Cancel</button>

@@ -22,14 +22,6 @@ export interface CreateCompanyInput {
   responsibleUserId?: string;
 }
 
-export interface TreasuryAccount {
-  id: string;
-  taxType: string;
-  locality: string | null;
-  iban: string;
-  label: string | null;
-}
-
 export const companiesApi = {
   list: () => api<Company[]>("/api/v1/companies"),
   get: (id: string) => api<Company>(`/api/v1/companies/${id}`),
@@ -38,11 +30,8 @@ export const companiesApi = {
   update: (id: string, input: Partial<CreateCompanyInput>) =>
     api<Company>(`/api/v1/companies/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   setStatus: (id: string, status: "ACTIVE" | "INACTIVE") =>
-    api<Company>(`/api/v1/companies/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-  listTreasury: (id: string) => api<TreasuryAccount[]>(`/api/v1/companies/${id}/treasury-accounts`),
-  addTreasury: (id: string, input: { taxType: string; locality?: string; iban: string; label?: string }) =>
-    api<TreasuryAccount>(`/api/v1/companies/${id}/treasury-accounts`, {
-      method: "POST",
-      body: JSON.stringify(input),
+    api<Company>(`/api/v1/companies/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
     }),
 };
