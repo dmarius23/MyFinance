@@ -28,3 +28,15 @@ export const documentsApi = {
   remove: (companyId: string, id: string) =>
     api<void>(`/api/v1/companies/${companyId}/documents/${id}`, { method: "DELETE" }),
 };
+
+export interface CompanyDocSummary {
+  companyId: string;
+  hasBankStatement: boolean;
+  hasInvoiceOrReceipt: boolean;
+  fileCount: number;
+}
+
+export const documentsSummaryApi = {
+  summary: (period: string) =>
+    api<CompanyDocSummary[]>(`/api/v1/documents/summary?period=${period}`),
+};
