@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
@@ -35,14 +36,17 @@ public class DocumentService {
     private final DocumentStorage storage;
     private final DocumentClassifier classifier;
     private final AuditRecorder audit;
+    private final ApplicationEventPublisher events;
 
     public DocumentService(CompanyRepository companies, DocumentRepository documents,
-                           DocumentStorage storage, DocumentClassifier classifier, AuditRecorder audit) {
+                           DocumentStorage storage, DocumentClassifier classifier, AuditRecorder audit,
+                           ApplicationEventPublisher events) {
         this.companies = companies;
         this.documents = documents;
         this.storage = storage;
         this.classifier = classifier;
         this.audit = audit;
+        this.events = events;
     }
 
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
@@ -64,6 +68,7 @@ public class DocumentService {
                 DocumentStatus.UPLOADED, filename, contentType, bytes.length, key, uploadedBy);
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
+        events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, bytes));
         return saved;
     }
 
