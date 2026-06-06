@@ -11,4 +11,6 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     List<Document> findByCompanyIdOrderByUploadedAtDesc(UUID companyId);
 
     List<Document> findByCompanyIdAndPeriodMonthOrderByUploadedAtDesc(UUID companyId, LocalDate periodMonth);
+
+    java.util.List<Document> findByPeriodMonth(java.time.LocalDate periodMonth);
 }
