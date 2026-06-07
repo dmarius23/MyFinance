@@ -43,6 +43,7 @@ class BankStatementExtractionServiceIT extends AbstractPostgresIT {
     @TestConfiguration
     static class StubParserConfig {
         @Bean
+        @org.springframework.core.annotation.Order(0)
         BankStatementParser stubParser() {
             return new BankStatementParser() {
                 @Override public boolean supports(String text) { return text.contains("STUBBANK"); }
