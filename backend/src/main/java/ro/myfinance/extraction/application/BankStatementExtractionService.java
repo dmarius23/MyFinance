@@ -45,7 +45,8 @@ public class BankStatementExtractionService {
         UUID tenantId = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
 
-        Optional<BankStatementParser> parser = registry.find(bytes);
+        String text = registry.extractText(bytes);
+        Optional<BankStatementParser> parser = registry.find(text);
         if (parser.isEmpty()) {
             statements.save(new BankStatement(tenantId, documentId, companyId, periodMonth,
                     null, null, null, null, StatementStatus.NEEDS_REVIEW, false, 0));
@@ -55,7 +56,7 @@ public class BankStatementExtractionService {
 
         ParsedStatement parsed;
         try {
-            parsed = parser.get().parse(bytes);
+            parsed = parser.get().parse(text);
         } catch (RuntimeException e) {
             log.warn("Parse failed for document {}", documentId, e);
             statements.save(new BankStatement(tenantId, documentId, companyId, periodMonth,

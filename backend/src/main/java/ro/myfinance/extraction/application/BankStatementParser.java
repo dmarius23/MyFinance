@@ -6,6 +6,6 @@ public interface BankStatementParser {
     /** True if this parser recognizes the statement from its extracted text. */
     boolean supports(String pdfText);
 
-    /** Parse the PDF bytes into a normalized statement. */
-    ParsedStatement parse(byte[] pdf);
+    /** Parse the already-extracted PDF text into a normalized statement. */
+    ParsedStatement parse(String pdfText);
 }

@@ -8,7 +8,11 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 
-/** Picks the first parser whose supports() matches the statement text. */
+/**
+ * Extracts statement text once and picks the first parser whose supports() matches. Parsers are
+ * injected in Spring @Order order — bank-specific parsers (low order) are tried before the generic
+ * fallback (lowest precedence), so a specific parser always wins when it recognizes the statement.
+ */
 @Component
 public class BankStatementParserRegistry {
 
@@ -18,16 +22,17 @@ public class BankStatementParserRegistry {
         this.parsers = parsers;
     }
 
-    public Optional<BankStatementParser> find(byte[] pdf) {
-        String text = extractText(pdf);
-        return parsers.stream().filter(p -> p.supports(text)).findFirst();
-    }
-
-    private String extractText(byte[] pdf) {
+    /** Extract the plain text of a statement PDF (empty string if unreadable). */
+    public String extractText(byte[] pdf) {
         try (PDDocument doc = Loader.loadPDF(pdf)) {
             return new PDFTextStripper().getText(doc);
         } catch (IOException | RuntimeException e) {
             return "";
         }
+    }
+
+    /** The first parser that recognizes this text, if any. */
+    public Optional<BankStatementParser> find(String text) {
+        return parsers.stream().filter(p -> p.supports(text)).findFirst();
     }
 }

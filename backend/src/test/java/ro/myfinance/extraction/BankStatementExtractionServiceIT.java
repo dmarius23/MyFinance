@@ -46,7 +46,7 @@ class BankStatementExtractionServiceIT extends AbstractPostgresIT {
         BankStatementParser stubParser() {
             return new BankStatementParser() {
                 @Override public boolean supports(String text) { return text.contains("STUBBANK"); }
-                @Override public ParsedStatement parse(byte[] pdf) {
+                @Override public ParsedStatement parse(String pdfText) {
                     return new ParsedStatement("STUB", "RO00STUB", new BigDecimal("100.00"),
                             new BigDecimal("70.00"), List.of(
                             new ParsedTransaction(LocalDate.of(2026, 6, 3), new BigDecimal("-50.00"),
