@@ -9,4 +9,6 @@ import ro.myfinance.extraction.domain.BankStatement;
 public interface BankStatementRepository extends JpaRepository<BankStatement, UUID> {
 
     List<BankStatement> findByCompanyIdAndPeriodMonth(UUID companyId, LocalDate periodMonth);
+
+    java.util.List<ro.myfinance.extraction.domain.BankStatement> findByPeriodMonth(java.time.LocalDate periodMonth);
 }

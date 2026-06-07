@@ -72,9 +72,9 @@ public class BankStatementExtractionService {
 
         for (ParsedTransaction t : parsed.transactions()) {
             TxnDirection dir = t.amount().signum() < 0 ? TxnDirection.DEBIT : TxnDirection.CREDIT;
-            transactions.save(new BankTransaction(tenantId, companyId, statement.getId(), t.date(),
-                    t.amount(), dir, t.partnerName(), t.partnerIban(), t.description(), t.ref(),
-                    t.balanceAfter()));
+            transactions.save(new BankTransaction(tenantId, companyId, statement.getId(),
+                    parsed.accountIban(), t.date(), t.amount(), dir, t.partnerName(), t.partnerIban(),
+                    t.description(), t.ref(), t.balanceAfter()));
         }
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
     }

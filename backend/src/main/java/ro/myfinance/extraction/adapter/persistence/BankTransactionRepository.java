@@ -8,4 +8,6 @@ import ro.myfinance.extraction.domain.BankTransaction;
 public interface BankTransactionRepository extends JpaRepository<BankTransaction, UUID> {
 
     List<BankTransaction> findByStatementIdInOrderByTxnDateDesc(List<UUID> statementIds);
+
+    java.util.List<ro.myfinance.extraction.domain.BankTransaction> findByCompanyId(java.util.UUID companyId);
 }
