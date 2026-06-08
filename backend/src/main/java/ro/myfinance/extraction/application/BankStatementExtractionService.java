@@ -2,8 +2,11 @@ package ro.myfinance.extraction.application;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,23 +70,35 @@ public class BankStatementExtractionService {
             return;
         }
 
-        boolean crossOk = crossCheck(parsed);
-        StatementStatus status = crossOk ? StatementStatus.EXTRACTED : StatementStatus.NEEDS_REVIEW;
-
-        // Dedup against existing transactions for this company and within this batch.
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        for (BankTransaction existing : transactions.findByCompanyId(companyId)) {
-            seen.add(dedupKey(existing.getAccountIban(), existing.getTxnDate(), existing.getAmount(),
-                    existing.getBalanceAfter(), existing.getDescription(), existing.getRef()));
+        // Dedup against transactions already stored for THIS company+period (re-uploads / overlapping
+        // statements). Scoped to the period so genuine recurring transactions in other months are kept.
+        List<UUID> periodStatementIds = statements.findByCompanyIdAndPeriodMonth(companyId, periodMonth)
+                .stream().map(BankStatement::getId).toList();
+        Set<String> seen = new HashSet<>();
+        if (!periodStatementIds.isEmpty()) {
+            for (BankTransaction existing : transactions.findByStatementIdInOrderByTxnDateDesc(periodStatementIds)) {
+                seen.add(dedupKey(existing.getAccountIban(), existing.getTxnDate(), existing.getAmount(),
+                        existing.getBalanceAfter(), existing.getDescription(), existing.getRef()));
+            }
         }
-        java.util.List<ParsedTransaction> unique = new java.util.ArrayList<>();
+
+        boolean hadNullAmount = false;
+        List<ParsedTransaction> unique = new ArrayList<>();
         for (ParsedTransaction t : parsed.transactions()) {
+            if (t.amount() == null) {
+                hadNullAmount = true; // amount couldn't be derived → skip the row, flag for review
+                continue;
+            }
             String key = dedupKey(parsed.accountIban(), t.date(), t.amount(), t.balanceAfter(),
                     t.description(), t.ref());
             if (seen.add(key)) {
                 unique.add(t);
             }
         }
+
+        boolean crossOk = crossCheck(parsed);
+        StatementStatus status = (crossOk && !hadNullAmount)
+                ? StatementStatus.EXTRACTED : StatementStatus.NEEDS_REVIEW;
 
         BankStatement statement = statements.save(new BankStatement(tenantId, documentId, companyId,
                 periodMonth, parsed.bankCode(), parsed.accountIban(), parsed.openingBalance(),
@@ -105,12 +120,13 @@ public class BankStatementExtractionService {
             return "B|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString()
                     + "|" + balanceAfter.stripTrailingZeros().toPlainString();
         }
-        return "F|" + date + "|" + amount.stripTrailingZeros().toPlainString() + "|"
+        return "F|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString() + "|"
                 + ReconText.normalize(description) + "|" + (ref == null ? "" : ref);
     }
 
     private boolean crossCheck(ParsedStatement p) {
-        if (p.openingBalance() == null || p.closingBalance() == null) {
+        if (p.openingBalance() == null || p.closingBalance() == null
+                || p.transactions().stream().anyMatch(t -> t.amount() == null)) {
             return false;
         }
         BigDecimal sum = p.transactions().stream()

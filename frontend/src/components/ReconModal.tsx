@@ -7,6 +7,8 @@ const overlay: React.CSSProperties = {
   display: "grid", placeItems: "center", zIndex: 50,
 };
 const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const maskIban = (iban: string | null) =>
+  !iban || iban.length <= 4 ? (iban ?? "") : `…${iban.slice(-4)}`;
 
 export function ReconModal({ companyId, companyName, period, onClose }:
   { companyId: string; companyName: string; period: string; onClose: () => void }) {
@@ -40,7 +42,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
         {(statements.data ?? []).map((s) => (
           <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
             <b>{s.bankCode ?? "—"}</b>
-            <span style={{ color: "var(--text-muted)" }}>{s.accountIban ?? ""}</span>
+            <span style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
             <span style={{ color: "var(--text-muted)" }}>
               {s.openingBalance != null ? fmt(s.openingBalance) : "—"} → {s.closingBalance != null ? fmt(s.closingBalance) : "—"}
             </span>
@@ -80,7 +82,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                 <td style={{ padding: 8, whiteSpace: "nowrap" }}>{tx.txnDate}</td>
                 <td style={{ padding: 8 }}>
                   <b>{tx.partnerName ?? "—"}</b>
-                  <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, tx.partnerIban].filter(Boolean).join(" · ")}</div>
+                  <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, maskIban(tx.partnerIban)].filter(Boolean).join(" · ")}</div>
                 </td>
                 <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
                   {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}

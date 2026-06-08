@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -59,10 +60,13 @@ public class DocumentController {
     @GetMapping("/{id}/content")
     public ResponseEntity<byte[]> content(@PathVariable UUID companyId, @PathVariable UUID id) {
         DocumentContent c = service.getContent(id);
+        // ContentDisposition encodes/sanitizes the user-supplied filename (no header injection).
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(c.document().getOriginalFilename(), java.nio.charset.StandardCharsets.UTF_8)
+                .build();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(c.document().getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + c.document().getOriginalFilename() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(c.bytes());
     }
 
