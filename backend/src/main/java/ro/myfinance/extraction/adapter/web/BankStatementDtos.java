@@ -21,18 +21,38 @@ public final class BankStatementDtos {
         }
     }
 
+    public record MatchedInvoiceResponse(UUID invoiceId, UUID documentId, String filename,
+                                         BigDecimal totalAmount, LocalDate invoiceDate, String supplierName) {
+    }
+
+    public record InvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
+                                  String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
+                                  String status) {
+        public static InvoiceResponse from(ro.myfinance.extraction.domain.Invoice i) {
+            return new InvoiceResponse(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
+                    i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(), i.getStatus());
+        }
+    }
+
+    public record MatchRequest(UUID invoiceId) {
+    }
+
     public record TransactionResponse(UUID id, UUID statementId, LocalDate txnDate, BigDecimal amount,
                                       String direction, String partnerName, String partnerIban,
-                                      String description, BigDecimal balanceAfter,
-                                      boolean requiresDocument, boolean matched, String category,
-                                      String decisionSource, String reason) {
-        public static TransactionResponse from(BankTransaction t) {
+                                      String description, BigDecimal balanceAfter, boolean requiresDocument,
+                                      boolean matched, String category, String decisionSource, String reason,
+                                      java.util.List<MatchedInvoiceResponse> matchedInvoices) {
+        public static TransactionResponse from(ro.myfinance.extraction.application.ReconciliationService.TxnWithMatches tw) {
+            BankTransaction t = tw.txn();
+            java.util.List<MatchedInvoiceResponse> mi = tw.invoices().stream()
+                    .map(v -> new MatchedInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(),
+                            v.totalAmount(), v.invoiceDate(), v.supplierName()))
+                    .toList();
             return new TransactionResponse(t.getId(), t.getStatementId(), t.getTxnDate(), t.getAmount(),
                     t.getDirection().name(), t.getPartnerName(), t.getPartnerIban(), t.getDescription(),
-                    t.getBalanceAfter(), t.isRequiresDocument(), t.getMatchedDocumentId() != null,
+                    t.getBalanceAfter(), t.isRequiresDocument(), !mi.isEmpty(),
                     t.getCategory() == null ? null : t.getCategory().name(),
-                    t.getDecisionSource() == null ? null : t.getDecisionSource().name(),
-                    reason(t));
+                    t.getDecisionSource() == null ? null : t.getDecisionSource().name(), reason(t), mi);
         }
 
         private static String reason(BankTransaction t) {
