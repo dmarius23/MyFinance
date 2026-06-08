@@ -11,6 +11,26 @@ export interface BankStatement {
   txnCount: number;
 }
 
+export interface MatchedInvoice {
+  invoiceId: string;
+  documentId: string;
+  filename: string | null;
+  totalAmount: number | null;
+  invoiceDate: string | null;
+  supplierName: string | null;
+}
+
+export interface Invoice {
+  id: string;
+  documentId: string;
+  filename: string | null;
+  supplierName: string | null;
+  supplierIban: string | null;
+  totalAmount: number | null;
+  invoiceDate: string | null;
+  status: string;
+}
+
 export interface BankTransaction {
   id: string;
   statementId: string;
@@ -23,6 +43,7 @@ export interface BankTransaction {
   balanceAfter: number | null;
   requiresDocument: boolean;
   matched: boolean;
+  matchedInvoices: MatchedInvoice[];
   category: string | null;
   decisionSource: string | null;
   reason: string;
@@ -43,6 +64,20 @@ export const bankApi = {
       method: "PATCH",
       body: JSON.stringify({ requiresDocument, reason }),
     }),
+  match: (companyId: string, txnId: string, invoiceId: string) =>
+    api<void>(`/api/v1/companies/${companyId}/bank-transactions/${txnId}/matches`, {
+      method: "POST",
+      body: JSON.stringify({ invoiceId }),
+    }),
+  unmatch: (companyId: string, txnId: string, invoiceId: string) =>
+    api<void>(`/api/v1/companies/${companyId}/bank-transactions/${txnId}/matches/${invoiceId}`, {
+      method: "DELETE",
+    }),
+};
+
+export const invoicesApi = {
+  list: (companyId: string, period: string) =>
+    api<Invoice[]>(`/api/v1/companies/${companyId}/invoices?period=${period}`),
 };
 
 export const reconciliationApi = {
