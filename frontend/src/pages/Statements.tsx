@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi } from "../api/documents";
+import { reconciliationApi } from "../api/bank";
 import { MonthBar } from "../components/MonthBar";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
@@ -28,6 +29,11 @@ export function Statements() {
     queryKey: ["doc-summary", period],
     queryFn: () => documentsSummaryApi.summary(period),
   });
+  const completeness = useQuery({
+    queryKey: ["recon-summary", period],
+    queryFn: () => reconciliationApi.summary(period),
+  });
+  const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
 
   const byCompany = new Map((summary.data ?? []).map((s) => [s.companyId, s]));
 
@@ -68,7 +74,11 @@ export function Statements() {
                   </td>
                   <td style={{ padding: 8 }}>{hasBank ? pill(t("statements.uploaded"), "ok") : pill(t("statements.missing"), "bad")}</td>
                   <td style={{ padding: 8 }}>{s?.hasInvoiceOrReceipt ? pill(t("statements.uploaded"), "ok") : pill(t("statements.missing"), "bad")}</td>
-                  <td style={{ padding: 8 }}>{pill("—", "na")}</td>
+                  <td style={{ padding: 8 }}>{(() => {
+                    const cs = completenessBy.get(c.id) ?? "NOT_STARTED";
+                    const kind = cs === "COMPLETE" ? "ok" : cs === "PARTIAL" ? "bad" : "na";
+                    return pill(t(`completeness.${cs}`), kind as "ok" | "bad" | "na");
+                  })()}</td>
                   <td style={{ padding: 8 }}>{pill("—", "na")}</td>
                   <td style={{ padding: 8 }}>
                     <button onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>
