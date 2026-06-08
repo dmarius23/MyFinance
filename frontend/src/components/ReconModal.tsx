@@ -1,26 +1,34 @@
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi } from "../api/bank";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
   display: "grid", placeItems: "center", zIndex: 50,
 };
-
-const fmt = (n: number) =>
-  n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function ReconModal({ companyId, companyName, period, onClose }:
   { companyId: string; companyName: string; period: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
 
+  const setReq = useMutation({
+    mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) =>
+      bankApi.setRequirement(companyId, id, requiresDocument),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }),
+  });
+
   const list = txns.data ?? [];
+  const missing = list.filter((tx) => tx.requiresDocument && !tx.matched);
+
+  const requestFromClient = () => window.alert(t("recon.requestPreview"));
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 920, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="card" style={{ width: 1000, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>{t("recon.title")} — {companyName}</h2>
           <button onClick={onClose}>✕</button>
@@ -36,11 +44,23 @@ export function ReconModal({ companyId, companyName, period, onClose }:
             <span style={{ color: "var(--text-muted)" }}>
               {s.openingBalance != null ? fmt(s.openingBalance) : "—"} → {s.closingBalance != null ? fmt(s.closingBalance) : "—"}
             </span>
-            <span style={{ color: s.crossCheckOk ? "#166534" : "#991b1b" }}>
-              {s.crossCheckOk ? "✓" : "⚠"} {s.status}
-            </span>
+            <span style={{ color: s.crossCheckOk ? "#166534" : "#991b1b" }}>{s.crossCheckOk ? "✓" : "⚠"} {s.status}</span>
           </div>
         ))}
+
+        {missing.length > 0 && (
+          <div style={{ border: "1px dashed #dc2626", background: "#fef2f2", borderRadius: 10, padding: 12, margin: "12px 0" }}>
+            <div style={{ color: "#991b1b", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+              ⚠ {t("recon.missingTitle")} — {missing.length}
+            </div>
+            {missing.map((m) => (
+              <div key={m.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0" }}>
+                <span><b>{m.txnDate}</b> · {m.partnerName ?? "—"} <span style={{ color: "var(--text-muted)" }}>({m.category ?? "—"})</span></span>
+                <span>{fmt(Math.abs(m.amount))} RON</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
           <thead>
@@ -48,28 +68,63 @@ export function ReconModal({ companyId, companyName, period, onClose }:
               <th style={{ padding: 8 }}>{t("recon.date")}</th>
               <th style={{ padding: 8 }}>{t("recon.partner")}</th>
               <th style={{ padding: 8, textAlign: "right" }}>{t("recon.amount")}</th>
+              <th style={{ padding: 8 }}>{t("recon.document")}</th>
+              <th style={{ padding: 8 }}>{t("recon.reason")}</th>
+              <th style={{ padding: 8 }}>{t("recon.decidedBy")}</th>
+              <th style={{ padding: 8, textAlign: "center" }}>{t("recon.accountantSets")}</th>
             </tr>
           </thead>
           <tbody>
             {list.map((tx) => (
-              <tr key={tx.id} style={{ borderTop: "1px solid var(--border)" }}>
+              <tr key={tx.id} style={{ borderTop: "1px solid var(--border)", background: tx.requiresDocument && !tx.matched ? "#fff7f6" : undefined }}>
                 <td style={{ padding: 8, whiteSpace: "nowrap" }}>{tx.txnDate}</td>
                 <td style={{ padding: 8 }}>
                   <b>{tx.partnerName ?? "—"}</b>
-                  <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                    {[tx.description, tx.partnerIban].filter(Boolean).join(" · ")}
-                  </div>
+                  <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, tx.partnerIban].filter(Boolean).join(" · ")}</div>
                 </td>
                 <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
                   {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}
                 </td>
+                <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+                  {tx.requiresDocument
+                    ? <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>
+                    : <span style={{ color: "var(--text-muted)" }}>{t("recon.notNeeded")}</span>}
+                </td>
+                <td style={{ padding: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                  {tx.reason}
+                  {tx.decisionSource === "LEARNED_RULE" || tx.decisionSource === "ACCOUNTANT_SET"
+                    ? <span style={{ marginLeft: 6, background: "#ede9fe", color: "#6d28d9", borderRadius: 999, padding: "1px 6px", fontSize: 10 }}>✓ {t("recon.remembered")}</span>
+                    : null}
+                </td>
+                <td style={{ padding: 8, fontSize: 12 }}>
+                  {tx.decisionSource ? t(`recon.source.${tx.decisionSource}`) : "—"}
+                </td>
+                <td style={{ padding: 8, textAlign: "center", whiteSpace: "nowrap" }}>
+                  <button
+                    disabled={setReq.isPending}
+                    onClick={() => setReq.mutate({ id: tx.id, requiresDocument: true })}
+                    style={{ fontWeight: tx.requiresDocument ? 700 : 400 }}
+                  >{t("recon.needsDoc")}</button>{" "}
+                  <button
+                    disabled={setReq.isPending}
+                    onClick={() => setReq.mutate({ id: tx.id, requiresDocument: false })}
+                    style={{ fontWeight: !tx.requiresDocument ? 700 : 400 }}
+                  >{t("recon.noDoc")}</button>
+                </td>
               </tr>
             ))}
             {list.length === 0 && (
-              <tr><td colSpan={3} style={{ padding: 8, color: "var(--text-muted)" }}>—</td></tr>
+              <tr><td colSpan={7} style={{ padding: 8, color: "var(--text-muted)" }}>—</td></tr>
             )}
           </tbody>
         </table>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+          <button onClick={onClose}>{t("recon.notNeeded") && "Close"}</button>
+          <button className="primary" disabled={missing.length === 0} onClick={requestFromClient}>
+            {t("recon.requestClient")} ({missing.length})
+          </button>
+        </div>
       </div>
     </div>
   );
