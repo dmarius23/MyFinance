@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi } from "../api/bank";
+import { bankApi, invoicesApi } from "../api/bank";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
@@ -17,10 +18,22 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
 
+  const invoices = useQuery({ queryKey: ["invoices", companyId, period], queryFn: () => invoicesApi.list(companyId, period) });
+  const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
+
   const setReq = useMutation({
     mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) =>
       bankApi.setRequirement(companyId, id, requiresDocument),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }),
+  });
+
+  const match = useMutation({
+    mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); setLinkingTxn(null); },
+  });
+  const unmatch = useMutation({
+    mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); },
   });
 
   const list = txns.data ?? [];
@@ -87,10 +100,38 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                 <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
                   {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}
                 </td>
-                <td style={{ padding: 8, whiteSpace: "nowrap" }}>
-                  {tx.requiresDocument
-                    ? <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>
-                    : <span style={{ color: "var(--text-muted)" }}>{t("recon.notNeeded")}</span>}
+                <td style={{ padding: 8, whiteSpace: "nowrap", fontSize: 12 }}>
+                  {tx.matched ? (
+                    <div>
+                      {tx.matchedInvoices.map((mi) => (
+                        <div key={mi.invoiceId} style={{ color: "#166534" }}>
+                          ✓ {mi.filename ?? "factura"}{" "}
+                          <button onClick={() => unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId })}
+                            style={{ border: "none", background: "none", color: "#991b1b", cursor: "pointer" }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : tx.requiresDocument ? (
+                    <div>
+                      <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>{" "}
+                      <button onClick={() => setLinkingTxn(linkingTxn === tx.id ? null : tx.id)}>{t("recon.link")}</button>
+                      {linkingTxn === tx.id && (
+                        <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: 8, padding: 6, background: "#fff" }}>
+                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).length === 0 && (
+                            <div style={{ color: "var(--text-muted)" }}>{t("recon.noInvoices")}</div>
+                          )}
+                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).map((inv) => (
+                            <div key={inv.id} onClick={() => match.mutate({ txnId: tx.id, invoiceId: inv.id })}
+                              style={{ cursor: "pointer", padding: "3px 4px" }}>
+                              {inv.filename ?? "factura"} · {inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>{t("recon.notNeeded")}</span>
+                  )}
                 </td>
                 <td style={{ padding: 8, fontSize: 12, color: "var(--text-muted)" }}>
                   {tx.reason}
