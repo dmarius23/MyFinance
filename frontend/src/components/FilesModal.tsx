@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document } from "../api/documents";
@@ -18,7 +18,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   });
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const selected: Document | undefined = data.find((d) => d.id === selId) ?? data[0];
 
@@ -37,8 +37,8 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   }, [companyId, selected?.id]);
 
   const upload = useMutation({
-    mutationFn: () => documentsApi.upload(companyId, period, file!),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["documents", companyId, period] }); void qc.invalidateQueries({ queryKey: ["doc-summary", period] }); setFile(null); },
+    mutationFn: (f: File) => documentsApi.upload(companyId, period, f),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["documents", companyId, period] }); void qc.invalidateQueries({ queryKey: ["doc-summary", period] }); },
   });
   const remove = useMutation({
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
@@ -76,10 +76,27 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                 </div>
               ))}
             </div>
-            <form style={{ display: "flex", gap: 6, marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); if (file) upload.mutate(); }}>
-              <input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button className="primary" type="submit" disabled={!file || upload.isPending}>{t("files.add")}</button>
-            </form>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/webp"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  upload.mutate(f);
+                }
+                e.target.value = ""; // allow re-selecting the same file
+              }}
+            />
+            <button
+              className="btn ghost"
+              style={{ width: "100%", marginTop: 8, justifyContent: "center" }}
+              disabled={upload.isPending}
+              onClick={() => fileRef.current?.click()}
+            >
+              {upload.isPending ? "…" : `+ ${t("files.add")}`}
+            </button>
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{selected?.originalFilename ?? t("files.preview")}</div>
