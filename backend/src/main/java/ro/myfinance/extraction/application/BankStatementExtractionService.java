@@ -111,6 +111,7 @@ public class BankStatementExtractionService {
                     t.description(), t.ref(), t.balanceAfter()));
         }
         reconciliation.classify(statement.getId());
+        reconciliation.matchPeriod(companyId, periodMonth);
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
     }
 

@@ -8,31 +8,31 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 
-/**
- * Extracts bank statements after a document upload COMMITS — in its own transaction. Running
- * after-commit (not inline) means a parse/persistence failure can never roll back the user's
- * upload or orphan the stored file; failures are logged and the statement simply isn't created.
- */
+/** After a document upload COMMITS, extract + match in its own transaction. Failures never break upload. */
 @Component
 public class StatementExtractionListener {
 
     private static final Logger log = LoggerFactory.getLogger(StatementExtractionListener.class);
 
-    private final BankStatementExtractionService service;
+    private final BankStatementExtractionService statements;
+    private final InvoiceExtractionService invoices;
 
-    public StatementExtractionListener(BankStatementExtractionService service) {
-        this.service = service;
+    public StatementExtractionListener(BankStatementExtractionService statements,
+                                       InvoiceExtractionService invoices) {
+        this.statements = statements;
+        this.invoices = invoices;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDocumentUploaded(DocumentUploadedEvent e) {
-        if (e.type() != DocumentType.BANK_STATEMENT) {
-            return;
-        }
         try {
-            service.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
+            if (e.type() == DocumentType.BANK_STATEMENT) {
+                statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
+            } else if (e.type() == DocumentType.INVOICE) {
+                invoices.process(e.documentId(), e.companyId(), e.periodMonth(), e.filename(), e.bytes());
+            }
         } catch (RuntimeException ex) {
-            log.warn("Bank-statement extraction failed for document {}", e.documentId(), ex);
+            log.warn("Extraction failed for document {} ({})", e.documentId(), e.type(), ex);
         }
     }
 }

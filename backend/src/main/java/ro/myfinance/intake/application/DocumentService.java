@@ -68,7 +68,7 @@ public class DocumentService {
                 DocumentStatus.UPLOADED, filename, contentType, bytes.length, key, uploadedBy);
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
-        events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, bytes));
+        events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));
         return saved;
     }
 
