@@ -42,6 +42,8 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     @Autowired BankStatementRepository statements;
     @Autowired BankTransactionRepository txns;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ro.myfinance.extraction.adapter.persistence.InvoiceRepository invoiceRepo;
+    @Autowired ro.myfinance.extraction.adapter.persistence.TransactionInvoiceMatchRepository matchRepo;
 
     @AfterEach
     void clear() { TenantContext.clear(); }
@@ -161,5 +163,73 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         documents.upload(companyA, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
         asTenantWithCompany(TENANT_B);
         assertThat(companyTxns(companyA)).isEmpty();
+    }
+
+    private UUID seedInvoice(UUID companyId, String iban, String amount, LocalDate date) {
+        UUID tenantId = TENANT_A; // bound tenant in the active test
+        // a document row is required (FK). Insert a minimal INVOICE document via jdbc, then an invoice row.
+        UUID docId = UUID.randomUUID();
+        jdbc.update("insert into document(id, tenant_id, company_id, period_month, type, source, status, "
+                + "original_filename, content_type, size_bytes, storage_key) "
+                + "values (?,?,?,?, 'INVOICE','EMPLOYEE','UPLOADED','inv.pdf','application/pdf',1,'k/"+docId+"')",
+                docId, tenantId, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
+        ro.myfinance.extraction.domain.Invoice inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
+                tenantId, docId, companyId, LocalDate.of(2026, 6, 1), "ACME", iban,
+                new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED"));
+        return inv.getId();
+    }
+
+    @Test
+    void autoMatchesInvoiceToSupplierTransaction() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        // SELGROS supplier txn from the stub: partnerIban RO21SUPP, amount -200.00, date 2026-06-03
+        seedInvoice(companyId, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(1);
+        var summary = reconciliation.completenessSummary(LocalDate.of(2026, 6, 1));
+        assertThat(summary).anySatisfy(c -> {
+            assertThat(c.companyId()).isEqualTo(companyId);
+            assertThat(c.completeness()).isEqualTo(ReconciliationService.Completeness.COMPLETE);
+        });
+    }
+
+    @Test
+    void doesNotMatchInvoiceDatedAfterTransaction() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        seedInvoice(companyId, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 30)); // after the txn (06-03)
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).isEmpty();
+    }
+
+    @Test
+    void manualLinkRejectsTxnBeforeInvoice() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        UUID invId = seedInvoice(companyId, "RO21SUPP", "999.00", LocalDate.of(2026, 6, 30));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                reconciliation.link(companyId, supplier.getId(), invId))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void manualLinkAndUnlink() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        UUID invId = seedInvoice(companyId, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
+        reconciliation.link(companyId, supplier.getId(), invId);
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(1);
+        reconciliation.unlink(companyId, supplier.getId(), invId);
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).isEmpty();
     }
 }
