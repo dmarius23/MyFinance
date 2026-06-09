@@ -85,6 +85,7 @@ public class Document {
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
     public DocumentType getType() { return type; }
+    public void setType(DocumentType type) { this.type = type; }
     public DocumentSource getSource() { return source; }
     public DocumentStatus getStatus() { return status; }
     public String getOriginalFilename() { return originalFilename; }

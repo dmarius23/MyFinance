@@ -4,10 +4,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 import ro.myfinance.intake.domain.Document;
+import ro.myfinance.intake.domain.DocumentType;
 
 public final class DocumentDtos {
 
     private DocumentDtos() {
+    }
+
+    public record ChangeTypeRequest(DocumentType type) {
     }
 
     public record DocumentResponse(UUID id, String type, String status, String originalFilename,

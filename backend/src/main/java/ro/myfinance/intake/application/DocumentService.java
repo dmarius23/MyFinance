@@ -112,6 +112,37 @@ public class DocumentService {
         audit.record("DOCUMENT_DELETED", "document", id);
     }
 
+    /** Manually set a document's type and re-run extraction/matching for it (purge-then-reprocess). */
+    public Document changeType(UUID companyId, UUID id, DocumentType newType) {
+        Document doc = require(id);
+        if (!doc.getCompanyId().equals(companyId)) {
+            throw new NotFoundException("Document not found: " + id);
+        }
+        doc.setType(newType);
+        audit.record("DOCUMENT_TYPE_CHANGED", "document", id);
+        byte[] bytes = storage.retrieve(doc.getStorageKey());
+        events.publishEvent(new DocumentUploadedEvent(id, companyId, doc.getPeriodMonth(), newType,
+                doc.getOriginalFilename(), bytes));
+        return doc;
+    }
+
+    /** Re-run the classifier on every document in the period; reprocess those whose type changed. */
+    public int reclassify(UUID companyId, LocalDate periodMonth) {
+        int changed = 0;
+        for (Document doc : list(companyId, periodMonth)) {
+            byte[] bytes = storage.retrieve(doc.getStorageKey());
+            DocumentType newType = classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
+            if (newType != doc.getType()) {
+                doc.setType(newType);
+                events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
+                        newType, doc.getOriginalFilename(), bytes));
+                changed++;
+            }
+        }
+        audit.record("DOCUMENTS_RECLASSIFIED", "company", companyId);
+        return changed;
+    }
+
     private Document require(UUID id) {
         return documents.findById(id)
                 .orElseThrow(() -> new NotFoundException("Document not found: " + id));

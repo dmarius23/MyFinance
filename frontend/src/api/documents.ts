@@ -27,7 +27,21 @@ export const documentsApi = {
     download(`/api/v1/companies/${companyId}/documents/${id}/content`),
   remove: (companyId: string, id: string) =>
     api<void>(`/api/v1/companies/${companyId}/documents/${id}`, { method: "DELETE" }),
+  changeType: (companyId: string, id: string, type: string) =>
+    api<Document>(`/api/v1/companies/${companyId}/documents/${id}/type`, {
+      method: "PATCH",
+      body: JSON.stringify({ type }),
+    }),
+  reclassify: (companyId: string, period: string) =>
+    api<number>(`/api/v1/companies/${companyId}/documents/reclassify?period=${period}`, {
+      method: "POST",
+    }),
 };
+
+/** Document types a user can manually assign. */
+export const DOCUMENT_TYPES = [
+  "BANK_STATEMENT", "INVOICE", "RECEIPT", "TRIAL_BALANCE", "DECLARATION", "PAYROLL", "UNCLASSIFIED",
+] as const;
 
 export interface CompanyDocSummary {
   companyId: string;

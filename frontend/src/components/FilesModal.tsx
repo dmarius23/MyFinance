@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { documentsApi, type Document } from "../api/documents";
+import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 
 const overlay: React.CSSProperties = {
@@ -46,6 +46,10 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     void qc.invalidateQueries({ queryKey: ["documents", companyId, period] });
     void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
     void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
+    // type changes affect extraction/matching too
+    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
+    void qc.invalidateQueries({ queryKey: ["invoices", companyId, period] });
   };
   const upload = useMutation({
     mutationFn: (f: File) => documentsApi.upload(companyId, period, f),
@@ -55,13 +59,26 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
     onSuccess: invalidate,
   });
+  const changeType = useMutation({
+    mutationFn: ({ id, type }: { id: string; type: string }) => documentsApi.changeType(companyId, id, type),
+    onSuccess: invalidate,
+  });
+  const reclassify = useMutation({
+    mutationFn: () => documentsApi.reclassify(companyId, period),
+    onSuccess: invalidate,
+  });
 
   return (
     <div style={overlay} onClick={onClose}>
       <div className="card" style={{ width: 820, maxWidth: "96vw" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>{t("files.title")} — {companyName}</h2>
-          <button onClick={onClose}>✕</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => reclassify.mutate()} disabled={reclassify.isPending} title={t("files.rescanHint")}>
+              {reclassify.isPending ? "…" : `↻ ${t("files.rescan")}`}
+            </button>
+            <button onClick={onClose}>✕</button>
+          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
           <div>
@@ -80,13 +97,22 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.originalFilename}</div>
-                    <span style={{
-                      display: "inline-block", marginTop: 3, padding: "1px 8px", borderRadius: 999, fontSize: 10.5,
-                      background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
-                      color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
-                    }}>
-                      {t(`documentType.${d.type}`, { defaultValue: d.type })}
-                    </span>
+                    <select
+                      value={d.type}
+                      disabled={changeType.isPending}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => changeType.mutate({ id: d.id, type: e.target.value })}
+                      style={{
+                        marginTop: 3, fontSize: 10.5, padding: "1px 4px", borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
+                        color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
+                      }}
+                    >
+                      {DOCUMENT_TYPES.map((dt) => (
+                        <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
+                      ))}
+                    </select>
                   </div>
                   {statusByDoc.get(d.id)?.unmatched && (
                     <span title={t("doc.warn.unmatched")} style={{ color: "#dc2626", fontSize: 14 }}>⊘</span>

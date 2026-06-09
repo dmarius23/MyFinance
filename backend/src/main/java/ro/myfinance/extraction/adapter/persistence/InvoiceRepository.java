@@ -9,4 +9,6 @@ import ro.myfinance.extraction.domain.Invoice;
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     List<Invoice> findByCompanyIdAndPeriodMonth(UUID companyId, LocalDate periodMonth);
+
+    void deleteByDocumentId(UUID documentId);
 }

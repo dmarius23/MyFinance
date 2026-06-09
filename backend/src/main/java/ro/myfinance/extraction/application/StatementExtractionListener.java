@@ -4,14 +4,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import ro.myfinance.extraction.adapter.persistence.BankStatementRepository;
+import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 
 /**
- * Extracts + matches when a document is uploaded. Fires synchronously on the publish (within the
- * upload transaction, so the document is visible for the bank_statement FK). Failures are caught and
- * logged so a parse problem never propagates out of the upload. (A future async worker/queue —
- * MOD job `extract-document` — is the intended decoupling for heavy extraction.)
+ * Extracts + matches when a document is uploaded (or re-uploaded / re-classified / its type changed).
+ * Fires synchronously on the publish, within the caller's transaction (so the document is visible for
+ * the bank_statement FK). First purges any prior extraction artifacts for the document, making the
+ * operation idempotent and safe across type changes. Failures are caught and logged so a parse
+ * problem never propagates out of the upload. (A future async worker/queue is the intended decoupling.)
  */
 @Component
 public class StatementExtractionListener {
@@ -20,16 +23,27 @@ public class StatementExtractionListener {
 
     private final BankStatementExtractionService statements;
     private final InvoiceExtractionService invoices;
+    private final BankStatementRepository statementRepo;
+    private final InvoiceRepository invoiceRepo;
 
     public StatementExtractionListener(BankStatementExtractionService statements,
-                                       InvoiceExtractionService invoices) {
+                                       InvoiceExtractionService invoices,
+                                       BankStatementRepository statementRepo,
+                                       InvoiceRepository invoiceRepo) {
         this.statements = statements;
         this.invoices = invoices;
+        this.statementRepo = statementRepo;
+        this.invoiceRepo = invoiceRepo;
     }
 
     @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
+            // Idempotent reprocess: drop any prior artifacts for this document (handles re-upload,
+            // re-classify, and type changes — e.g. a doc wrongly parsed as a statement, now an invoice).
+            statementRepo.deleteByDocumentId(e.documentId());
+            invoiceRepo.deleteByDocumentId(e.documentId());
+
             if (e.type() == DocumentType.BANK_STATEMENT) {
                 statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
             } else if (e.type() == DocumentType.INVOICE) {
