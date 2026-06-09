@@ -1,0 +1,175 @@
+package ro.myfinance.extraction.adapter.external;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+import ro.myfinance.extraction.application.BankStatementParser;
+import ro.myfinance.extraction.application.ParsedStatement;
+import ro.myfinance.extraction.application.ParsedTransaction;
+
+/**
+ * Generic, best-effort fallback parser (lowest priority — tried only when no bank-specific parser
+ * matches). Handles statements with single-line transaction rows of the shape
+ * "{date} {description} {amount} {running-balance}", in either RO ("1.234,56") or EN ("1,234.56")
+ * number format, listed oldest- or newest-first. Signed amounts are derived from the balance chain,
+ * so the per-statement cross-check (opening + Σ == closing) validates the parse; anything it can't
+ * resolve confidently leads to NEEDS_REVIEW upstream.
+ */
+@Component
+@Order(Ordered.LOWEST_PRECEDENCE)
+public class GenericRunningBalanceParser implements BankStatementParser {
+
+    // Monetary token: ends with a decimal separator + exactly 2 digits (excludes IBANs/account nos).
+    private static final Pattern MONEY = Pattern.compile("\\d[\\d.,]*[.,]\\d{2}");
+    private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{2,4})");
+    private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
+    private static final String[] OPEN_KW =
+            {"sold initial", "sold anterior", "sold precedent", "opening balance", "start balance"};
+    private static final String[] CLOSE_KW =
+            {"sold final", "closing balance", "end balance"};
+
+    @Override
+    public boolean supports(String text) {
+        return true; // universal fallback; selected only after specific parsers decline
+    }
+
+    @Override
+    public ParsedStatement parse(String text) {
+        String[] lines = text.split("\\R");
+        BigDecimal opening = balanceForKeyword(lines, OPEN_KW);
+        BigDecimal closing = balanceForKeyword(lines, CLOSE_KW);
+
+        List<Row> rows = new ArrayList<>();
+        for (String line : lines) {
+            if (containsAny(norm(line), OPEN_KW) || containsAny(norm(line), CLOSE_KW)) {
+                continue; // balance summary lines, not transactions
+            }
+            Matcher d = DATE.matcher(line);
+            if (!d.find() || d.start() > 3) {
+                continue; // a transaction row starts (near) the line with a date
+            }
+            LocalDate date = parseDate(d.group());
+            if (date == null) {
+                continue;
+            }
+            String rest = line.substring(d.end());
+            List<BigDecimal> nums = money(rest);
+            if (nums.size() < 2) {
+                continue; // need at least an amount + a running balance
+            }
+            BigDecimal balance = nums.get(nums.size() - 1);
+            String desc = rest.replaceAll(MONEY.pattern(), "").replaceAll("\\s+", " ").strip();
+            Matcher ib = IBAN.matcher(rest);
+            String iban = ib.find() ? ib.group() : null;
+            rows.add(new Row(date, balance, desc.isBlank() ? null : desc, iban));
+        }
+
+        boolean newestFirst = isNewestFirst(rows, opening, closing);
+        List<ParsedTransaction> txns = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Row r = rows.get(i);
+            BigDecimal prev = newestFirst
+                    ? (i + 1 < rows.size() ? rows.get(i + 1).balance : opening)
+                    : (i > 0 ? rows.get(i - 1).balance : opening);
+            BigDecimal signed = (prev != null) ? r.balance.subtract(prev) : null;
+            txns.add(new ParsedTransaction(r.date, signed, null, r.iban, r.desc, null, r.balance));
+        }
+        return new ParsedStatement(null, firstIban(lines), opening, closing, txns);
+    }
+
+    private boolean isNewestFirst(List<Row> rows, BigDecimal opening, BigDecimal closing) {
+        if (rows.isEmpty() || opening == null || closing == null) {
+            return false;
+        }
+        BigDecimal firstBal = rows.get(0).balance;
+        BigDecimal toClosing = firstBal.subtract(closing).abs();
+        BigDecimal toOpening = firstBal.subtract(opening).abs();
+        return toClosing.compareTo(toOpening) < 0; // first row balance closer to closing → newest-first
+    }
+
+    private BigDecimal balanceForKeyword(String[] lines, String[] keywords) {
+        for (String line : lines) {
+            if (containsAny(norm(line), keywords)) {
+                List<BigDecimal> nums = money(line);
+                if (!nums.isEmpty()) {
+                    return nums.get(nums.size() - 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private List<BigDecimal> money(String s) {
+        List<BigDecimal> out = new ArrayList<>();
+        Matcher m = MONEY.matcher(s);
+        while (m.find()) {
+            out.add(parseAmount(m.group()));
+        }
+        return out;
+    }
+
+    /** Parse a monetary token in RO ("1.234,56") or EN ("1,234.56") format. */
+    private BigDecimal parseAmount(String token) {
+        int lastDot = token.lastIndexOf('.');
+        int lastComma = token.lastIndexOf(',');
+        String normalized;
+        if (lastDot >= 0 && lastComma >= 0) {
+            if (lastDot > lastComma) {
+                normalized = token.replace(",", "");          // EN: comma=thousands
+            } else {
+                normalized = token.replace(".", "").replace(",", "."); // RO: dot=thousands
+            }
+        } else if (lastComma >= 0) {
+            normalized = (token.length() - lastComma - 1 == 2)
+                    ? token.replace(",", ".")                 // decimal comma
+                    : token.replace(",", "");                 // thousands comma
+        } else {
+            normalized = token;                               // only dot or none → dot is decimal
+        }
+        return new BigDecimal(normalized);
+    }
+
+    private LocalDate parseDate(String token) {
+        for (String pat : new String[] {"dd/MM/uuuu", "dd/MM/uu", "dd.MM.uuuu", "dd.MM.uu"}) {
+            try {
+                return LocalDate.parse(token, DateTimeFormatter.ofPattern(pat));
+            } catch (RuntimeException ignored) {
+                // try next pattern
+            }
+        }
+        return null;
+    }
+
+    private String firstIban(String[] lines) {
+        for (String l : lines) {
+            Matcher m = IBAN.matcher(l);
+            if (m.find()) {
+                return m.group();
+            }
+        }
+        return null;
+    }
+
+    private String norm(String s) {
+        return s.toLowerCase();
+    }
+
+    private boolean containsAny(String haystack, String[] needles) {
+        for (String n : needles) {
+            if (haystack.contains(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private record Row(LocalDate date, BigDecimal balance, String desc, String iban) {
+    }
+}

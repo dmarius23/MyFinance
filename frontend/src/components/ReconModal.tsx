@@ -1,0 +1,174 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { bankApi, invoicesApi } from "../api/bank";
+
+const overlay: React.CSSProperties = {
+  position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
+  display: "grid", placeItems: "center", zIndex: 50,
+};
+const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const maskIban = (iban: string | null) =>
+  !iban || iban.length <= 4 ? (iban ?? "") : `…${iban.slice(-4)}`;
+
+export function ReconModal({ companyId, companyName, period, onClose }:
+  { companyId: string; companyName: string; period: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
+  const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
+
+  const invoices = useQuery({ queryKey: ["invoices", companyId, period], queryFn: () => invoicesApi.list(companyId, period) });
+  const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
+
+  const setReq = useMutation({
+    mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) =>
+      bankApi.setRequirement(companyId, id, requiresDocument),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }),
+  });
+
+  const match = useMutation({
+    mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); setLinkingTxn(null); },
+  });
+  const unmatch = useMutation({
+    mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); },
+  });
+
+  const list = txns.data ?? [];
+  const missing = list.filter((tx) => tx.requiresDocument && !tx.matched);
+
+  const requestFromClient = () => window.alert(t("recon.requestPreview"));
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div className="card" style={{ width: 1000, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>{t("recon.title")} — {companyName}</h2>
+          <button onClick={onClose}>✕</button>
+        </div>
+        <div style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
+          {t("recon.parsed", { n: list.length })}
+        </div>
+
+        {(statements.data ?? []).map((s) => (
+          <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+            <b>{s.bankCode ?? "—"}</b>
+            <span style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
+            <span style={{ color: "var(--text-muted)" }}>
+              {s.openingBalance != null ? fmt(s.openingBalance) : "—"} → {s.closingBalance != null ? fmt(s.closingBalance) : "—"}
+            </span>
+            <span style={{ color: s.crossCheckOk ? "#166534" : "#991b1b" }}>{s.crossCheckOk ? "✓" : "⚠"} {s.status}</span>
+          </div>
+        ))}
+
+        {missing.length > 0 && (
+          <div style={{ border: "1px dashed #dc2626", background: "#fef2f2", borderRadius: 10, padding: 12, margin: "12px 0" }}>
+            <div style={{ color: "#991b1b", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+              ⚠ {t("recon.missingTitle")} — {missing.length}
+            </div>
+            {missing.map((m) => (
+              <div key={m.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0" }}>
+                <span><b>{m.txnDate}</b> · {m.partnerName ?? "—"} <span style={{ color: "var(--text-muted)" }}>({m.category ?? "—"})</span></span>
+                <span>{fmt(Math.abs(m.amount))} RON</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
+              <th style={{ padding: 8 }}>{t("recon.date")}</th>
+              <th style={{ padding: 8 }}>{t("recon.partner")}</th>
+              <th style={{ padding: 8, textAlign: "right" }}>{t("recon.amount")}</th>
+              <th style={{ padding: 8 }}>{t("recon.document")}</th>
+              <th style={{ padding: 8 }}>{t("recon.reason")}</th>
+              <th style={{ padding: 8 }}>{t("recon.decidedBy")}</th>
+              <th style={{ padding: 8, textAlign: "center" }}>{t("recon.accountantSets")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((tx) => (
+              <tr key={tx.id} style={{ borderTop: "1px solid var(--border)", background: tx.requiresDocument && !tx.matched ? "#fff7f6" : undefined }}>
+                <td style={{ padding: 8, whiteSpace: "nowrap" }}>{tx.txnDate}</td>
+                <td style={{ padding: 8 }}>
+                  <b>{tx.partnerName ?? "—"}</b>
+                  <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, maskIban(tx.partnerIban)].filter(Boolean).join(" · ")}</div>
+                </td>
+                <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
+                  {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}
+                </td>
+                <td style={{ padding: 8, whiteSpace: "nowrap", fontSize: 12 }}>
+                  {tx.matched ? (
+                    <div>
+                      {tx.matchedInvoices.map((mi) => (
+                        <div key={mi.invoiceId} style={{ color: "#166534" }}>
+                          ✓ {mi.filename ?? "factura"}{" "}
+                          <button onClick={() => unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId })}
+                            style={{ border: "none", background: "none", color: "#991b1b", cursor: "pointer" }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : tx.requiresDocument ? (
+                    <div>
+                      <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>{" "}
+                      <button onClick={() => setLinkingTxn(linkingTxn === tx.id ? null : tx.id)}>{t("recon.link")}</button>
+                      {linkingTxn === tx.id && (
+                        <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: 8, padding: 6, background: "#fff" }}>
+                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).length === 0 && (
+                            <div style={{ color: "var(--text-muted)" }}>{t("recon.noInvoices")}</div>
+                          )}
+                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).map((inv) => (
+                            <div key={inv.id} onClick={() => match.mutate({ txnId: tx.id, invoiceId: inv.id })}
+                              style={{ cursor: "pointer", padding: "3px 4px" }}>
+                              {inv.filename ?? "factura"} · {inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)" }}>{t("recon.notNeeded")}</span>
+                  )}
+                </td>
+                <td style={{ padding: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                  {tx.reason}
+                  {tx.decisionSource === "LEARNED_RULE" || tx.decisionSource === "ACCOUNTANT_SET"
+                    ? <span style={{ marginLeft: 6, background: "#ede9fe", color: "#6d28d9", borderRadius: 999, padding: "1px 6px", fontSize: 10 }}>✓ {t("recon.remembered")}</span>
+                    : null}
+                </td>
+                <td style={{ padding: 8, fontSize: 12 }}>
+                  {tx.decisionSource ? t(`recon.source.${tx.decisionSource}`) : "—"}
+                </td>
+                <td style={{ padding: 8, textAlign: "center", whiteSpace: "nowrap" }}>
+                  <button
+                    disabled={setReq.isPending}
+                    onClick={() => setReq.mutate({ id: tx.id, requiresDocument: true })}
+                    style={{ fontWeight: tx.requiresDocument ? 700 : 400 }}
+                  >{t("recon.needsDoc")}</button>{" "}
+                  <button
+                    disabled={setReq.isPending}
+                    onClick={() => setReq.mutate({ id: tx.id, requiresDocument: false })}
+                    style={{ fontWeight: !tx.requiresDocument ? 700 : 400 }}
+                  >{t("recon.noDoc")}</button>
+                </td>
+              </tr>
+            ))}
+            {list.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 8, color: "var(--text-muted)" }}>—</td></tr>
+            )}
+          </tbody>
+        </table>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+          <button onClick={onClose}>{t("recon.notNeeded") && "Close"}</button>
+          <button className="primary" disabled={missing.length === 0} onClick={requestFromClient}>
+            {t("recon.requestClient")} ({missing.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

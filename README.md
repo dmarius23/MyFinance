@@ -113,6 +113,8 @@ set `SUPABASE_JWKS_URI` (backend) and `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_
 The tenant claims (`tenant_id`, `role`, `company_id`) come from a Supabase access-token hook.
 Copy `.env.example` → `.env` to configure. **Never commit real secrets.**
 
+**Representative invites** use the Supabase Auth admin API: set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (backend) and apply `infra/supabase/access_token_hook.sql` in your Supabase project, then enable it under Authentication → Hooks. Until configured, invites use a local logging fallback.
+
 **Tests:** `cd backend && mvn test` — includes the mandatory cross-tenant RLS isolation test
 (skipped automatically when Docker is unavailable). `cd frontend && npm run lint && npm run build`.
 

@@ -48,3 +48,45 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   return (await res.json()) as T;
 }
+
+/** Resolves the current Supabase access token, or null. */
+async function authToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+/** POST multipart/form-data (browser sets the boundary; do NOT set Content-Type). */
+export async function upload<T>(path: string, form: FormData): Promise<T> {
+  const token = await authToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${BASE_URL}${path}`, { method: "POST", body: form, headers });
+  if (!res.ok) {
+    let detail: unknown;
+    try {
+      detail = await res.json();
+    } catch {
+      detail = await res.text();
+    }
+    const message =
+      detail && typeof detail === "object" && "detail" in detail
+        ? String((detail as { detail: unknown }).detail)
+        : `Upload failed (${res.status})`;
+    throw new ApiError(res.status, message, detail);
+  }
+  return (await res.json()) as T;
+}
+
+/** GET a binary resource as a Blob (for downloads). */
+export async function download(path: string): Promise<Blob> {
+  const token = await authToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(`${BASE_URL}${path}`, { headers });
+  if (!res.ok) {
+    throw new ApiError(res.status, `Download failed (${res.status})`);
+  }
+  return res.blob();
+}

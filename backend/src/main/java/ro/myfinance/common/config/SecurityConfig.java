@@ -30,10 +30,12 @@ import ro.myfinance.common.security.TenantContextFilter;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, CorsConfigurationSource cors) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
-            .cors(c -> c.configurationSource(cors))
+            // Resolves the bean named "corsConfigurationSource" by name, avoiding ambiguity with
+            // Spring MVC's mvcHandlerMappingIntrospector (which also exposes a CorsConfigurationSource).
+            .cors(Customizer.withDefaults())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

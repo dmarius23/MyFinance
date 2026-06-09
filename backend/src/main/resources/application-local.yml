@@ -3,6 +3,17 @@
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+    validate-on-migrate: false
+    # The dev seed is numbered V1000 (so it runs last), which leaves every real migration (V3, V4, …)
+    # "behind" the latest-applied version locally. Allow out-of-order so they still apply on dev DBs.
+    out-of-order: true
+
+# Redis isn't required for local dev (jobs are enqueued lazily); don't let its health check mark
+# the app DOWN. In prod the worker + Redis run, so the check stays enabled there.
+management:
+  health:
+    redis:
+      enabled: false
 
 logging:
   level:
