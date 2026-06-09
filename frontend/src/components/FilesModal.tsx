@@ -69,7 +69,13 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.originalFilename}</div>
-                    <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{t(`documentType.${d.type}`, { defaultValue: d.type })}</div>
+                    <span style={{
+                      display: "inline-block", marginTop: 3, padding: "1px 8px", borderRadius: 999, fontSize: 10.5,
+                      background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
+                      color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
+                    }}>
+                      {t(`documentType.${d.type}`, { defaultValue: d.type })}
+                    </span>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
                     style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer" }}>✕</button>
