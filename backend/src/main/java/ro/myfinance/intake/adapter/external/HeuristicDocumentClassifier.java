@@ -36,14 +36,22 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             if (containsAny(text, "a.n.a.f", "anaf", "declarat", "d212", "d300", "d301", "d112")) {
                 return DocumentType.DECLARATION;
             }
-            if (containsAny(text, "extras de cont", "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
+            // Strong, statement-specific markers first (so a statement is never mistaken for anything else).
+            if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
+                    "sold final", "rulaj zi", "rulaj total cont")) {
                 return DocumentType.BANK_STATEMENT;
             }
+            // An invoice ("factura") must win over a mere bank-name mention — e.g. a BT Leasing invoice
+            // contains "Banca Transilvania" but is NOT a statement.
             if (containsAny(text, "factur", "invoice")) {
                 return DocumentType.INVOICE;
             }
             if (containsAny(text, "balanta")) {
                 return DocumentType.TRIAL_BALANCE;
+            }
+            // Weak fallback: a bank name with none of the above signals → most likely a statement.
+            if (containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
+                return DocumentType.BANK_STATEMENT;
             }
             return DocumentType.UNCLASSIFIED;
         } catch (IOException | RuntimeException e) {

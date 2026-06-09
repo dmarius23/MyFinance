@@ -68,4 +68,20 @@ class HeuristicDocumentClassifierTest {
         assertThat(classifier.classify("x.pdf", "application/pdf", new byte[]{9, 9, 9}))
                 .isEqualTo(DocumentType.UNCLASSIFIED);
     }
+
+    @Test
+    void invoiceMentioningABankIsInvoiceNotStatement() throws Exception {
+        // A BT Leasing FACTURA contains "Banca Transilvania" but is an invoice, not a statement.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("BT LEASING TRANSILVANIA IFN SA FACTURA Banca Transilvania Total de plata 4070.97")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void englishStatementByTransactionsListMarker() throws Exception {
+        // The BRD statement is English ("Transactions List"), no "extras de cont".
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("BRD Transactions List Settlement date Debit Credit Balance")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
 }
