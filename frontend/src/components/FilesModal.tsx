@@ -24,6 +24,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   const statusByDoc = new Map(statuses.map((s) => [s.documentId, s]));
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [uploadCount, setUploadCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const selected: Document | undefined = data.find((d) => d.id === selId) ?? data[0];
@@ -52,7 +53,13 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     void qc.invalidateQueries({ queryKey: ["invoices", companyId, period] });
   };
   const upload = useMutation({
-    mutationFn: (f: File) => documentsApi.upload(companyId, period, f),
+    // Upload sequentially: each upload triggers synchronous extraction + reconciliation for the
+    // period, so serializing avoids races on the shared matching state. Invalidate once at the end.
+    mutationFn: async (files: File[]) => {
+      for (const f of files) {
+        await documentsApi.upload(companyId, period, f);
+      }
+    },
     onSuccess: invalidate,
   });
   const remove = useMutation({
@@ -129,14 +136,16 @@ export function FilesModal({ companyId, companyName, period, onClose }:
             <input
               ref={fileRef}
               type="file"
+              multiple
               accept="application/pdf,image/png,image/jpeg,image/webp"
               style={{ display: "none" }}
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  upload.mutate(f);
+                const files = Array.from(e.target.files ?? []);
+                if (files.length > 0) {
+                  setUploadCount(files.length);
+                  upload.mutate(files);
                 }
-                e.target.value = ""; // allow re-selecting the same file
+                e.target.value = ""; // allow re-selecting the same file(s)
               }}
             />
             <button
@@ -145,7 +154,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
               disabled={upload.isPending}
               onClick={() => fileRef.current?.click()}
             >
-              {upload.isPending ? "…" : `+ ${t("files.add")}`}
+              {upload.isPending ? `↑ ${uploadCount}…` : `+ ${t("files.add")}`}
             </button>
           </div>
           <div>
