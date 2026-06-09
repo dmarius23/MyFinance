@@ -2,13 +2,17 @@ package ro.myfinance.extraction.application;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 
-/** After a document upload COMMITS, extract + match in its own transaction. Failures never break upload. */
+/**
+ * Extracts + matches when a document is uploaded. Fires synchronously on the publish (within the
+ * upload transaction, so the document is visible for the bank_statement FK). Failures are caught and
+ * logged so a parse problem never propagates out of the upload. (A future async worker/queue —
+ * MOD job `extract-document` — is the intended decoupling for heavy extraction.)
+ */
 @Component
 public class StatementExtractionListener {
 
@@ -23,7 +27,7 @@ public class StatementExtractionListener {
         this.invoices = invoices;
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
             if (e.type() == DocumentType.BANK_STATEMENT) {
