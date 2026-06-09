@@ -45,6 +45,12 @@ public class ReconciliationService {
     }
 
     private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
+    /**
+     * How many days a payment may precede the extracted invoice date and still auto-match. The
+     * extracted date can land on a due date while the payment was made a few days earlier; with an
+     * exact IBAN + amount match already in hand, a small backward window avoids rejecting it.
+     */
+    private static final long DATE_BACK_TOLERANCE_DAYS = 10;
 
     private final TransactionClassifier classifier;
     private final TransactionRuleRepository rules;
@@ -177,7 +183,8 @@ public class ReconciliationService {
                 boolean ibanOk = inv.getSupplierIban().equals(t.getPartnerIban());
                 boolean amtOk = inv.getTotalAmount().abs().subtract(t.getAmount().abs()).abs()
                         .compareTo(TOLERANCE) <= 0;
-                boolean dateOk = inv.getInvoiceDate() == null || !t.getTxnDate().isBefore(inv.getInvoiceDate());
+                boolean dateOk = inv.getInvoiceDate() == null
+                        || !t.getTxnDate().isBefore(inv.getInvoiceDate().minusDays(DATE_BACK_TOLERANCE_DAYS));
                 if (ibanOk && amtOk && dateOk) {
                     hit = inv;
                     break;
@@ -199,7 +206,8 @@ public class ReconciliationService {
         if (!t.getCompanyId().equals(companyId) || !inv.getCompanyId().equals(companyId)) {
             throw new NotFoundException("Not found in company " + companyId);
         }
-        if (inv.getInvoiceDate() != null && t.getTxnDate().isBefore(inv.getInvoiceDate())) {
+        if (inv.getInvoiceDate() != null
+                && t.getTxnDate().isBefore(inv.getInvoiceDate().minusDays(DATE_BACK_TOLERANCE_DAYS))) {
             throw new IllegalArgumentException("Transaction date is before the invoice date");
         }
         if (!matches.existsByTransactionIdAndInvoiceId(txnId, invoiceId)) {

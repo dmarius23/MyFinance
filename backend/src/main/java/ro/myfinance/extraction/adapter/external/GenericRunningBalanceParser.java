@@ -115,25 +115,19 @@ public class GenericRunningBalanceParser implements BankStatementParser {
         return out;
     }
 
-    /** Parse a monetary token in RO ("1.234,56") or EN ("1,234.56") format. */
+    /**
+     * Parse a monetary token in RO ("1.234,56") or EN ("1,234.56") format — robust to multiple grouping
+     * separators (e.g. "1.234.567,89"). The decimal point is the last '.'/',' followed by exactly two
+     * digits; every other separator is a thousands grouping and is stripped.
+     */
     private BigDecimal parseAmount(String token) {
-        int lastDot = token.lastIndexOf('.');
-        int lastComma = token.lastIndexOf(',');
-        String normalized;
-        if (lastDot >= 0 && lastComma >= 0) {
-            if (lastDot > lastComma) {
-                normalized = token.replace(",", "");          // EN: comma=thousands
-            } else {
-                normalized = token.replace(".", "").replace(",", "."); // RO: dot=thousands
-            }
-        } else if (lastComma >= 0) {
-            normalized = (token.length() - lastComma - 1 == 2)
-                    ? token.replace(",", ".")                 // decimal comma
-                    : token.replace(",", "");                 // thousands comma
-        } else {
-            normalized = token;                               // only dot or none → dot is decimal
+        int lastSep = Math.max(token.lastIndexOf('.'), token.lastIndexOf(','));
+        if (lastSep >= 0 && token.length() - lastSep - 1 == 2) {
+            String intPart = token.substring(0, lastSep).replaceAll("[.,]", "");
+            return new BigDecimal((intPart.isEmpty() ? "0" : intPart) + "." + token.substring(lastSep + 1));
         }
-        return new BigDecimal(normalized);
+        String digits = token.replaceAll("[.,]", "");
+        return new BigDecimal(digits.isEmpty() ? "0" : digits);
     }
 
     private LocalDate parseDate(String token) {
