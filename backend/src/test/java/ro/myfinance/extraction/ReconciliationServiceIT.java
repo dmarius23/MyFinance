@@ -232,4 +232,45 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         reconciliation.unlink(companyId, supplier.getId(), invId);
         assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).isEmpty();
     }
+
+    @Test
+    void unlinkRejectsWrongCompany() throws Exception {
+        UUID companyA = asTenantWithCompany(TENANT_A);
+        UUID companyB = companies.create("Other SRL", "RO-OTH-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        documents.upload(companyA, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyA).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        UUID invId = seedInvoice(companyA, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
+        reconciliation.link(companyA, supplier.getId(), invId);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                reconciliation.unlink(companyB, supplier.getId(), invId))
+                .isInstanceOf(ro.myfinance.common.web.NotFoundException.class);
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(1); // link untouched
+    }
+
+    @Test
+    void matchPeriodIsIdempotent() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        seedInvoice(companyId, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1)); // re-run must not duplicate
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(1);
+    }
+
+    @Test
+    void manualLinkSupportsManyInvoicesPerTransaction() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        UUID inv1 = seedInvoice(companyId, "RO21SUPP", "120.00", LocalDate.of(2026, 6, 1));
+        UUID inv2 = seedInvoice(companyId, "RO21SUPP", "80.00", LocalDate.of(2026, 6, 2));
+        reconciliation.link(companyId, supplier.getId(), inv1);
+        reconciliation.link(companyId, supplier.getId(), inv2);
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(2); // m:n
+    }
 }

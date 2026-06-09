@@ -94,8 +94,8 @@ public class ReconciliationService {
         }
     }
 
-    /** Accountant override: set the requirement, remember it as a learned rule. */
-    public BankTransaction setRequirement(UUID txnId, boolean requiresDocument, String reason) {
+    /** Accountant override: set the requirement, remember it as a learned rule. Returns the txn with its current matches. */
+    public TxnWithMatches setRequirement(UUID txnId, boolean requiresDocument, String reason) {
         BankTransaction t = transactions.findById(txnId)
                 .orElseThrow(() -> new NotFoundException("Transaction not found: " + txnId));
         t.setRequiresDocument(requiresDocument);
@@ -116,7 +116,7 @@ public class ReconciliationService {
                     descNorm, requiresDocument, userId));
         }
         audit.record("TXN_REQUIREMENT_SET", "bank_transaction", txnId);
-        return t;
+        return new TxnWithMatches(t, matchedViewsFor(txnId));
     }
 
     @Transactional(readOnly = true)
@@ -207,8 +207,15 @@ public class ReconciliationService {
     }
 
     public void unlink(UUID companyId, UUID txnId, UUID invoiceId) {
-        matches.deleteByTransactionIdAndInvoiceId(txnId, invoiceId);
-        audit.record("TXN_INVOICE_UNLINKED", "bank_transaction", txnId);
+        BankTransaction t = transactions.findById(txnId)
+                .orElseThrow(() -> new NotFoundException("Transaction not found: " + txnId));
+        if (!t.getCompanyId().equals(companyId)) {
+            throw new NotFoundException("Not found in company " + companyId);
+        }
+        if (matches.existsByTransactionIdAndInvoiceId(txnId, invoiceId)) {
+            matches.deleteByTransactionIdAndInvoiceId(txnId, invoiceId);
+            audit.record("TXN_INVOICE_UNLINKED", "bank_transaction", txnId);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -238,6 +245,27 @@ public class ReconciliationService {
         return txns.stream()
                 .map(t -> new TxnWithMatches(t, byTxn.getOrDefault(t.getId(), List.of())))
                 .toList();
+    }
+
+    /** The matched-invoice views for a single transaction (used by setRequirement's response). */
+    private List<MatchedInvoiceView> matchedViewsFor(UUID txnId) {
+        List<TransactionInvoiceMatch> links = matches.findByTransactionIdIn(List.of(txnId));
+        if (links.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<UUID, Invoice> invById = new java.util.HashMap<>();
+        for (Invoice i : invoices.findAllById(links.stream().map(TransactionInvoiceMatch::getInvoiceId).toList())) {
+            invById.put(i.getId(), i);
+        }
+        List<MatchedInvoiceView> out = new java.util.ArrayList<>();
+        for (TransactionInvoiceMatch m : links) {
+            Invoice i = invById.get(m.getInvoiceId());
+            if (i != null) {
+                out.add(new MatchedInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
+                        i.getTotalAmount(), i.getInvoiceDate(), i.getSupplierName()));
+            }
+        }
+        return out;
     }
 
     private TransactionRule matchRule(List<TransactionRule> learned, BankTransaction t) {

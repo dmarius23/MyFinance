@@ -34,8 +34,7 @@ public class ReconciliationController {
     @PatchMapping("/api/v1/companies/{companyId}/bank-transactions/{txnId}/requirement")
     public TransactionResponse setRequirement(@PathVariable UUID companyId, @PathVariable UUID txnId,
                                               @RequestBody SetRequirementRequest r) {
-        return TransactionResponse.from(new ReconciliationService.TxnWithMatches(
-                service.setRequirement(txnId, r.requiresDocument(), r.reason()), List.of()));
+        return TransactionResponse.from(service.setRequirement(txnId, r.requiresDocument(), r.reason()));
     }
 
     @PostMapping("/api/v1/companies/{companyId}/bank-transactions/{txnId}/matches")

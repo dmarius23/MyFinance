@@ -56,4 +56,15 @@ class HeuristicInvoiceExtractorTest {
         assertThat(inv.supplierIban()).isNull();
         assertThat(inv.totalAmount()).isNull();
     }
+
+    @Test
+    void extractsEnFormatTotal() throws Exception {
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Invoice no 77 dated 10/03/2026",
+                "Supplier IBAN RO49AAAA1B31007593840000",
+                "Total 1,234.56"));
+        assertThat(inv.totalAmount()).isEqualByComparingTo("1234.56");
+        assertThat(inv.supplierIban()).isEqualTo("RO49AAAA1B31007593840000");
+        assertThat(inv.invoiceDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 10));
+    }
 }
