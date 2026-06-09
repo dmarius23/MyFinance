@@ -79,13 +79,13 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
         <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", marginTop: 12 }}>
           <colgroup>
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "26%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "16%" }} />
             <col style={{ width: "8%" }} />
+            <col style={{ width: "27%" }} />
             <col style={{ width: "10%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "8%" }} />
           </colgroup>
           <thead>
             <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
@@ -160,13 +160,31 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                   <button
                     disabled={setReq.isPending}
                     onClick={() => setReq.mutate({ id: tx.id, requiresDocument: true })}
-                    style={{ fontWeight: tx.requiresDocument ? 700 : 400 }}
-                  >{t("recon.needsDoc")}</button>{" "}
+                    title={t("recon.needsDoc")}
+                    aria-label={t("recon.needsDoc")}
+                    aria-pressed={tx.requiresDocument}
+                    style={{
+                      padding: "3px 8px", marginRight: 5, fontSize: 15, lineHeight: 1, borderRadius: 7,
+                      cursor: "pointer",
+                      border: `1px solid ${tx.requiresDocument ? "#dc2626" : "var(--border)"}`,
+                      background: tx.requiresDocument ? "#fee2e2" : "transparent",
+                      color: tx.requiresDocument ? "#991b1b" : "var(--text-muted)",
+                    }}
+                  >📎</button>
                   <button
                     disabled={setReq.isPending}
                     onClick={() => setReq.mutate({ id: tx.id, requiresDocument: false })}
-                    style={{ fontWeight: !tx.requiresDocument ? 700 : 400 }}
-                  >{t("recon.noDoc")}</button>
+                    title={t("recon.noDoc")}
+                    aria-label={t("recon.noDoc")}
+                    aria-pressed={!tx.requiresDocument}
+                    style={{
+                      padding: "3px 8px", fontSize: 15, lineHeight: 1, borderRadius: 7,
+                      cursor: "pointer",
+                      border: `1px solid ${!tx.requiresDocument ? "#16a34a" : "var(--border)"}`,
+                      background: !tx.requiresDocument ? "#dcfce7" : "transparent",
+                      color: !tx.requiresDocument ? "#166534" : "var(--text-muted)",
+                    }}
+                  >⊘</button>
                 </td>
               </tr>
             ))}
