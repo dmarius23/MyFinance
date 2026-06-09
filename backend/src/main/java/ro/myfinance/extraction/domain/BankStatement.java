@@ -81,6 +81,7 @@ public class BankStatement {
     }
 
     public UUID getId() { return id; }
+    public UUID getDocumentId() { return documentId; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
     public String getBankCode() { return bankCode; }

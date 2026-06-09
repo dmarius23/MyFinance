@@ -19,6 +19,7 @@ import ro.myfinance.extraction.adapter.web.BankStatementDtos.SetRequirementReque
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.TransactionResponse;
 import ro.myfinance.extraction.application.ReconciliationService;
 import ro.myfinance.extraction.application.ReconciliationService.CompanyCompleteness;
+import ro.myfinance.extraction.application.ReconciliationService.DocumentStatus;
 
 /** Reconciliation: accountant override + completeness summary. Firm staff only. */
 @RestController
@@ -53,5 +54,11 @@ public class ReconciliationController {
     @GetMapping("/api/v1/reconciliation/summary")
     public List<CompanyCompleteness> summary(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
         return service.completenessSummary(period);
+    }
+
+    @GetMapping("/api/v1/companies/{companyId}/document-status")
+    public List<DocumentStatus> documentStatus(@PathVariable UUID companyId,
+                                               @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return service.documentStatuses(companyId, period);
     }
 }

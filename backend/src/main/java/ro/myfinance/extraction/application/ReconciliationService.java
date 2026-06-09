@@ -40,6 +40,10 @@ public class ReconciliationService {
     public record TxnWithMatches(BankTransaction txn, java.util.List<MatchedInvoiceView> invoices) {
     }
 
+    /** Per-document warning flags for the documents list. warningReason is an i18n key code. */
+    public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched) {
+    }
+
     private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
 
     private final TransactionClassifier classifier;
@@ -263,6 +267,38 @@ public class ReconciliationService {
             if (i != null) {
                 out.add(new MatchedInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getTotalAmount(), i.getInvoiceDate(), i.getSupplierName()));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Warning flags per document for the company+period: bank statements with no transaction in the
+     * uploaded period; invoices that match no transaction or whose date falls outside the period.
+     */
+    @Transactional(readOnly = true)
+    public List<DocumentStatus> documentStatuses(UUID companyId, java.time.LocalDate periodMonth) {
+        java.time.LocalDate period = periodMonth.withDayOfMonth(1);
+        List<DocumentStatus> out = new java.util.ArrayList<>();
+
+        for (BankStatement s : statements.findByCompanyIdAndPeriodMonth(companyId, period)) {
+            boolean inPeriod = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId())).stream()
+                    .anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
+            out.add(new DocumentStatus(s.getDocumentId(), !inPeriod,
+                    inPeriod ? null : "no_transactions_in_period", false));
+        }
+
+        List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
+        if (!invs.isEmpty()) {
+            java.util.Set<UUID> matchedInvoiceIds = matches
+                    .findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList()).stream()
+                    .map(TransactionInvoiceMatch::getInvoiceId)
+                    .collect(java.util.stream.Collectors.toSet());
+            for (Invoice inv : invs) {
+                boolean dateInPeriod = inv.getInvoiceDate() != null
+                        && inv.getInvoiceDate().withDayOfMonth(1).equals(period);
+                out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
+                        dateInPeriod ? null : "date_outside_period", !matchedInvoiceIds.contains(inv.getId())));
             }
         }
         return out;

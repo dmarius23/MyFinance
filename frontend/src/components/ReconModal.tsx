@@ -92,7 +92,12 @@ export function ReconModal({ companyId, companyName, period, onClose }:
           <tbody>
             {list.map((tx) => (
               <tr key={tx.id} style={{ borderTop: "1px solid var(--border)", background: tx.requiresDocument && !tx.matched ? "#fff7f6" : undefined }}>
-                <td style={{ padding: 8, whiteSpace: "nowrap" }}>{tx.txnDate}</td>
+                <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+                  {tx.txnDate}
+                  {tx.txnDate.slice(0, 7) !== period.slice(0, 7) && (
+                    <span title={t("recon.txnOutsidePeriod")} style={{ color: "#d97706", marginLeft: 4 }}>⚠</span>
+                  )}
+                </td>
                 <td style={{ padding: 8 }}>
                   <b>{tx.partnerName ?? "—"}</b>
                   <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, maskIban(tx.partnerIban)].filter(Boolean).join(" · ")}</div>

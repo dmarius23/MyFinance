@@ -80,7 +80,16 @@ export const invoicesApi = {
     api<Invoice[]>(`/api/v1/companies/${companyId}/invoices?period=${period}`),
 };
 
+export interface DocumentStatus {
+  documentId: string;
+  warning: boolean;
+  warningReason: string | null;
+  unmatched: boolean;
+}
+
 export const reconciliationApi = {
   summary: (period: string) =>
     api<CompanyCompleteness[]>(`/api/v1/reconciliation/summary?period=${period}`),
+  documentStatus: (companyId: string, period: string) =>
+    api<DocumentStatus[]>(`/api/v1/companies/${companyId}/document-status?period=${period}`),
 };

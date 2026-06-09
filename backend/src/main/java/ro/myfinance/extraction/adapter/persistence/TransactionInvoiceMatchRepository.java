@@ -9,6 +9,8 @@ public interface TransactionInvoiceMatchRepository extends JpaRepository<Transac
 
     List<TransactionInvoiceMatch> findByTransactionIdIn(List<UUID> transactionIds);
 
+    List<TransactionInvoiceMatch> findByInvoiceIdIn(List<UUID> invoiceIds);
+
     boolean existsByTransactionIdAndInvoiceId(UUID transactionId, UUID invoiceId);
 
     void deleteByTransactionIdAndInvoiceId(UUID transactionId, UUID invoiceId);

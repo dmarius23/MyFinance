@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document } from "../api/documents";
+import { reconciliationApi } from "../api/bank";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
@@ -16,6 +17,11 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     queryKey: ["documents", companyId, period],
     queryFn: () => documentsApi.list(companyId, period),
   });
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["doc-status", companyId, period],
+    queryFn: () => reconciliationApi.documentStatus(companyId, period),
+  });
+  const statusByDoc = new Map(statuses.map((s) => [s.documentId, s]));
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -36,13 +42,18 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     return () => { if (revoked) URL.revokeObjectURL(revoked); };
   }, [companyId, selected?.id]);
 
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["documents", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
+    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
+  };
   const upload = useMutation({
     mutationFn: (f: File) => documentsApi.upload(companyId, period, f),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["documents", companyId, period] }); void qc.invalidateQueries({ queryKey: ["doc-summary", period] }); },
+    onSuccess: invalidate,
   });
   const remove = useMutation({
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["documents", companyId, period] }); void qc.invalidateQueries({ queryKey: ["doc-summary", period] }); },
+    onSuccess: invalidate,
   });
 
   return (
@@ -77,6 +88,13 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                       {t(`documentType.${d.type}`, { defaultValue: d.type })}
                     </span>
                   </div>
+                  {statusByDoc.get(d.id)?.unmatched && (
+                    <span title={t("doc.warn.unmatched")} style={{ color: "#dc2626", fontSize: 14 }}>⊘</span>
+                  )}
+                  {statusByDoc.get(d.id)?.warning && (
+                    <span title={t(`doc.warn.${statusByDoc.get(d.id)!.warningReason}`, { defaultValue: "" })}
+                      style={{ color: "#d97706", fontSize: 14 }}>⚠</span>
+                  )}
                   <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
                     style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer" }}>✕</button>
                 </div>
