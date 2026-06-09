@@ -43,7 +43,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 1000, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="card" style={{ width: 1360, maxWidth: "98vw", maxHeight: "92vh", overflowX: "hidden", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>{t("recon.title")} — {companyName}</h2>
           <button onClick={onClose}>✕</button>
@@ -77,7 +77,16 @@ export function ReconModal({ companyId, companyName, period, onClose }:
           </div>
         )}
 
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
+        <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", marginTop: 12 }}>
+          <colgroup>
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "10%" }} />
+          </colgroup>
           <thead>
             <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
               <th style={{ padding: 8 }}>{t("recon.date")}</th>
@@ -98,14 +107,14 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                     <span title={t("recon.txnOutsidePeriod")} style={{ color: "#d97706", marginLeft: 4 }}>⚠</span>
                   )}
                 </td>
-                <td style={{ padding: 8 }}>
+                <td style={{ padding: 8, overflowWrap: "anywhere" }}>
                   <b>{tx.partnerName ?? "—"}</b>
                   <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, maskIban(tx.partnerIban)].filter(Boolean).join(" · ")}</div>
                 </td>
                 <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
                   {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}
                 </td>
-                <td style={{ padding: 8, whiteSpace: "nowrap", fontSize: 12 }}>
+                <td style={{ padding: 8, fontSize: 12, overflowWrap: "anywhere" }}>
                   {tx.matched ? (
                     <div>
                       {tx.matchedInvoices.map((mi) => (

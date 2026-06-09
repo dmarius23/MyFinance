@@ -77,7 +77,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 820, maxWidth: "96vw" }} onClick={(e) => e.stopPropagation()}>
+      <div className="card" style={{ width: 1180, maxWidth: "96vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>{t("files.title")} — {companyName}</h2>
           <div style={{ display: "flex", gap: 8 }}>
@@ -87,9 +87,9 @@ export function FilesModal({ companyId, companyName, period, onClose }:
             <button onClick={onClose}>✕</button>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
           <div>
-            <div style={{ maxHeight: 360, overflow: "auto" }}>
+            <div style={{ maxHeight: 560, overflow: "auto" }}>
               {data.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
               {data.map((d) => (
                 <div
@@ -159,7 +159,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{selected?.originalFilename ?? t("files.preview")}</div>
-            <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", height: 360, background: "#525659" }}>
+            <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", height: 560, background: "#525659" }}>
               {blobUrl && selected?.contentType?.startsWith("image/") && (
                 <img src={blobUrl} alt={selected.originalFilename} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               )}
