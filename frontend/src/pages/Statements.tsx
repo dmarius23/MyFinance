@@ -7,7 +7,7 @@ import { reconciliationApi } from "../api/bank";
 import { MonthBar } from "../components/MonthBar";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
-import { SendReminderModal } from "../components/SendReminderModal";
+import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 
 function pill(text: string, kind: "ok" | "bad" | "na") {
   const colors: Record<string, React.CSSProperties> = {
@@ -25,7 +25,7 @@ export function Statements() {
   const [filesFor, setFilesFor] = useState<{ id: string; name: string } | null>(null);
   const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [sendList, setSendList] = useState<{ id: string; name: string }[] | null>(null);
+  const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const summary = useQuery({
@@ -62,8 +62,15 @@ export function Statements() {
   const toggleAll = () =>
     setSelected(allSelected ? new Set() : new Set(selectableIds));
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
-  const sendSelected = () =>
-    setSendList([...selected].map((id) => ({ id, name: nameOf(id) })));
+  const target = (id: string): ReminderTarget => {
+    const s = byCompany.get(id);
+    return {
+      id, name: nameOf(id),
+      hasBankStatement: s?.hasBankStatement ?? false,
+      hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false,
+    };
+  };
+  const sendSelected = () => setSendList([...selected].map(target));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -138,7 +145,7 @@ export function Statements() {
                   })()}</td>
                   <td style={{ padding: 8 }}>
                     {selectable
-                      ? <button onClick={() => setSendList([{ id: c.id, name: c.legalName }])}>
+                      ? <button onClick={() => setSendList([target(c.id)])}>
                           ✉ {t("email.send")}
                         </button>
                       : pill("—", "na")}

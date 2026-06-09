@@ -1,28 +1,67 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueries } from "@tanstack/react-query";
+import { bankApi, type BankTransaction } from "../api/bank";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
   display: "grid", placeItems: "center", zIndex: 60,
 };
 
+const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export interface ReminderTarget {
+  id: string;
+  name: string;
+  hasBankStatement: boolean;
+  hasInvoiceOrReceipt: boolean;
+}
+
 /**
- * Missing-documents reminder preview. Email delivery (MOD-07/09) isn't wired yet, so this mirrors
- * the prototype: it shows the predefined template per recipient and a confirm action that marks the
- * reminder as sent (preview only). Once the notifications module lands, the confirm handler calls
- * the real endpoint instead of flipping local state.
+ * Missing-documents reminder preview. The body is tailored per company: if the bank statement is
+ * already uploaded we ask only for the missing invoices/receipts and list the specific transactions
+ * still lacking a document; otherwise we ask for the statement too.
+ *
+ * Email delivery (MOD-07/09) isn't wired yet, so confirming is preview-only (mirrors the prototype);
+ * the confirm handler is the single place to call the real endpoint once it exists.
  */
 export function SendReminderModal({ companies, period, onClose }:
-  { companies: { id: string; name: string }[]; period: string; onClose: () => void }) {
+  { companies: ReminderTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
   const [sent, setSent] = useState(false);
   const month = period.slice(0, 7);
-  const subject = t("email.subject", { month });
-  const body = t("email.body");
+
+  // Fetch each company's transactions so we can suggest the ones missing a document.
+  const txnQueries = useQueries({
+    queries: companies.map((c) => ({
+      queryKey: ["bank-txns", c.id, period],
+      queryFn: () => bankApi.transactions(c.id, period),
+      enabled: c.hasBankStatement, // no statement → nothing to suggest
+    })),
+  });
+
+  const missingFor = (i: number): BankTransaction[] =>
+    (txnQueries[i].data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
+
+  const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string => {
+    const lines = [t("email.greeting"), ""];
+    if (!c.hasBankStatement) {
+      lines.push(t("email.needStatementAndDocs", { month }));
+    } else if (missing.length > 0) {
+      lines.push(t("email.needDocsForTxns", { month }));
+      for (const tx of missing) {
+        lines.push(`• ${tx.txnDate} — ${tx.partnerName ?? "—"} — ${fmt(Math.abs(tx.amount))} RON`);
+      }
+    } else {
+      lines.push(t("email.needDocs", { month }));
+    }
+    lines.push("", t("email.uploadPortal"), "", t("email.signoff"));
+    return lines.join("\n");
+  };
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 640, maxWidth: "94vw", maxHeight: "88vh", overflow: "auto" }}
+      <div className="card" style={{ width: 660, maxWidth: "94vw", maxHeight: "88vh", overflow: "auto" }}
         onClick={(e) => e.stopPropagation()}>
         {sent ? (
           <div style={{ textAlign: "center", padding: "8px 4px" }}>
@@ -41,16 +80,21 @@ export function SendReminderModal({ companies, period, onClose }:
               {t("email.previewIntro", { n: companies.length, month })}
             </p>
             <div style={{ display: "grid", gap: 10 }}>
-              {companies.map((c) => (
-                <div key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ background: "#fafbfc", padding: "8px 12px", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-                    <b>{c.name}</b>
+              {companies.map((c, i) => {
+                const loading = c.hasBankStatement && txnQueries[i].isLoading;
+                const missing = missingFor(i);
+                return (
+                  <div key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ background: "#fafbfc", padding: "8px 12px", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+                      <b>{c.name}</b>
+                    </div>
+                    <div style={{ padding: 12, fontSize: 13, whiteSpace: "pre-line", lineHeight: 1.6 }}>
+                      <b>{t("email.subjectLabel")}:</b> {t("email.subject", { month })}{"\n"}
+                      {loading ? t("common.loading") : bodyFor(c, missing)}
+                    </div>
                   </div>
-                  <div style={{ padding: 12, fontSize: 13, whiteSpace: "pre-line", lineHeight: 1.6 }}>
-                    <b>{t("email.subjectLabel")}:</b> {subject}{"\n"}{body}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
               <button onClick={onClose}>{t("email.cancel")}</button>
