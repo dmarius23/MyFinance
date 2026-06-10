@@ -30,6 +30,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   const match = useMutation({
     mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); setLinkingTxn(null); },
+    onError: (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`),
   });
   const unmatch = useMutation({
     mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId),
@@ -38,6 +39,17 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   const list = txns.data ?? [];
   const missing = list.filter((tx) => tx.requiresDocument && !tx.matched);
+
+  // Which transactions each invoice is already linked to (many-to-many is allowed), so the link
+  // picker can flag invoices already assigned elsewhere instead of hiding them.
+  const invoiceAssignedTo = new Map<string, { txnDate: string; partnerName: string | null }[]>();
+  for (const tx of list) {
+    for (const mi of tx.matchedInvoices) {
+      const arr = invoiceAssignedTo.get(mi.invoiceId) ?? [];
+      arr.push({ txnDate: tx.txnDate, partnerName: tx.partnerName });
+      invoiceAssignedTo.set(mi.invoiceId, arr);
+    }
+  }
 
   const requestFromClient = () => window.alert(t("recon.requestPreview"));
 
@@ -130,16 +142,38 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                       <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>{" "}
                       <button onClick={() => setLinkingTxn(linkingTxn === tx.id ? null : tx.id)}>{t("recon.link")}</button>
                       {linkingTxn === tx.id && (
-                        <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: 8, padding: 6, background: "#fff" }}>
-                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).length === 0 && (
+                        <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: 8, padding: 6, background: "#fff", whiteSpace: "normal" }}>
+                          {(invoices.data ?? []).length === 0 && (
                             <div style={{ color: "var(--text-muted)" }}>{t("recon.noInvoices")}</div>
                           )}
-                          {(invoices.data ?? []).filter((inv) => !inv.invoiceDate || inv.invoiceDate <= tx.txnDate).map((inv) => (
-                            <div key={inv.id} onClick={() => match.mutate({ txnId: tx.id, invoiceId: inv.id })}
-                              style={{ cursor: "pointer", padding: "3px 4px" }}>
-                              {inv.filename ?? "factura"} · {inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}
-                            </div>
-                          ))}
+                          {(invoices.data ?? []).map((inv) => {
+                            const assigned = invoiceAssignedTo.get(inv.id) ?? [];
+                            const amtMatch = inv.totalAmount != null
+                              && Math.abs(Math.abs(inv.totalAmount) - Math.abs(tx.amount)) < 0.01;
+                            return (
+                              <div key={inv.id} onClick={() => match.mutate({ txnId: tx.id, invoiceId: inv.id })}
+                                title={t("recon.pickInvoice")}
+                                style={{ cursor: "pointer", padding: "5px 5px", borderRadius: 6, borderBottom: "1px solid var(--border)" }}>
+                                <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
+                                  {inv.filename ?? inv.supplierName ?? "factura"}
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, marginTop: 2 }}>
+                                  <span style={{ color: "var(--text-muted)" }}>📅 {inv.invoiceDate ?? "—"}</span>
+                                  <span style={{ fontVariantNumeric: "tabular-nums", color: amtMatch ? "#166534" : "var(--text-muted)" }}>
+                                    {inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}{amtMatch ? " ✓" : ""}
+                                  </span>
+                                  {assigned.length > 0
+                                    ? <span title={assigned.map((a) => `${a.txnDate} · ${a.partnerName ?? "—"}`).join("\n")}
+                                        style={{ background: "#fef3c7", color: "#92400e", borderRadius: 999, padding: "1px 7px", fontSize: 10.5 }}>
+                                        {t("recon.assignedTo", { n: assigned.length })}
+                                      </span>
+                                    : <span style={{ background: "#dcfce7", color: "#166534", borderRadius: 999, padding: "1px 7px", fontSize: 10.5 }}>
+                                        {t("recon.unassigned")}
+                                      </span>}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

@@ -46,7 +46,10 @@ public class StatementExtractionListener {
 
             if (e.type() == DocumentType.BANK_STATEMENT) {
                 statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
-            } else if (e.type() == DocumentType.INVOICE) {
+            } else if (e.type() == DocumentType.INVOICE || e.type() == DocumentType.RECEIPT) {
+                // Receipts are supporting documents too — extract them as invoices so they become
+                // matchable/linkable. Image-only receipts parse to null fields (OCR is future work);
+                // they still appear in the manual link picker by filename.
                 invoices.process(e.documentId(), e.companyId(), e.periodMonth(), e.filename(), e.bytes());
             }
         } catch (RuntimeException ex) {
