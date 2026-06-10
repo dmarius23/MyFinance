@@ -36,14 +36,92 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         String iban = null;
         BigDecimal total = null;
         LocalDate date = null;
+        String supplier = null;
         try {
             iban = firstMatch(IBAN, text);
             total = totalAmount(text);
             date = invoiceDate(text);
+            supplier = supplierName(text);
         } catch (RuntimeException e) {
             log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
         }
-        return new ParsedInvoice(null, iban, total, date);
+        return new ParsedInvoice(supplier, iban, total, date);
+    }
+
+    /** Diacritics-insensitive lowercase of a line (for label/marker detection). */
+    private static String norm(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
+    }
+
+    private static final java.util.Set<String> COMPANY_SUFFIX = java.util.Set.of(
+            "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii");
+
+    /** A short line whose last tokens carry a Romanian company-form suffix (SRL, SA, IFN, PFA, …). */
+    private boolean looksLikeCompany(String rawLine) {
+        String n = norm(rawLine).trim();
+        if (n.isEmpty() || n.length() > 70) {
+            return false;
+        }
+        String[] tokens = n.replace(".", "").trim().split("\\s+");
+        if (tokens.length < 2) {
+            return false; // a bare "SRL" isn't a name
+        }
+        // Suffix sits at (or near) the end of a company name.
+        for (int i = Math.max(0, tokens.length - 2); i < tokens.length; i++) {
+            if (COMPANY_SUFFIX.contains(tokens[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String cleanName(String rawLine) {
+        String s = rawLine.trim().replaceAll("\\s{2,}", " ");
+        int colon = s.indexOf(':');
+        if (colon >= 0 && colon < s.length() - 1 && norm(s.substring(0, colon)).contains("furnizor")) {
+            s = s.substring(colon + 1).trim();
+        }
+        return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * Issuing party (supplier). Romanian invoices put the supplier under a "Furnizor" block and the
+     * buyer under "Cumpărător"/"Client"/"Beneficiar". We look for a company-form line within the
+     * supplier block (or on the Furnizor label line itself); failing that, the first company-form line
+     * before the buyer block (typically the letterhead). Returns null if nothing convincing is found.
+     */
+    private String supplierName(String text) {
+        String[] lines = text.split("\\R");
+        int furnizor = -1;
+        int buyer = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            if (furnizor < 0 && n.contains("furnizor")) {
+                furnizor = i;
+            }
+            if (buyer < 0 && (n.contains("cumparator") || n.contains("client") || n.contains("beneficiar"))) {
+                buyer = i;
+            }
+        }
+        if (furnizor >= 0) {
+            if (looksLikeCompany(lines[furnizor])) {
+                return cleanName(lines[furnizor]);
+            }
+            int end = buyer > furnizor ? buyer : lines.length;
+            for (int i = furnizor + 1; i < end; i++) {
+                if (looksLikeCompany(lines[i])) {
+                    return cleanName(lines[i]);
+                }
+            }
+        }
+        int end = buyer >= 0 ? buyer : lines.length;
+        for (int i = 0; i < end; i++) {
+            if (looksLikeCompany(lines[i])) {
+                return cleanName(lines[i]);
+            }
+        }
+        return null;
     }
 
     private BigDecimal totalAmount(String text) {

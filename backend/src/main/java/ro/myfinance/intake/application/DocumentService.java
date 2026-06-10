@@ -126,7 +126,12 @@ public class DocumentService {
         return doc;
     }
 
-    /** Re-run the classifier on every document in the period; reprocess those whose type changed. */
+    /**
+     * Re-run the classifier on every document in the period and re-extract all of them. Reclassifies
+     * where the type changed, but re-publishes for every document regardless so re-extraction picks up
+     * the latest parser logic (e.g. newly-extracted supplier names) without needing a re-upload.
+     * Returns the number of documents whose type changed.
+     */
     public int reclassify(UUID companyId, LocalDate periodMonth) {
         int changed = 0;
         for (Document doc : list(companyId, periodMonth)) {
@@ -134,10 +139,10 @@ public class DocumentService {
             DocumentType newType = classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
             if (newType != doc.getType()) {
                 doc.setType(newType);
-                events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
-                        newType, doc.getOriginalFilename(), bytes));
                 changed++;
             }
+            events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
+                    doc.getType(), doc.getOriginalFilename(), bytes));
         }
         audit.record("DOCUMENTS_RECLASSIFIED", "company", companyId);
         return changed;
