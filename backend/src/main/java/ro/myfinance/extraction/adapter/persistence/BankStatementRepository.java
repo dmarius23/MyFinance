@@ -12,5 +12,7 @@ public interface BankStatementRepository extends JpaRepository<BankStatement, UU
 
     java.util.List<ro.myfinance.extraction.domain.BankStatement> findByPeriodMonth(java.time.LocalDate periodMonth);
 
+    boolean existsByDocumentId(UUID documentId);
+
     void deleteByDocumentId(UUID documentId);
 }

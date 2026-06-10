@@ -39,17 +39,21 @@ public class StatementExtractionListener {
     @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
-            // Idempotent reprocess: drop any prior artifacts for this document (handles re-upload,
-            // re-classify, and type changes — e.g. a doc wrongly parsed as a statement, now an invoice).
-            statementRepo.deleteByDocumentId(e.documentId());
-            invoiceRepo.deleteByDocumentId(e.documentId());
-
             if (e.type() == DocumentType.BANK_STATEMENT) {
-                statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
+                // Cross-type cleanup only (no-op unless this doc was previously an invoice).
+                invoiceRepo.deleteByDocumentId(e.documentId());
+                // Re-scan is idempotent: a statement already parsed is left as-is so we never delete
+                // transactions that carry manual matches, nor re-insert a duplicate statement row.
+                if (!statementRepo.existsByDocumentId(e.documentId())) {
+                    statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
+                }
             } else if (e.type() == DocumentType.INVOICE || e.type() == DocumentType.RECEIPT) {
+                // Cross-type cleanup only (no-op unless this doc was previously a statement).
+                statementRepo.deleteByDocumentId(e.documentId());
                 // Receipts are supporting documents too — extract them as invoices so they become
                 // matchable/linkable. Image-only receipts parse to null fields (OCR is future work);
-                // they still appear in the manual link picker by filename.
+                // they still appear in the manual link picker by filename. process() upserts, so a
+                // re-scan refreshes fields in place and preserves the row's existing matches.
                 invoices.process(e.documentId(), e.companyId(), e.periodMonth(), e.filename(), e.bytes());
             }
         } catch (RuntimeException ex) {

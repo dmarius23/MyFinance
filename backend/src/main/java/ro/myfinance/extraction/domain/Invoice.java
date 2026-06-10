@@ -72,6 +72,17 @@ public class Invoice {
         this.status = status;
     }
 
+    /** Refresh the extracted fields in place (re-scan), preserving id/document_id and any matches. */
+    public void updateExtraction(String supplierName, String supplierIban, BigDecimal totalAmount,
+                                 LocalDate invoiceDate, String originalFilename, String status) {
+        this.supplierName = supplierName;
+        this.supplierIban = supplierIban;
+        this.totalAmount = totalAmount;
+        this.invoiceDate = invoiceDate;
+        this.originalFilename = originalFilename;
+        this.status = status;
+    }
+
     public UUID getId() { return id; }
     public UUID getDocumentId() { return documentId; }
     public UUID getCompanyId() { return companyId; }

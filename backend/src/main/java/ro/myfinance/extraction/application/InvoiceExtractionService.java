@@ -28,8 +28,15 @@ public class InvoiceExtractionService {
         UUID tenantId = TenantContext.tenantId().orElseThrow(() -> new IllegalStateException("No tenant bound"));
         ParsedInvoice p = extractor.extract(bytes);
         String status = (p.supplierIban() != null && p.totalAmount() != null) ? "EXTRACTED" : "NEEDS_REVIEW";
-        invoices.save(new Invoice(tenantId, documentId, companyId, periodMonth.withDayOfMonth(1),
-                p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), filename, status));
-        reconciliation.matchPeriod(companyId, periodMonth.withDayOfMonth(1));
+        LocalDate period = periodMonth.withDayOfMonth(1);
+        // Upsert by document: re-scan updates the existing row in place (preserving its id and any
+        // matches) rather than delete+insert, which would break match FKs and trip the unique
+        // document_id (Hibernate orders the insert before the delete within a shared transaction).
+        invoices.findByDocumentId(documentId).ifPresentOrElse(
+                existing -> existing.updateExtraction(p.supplierName(), p.supplierIban(), p.totalAmount(),
+                        p.invoiceDate(), filename, status),
+                () -> invoices.save(new Invoice(tenantId, documentId, companyId, period,
+                        p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), filename, status)));
+        reconciliation.matchPeriod(companyId, period);
     }
 }
