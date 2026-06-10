@@ -25,7 +25,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{4})");
 
     @Override
-    public ParsedInvoice extract(byte[] pdf) {
+    public ParsedInvoice extract(byte[] pdf, String ownCompanyName) {
         String text;
         try (PDDocument doc = Loader.loadPDF(pdf)) {
             text = new PDFTextStripper().getText(doc);
@@ -41,7 +41,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             iban = firstMatch(IBAN, text);
             total = totalAmount(text);
             date = invoiceDate(text);
-            supplier = supplierName(text);
+            supplier = supplierName(text, ownCompanyName);
         } catch (RuntimeException e) {
             log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
         }
@@ -85,13 +85,48 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         return s.isEmpty() ? null : s;
     }
 
+    /** Comparison key for a company name: lowercase, no diacritics/dots, company-form suffix dropped. */
+    private static String companyKey(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String tk : norm(s).replace(".", "").trim().split("\\s+")) {
+            if (!tk.isBlank() && !COMPANY_SUFFIX.contains(tk)) {
+                sb.append(sb.length() > 0 ? " " : "").append(tk);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** True when a candidate line names the company the document belongs to (never the supplier). */
+    private boolean isOwnParty(String rawLine, String ownKey) {
+        if (ownKey.isEmpty()) {
+            return false;
+        }
+        String key = companyKey(rawLine);
+        return !key.isEmpty() && (key.contains(ownKey) || ownKey.contains(key));
+    }
+
+    private String firstCounterparty(String[] lines, int from, int to, String ownKey) {
+        for (int i = Math.max(0, from); i < Math.min(lines.length, to); i++) {
+            if (looksLikeCompany(lines[i]) && !isOwnParty(lines[i], ownKey)) {
+                return cleanName(lines[i]);
+            }
+        }
+        return null;
+    }
+
     /**
      * Issuing party (supplier). Romanian invoices put the supplier under a "Furnizor" block and the
      * buyer under "Cumpărător"/"Client"/"Beneficiar". We look for a company-form line within the
      * supplier block (or on the Furnizor label line itself); failing that, the first company-form line
-     * before the buyer block (typically the letterhead). Returns null if nothing convincing is found.
+     * before the buyer block (typically the letterhead). The company the document belongs to is the
+     * buyer, never the supplier, so any line naming it is skipped (handles two-column Furnizor|Client
+     * layouts where the own company is listed first). Returns null if nothing convincing is found.
      */
-    private String supplierName(String text) {
+    private String supplierName(String text, String ownCompanyName) {
+        String ownKey = companyKey(ownCompanyName);
         String[] lines = text.split("\\R");
         int furnizor = -1;
         int buyer = -1;
@@ -105,23 +140,22 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             }
         }
         if (furnizor >= 0) {
-            if (looksLikeCompany(lines[furnizor])) {
+            if (looksLikeCompany(lines[furnizor]) && !isOwnParty(lines[furnizor], ownKey)) {
                 return cleanName(lines[furnizor]);
             }
             int end = buyer > furnizor ? buyer : lines.length;
-            for (int i = furnizor + 1; i < end; i++) {
-                if (looksLikeCompany(lines[i])) {
-                    return cleanName(lines[i]);
-                }
+            String hit = firstCounterparty(lines, furnizor + 1, end, ownKey);
+            // Two-column layouts put "Furnizor" and "Client" on the same line, so the bounded scan can
+            // come up empty — widen to the whole document, still skipping the own company.
+            if (hit == null && end != lines.length) {
+                hit = firstCounterparty(lines, furnizor + 1, lines.length, ownKey);
+            }
+            if (hit != null) {
+                return hit;
             }
         }
-        int end = buyer >= 0 ? buyer : lines.length;
-        for (int i = 0; i < end; i++) {
-            if (looksLikeCompany(lines[i])) {
-                return cleanName(lines[i]);
-            }
-        }
-        return null;
+        String hit = firstCounterparty(lines, 0, buyer >= 0 ? buyer : lines.length, ownKey);
+        return hit != null ? hit : firstCounterparty(lines, 0, lines.length, ownKey);
     }
 
     private BigDecimal totalAmount(String text) {
