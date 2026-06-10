@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, invoicesApi } from "../api/bank";
+import { LinkInvoiceModal } from "./LinkInvoiceModal";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
@@ -140,59 +141,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                   ) : tx.requiresDocument ? (
                     <div>
                       <span style={{ color: "#991b1b" }}>⚠ {t("recon.needsDoc")}</span>{" "}
-                      <button onClick={() => setLinkingTxn(linkingTxn === tx.id ? null : tx.id)}>{t("recon.link")}</button>
-                      {linkingTxn === tx.id && (() => {
-                        const amtMatchOf = (inv: { totalAmount: number | null }) =>
-                          inv.totalAmount != null && Math.abs(Math.abs(inv.totalAmount) - Math.abs(tx.amount)) < 0.01;
-                        // Surface the strongest candidates first so the relevant invoice is on top even
-                        // for a long list: exact amount match, then unassigned, then nearest date.
-                        const sorted = [...(invoices.data ?? [])].sort((a, b) =>
-                          (amtMatchOf(a) ? 0 : 1) - (amtMatchOf(b) ? 0 : 1)
-                          || ((invoiceAssignedTo.get(a.id)?.length ?? 0) > 0 ? 1 : 0) - ((invoiceAssignedTo.get(b.id)?.length ?? 0) > 0 ? 1 : 0)
-                          || Math.abs((a.invoiceDate ?? "").localeCompare(tx.txnDate)) - Math.abs((b.invoiceDate ?? "").localeCompare(tx.txnDate)));
-                        return (
-                          <div style={{ marginTop: 4, border: "1px solid var(--border)", borderRadius: 8, background: "#fff", whiteSpace: "normal" }}>
-                            {sorted.length === 0 && (
-                              <div style={{ color: "var(--text-muted)", padding: 6 }}>{t("recon.noInvoices")}</div>
-                            )}
-                            {/* Scrollable so a long invoice list never blows out the row height. */}
-                            <div style={{ maxHeight: 240, overflowY: "auto", padding: 4 }}>
-                              {sorted.map((inv) => {
-                                const assigned = invoiceAssignedTo.get(inv.id) ?? [];
-                                const amtMatch = amtMatchOf(inv);
-                                return (
-                                  <div key={inv.id} onClick={() => match.mutate({ txnId: tx.id, invoiceId: inv.id })}
-                                    title={t("recon.pickInvoice")}
-                                    style={{ cursor: "pointer", padding: "5px 5px", borderRadius: 6, borderBottom: "1px solid var(--border)" }}>
-                                    <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>
-                                      {inv.filename ?? inv.supplierName ?? "factura"}
-                                    </div>
-                                    {inv.supplierName && (
-                                      <div style={{ color: "var(--text-muted)", fontSize: 11.5, overflowWrap: "anywhere" }}>
-                                        🏢 {inv.supplierName}
-                                      </div>
-                                    )}
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, marginTop: 2 }}>
-                                      <span style={{ color: "var(--text-muted)" }}>📅 {inv.invoiceDate ?? "—"}</span>
-                                      <span style={{ fontVariantNumeric: "tabular-nums", color: amtMatch ? "#166534" : "var(--text-muted)" }}>
-                                        {inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}{amtMatch ? " ✓" : ""}
-                                      </span>
-                                      {assigned.length > 0
-                                        ? <span title={assigned.map((a) => `${a.txnDate} · ${a.partnerName ?? "—"}`).join("\n")}
-                                            style={{ background: "#fef3c7", color: "#92400e", borderRadius: 999, padding: "1px 7px", fontSize: 10.5 }}>
-                                            {t("recon.assignedTo", { n: assigned.length })}
-                                          </span>
-                                        : <span style={{ background: "#dcfce7", color: "#166534", borderRadius: 999, padding: "1px 7px", fontSize: 10.5 }}>
-                                            {t("recon.unassigned")}
-                                          </span>}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                      <button onClick={() => setLinkingTxn(tx.id)}>{t("recon.link")}</button>
                     </div>
                   ) : (
                     <span style={{ color: "var(--text-muted)" }}>{t("recon.notNeeded")}</span>
@@ -252,6 +201,20 @@ export function ReconModal({ companyId, companyName, period, onClose }:
           </button>
         </div>
       </div>
+
+      {(() => {
+        const linkTx = linkingTxn ? list.find((x) => x.id === linkingTxn) : undefined;
+        return linkTx ? (
+          <LinkInvoiceModal
+            tx={linkTx}
+            invoices={invoices.data ?? []}
+            assignedTo={invoiceAssignedTo}
+            pending={match.isPending}
+            onPick={(invoiceId) => match.mutate({ txnId: linkTx.id, invoiceId })}
+            onClose={() => setLinkingTxn(null)}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }
