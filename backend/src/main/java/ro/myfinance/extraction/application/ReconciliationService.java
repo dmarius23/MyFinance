@@ -41,6 +41,13 @@ public class ReconciliationService {
     public record TxnWithMatches(BankTransaction txn, java.util.List<MatchedInvoiceView> invoices) {
     }
 
+    /** An invoice still open for payment (remaining > 0), within the cross-period link window. */
+    public record OpenInvoiceView(UUID invoiceId, UUID documentId, String filename, String supplierName,
+                                  String supplierIban, java.math.BigDecimal totalAmount,
+                                  java.time.LocalDate invoiceDate, java.time.LocalDate periodMonth,
+                                  java.math.BigDecimal paidAmount, java.math.BigDecimal remaining) {
+    }
+
     /** Per-document warning flags for the documents list. warningReason is an i18n key code. */
     public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched) {
     }
@@ -294,6 +301,38 @@ public class ReconciliationService {
         return txns.stream()
                 .map(t -> new TxnWithMatches(t, byTxn.getOrDefault(t.getId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * Invoices still open for payment (remaining &gt; 0) for a company, within a rolling window ending
+     * at {@code periodMonth} and reaching {@code months} back. Lets the link picker reach invoices
+     * uploaded in earlier months that an installment in the current month settles. Invoices with an
+     * unknown total (image-only receipts) are considered open until they carry any allocation.
+     */
+    @Transactional(readOnly = true)
+    public List<OpenInvoiceView> openInvoices(UUID companyId, java.time.LocalDate periodMonth, int months) {
+        java.time.LocalDate to = periodMonth.withDayOfMonth(1);
+        java.time.LocalDate from = to.minusMonths(months);
+        List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonthBetween(companyId, from, to);
+        if (invs.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<UUID, BigDecimal> paid = new java.util.HashMap<>();
+        for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList())) {
+            paid.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
+        }
+        List<OpenInvoiceView> out = new java.util.ArrayList<>();
+        for (Invoice i : invs) {
+            BigDecimal p = paid.getOrDefault(i.getId(), BigDecimal.ZERO);
+            BigDecimal remaining = i.getTotalAmount() == null ? null : i.getTotalAmount().subtract(p);
+            boolean open = i.getTotalAmount() != null ? remaining.compareTo(TOLERANCE) > 0 : p.signum() == 0;
+            if (open) {
+                out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
+                        i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
+                        i.getPeriodMonth(), p, remaining));
+            }
+        }
+        return out;
     }
 
     private MatchedInvoiceView matchedView(Invoice i, TransactionInvoiceMatch m) {

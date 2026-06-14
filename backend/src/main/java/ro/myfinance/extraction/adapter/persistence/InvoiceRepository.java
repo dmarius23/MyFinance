@@ -11,6 +11,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     List<Invoice> findByCompanyIdAndPeriodMonth(UUID companyId, LocalDate periodMonth);
 
+    List<Invoice> findByCompanyIdAndPeriodMonthBetween(UUID companyId, LocalDate from, LocalDate to);
+
     Optional<Invoice> findByDocumentId(UUID documentId);
 
     void deleteByDocumentId(UUID documentId);

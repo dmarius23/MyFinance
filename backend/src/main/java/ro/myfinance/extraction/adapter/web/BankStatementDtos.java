@@ -38,6 +38,15 @@ public final class BankStatementDtos {
     public record MatchRequest(UUID invoiceId, BigDecimal amount) {
     }
 
+    public record OpenInvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
+                                      String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
+                                      LocalDate periodMonth, BigDecimal paidAmount, BigDecimal remaining) {
+        public static OpenInvoiceResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenInvoiceView v) {
+            return new OpenInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
+                    v.supplierIban(), v.totalAmount(), v.invoiceDate(), v.periodMonth(), v.paidAmount(), v.remaining());
+        }
+    }
+
     public record TransactionResponse(UUID id, UUID statementId, LocalDate txnDate, BigDecimal amount,
                                       String direction, String partnerName, String partnerIban,
                                       String description, BigDecimal balanceAfter, boolean requiresDocument,

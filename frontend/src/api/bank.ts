@@ -80,9 +80,25 @@ export const bankApi = {
     }),
 };
 
+export interface OpenInvoice {
+  id: string;
+  documentId: string;
+  filename: string | null;
+  supplierName: string | null;
+  supplierIban: string | null;
+  totalAmount: number | null;
+  invoiceDate: string | null;
+  periodMonth: string;
+  paidAmount: number;
+  remaining: number | null;
+}
+
 export const invoicesApi = {
   list: (companyId: string, period: string) =>
     api<Invoice[]>(`/api/v1/companies/${companyId}/invoices?period=${period}`),
+  /** Invoices still open for payment within a rolling window (default 18 months) ending at period. */
+  open: (companyId: string, period: string, months = 18) =>
+    api<OpenInvoice[]>(`/api/v1/companies/${companyId}/invoices/open?period=${period}&months=${months}`),
 };
 
 export interface DocumentStatus {

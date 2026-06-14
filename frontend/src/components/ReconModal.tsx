@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi, invoicesApi } from "../api/bank";
+import { bankApi } from "../api/bank";
 import { LinkInvoiceModal } from "./LinkInvoiceModal";
 
 const overlay: React.CSSProperties = {
@@ -19,8 +19,13 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
 
-  const invoices = useQuery({ queryKey: ["invoices", companyId, period], queryFn: () => invoicesApi.list(companyId, period) });
   const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
+  const invalidateRecon = () => {
+    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
+    void qc.invalidateQueries({ queryKey: ["open-invoices", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
+  };
 
   const setReq = useMutation({
     mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) =>
@@ -30,27 +35,16 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   const match = useMutation({
     mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); setLinkingTxn(null); },
+    onSuccess: () => { invalidateRecon(); setLinkingTxn(null); },
     onError: (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`),
   });
   const unmatch = useMutation({
     mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); void qc.invalidateQueries({ queryKey: ["recon-summary", period] }); },
+    onSuccess: invalidateRecon,
   });
 
   const list = txns.data ?? [];
   const missing = list.filter((tx) => tx.requiresDocument && !tx.matched);
-
-  // Which transactions each invoice is already linked to (many-to-many is allowed), so the link
-  // picker can flag invoices already assigned elsewhere instead of hiding them.
-  const invoiceAssignedTo = new Map<string, { txnDate: string; partnerName: string | null }[]>();
-  for (const tx of list) {
-    for (const mi of tx.matchedInvoices) {
-      const arr = invoiceAssignedTo.get(mi.invoiceId) ?? [];
-      arr.push({ txnDate: tx.txnDate, partnerName: tx.partnerName });
-      invoiceAssignedTo.set(mi.invoiceId, arr);
-    }
-  }
 
   const requestFromClient = () => window.alert(t("recon.requestPreview"));
 
@@ -206,9 +200,9 @@ export function ReconModal({ companyId, companyName, period, onClose }:
         const linkTx = linkingTxn ? list.find((x) => x.id === linkingTxn) : undefined;
         return linkTx ? (
           <LinkInvoiceModal
+            companyId={companyId}
+            period={period}
             tx={linkTx}
-            invoices={invoices.data ?? []}
-            assignedTo={invoiceAssignedTo}
             pending={match.isPending}
             onPick={(invoiceId) => match.mutate({ txnId: linkTx.id, invoiceId })}
             onClose={() => setLinkingTxn(null)}
