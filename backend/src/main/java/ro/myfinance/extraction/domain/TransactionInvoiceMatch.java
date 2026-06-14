@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
@@ -30,6 +31,10 @@ public class TransactionInvoiceMatch {
     @Column(nullable = false)
     private String source;
 
+    /** How much of the transaction this link applies to the invoice (payment allocation). */
+    @Column(name = "allocated_amount", nullable = false)
+    private BigDecimal allocatedAmount;
+
     @Column(name = "created_by")
     private UUID createdBy;
 
@@ -41,16 +46,18 @@ public class TransactionInvoiceMatch {
     }
 
     public TransactionInvoiceMatch(UUID tenantId, UUID transactionId, UUID invoiceId, String source,
-                                   UUID createdBy) {
+                                   UUID createdBy, BigDecimal allocatedAmount) {
         this.tenantId = tenantId;
         this.transactionId = transactionId;
         this.invoiceId = invoiceId;
         this.source = source;
         this.createdBy = createdBy;
+        this.allocatedAmount = allocatedAmount;
     }
 
     public UUID getId() { return id; }
     public UUID getTransactionId() { return transactionId; }
     public UUID getInvoiceId() { return invoiceId; }
     public String getSource() { return source; }
+    public BigDecimal getAllocatedAmount() { return allocatedAmount; }
 }

@@ -42,7 +42,7 @@ public class ReconciliationController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void link(@PathVariable UUID companyId, @PathVariable UUID txnId,
                      @RequestBody BankStatementDtos.MatchRequest r) {
-        service.link(companyId, txnId, r.invoiceId());
+        service.link(companyId, txnId, r.invoiceId(), r.amount());
     }
 
     @DeleteMapping("/api/v1/companies/{companyId}/bank-transactions/{txnId}/matches/{invoiceId}")

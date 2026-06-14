@@ -34,7 +34,8 @@ public class ReconciliationService {
 
     public record MatchedInvoiceView(UUID invoiceId, UUID documentId, String filename,
                                      java.math.BigDecimal totalAmount, java.time.LocalDate invoiceDate,
-                                     String supplierName) {
+                                     String supplierName, java.math.BigDecimal allocatedAmount,
+                                     java.math.BigDecimal invoiceRemaining) {
     }
 
     public record TxnWithMatches(BankTransaction txn, java.util.List<MatchedInvoiceView> invoices) {
@@ -138,15 +139,20 @@ public class ReconciliationService {
         List<CompanyCompleteness> out = new java.util.ArrayList<>();
         for (var e : byCompany.entrySet()) {
             List<UUID> stmtIds = e.getValue().stream().map(BankStatement::getId).toList();
-            List<UUID> txnIds = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
-                    .stream().filter(BankTransaction::isRequiresDocument).map(BankTransaction::getId).toList();
+            List<BankTransaction> reqTxns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
+                    .stream().filter(BankTransaction::isRequiresDocument).toList();
             boolean missing;
-            if (txnIds.isEmpty()) {
+            if (reqTxns.isEmpty()) {
                 missing = false;
             } else {
-                java.util.Set<UUID> matchedIds = matches.findByTransactionIdIn(txnIds).stream()
-                        .map(TransactionInvoiceMatch::getTransactionId).collect(java.util.stream.Collectors.toSet());
-                missing = txnIds.stream().anyMatch(id -> !matchedIds.contains(id));
+                // A transaction that needs a document is satisfied only when fully allocated.
+                java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
+                for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(
+                        reqTxns.stream().map(BankTransaction::getId).toList())) {
+                    allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
+                }
+                missing = reqTxns.stream().anyMatch(t -> t.getAmount().abs()
+                        .subtract(allocated.getOrDefault(t.getId(), BigDecimal.ZERO)).compareTo(TOLERANCE) > 0);
             }
             out.add(new CompanyCompleteness(e.getKey(), missing ? Completeness.PARTIAL : Completeness.COMPLETE));
         }
@@ -191,14 +197,22 @@ public class ReconciliationService {
                 }
             }
             if (hit != null) {
-                matches.save(new TransactionInvoiceMatch(tenantId, t.getId(), hit.getId(), "AUTO", null));
+                // Exact 1:1 match: the payment fully settles the invoice, so allocate its full total.
+                matches.save(new TransactionInvoiceMatch(tenantId, t.getId(), hit.getId(), "AUTO", null,
+                        hit.getTotalAmount()));
                 matchedTxnIds.add(t.getId());
                 periodInvoices.remove(hit);
             }
         }
     }
 
-    public void link(UUID companyId, UUID txnId, UUID invoiceId) {
+    /**
+     * Link a transaction to an invoice, allocating {@code requestedAmount} of the payment to it.
+     * When {@code requestedAmount} is null the allocation defaults to the smaller of the transaction's
+     * and the invoice's remaining amounts (so the common full-payment case needs no number). Allocation
+     * is capped at both remainings, so an invoice can't be over-paid nor a payment over-allocated.
+     */
+    public void link(UUID companyId, UUID txnId, UUID invoiceId, BigDecimal requestedAmount) {
         BankTransaction t = transactions.findById(txnId)
                 .orElseThrow(() -> new NotFoundException("Transaction not found: " + txnId));
         Invoice inv = invoices.findById(invoiceId)
@@ -206,16 +220,40 @@ public class ReconciliationService {
         if (!t.getCompanyId().equals(companyId) || !inv.getCompanyId().equals(companyId)) {
             throw new NotFoundException("Not found in company " + companyId);
         }
+        if (matches.existsByTransactionIdAndInvoiceId(txnId, invoiceId)) {
+            return; // already linked; editing the allocation comes with the split UI (later slice)
+        }
         if (inv.getInvoiceDate() != null
                 && t.getTxnDate().isBefore(inv.getInvoiceDate().minusDays(DATE_BACK_TOLERANCE_DAYS))) {
             throw new IllegalArgumentException("Transaction date is before the invoice date");
         }
-        if (!matches.existsByTransactionIdAndInvoiceId(txnId, invoiceId)) {
-            UUID tenantId = TenantContext.tenantId().orElseThrow();
-            UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
-            matches.save(new TransactionInvoiceMatch(tenantId, txnId, invoiceId, "MANUAL", userId));
-            audit.record("TXN_INVOICE_LINKED", "bank_transaction", txnId);
+
+        BigDecimal txnRemaining = t.getAmount().abs().subtract(matches.sumAllocatedByTransaction(txnId));
+        BigDecimal invRemaining = inv.getTotalAmount() == null ? null
+                : inv.getTotalAmount().subtract(matches.sumAllocatedByInvoice(invoiceId));
+        if (txnRemaining.compareTo(TOLERANCE) <= 0) {
+            throw new IllegalArgumentException("Transaction is already fully allocated");
         }
+        if (invRemaining != null && invRemaining.compareTo(TOLERANCE) <= 0) {
+            throw new IllegalArgumentException("Invoice is already fully paid");
+        }
+
+        BigDecimal defaultAmount = invRemaining == null ? txnRemaining : txnRemaining.min(invRemaining);
+        BigDecimal amount = requestedAmount != null ? requestedAmount : defaultAmount;
+        if (amount.signum() <= 0) {
+            throw new IllegalArgumentException("Allocation must be a positive amount");
+        }
+        if (amount.subtract(txnRemaining).compareTo(TOLERANCE) > 0) {
+            throw new IllegalArgumentException("Allocation exceeds the transaction's remaining amount");
+        }
+        if (invRemaining != null && amount.subtract(invRemaining).compareTo(TOLERANCE) > 0) {
+            throw new IllegalArgumentException("Allocation exceeds the invoice's remaining amount");
+        }
+
+        UUID tenantId = TenantContext.tenantId().orElseThrow();
+        UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        matches.save(new TransactionInvoiceMatch(tenantId, txnId, invoiceId, "MANUAL", userId, amount));
+        audit.record("TXN_INVOICE_LINKED", "bank_transaction", txnId);
     }
 
     public void unlink(UUID companyId, UUID txnId, UUID invoiceId) {
@@ -250,13 +288,19 @@ public class ReconciliationService {
             Invoice i = invById.get(m.getInvoiceId());
             if (i != null) {
                 byTxn.computeIfAbsent(m.getTransactionId(), k -> new java.util.ArrayList<>())
-                        .add(new MatchedInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
-                                i.getTotalAmount(), i.getInvoiceDate(), i.getSupplierName()));
+                        .add(matchedView(i, m));
             }
         }
         return txns.stream()
                 .map(t -> new TxnWithMatches(t, byTxn.getOrDefault(t.getId(), List.of())))
                 .toList();
+    }
+
+    private MatchedInvoiceView matchedView(Invoice i, TransactionInvoiceMatch m) {
+        BigDecimal remaining = i.getTotalAmount() == null ? null
+                : i.getTotalAmount().subtract(matches.sumAllocatedByInvoice(i.getId()));
+        return new MatchedInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
+                i.getTotalAmount(), i.getInvoiceDate(), i.getSupplierName(), m.getAllocatedAmount(), remaining);
     }
 
     /** The matched-invoice views for a single transaction (used by setRequirement's response). */
@@ -273,8 +317,7 @@ public class ReconciliationService {
         for (TransactionInvoiceMatch m : links) {
             Invoice i = invById.get(m.getInvoiceId());
             if (i != null) {
-                out.add(new MatchedInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
-                        i.getTotalAmount(), i.getInvoiceDate(), i.getSupplierName()));
+                out.add(matchedView(i, m));
             }
         }
         return out;
@@ -298,15 +341,20 @@ public class ReconciliationService {
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
         if (!invs.isEmpty()) {
-            java.util.Set<UUID> matchedInvoiceIds = matches
-                    .findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList()).stream()
-                    .map(TransactionInvoiceMatch::getInvoiceId)
-                    .collect(java.util.stream.Collectors.toSet());
+            // Allocation-aware: paid per invoice across ALL its matches (payments can span months).
+            java.util.Map<UUID, BigDecimal> paid = new java.util.HashMap<>();
+            for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList())) {
+                paid.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
+            }
             for (Invoice inv : invs) {
+                BigDecimal p = paid.getOrDefault(inv.getId(), BigDecimal.ZERO);
+                boolean fullyPaid = inv.getTotalAmount() != null
+                        ? inv.getTotalAmount().subtract(p).compareTo(TOLERANCE) <= 0
+                        : p.signum() > 0; // unknown total (image receipt): any allocation counts as matched
                 boolean dateInPeriod = inv.getInvoiceDate() != null
                         && inv.getInvoiceDate().withDayOfMonth(1).equals(period);
                 out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
-                        dateInPeriod ? null : "date_outside_period", !matchedInvoiceIds.contains(inv.getId())));
+                        dateInPeriod ? null : "date_outside_period", !fullyPaid));
             }
         }
         return out;

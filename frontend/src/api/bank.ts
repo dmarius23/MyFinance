@@ -18,6 +18,8 @@ export interface MatchedInvoice {
   totalAmount: number | null;
   invoiceDate: string | null;
   supplierName: string | null;
+  allocatedAmount: number | null;
+  invoiceRemaining: number | null;
 }
 
 export interface Invoice {
@@ -43,6 +45,9 @@ export interface BankTransaction {
   balanceAfter: number | null;
   requiresDocument: boolean;
   matched: boolean;
+  allocatedAmount: number;
+  remainingAmount: number;
+  fullyAllocated: boolean;
   matchedInvoices: MatchedInvoice[];
   category: string | null;
   decisionSource: string | null;
@@ -64,10 +69,10 @@ export const bankApi = {
       method: "PATCH",
       body: JSON.stringify({ requiresDocument, reason }),
     }),
-  match: (companyId: string, txnId: string, invoiceId: string) =>
+  match: (companyId: string, txnId: string, invoiceId: string, amount?: number) =>
     api<void>(`/api/v1/companies/${companyId}/bank-transactions/${txnId}/matches`, {
       method: "POST",
-      body: JSON.stringify({ invoiceId }),
+      body: JSON.stringify({ invoiceId, amount }),
     }),
   unmatch: (companyId: string, txnId: string, invoiceId: string) =>
     api<void>(`/api/v1/companies/${companyId}/bank-transactions/${txnId}/matches/${invoiceId}`, {

@@ -22,7 +22,8 @@ public final class BankStatementDtos {
     }
 
     public record MatchedInvoiceResponse(UUID invoiceId, UUID documentId, String filename,
-                                         BigDecimal totalAmount, LocalDate invoiceDate, String supplierName) {
+                                         BigDecimal totalAmount, LocalDate invoiceDate, String supplierName,
+                                         BigDecimal allocatedAmount, BigDecimal invoiceRemaining) {
     }
 
     public record InvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
@@ -34,25 +35,31 @@ public final class BankStatementDtos {
         }
     }
 
-    public record MatchRequest(UUID invoiceId) {
+    public record MatchRequest(UUID invoiceId, BigDecimal amount) {
     }
 
     public record TransactionResponse(UUID id, UUID statementId, LocalDate txnDate, BigDecimal amount,
                                       String direction, String partnerName, String partnerIban,
                                       String description, BigDecimal balanceAfter, boolean requiresDocument,
                                       boolean matched, String category, String decisionSource, String reason,
+                                      BigDecimal allocatedAmount, BigDecimal remainingAmount, boolean fullyAllocated,
                                       java.util.List<MatchedInvoiceResponse> matchedInvoices) {
         public static TransactionResponse from(ro.myfinance.extraction.application.ReconciliationService.TxnWithMatches tw) {
             BankTransaction t = tw.txn();
             java.util.List<MatchedInvoiceResponse> mi = tw.invoices().stream()
                     .map(v -> new MatchedInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(),
-                            v.totalAmount(), v.invoiceDate(), v.supplierName()))
+                            v.totalAmount(), v.invoiceDate(), v.supplierName(), v.allocatedAmount(), v.invoiceRemaining()))
                     .toList();
+            BigDecimal allocated = mi.stream().map(MatchedInvoiceResponse::allocatedAmount)
+                    .filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal remaining = t.getAmount().abs().subtract(allocated);
+            boolean fullyAllocated = remaining.compareTo(new BigDecimal("0.01")) <= 0;
             return new TransactionResponse(t.getId(), t.getStatementId(), t.getTxnDate(), t.getAmount(),
                     t.getDirection().name(), t.getPartnerName(), t.getPartnerIban(), t.getDescription(),
                     t.getBalanceAfter(), t.isRequiresDocument(), !mi.isEmpty(),
                     t.getCategory() == null ? null : t.getCategory().name(),
-                    t.getDecisionSource() == null ? null : t.getDecisionSource().name(), reason(t), mi);
+                    t.getDecisionSource() == null ? null : t.getDecisionSource().name(), reason(t),
+                    allocated, remaining, fullyAllocated, mi);
         }
 
         private static String reason(BankTransaction t) {

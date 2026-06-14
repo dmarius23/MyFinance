@@ -216,7 +216,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                 .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
         UUID invId = seedInvoice(companyId, "RO21SUPP", "999.00", LocalDate.of(2026, 6, 30));
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                reconciliation.link(companyId, supplier.getId(), invId))
+                reconciliation.link(companyId, supplier.getId(), invId, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -227,7 +227,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         BankTransaction supplier = companyTxns(companyId).stream()
                 .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
         UUID invId = seedInvoice(companyId, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
-        reconciliation.link(companyId, supplier.getId(), invId);
+        reconciliation.link(companyId, supplier.getId(), invId, null);
         assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(1);
         reconciliation.unlink(companyId, supplier.getId(), invId);
         assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).isEmpty();
@@ -241,7 +241,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         BankTransaction supplier = companyTxns(companyA).stream()
                 .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
         UUID invId = seedInvoice(companyA, "RO21SUPP", "200.00", LocalDate.of(2026, 6, 1));
-        reconciliation.link(companyA, supplier.getId(), invId);
+        reconciliation.link(companyA, supplier.getId(), invId, null);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                 reconciliation.unlink(companyB, supplier.getId(), invId))
@@ -269,8 +269,31 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                 .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
         UUID inv1 = seedInvoice(companyId, "RO21SUPP", "120.00", LocalDate.of(2026, 6, 1));
         UUID inv2 = seedInvoice(companyId, "RO21SUPP", "80.00", LocalDate.of(2026, 6, 2));
-        reconciliation.link(companyId, supplier.getId(), inv1);
-        reconciliation.link(companyId, supplier.getId(), inv2);
-        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId()))).hasSize(2); // m:n
+        reconciliation.link(companyId, supplier.getId(), inv1, null);
+        reconciliation.link(companyId, supplier.getId(), inv2, null);
+        var links = matchRepo.findByTransactionIdIn(List.of(supplier.getId()));
+        assertThat(links).hasSize(2); // m:n — one payment settles two invoices
+        // Default allocation fills each invoice to its total (120 + 80 = 200, the payment amount).
+        assertThat(links.stream().map(m -> m.getAllocatedAmount().stripTrailingZeros())
+                .collect(java.util.stream.Collectors.toSet()))
+                .containsExactlyInAnyOrder(new java.math.BigDecimal("120"), new java.math.BigDecimal("80"));
+    }
+
+    @Test
+    void partialPaymentAllocatesAndCapsAtRemaining() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        // Invoice larger than the payment → partial allocation = the whole payment (200).
+        UUID invId = seedInvoice(companyId, "RO21SUPP", "500.00", LocalDate.of(2026, 6, 1));
+        reconciliation.link(companyId, supplier.getId(), invId, null);
+        assertThat(matchRepo.findByTransactionIdIn(List.of(supplier.getId())).get(0)
+                .getAllocatedAmount().stripTrailingZeros()).isEqualByComparingTo(new java.math.BigDecimal("200"));
+        // Payment is now fully allocated → linking it to another invoice is rejected.
+        UUID inv2 = seedInvoice(companyId, "RO21SUPP", "50.00", LocalDate.of(2026, 6, 1));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                reconciliation.link(companyId, supplier.getId(), inv2, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
