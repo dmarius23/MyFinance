@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.adapter.persistence.BankStatementRepository;
+import ro.myfinance.extraction.adapter.web.BankStatementDtos.OpenTransactionResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.StatementResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.TransactionResponse;
 import ro.myfinance.extraction.application.ReconciliationService;
@@ -42,5 +43,14 @@ public class BankStatementController {
                                                   @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
         return recon.transactionsWithMatches(companyId, period).stream()
                 .map(TransactionResponse::from).toList();
+    }
+
+    /** Transactions still open for allocation within a rolling window (add-payment picker). */
+    @GetMapping("/bank-transactions/open")
+    public List<OpenTransactionResponse> openTransactions(@PathVariable UUID companyId,
+                                                          @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+                                                          @RequestParam(value = "months", defaultValue = "18") int months) {
+        return recon.openTransactions(companyId, period, months).stream()
+                .map(OpenTransactionResponse::from).toList();
     }
 }

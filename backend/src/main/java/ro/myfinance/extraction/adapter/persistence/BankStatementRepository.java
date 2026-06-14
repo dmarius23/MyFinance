@@ -10,6 +10,8 @@ public interface BankStatementRepository extends JpaRepository<BankStatement, UU
 
     List<BankStatement> findByCompanyIdAndPeriodMonth(UUID companyId, LocalDate periodMonth);
 
+    List<BankStatement> findByCompanyIdAndPeriodMonthBetween(UUID companyId, LocalDate from, LocalDate to);
+
     java.util.List<ro.myfinance.extraction.domain.BankStatement> findByPeriodMonth(java.time.LocalDate periodMonth);
 
     boolean existsByDocumentId(UUID documentId);

@@ -52,6 +52,24 @@ public class ReconciliationService {
     public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched) {
     }
 
+    /** A single payment (transaction allocation) applied to an invoice. */
+    public record InvoicePaymentView(UUID txnId, java.time.LocalDate txnDate, String partnerName,
+                                     java.math.BigDecimal amount, java.math.BigDecimal allocatedAmount) {
+    }
+
+    /** Invoice-centric view: the invoice plus the payments applied to it and its remaining balance. */
+    public record InvoicePaymentsView(UUID invoiceId, UUID documentId, String filename, String supplierName,
+                                      java.math.BigDecimal totalAmount, java.time.LocalDate invoiceDate,
+                                      java.math.BigDecimal paidAmount, java.math.BigDecimal remaining,
+                                      String status, java.util.List<InvoicePaymentView> payments) {
+    }
+
+    /** A transaction still open for allocation (needs a document, remaining &gt; 0). */
+    public record OpenTxnView(UUID id, java.time.LocalDate txnDate, java.math.BigDecimal amount,
+                              String partnerName, String partnerIban, java.math.BigDecimal allocatedAmount,
+                              java.math.BigDecimal remaining) {
+    }
+
     private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
     /**
      * How many days a payment may precede the extracted invoice date and still auto-match. The
@@ -330,6 +348,77 @@ public class ReconciliationService {
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
                         i.getPeriodMonth(), p, remaining));
+            }
+        }
+        return out;
+    }
+
+    /** Invoice-centric payments view, looked up by the invoice's document id. */
+    @Transactional(readOnly = true)
+    public InvoicePaymentsView invoicePaymentsByDocument(UUID companyId, UUID documentId) {
+        Invoice inv = invoices.findByDocumentId(documentId)
+                .filter(i -> i.getCompanyId().equals(companyId))
+                .orElseThrow(() -> new NotFoundException("Invoice not found for document " + documentId));
+        List<TransactionInvoiceMatch> links = matches.findByInvoiceIdIn(List.of(inv.getId()));
+        java.util.Map<UUID, BankTransaction> txById = new java.util.HashMap<>();
+        for (BankTransaction t : transactions.findAllById(
+                links.stream().map(TransactionInvoiceMatch::getTransactionId).toList())) {
+            txById.put(t.getId(), t);
+        }
+        BigDecimal paid = BigDecimal.ZERO;
+        List<InvoicePaymentView> payments = new java.util.ArrayList<>();
+        for (TransactionInvoiceMatch m : links) {
+            paid = paid.add(m.getAllocatedAmount());
+            BankTransaction t = txById.get(m.getTransactionId());
+            if (t != null) {
+                payments.add(new InvoicePaymentView(t.getId(), t.getTxnDate(), t.getPartnerName(),
+                        t.getAmount(), m.getAllocatedAmount()));
+            }
+        }
+        BigDecimal remaining = inv.getTotalAmount() == null ? null : inv.getTotalAmount().subtract(paid);
+        return new InvoicePaymentsView(inv.getId(), inv.getDocumentId(), inv.getOriginalFilename(),
+                inv.getSupplierName(), inv.getTotalAmount(), inv.getInvoiceDate(), paid, remaining,
+                paymentStatus(inv.getTotalAmount(), paid), payments);
+    }
+
+    private String paymentStatus(BigDecimal total, BigDecimal paid) {
+        if (paid.signum() == 0) {
+            return "UNPAID";
+        }
+        if (total != null && total.subtract(paid).compareTo(TOLERANCE) <= 0) {
+            return "PAID";
+        }
+        return "PARTIAL";
+    }
+
+    /**
+     * Transactions still open for allocation (need a document, remaining &gt; 0) for a company within a
+     * rolling window ending at {@code periodMonth}. Used to add a payment from the invoice-centric view.
+     */
+    @Transactional(readOnly = true)
+    public List<OpenTxnView> openTransactions(UUID companyId, java.time.LocalDate periodMonth, int months) {
+        java.time.LocalDate to = periodMonth.withDayOfMonth(1);
+        java.time.LocalDate from = to.minusMonths(months);
+        List<UUID> stmtIds = statements.findByCompanyIdAndPeriodMonthBetween(companyId, from, to)
+                .stream().map(BankStatement::getId).toList();
+        if (stmtIds.isEmpty()) {
+            return List.of();
+        }
+        List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds);
+        java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
+        for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(txns.stream().map(BankTransaction::getId).toList())) {
+            allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
+        }
+        List<OpenTxnView> out = new java.util.ArrayList<>();
+        for (BankTransaction t : txns) {
+            if (!t.isRequiresDocument()) {
+                continue;
+            }
+            BigDecimal alloc = allocated.getOrDefault(t.getId(), BigDecimal.ZERO);
+            BigDecimal remaining = t.getAmount().abs().subtract(alloc);
+            if (remaining.compareTo(TOLERANCE) > 0) {
+                out.add(new OpenTxnView(t.getId(), t.getTxnDate(), t.getAmount(), t.getPartnerName(),
+                        t.getPartnerIban(), alloc, remaining));
             }
         }
         return out;

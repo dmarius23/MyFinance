@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
+import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
@@ -25,6 +26,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [uploadCount, setUploadCount] = useState(0);
+  const [paymentsFor, setPaymentsFor] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const selected: Document | undefined = data.find((d) => d.id === selId) ?? data[0];
@@ -76,6 +78,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   });
 
   return (
+    <>
     <div style={overlay} onClick={onClose}>
       <div className="card" style={{ width: 1180, maxWidth: "96vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -128,6 +131,10 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                     <span title={t(`doc.warn.${statusByDoc.get(d.id)!.warningReason}`, { defaultValue: "" })}
                       style={{ color: "#d97706", fontSize: 14 }}>⚠</span>
                   )}
+                  {(d.type === "INVOICE" || d.type === "RECEIPT") && (
+                    <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }} title={t("recon.payments")}
+                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14 }}>💳</button>
+                  )}
                   <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
                     style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer" }}>✕</button>
                 </div>
@@ -171,5 +178,10 @@ export function FilesModal({ companyId, companyName, period, onClose }:
         </div>
       </div>
     </div>
+    {paymentsFor && (
+      <InvoicePaymentsModal companyId={companyId} period={period} documentId={paymentsFor}
+        onClose={() => setPaymentsFor(null)} />
+    )}
+    </>
   );
 }

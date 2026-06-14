@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
+import ro.myfinance.extraction.adapter.web.BankStatementDtos.InvoicePaymentsResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.InvoiceResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.OpenInvoiceResponse;
 import ro.myfinance.extraction.application.ReconciliationService;
@@ -43,5 +44,11 @@ public class InvoiceController {
                                           @RequestParam(value = "months", defaultValue = "18") int months) {
         return reconciliation.openInvoices(companyId, period, months).stream()
                 .map(OpenInvoiceResponse::from).toList();
+    }
+
+    /** Invoice-centric payments view (its applied payments + remaining), keyed by the document id. */
+    @GetMapping("/by-document/{documentId}/payments")
+    public InvoicePaymentsResponse paymentsByDocument(@PathVariable UUID companyId, @PathVariable UUID documentId) {
+        return InvoicePaymentsResponse.from(reconciliation.invoicePaymentsByDocument(companyId, documentId));
     }
 }

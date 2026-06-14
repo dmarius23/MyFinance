@@ -74,6 +74,9 @@ export const bankApi = {
       method: "POST",
       body: JSON.stringify({ invoiceId, amount }),
     }),
+  /** Transactions still open for allocation within a rolling window (add-payment picker). */
+  openTransactions: (companyId: string, period: string, months = 18) =>
+    api<OpenTransaction[]>(`/api/v1/companies/${companyId}/bank-transactions/open?period=${period}&months=${months}`),
   unmatch: (companyId: string, txnId: string, invoiceId: string) =>
     api<void>(`/api/v1/companies/${companyId}/bank-transactions/${txnId}/matches/${invoiceId}`, {
       method: "DELETE",
@@ -93,12 +96,46 @@ export interface OpenInvoice {
   remaining: number | null;
 }
 
+export interface OpenTransaction {
+  id: string;
+  txnDate: string;
+  amount: number;
+  partnerName: string | null;
+  partnerIban: string | null;
+  allocatedAmount: number;
+  remaining: number;
+}
+
+export interface InvoicePayment {
+  txnId: string;
+  txnDate: string;
+  partnerName: string | null;
+  amount: number;
+  allocatedAmount: number;
+}
+
+export interface InvoicePayments {
+  invoiceId: string;
+  documentId: string;
+  filename: string | null;
+  supplierName: string | null;
+  totalAmount: number | null;
+  invoiceDate: string | null;
+  paidAmount: number;
+  remaining: number | null;
+  status: "UNPAID" | "PARTIAL" | "PAID";
+  payments: InvoicePayment[];
+}
+
 export const invoicesApi = {
   list: (companyId: string, period: string) =>
     api<Invoice[]>(`/api/v1/companies/${companyId}/invoices?period=${period}`),
   /** Invoices still open for payment within a rolling window (default 18 months) ending at period. */
   open: (companyId: string, period: string, months = 18) =>
     api<OpenInvoice[]>(`/api/v1/companies/${companyId}/invoices/open?period=${period}&months=${months}`),
+  /** Invoice-centric payments view (applied payments + remaining), keyed by the document id. */
+  paymentsByDocument: (companyId: string, documentId: string) =>
+    api<InvoicePayments>(`/api/v1/companies/${companyId}/invoices/by-document/${documentId}/payments`),
 };
 
 export interface DocumentStatus {

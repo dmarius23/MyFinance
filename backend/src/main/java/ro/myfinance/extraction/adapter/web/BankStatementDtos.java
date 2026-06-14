@@ -96,4 +96,28 @@ public final class BankStatementDtos {
 
     public record SetRequirementRequest(boolean requiresDocument, String reason) {
     }
+
+    public record PaymentResponse(UUID txnId, LocalDate txnDate, String partnerName,
+                                  BigDecimal amount, BigDecimal allocatedAmount) {
+    }
+
+    public record InvoicePaymentsResponse(UUID invoiceId, UUID documentId, String filename, String supplierName,
+                                          BigDecimal totalAmount, LocalDate invoiceDate, BigDecimal paidAmount,
+                                          BigDecimal remaining, String status, java.util.List<PaymentResponse> payments) {
+        public static InvoicePaymentsResponse from(ro.myfinance.extraction.application.ReconciliationService.InvoicePaymentsView v) {
+            java.util.List<PaymentResponse> p = v.payments().stream()
+                    .map(x -> new PaymentResponse(x.txnId(), x.txnDate(), x.partnerName(), x.amount(), x.allocatedAmount()))
+                    .toList();
+            return new InvoicePaymentsResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
+                    v.totalAmount(), v.invoiceDate(), v.paidAmount(), v.remaining(), v.status(), p);
+        }
+    }
+
+    public record OpenTransactionResponse(UUID id, LocalDate txnDate, BigDecimal amount, String partnerName,
+                                          String partnerIban, BigDecimal allocatedAmount, BigDecimal remaining) {
+        public static OpenTransactionResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenTxnView v) {
+            return new OpenTransactionResponse(v.id(), v.txnDate(), v.amount(), v.partnerName(),
+                    v.partnerIban(), v.allocatedAmount(), v.remaining());
+        }
+    }
 }
