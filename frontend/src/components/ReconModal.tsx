@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi } from "../api/bank";
+import { bankApi, reconciliationApi, type MatchSuggestion } from "../api/bank";
 import { LinkInvoiceModal } from "./LinkInvoiceModal";
 
 const overlay: React.CSSProperties = {
@@ -20,12 +20,28 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
 
   const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const invalidateRecon = () => {
     void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
     void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
     void qc.invalidateQueries({ queryKey: ["open-invoices", companyId, period] });
     void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["match-suggestions", companyId, period] });
   };
+
+  const suggestions = useQuery({
+    queryKey: ["match-suggestions", companyId, period],
+    queryFn: () => reconciliationApi.suggestions(companyId, period),
+  });
+  const applySuggestion = useMutation({
+    mutationFn: async (s: MatchSuggestion) => {
+      for (const l of s.links) {
+        await bankApi.match(companyId, l.transactionId, l.invoiceId, l.amount);
+      }
+    },
+    onSuccess: invalidateRecon,
+    onError: (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`),
+  });
 
   const setReq = useMutation({
     mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) =>
@@ -48,6 +64,41 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   const requestFromClient = () => window.alert(t("recon.requestPreview"));
 
+  const renderSuggestion = (s: MatchSuggestion) => {
+    if (s.kind === "SPLIT") {
+      const l0 = s.links[0];
+      return (
+        <div>
+          <div><b>{l0.txnDate}</b> · {l0.partnerName ?? "—"} · {fmt(Math.abs(l0.txnAmount))} RON →</div>
+          {s.links.map((l, k) => (
+            <div key={k} style={{ color: "var(--text-muted)", marginLeft: 10, overflowWrap: "anywhere" }}>
+              • {l.invoiceFilename ?? l.supplierName ?? "factura"} — {fmt(l.amount)} RON
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (s.kind === "INSTALLMENT") {
+      const l0 = s.links[0];
+      return (
+        <div>
+          <div style={{ overflowWrap: "anywhere" }}><b>{l0.invoiceFilename ?? l0.supplierName ?? "factura"}</b> →</div>
+          {s.links.map((l, k) => (
+            <div key={k} style={{ color: "var(--text-muted)", marginLeft: 10 }}>
+              • {l.txnDate} · {l.partnerName ?? "—"} — {fmt(l.amount)} RON
+            </div>
+          ))}
+        </div>
+      );
+    }
+    const l = s.links[0]; // EXACT
+    return (
+      <div style={{ overflowWrap: "anywhere" }}>
+        <b>{l.txnDate}</b> · {l.partnerName ?? "—"} · {fmt(Math.abs(l.txnAmount))} RON ↔ {l.invoiceFilename ?? l.supplierName ?? "factura"}
+      </div>
+    );
+  };
+
   return (
     <div style={overlay} onClick={onClose}>
       <div className="card" style={{ width: 1360, maxWidth: "98vw", maxHeight: "92vh", overflowX: "hidden", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -69,6 +120,26 @@ export function ReconModal({ companyId, companyName, period, onClose }:
             <span style={{ color: s.crossCheckOk ? "#166534" : "#991b1b" }}>{s.crossCheckOk ? "✓" : "⚠"} {s.status}</span>
           </div>
         ))}
+
+        {(suggestions.data ?? []).some((_, i) => !dismissed.has(i)) && (
+          <div style={{ border: "1px solid #c7d2fe", background: "#eef2ff", borderRadius: 10, padding: 12, margin: "12px 0" }}>
+            <div style={{ color: "#3730a3", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+              💡 {t("recon.suggestions")} — {(suggestions.data ?? []).filter((_, i) => !dismissed.has(i)).length}
+            </div>
+            {(suggestions.data ?? []).map((s, i) => dismissed.has(i) ? null : (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "7px 0", borderTop: i ? "1px solid #c7d2fe" : "none" }}>
+                <span style={{ background: "#3730a3", color: "#fff", borderRadius: 999, padding: "1px 8px", fontSize: 10.5, whiteSpace: "nowrap", marginTop: 1 }}>
+                  {t(`recon.kind.${s.kind}`)}
+                </span>
+                <div style={{ flex: 1, fontSize: 12.5, minWidth: 0 }}>{renderSuggestion(s)}</div>
+                <button className="primary" disabled={applySuggestion.isPending} onClick={() => applySuggestion.mutate(s)}>
+                  {applySuggestion.isPending ? "…" : t("recon.suggestApply")}
+                </button>
+                <button onClick={() => setDismissed((prev) => new Set(prev).add(i))}>{t("recon.suggestDismiss")}</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {missing.length > 0 && (
           <div style={{ border: "1px dashed #dc2626", background: "#fef2f2", borderRadius: 10, padding: 12, margin: "12px 0" }}>

@@ -145,9 +145,28 @@ export interface DocumentStatus {
   unmatched: boolean;
 }
 
+export interface SuggestionLink {
+  transactionId: string;
+  txnDate: string;
+  partnerName: string | null;
+  txnAmount: number;
+  invoiceId: string;
+  invoiceFilename: string | null;
+  supplierName: string | null;
+  amount: number;
+}
+
+export interface MatchSuggestion {
+  kind: "EXACT" | "SPLIT" | "INSTALLMENT";
+  links: SuggestionLink[];
+}
+
 export const reconciliationApi = {
   summary: (period: string) =>
     api<CompanyCompleteness[]>(`/api/v1/reconciliation/summary?period=${period}`),
   documentStatus: (companyId: string, period: string) =>
     api<DocumentStatus[]>(`/api/v1/companies/${companyId}/document-status?period=${period}`),
+  /** Non-trivial match proposals (cross-period exact, split, installment) for one-click apply. */
+  suggestions: (companyId: string, period: string) =>
+    api<MatchSuggestion[]>(`/api/v1/companies/${companyId}/match-suggestions?period=${period}`),
 };

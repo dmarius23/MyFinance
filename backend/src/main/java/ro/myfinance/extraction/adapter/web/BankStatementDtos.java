@@ -120,4 +120,19 @@ public final class BankStatementDtos {
                     v.partnerIban(), v.allocatedAmount(), v.remaining());
         }
     }
+
+    public record SuggestionLinkResponse(UUID transactionId, LocalDate txnDate, String partnerName,
+                                         BigDecimal txnAmount, UUID invoiceId, String invoiceFilename,
+                                         String supplierName, BigDecimal amount) {
+    }
+
+    public record SuggestionResponse(String kind, java.util.List<SuggestionLinkResponse> links) {
+        public static SuggestionResponse from(ro.myfinance.extraction.application.ReconciliationService.MatchSuggestion s) {
+            java.util.List<SuggestionLinkResponse> links = s.links().stream()
+                    .map(l -> new SuggestionLinkResponse(l.transactionId(), l.txnDate(), l.partnerName(),
+                            l.txnAmount(), l.invoiceId(), l.invoiceFilename(), l.supplierName(), l.amount()))
+                    .toList();
+            return new SuggestionResponse(s.kind(), links);
+        }
+    }
 }

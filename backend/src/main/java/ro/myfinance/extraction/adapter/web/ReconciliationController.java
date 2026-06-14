@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.SetRequirementRequest;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.TransactionResponse;
 import ro.myfinance.extraction.application.ReconciliationService;
+import ro.myfinance.extraction.adapter.web.BankStatementDtos.SuggestionResponse;
 import ro.myfinance.extraction.application.ReconciliationService.CompanyCompleteness;
 import ro.myfinance.extraction.application.ReconciliationService.DocumentStatus;
 
@@ -60,5 +61,11 @@ public class ReconciliationController {
     public List<DocumentStatus> documentStatus(@PathVariable UUID companyId,
                                                @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
         return service.documentStatuses(companyId, period);
+    }
+
+    @GetMapping("/api/v1/companies/{companyId}/match-suggestions")
+    public List<SuggestionResponse> suggestions(@PathVariable UUID companyId,
+                                                @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return service.suggestions(companyId, period).stream().map(SuggestionResponse::from).toList();
     }
 }
