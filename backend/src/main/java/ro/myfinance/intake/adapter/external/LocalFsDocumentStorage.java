@@ -3,7 +3,9 @@ package ro.myfinance.intake.adapter.external;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.intake.application.StoredObject;
 
@@ -32,6 +34,9 @@ public class LocalFsDocumentStorage implements DocumentStorage {
     public byte[] retrieve(String key) {
         try {
             return Files.readAllBytes(resolve(key));
+        } catch (NoSuchFileException e) {
+            // The DB row exists but the stored file is gone (e.g. purged from temp) → 404, not 500.
+            throw new NotFoundException("Document file not found: " + key);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read document " + key, e);
         }

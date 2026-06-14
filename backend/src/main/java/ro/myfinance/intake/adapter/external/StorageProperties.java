@@ -11,7 +11,9 @@ public record StorageProperties(String type, String localBaseDir, String supabas
             type = "local";
         }
         if (localBaseDir == null || localBaseDir.isBlank()) {
-            localBaseDir = System.getProperty("java.io.tmpdir") + "/myfinance-docs";
+            // Persist under the user's home, NOT java.io.tmpdir — macOS/Linux periodically purge temp,
+            // which would silently delete uploaded documents between sessions.
+            localBaseDir = System.getProperty("user.home") + "/.myfinance/docs";
         }
         if (supabaseBucket == null || supabaseBucket.isBlank()) {
             supabaseBucket = "documents";
