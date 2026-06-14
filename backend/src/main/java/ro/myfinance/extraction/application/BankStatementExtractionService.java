@@ -70,16 +70,14 @@ public class BankStatementExtractionService {
             return;
         }
 
-        // Dedup against transactions already stored for THIS company+period (re-uploads / overlapping
-        // statements). Scoped to the period so genuine recurring transactions in other months are kept.
-        List<UUID> periodStatementIds = statements.findByCompanyIdAndPeriodMonth(companyId, periodMonth)
-                .stream().map(BankStatement::getId).toList();
+        // Dedup against ALL of the company's stored transactions (across statements and upload
+        // periods), so the same statement uploaded under two different month-labels — or overlapping
+        // statements — never double-records a transaction. The key includes the exact date and running
+        // balance, so genuinely distinct (incl. recurring) transactions in other months are kept.
         Set<String> seen = new HashSet<>();
-        if (!periodStatementIds.isEmpty()) {
-            for (BankTransaction existing : transactions.findByStatementIdInOrderByTxnDateDesc(periodStatementIds)) {
-                seen.add(dedupKey(existing.getAccountIban(), existing.getTxnDate(), existing.getAmount(),
-                        existing.getBalanceAfter(), existing.getDescription(), existing.getRef()));
-            }
+        for (BankTransaction existing : transactions.findByCompanyId(companyId)) {
+            seen.add(dedupKey(existing.getAccountIban(), existing.getTxnDate(), existing.getAmount(),
+                    existing.getBalanceAfter(), existing.getDescription(), existing.getRef()));
         }
 
         boolean hadNullAmount = false;
