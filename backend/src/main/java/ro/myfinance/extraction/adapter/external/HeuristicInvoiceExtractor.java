@@ -181,19 +181,42 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     }
 
     /**
-     * Invoice issue date. Romanian invoices print both an issue date ("Data facturii") and a payment
-     * due date ("Termen de plată" / "Scadență") — and the due date often appears first in the layout.
-     * Matching keys off the issue date (payment happens on/after issuance), so we skip due-date lines
-     * and take the earliest remaining date; only if every date sits on a due-date line do we fall back
-     * to the earliest date overall.
+     * Invoice issue date. Romanian invoices print both an issue date ("Data facturii" / "Data (ziua,
+     * luna, an)") and a payment due date ("Termen de plată" / "Scadență"); they may also carry stray
+     * dates (a print/footer timestamp, a contract date). So we:
+     *   1) prefer a date on (or just after) a line labelled "Data…" that isn't a due-date line — the
+     *      label and its value are often on separate lines in form layouts;
+     *   2) otherwise fall back to the earliest date not sitting on a due-date line;
+     *   3) finally, the earliest date overall.
      */
     private LocalDate invoiceDate(String text) {
+        String[] lines = text.split("\\R");
+
+        // 1) Date near an issue-date label.
+        for (int i = 0; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            boolean issueLabel = n.contains("data") && !n.contains("scaden") && !n.contains("termen");
+            if (!issueLabel) {
+                continue;
+            }
+            for (int j = i; j < Math.min(lines.length, i + 4); j++) {
+                String nj = norm(lines[j]);
+                if (nj.contains("scaden") || nj.contains("termen")) {
+                    continue; // don't drift into a due-date line
+                }
+                LocalDate d = firstDateIn(lines[j]);
+                if (d != null) {
+                    return d;
+                }
+            }
+        }
+
+        // 2) + 3) earliest non-due date, else earliest overall.
         LocalDate earliestIssue = null;
         LocalDate earliestAny = null;
-        for (String line : text.split("\\R")) {
-            String norm = java.text.Normalizer.normalize(line, java.text.Normalizer.Form.NFD)
-                    .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
-            boolean dueLine = norm.contains("scaden") || norm.contains("termen de plata");
+        for (String line : lines) {
+            String n = norm(line);
+            boolean dueLine = n.contains("scaden") || n.contains("termen de plata");
             for (Matcher m = DATE.matcher(line); m.find(); ) {
                 LocalDate d = parseDate(m.group());
                 if (d == null) {
@@ -208,6 +231,16 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             }
         }
         return earliestIssue != null ? earliestIssue : earliestAny;
+    }
+
+    private LocalDate firstDateIn(String line) {
+        for (Matcher m = DATE.matcher(line); m.find(); ) {
+            LocalDate d = parseDate(m.group());
+            if (d != null) {
+                return d;
+            }
+        }
+        return null;
     }
 
     private LocalDate parseDate(String token) {
