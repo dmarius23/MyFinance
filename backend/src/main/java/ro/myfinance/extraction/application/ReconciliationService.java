@@ -625,13 +625,15 @@ public class ReconciliationService {
             for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList())) {
                 paid.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
             }
-            // Duplicate detection over current + last 3 periods, keyed by supplier + date + amount
-            // (filename is ignored — the same invoice can be uploaded under a different name).
-            java.util.Map<String, Integer> dupCounts = new java.util.HashMap<>();
+            // Duplicate detection over current + last 3 periods, keyed by supplier + amount (filename
+            // ignored — the same invoice can be re-uploaded under a different name). Issue dates are
+            // compared with a few days' tolerance: extraction can read a slightly different date from
+            // the same invoice, yet recurring monthly charges (~30 days apart) stay distinct.
+            java.util.Map<String, List<Invoice>> byKey = new java.util.HashMap<>();
             for (Invoice w : invoices.findByCompanyIdAndPeriodMonthBetween(companyId, period.minusMonths(3), period)) {
                 String key = invoiceDupKey(w);
                 if (key != null) {
-                    dupCounts.merge(key, 1, Integer::sum);
+                    byKey.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(w);
                 }
             }
             for (Invoice inv : invs) {
@@ -642,7 +644,8 @@ public class ReconciliationService {
                 boolean dateInPeriod = inv.getInvoiceDate() != null
                         && inv.getInvoiceDate().withDayOfMonth(1).equals(period);
                 String key = invoiceDupKey(inv);
-                boolean duplicate = key != null && dupCounts.getOrDefault(key, 0) > 1;
+                boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
+                        .anyMatch(o -> !o.getId().equals(inv.getId()) && datesClose(inv.getInvoiceDate(), o.getInvoiceDate()));
                 out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
                         dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate));
             }
@@ -650,9 +653,12 @@ public class ReconciliationService {
         return out;
     }
 
-    /** Identity for duplicate detection: supplier (IBAN, else normalized name) + issue date + amount. Null if undeterminable. */
+    /** How many days two issue dates may differ and still be treated as the same invoice (extraction noise). */
+    private static final long DUP_DATE_TOLERANCE_DAYS = 6;
+
+    /** Group key for duplicate detection: supplier (IBAN, else normalized name) + amount. Null if undeterminable. */
     private String invoiceDupKey(Invoice i) {
-        if (i.getTotalAmount() == null || i.getInvoiceDate() == null) {
+        if (i.getTotalAmount() == null) {
             return null;
         }
         String supplier = i.getSupplierIban() != null ? "I:" + i.getSupplierIban()
@@ -660,7 +666,15 @@ public class ReconciliationService {
         if (supplier == null) {
             return null;
         }
-        return supplier + "|" + i.getInvoiceDate() + "|" + i.getTotalAmount().stripTrailingZeros().toPlainString();
+        return supplier + "|" + i.getTotalAmount().stripTrailingZeros().toPlainString();
+    }
+
+    /** Same-invoice date check: within tolerance, or flagged when either date is missing (can't distinguish). */
+    private boolean datesClose(java.time.LocalDate a, java.time.LocalDate b) {
+        if (a == null || b == null) {
+            return true;
+        }
+        return Math.abs(java.time.temporal.ChronoUnit.DAYS.between(a, b)) <= DUP_DATE_TOLERANCE_DAYS;
     }
 
     private TransactionRule matchRule(List<TransactionRule> learned, BankTransaction t) {
