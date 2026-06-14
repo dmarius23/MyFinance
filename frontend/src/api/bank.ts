@@ -143,6 +143,7 @@ export interface DocumentStatus {
   warning: boolean;
   warningReason: string | null;
   unmatched: boolean;
+  duplicate: boolean;
 }
 
 export interface SuggestionLink {

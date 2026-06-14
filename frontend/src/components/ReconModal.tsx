@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, reconciliationApi, type MatchSuggestion } from "../api/bank";
 import { LinkInvoiceModal } from "./LinkInvoiceModal";
+import { DocumentPreviewModal } from "./DocumentPreviewModal";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
@@ -20,6 +21,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
 
   const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ documentId: string; filename: string | null } | null>(null);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const invalidateRecon = () => {
     void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
@@ -50,8 +52,10 @@ export function ReconModal({ companyId, companyName, period, onClose }:
   });
 
   const match = useMutation({
+    // Keep the link picker open after a successful link so several invoices can be associated to one
+    // transaction; it reflects the reduced remaining and the linked invoice drops out of the list.
     mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId),
-    onSuccess: () => { invalidateRecon(); setLinkingTxn(null); },
+    onSuccess: invalidateRecon,
     onError: (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`),
   });
   const unmatch = useMutation({
@@ -197,11 +201,28 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                     <div>
                       {tx.matchedInvoices.map((mi) => (
                         <div key={mi.invoiceId} style={{ color: "#166534" }}>
-                          ✓ {mi.filename ?? "factura"}{" "}
+                          ✓{" "}
+                          <button
+                            onClick={() => setPreviewDoc({ documentId: mi.documentId, filename: mi.filename })}
+                            style={{ border: "none", background: "none", color: "#166534", cursor: "pointer", padding: 0, textDecoration: "underline", font: "inherit" }}>
+                            {mi.filename ?? "factura"}
+                          </button>{" "}
+                          <span style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                            {mi.allocatedAmount != null ? fmt(mi.allocatedAmount) : ""}
+                          </span>{" "}
                           <button onClick={() => unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId })}
+                            title={t("recon.unlink")}
                             style={{ border: "none", background: "none", color: "#991b1b", cursor: "pointer" }}>✕</button>
                         </div>
                       ))}
+                      {!tx.fullyAllocated && (
+                        <div style={{ marginTop: 3 }}>
+                          <span style={{ color: "#d97706" }} title={t("recon.partialCoverage")}>
+                            ⚠ {t("recon.partialCoverage")} — {fmt(tx.remainingAmount)} {t("recon.remaining").toLowerCase()}
+                          </span>{" "}
+                          <button onClick={() => setLinkingTxn(tx.id)}>+ {t("recon.linkMore")}</button>
+                        </div>
+                      )}
                     </div>
                   ) : tx.requiresDocument ? (
                     <div>
@@ -280,6 +301,11 @@ export function ReconModal({ companyId, companyName, period, onClose }:
           />
         ) : null;
       })()}
+
+      {previewDoc && (
+        <DocumentPreviewModal companyId={companyId} documentId={previewDoc.documentId}
+          filename={previewDoc.filename} onClose={() => setPreviewDoc(null)} />
+      )}
     </div>
   );
 }

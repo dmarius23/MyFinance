@@ -49,7 +49,8 @@ public class ReconciliationService {
     }
 
     /** Per-document warning flags for the documents list. warningReason is an i18n key code. */
-    public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched) {
+    public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched,
+                                 boolean duplicate) {
     }
 
     /** A single payment (transaction allocation) applied to an invoice. */
@@ -614,7 +615,7 @@ public class ReconciliationService {
             boolean inPeriod = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId())).stream()
                     .anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
             out.add(new DocumentStatus(s.getDocumentId(), !inPeriod,
-                    inPeriod ? null : "no_transactions_in_period", false));
+                    inPeriod ? null : "no_transactions_in_period", false, false));
         }
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
@@ -624,6 +625,15 @@ public class ReconciliationService {
             for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList())) {
                 paid.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
             }
+            // Duplicate detection over current + last 3 periods, keyed by supplier + date + amount
+            // (filename is ignored — the same invoice can be uploaded under a different name).
+            java.util.Map<String, Integer> dupCounts = new java.util.HashMap<>();
+            for (Invoice w : invoices.findByCompanyIdAndPeriodMonthBetween(companyId, period.minusMonths(3), period)) {
+                String key = invoiceDupKey(w);
+                if (key != null) {
+                    dupCounts.merge(key, 1, Integer::sum);
+                }
+            }
             for (Invoice inv : invs) {
                 BigDecimal p = paid.getOrDefault(inv.getId(), BigDecimal.ZERO);
                 boolean fullyPaid = inv.getTotalAmount() != null
@@ -631,11 +641,26 @@ public class ReconciliationService {
                         : p.signum() > 0; // unknown total (image receipt): any allocation counts as matched
                 boolean dateInPeriod = inv.getInvoiceDate() != null
                         && inv.getInvoiceDate().withDayOfMonth(1).equals(period);
+                String key = invoiceDupKey(inv);
+                boolean duplicate = key != null && dupCounts.getOrDefault(key, 0) > 1;
                 out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
-                        dateInPeriod ? null : "date_outside_period", !fullyPaid));
+                        dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate));
             }
         }
         return out;
+    }
+
+    /** Identity for duplicate detection: supplier (IBAN, else normalized name) + issue date + amount. Null if undeterminable. */
+    private String invoiceDupKey(Invoice i) {
+        if (i.getTotalAmount() == null || i.getInvoiceDate() == null) {
+            return null;
+        }
+        String supplier = i.getSupplierIban() != null ? "I:" + i.getSupplierIban()
+                : (i.getSupplierName() != null ? "N:" + ReconText.normalize(i.getSupplierName()) : null);
+        if (supplier == null) {
+            return null;
+        }
+        return supplier + "|" + i.getInvoiceDate() + "|" + i.getTotalAmount().stripTrailingZeros().toPlainString();
     }
 
     private TransactionRule matchRule(List<TransactionRule> learned, BankTransaction t) {

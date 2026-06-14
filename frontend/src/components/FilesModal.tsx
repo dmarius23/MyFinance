@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
@@ -23,6 +23,9 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     queryFn: () => reconciliationApi.documentStatus(companyId, period),
   });
   const statusByDoc = new Map(statuses.map((s) => [s.documentId, s]));
+  // Bank statements first, then a divider, then invoices/receipts (stable within each group).
+  const ordered = [...data].sort((a, b) =>
+    (a.type === "BANK_STATEMENT" ? 0 : 1) - (b.type === "BANK_STATEMENT" ? 0 : 1));
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [uploadCount, setUploadCount] = useState(0);
@@ -94,9 +97,15 @@ export function FilesModal({ companyId, companyName, period, onClose }:
           <div>
             <div style={{ maxHeight: 560, overflow: "auto" }}>
               {data.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
-              {data.map((d) => (
+              {ordered.map((d, i) => (
+                <Fragment key={d.id}>
+                {i > 0 && ordered[i - 1].type === "BANK_STATEMENT" && d.type !== "BANK_STATEMENT" && (
+                  <div style={{ borderTop: "1px solid var(--border)", margin: "8px 2px 6px",
+                    paddingTop: 6, fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
+                    {t("statements.invoices")}
+                  </div>
+                )}
                 <div
-                  key={d.id}
                   onClick={() => setSelId(d.id)}
                   style={{
                     display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
@@ -131,6 +140,9 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                     <span title={t(`doc.warn.${statusByDoc.get(d.id)!.warningReason}`, { defaultValue: "" })}
                       style={{ color: "#d97706", fontSize: 14 }}>⚠</span>
                   )}
+                  {statusByDoc.get(d.id)?.duplicate && (
+                    <span title={t("doc.warn.duplicate")} style={{ color: "#b45309", fontSize: 14 }}>🔁</span>
+                  )}
                   {(d.type === "INVOICE" || d.type === "RECEIPT") && (
                     <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }} title={t("recon.payments")}
                       style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14 }}>💳</button>
@@ -138,6 +150,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
                     style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer" }}>✕</button>
                 </div>
+                </Fragment>
               ))}
             </div>
             <input
