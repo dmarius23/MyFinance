@@ -48,9 +48,12 @@ public class ReconciliationService {
                                   java.math.BigDecimal paidAmount, java.math.BigDecimal remaining) {
     }
 
-    /** Per-document warning flags for the documents list. warningReason is an i18n key code. */
+    /**
+     * Per-document flags for the documents list. warningReason is an i18n key code; paymentStatus is
+     * UNPAID/PARTIAL/PAID for invoices/receipts, null for bank statements.
+     */
     public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched,
-                                 boolean duplicate) {
+                                 boolean duplicate, String paymentStatus) {
     }
 
     /** A single payment (transaction allocation) applied to an invoice. */
@@ -615,7 +618,7 @@ public class ReconciliationService {
             boolean inPeriod = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId())).stream()
                     .anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
             out.add(new DocumentStatus(s.getDocumentId(), !inPeriod,
-                    inPeriod ? null : "no_transactions_in_period", false, false));
+                    inPeriod ? null : "no_transactions_in_period", false, false, null));
         }
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
@@ -647,7 +650,8 @@ public class ReconciliationService {
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
                         .anyMatch(o -> !o.getId().equals(inv.getId()) && datesClose(inv.getInvoiceDate(), o.getInvoiceDate()));
                 out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
-                        dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate));
+                        dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate,
+                        paymentStatus(inv.getTotalAmount(), p)));
             }
         }
         return out;

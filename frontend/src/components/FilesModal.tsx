@@ -83,7 +83,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   return (
     <>
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 1180, maxWidth: "96vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+      <div className="card" style={{ width: 1340, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>{t("files.title")} — {companyName}</h2>
           <div style={{ display: "flex", gap: 8 }}>
@@ -93,16 +93,26 @@ export function FilesModal({ companyId, companyName, period, onClose }:
             <button onClick={onClose}>✕</button>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
           <div>
             <div style={{ maxHeight: 560, overflow: "auto" }}>
               {data.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
-              {ordered.map((d, i) => (
+              {ordered.map((d, i) => {
+                const st = statusByDoc.get(d.id);
+                const isStmt = d.type === "BANK_STATEMENT";
+                const showHeader = i === 0 || (ordered[i - 1].type === "BANK_STATEMENT") !== isStmt;
+                const isInvoice = d.type === "INVOICE" || d.type === "RECEIPT";
+                const pay = st?.paymentStatus; // UNPAID | PARTIAL | PAID | null
+                const payStyle = pay === "PAID" ? { bg: "#dcfce7", bd: "#16a34a" }
+                  : pay === "PARTIAL" ? { bg: "#fef3c7", bd: "#d97706" }
+                  : { bg: "#fee2e2", bd: "#dc2626" }; // UNPAID / no association
+                return (
                 <Fragment key={d.id}>
-                {i > 0 && ordered[i - 1].type === "BANK_STATEMENT" && d.type !== "BANK_STATEMENT" && (
-                  <div style={{ borderTop: "1px solid var(--border)", margin: "8px 2px 6px",
-                    paddingTop: 6, fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>
-                    {t("statements.invoices")}
+                {showHeader && (
+                  <div style={{ margin: i === 0 ? "0 2px 6px" : "10px 2px 6px",
+                    paddingTop: i === 0 ? 0 : 6, borderTop: i === 0 ? "none" : "1px solid var(--border)",
+                    fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>
+                    {isStmt ? t("files.bankStatements") : t("statements.invoices")}
                   </div>
                 )}
                 <div
@@ -115,43 +125,59 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.originalFilename}</div>
-                    <select
-                      value={d.type}
-                      disabled={changeType.isPending}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => changeType.mutate({ id: d.id, type: e.target.value })}
-                      style={{
-                        marginTop: 3, fontSize: 10.5, padding: "1px 4px", borderRadius: 6,
-                        border: "1px solid var(--border)",
-                        background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
-                        color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
-                      }}
-                    >
-                      {DOCUMENT_TYPES.map((dt) => (
-                        <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
-                      ))}
-                    </select>
+                    <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {st?.warning && (
+                        <span title={t(`doc.warn.${st.warningReason}`, { defaultValue: "" })}
+                          style={{ color: "#d97706", marginRight: 4 }}>⚠</span>
+                      )}
+                      {d.originalFilename}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                      <select
+                        value={d.type}
+                        disabled={changeType.isPending}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => changeType.mutate({ id: d.id, type: e.target.value })}
+                        style={{
+                          fontSize: 10.5, padding: "1px 4px", borderRadius: 6,
+                          border: "1px solid var(--border)",
+                          background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
+                          color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
+                        }}
+                      >
+                        {DOCUMENT_TYPES.map((dt) => (
+                          <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
+                        ))}
+                      </select>
+                      {st?.duplicate && (
+                        <span title={t("doc.warn.duplicate")}
+                          style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fecaca",
+                            borderRadius: 999, padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>
+                          {t("doc.duplicateChip")}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {statusByDoc.get(d.id)?.unmatched && (
-                    <span title={t("doc.warn.unmatched")} style={{ color: "#dc2626", fontSize: 14 }}>⊘</span>
-                  )}
-                  {statusByDoc.get(d.id)?.warning && (
-                    <span title={t(`doc.warn.${statusByDoc.get(d.id)!.warningReason}`, { defaultValue: "" })}
-                      style={{ color: "#d97706", fontSize: 14 }}>⚠</span>
-                  )}
-                  {statusByDoc.get(d.id)?.duplicate && (
-                    <span title={t("doc.warn.duplicate")} style={{ color: "#b45309", fontSize: 14 }}>🔁</span>
-                  )}
-                  {(d.type === "INVOICE" || d.type === "RECEIPT") && (
-                    <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }} title={t("recon.payments")}
-                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14 }}>💳</button>
-                  )}
-                  <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
-                    style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer" }}>✕</button>
+                  {/* Aligned, compact action icons. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {isInvoice && (
+                      // Money icon doubles as payment status + opens the payments view. Red = unpaid /
+                      // no transaction associated, orange = partial, green = paid.
+                      <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }}
+                        title={`${t("recon.payments")}${pay ? " · " + t(`recon.status.${pay}`) : ""}`}
+                        style={{ background: payStyle.bg, border: `1px solid ${payStyle.bd}`, color: payStyle.bd,
+                          borderRadius: 7, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "3px 6px", width: 30, textAlign: "center" }}>
+                        💰
+                      </button>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
+                      style={{ border: "1px solid var(--border)", background: "#fff", color: "#dc2626",
+                        borderRadius: 7, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "4px 7px" }}>✕</button>
+                  </div>
                 </div>
                 </Fragment>
-              ))}
+                );
+              })}
             </div>
             <input
               ref={fileRef}

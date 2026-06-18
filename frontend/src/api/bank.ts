@@ -144,6 +144,7 @@ export interface DocumentStatus {
   warningReason: string | null;
   unmatched: boolean;
   duplicate: boolean;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID" | null;
 }
 
 export interface SuggestionLink {
