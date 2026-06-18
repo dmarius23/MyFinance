@@ -94,6 +94,7 @@ export interface OpenInvoice {
   periodMonth: string;
   paidAmount: number;
   remaining: number | null;
+  duplicate: boolean;
 }
 
 export interface OpenTransaction {

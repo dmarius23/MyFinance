@@ -40,10 +40,12 @@ public final class BankStatementDtos {
 
     public record OpenInvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
                                       String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
-                                      LocalDate periodMonth, BigDecimal paidAmount, BigDecimal remaining) {
+                                      LocalDate periodMonth, BigDecimal paidAmount, BigDecimal remaining,
+                                      boolean duplicate) {
         public static OpenInvoiceResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenInvoiceView v) {
             return new OpenInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
-                    v.supplierIban(), v.totalAmount(), v.invoiceDate(), v.periodMonth(), v.paidAmount(), v.remaining());
+                    v.supplierIban(), v.totalAmount(), v.invoiceDate(), v.periodMonth(), v.paidAmount(),
+                    v.remaining(), v.duplicate());
         }
     }
 

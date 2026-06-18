@@ -45,7 +45,8 @@ public class ReconciliationService {
     public record OpenInvoiceView(UUID invoiceId, UUID documentId, String filename, String supplierName,
                                   String supplierIban, java.math.BigDecimal totalAmount,
                                   java.time.LocalDate invoiceDate, java.time.LocalDate periodMonth,
-                                  java.math.BigDecimal paidAmount, java.math.BigDecimal remaining) {
+                                  java.math.BigDecimal paidAmount, java.math.BigDecimal remaining,
+                                  boolean duplicate) {
     }
 
     /**
@@ -353,15 +354,26 @@ public class ReconciliationService {
         for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(invs.stream().map(Invoice::getId).toList())) {
             paid.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
         }
+        // Duplicate flag over the same window (supplier + amount, dates within tolerance).
+        java.util.Map<String, List<Invoice>> byKey = new java.util.HashMap<>();
+        for (Invoice w : invs) {
+            String key = invoiceDupKey(w);
+            if (key != null) {
+                byKey.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(w);
+            }
+        }
         List<OpenInvoiceView> out = new java.util.ArrayList<>();
         for (Invoice i : invs) {
             BigDecimal p = paid.getOrDefault(i.getId(), BigDecimal.ZERO);
             BigDecimal remaining = i.getTotalAmount() == null ? null : i.getTotalAmount().subtract(p);
             boolean open = i.getTotalAmount() != null ? remaining.compareTo(TOLERANCE) > 0 : p.signum() == 0;
             if (open) {
+                String key = invoiceDupKey(i);
+                boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
+                        .anyMatch(o -> !o.getId().equals(i.getId()) && datesClose(i.getInvoiceDate(), o.getInvoiceDate()));
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
-                        i.getPeriodMonth(), p, remaining));
+                        i.getPeriodMonth(), p, remaining, duplicate));
             }
         }
         return out;
