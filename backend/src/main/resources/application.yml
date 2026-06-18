@@ -62,3 +62,9 @@ myfinance:
   supabase:
     url: ${SUPABASE_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  # Receipt-image OCR. Blank api-key → image receipts stay NEEDS_REVIEW (no LLM calls, no cost).
+  # Prod uses Claude via AWS Bedrock (EU); local/dev can use the Anthropic API directly.
+  receipt:
+    provider: ${RECEIPT_PROVIDER:anthropic}
+    api-key: ${RECEIPT_API_KEY:${ANTHROPIC_API_KEY:}}
+    model: ${RECEIPT_MODEL:claude-sonnet-4-5-20250929}

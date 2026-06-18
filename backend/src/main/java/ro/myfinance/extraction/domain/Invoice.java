@@ -47,6 +47,15 @@ public class Invoice {
     @Column(name = "original_filename")
     private String originalFilename;
 
+    @Column(name = "issuer_cif")
+    private String issuerCif;
+
+    @Column(name = "client_cif")
+    private String clientCif;
+
+    @Column(name = "receipt_number")
+    private String receiptNumber;
+
     @Column(nullable = false)
     private String status;
 
@@ -83,7 +92,17 @@ public class Invoice {
         this.status = status;
     }
 
+    /** Receipt-specific identifiers (null for invoices). */
+    public void updateReceiptFields(String issuerCif, String clientCif, String receiptNumber) {
+        this.issuerCif = issuerCif;
+        this.clientCif = clientCif;
+        this.receiptNumber = receiptNumber;
+    }
+
     public UUID getId() { return id; }
+    public String getIssuerCif() { return issuerCif; }
+    public String getClientCif() { return clientCif; }
+    public String getReceiptNumber() { return receiptNumber; }
     public UUID getDocumentId() { return documentId; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
