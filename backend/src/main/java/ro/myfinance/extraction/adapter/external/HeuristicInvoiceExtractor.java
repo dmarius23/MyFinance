@@ -21,7 +21,9 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
 
     private static final Logger log = LoggerFactory.getLogger(HeuristicInvoiceExtractor.class);
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
-    private static final Pattern MONEY = Pattern.compile("\\d[\\d.,]*[.,]\\d{2}");
+    // Money token. The look-behind/ahead stop it from matching INSIDE a date or a longer number — e.g.
+    // "30.12.2025" must not yield "30.12.20" (which parseMoney would read as 3012.20).
+    private static final Pattern MONEY = Pattern.compile("(?<![\\d./,])\\d[\\d.,]*[.,]\\d{2}(?![./]?\\d)");
     private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{4})");
 
     @Override
@@ -159,21 +161,42 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     }
 
     private BigDecimal totalAmount(String text) {
-        // Prefer the money token on a line mentioning "total"; else the largest money token.
+        String[] lines = text.split("\\R");
+        // 1) The authoritative pay total: the amount on (or just after) a "total de plată" /
+        //    "total general" line. The label and its value(s) are often on separate lines, and the
+        //    grand total sits below a value+VAT breakdown — so take the LARGEST money in a short
+        //    window after the label (the grand total is ≥ its components).
+        for (int i = 0; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            boolean payTotal = (n.contains("total") && n.contains("plata")) || n.contains("total general");
+            if (!payTotal) {
+                continue;
+            }
+            BigDecimal best = null;
+            for (int j = i; j < Math.min(lines.length, i + 4); j++) {
+                for (Matcher m = MONEY.matcher(lines[j]); m.find(); ) {
+                    BigDecimal v = parseMoney(m.group());
+                    if (best == null || v.compareTo(best) > 0) {
+                        best = v;
+                    }
+                }
+            }
+            if (best != null) {
+                return best;
+            }
+        }
+        // 2) Else the largest money on any "total" line; 3) else the largest money overall.
         BigDecimal labelled = null;
         BigDecimal largest = null;
-        for (String line : text.split("\\R")) {
+        for (String line : lines) {
+            boolean totalLine = norm(line).contains("total");
             for (Matcher m = MONEY.matcher(line); m.find(); ) {
                 BigDecimal v = parseMoney(m.group());
                 if (largest == null || v.compareTo(largest) > 0) {
                     largest = v;
                 }
-                String norm = java.text.Normalizer.normalize(line, java.text.Normalizer.Form.NFD)
-                        .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
-                if (norm.contains("total")) {
-                    if (labelled == null || v.compareTo(labelled) > 0) {
-                        labelled = v;
-                    }
+                if (totalLine && (labelled == null || v.compareTo(labelled) > 0)) {
+                    labelled = v;
                 }
             }
         }
