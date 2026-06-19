@@ -53,10 +53,19 @@ public class CompanyService {
         return companies.save(company);
     }
 
-    public Company update(UUID id, String legalName, String entityType, String locality,
+    public Company update(UUID id, String cui, String legalName, String entityType, String locality,
                           String vatStatus, String vatPeriod, String taxRegime, Boolean hasEmployees,
                           UUID responsibleUserId) {
         Company company = get(id);
+        if (cui != null && !cui.equals(company.getCui())) {
+            if (cui.isBlank()) {
+                throw new IllegalArgumentException("CUI cannot be blank");
+            }
+            if (companies.existsByCuiAndIdNot(cui, id)) {
+                throw new ConflictException("A company with CUI " + cui + " already exists in this tenant");
+            }
+            company.setCui(cui);
+        }
         if (legalName != null) {
             company.setLegalName(legalName);
         }

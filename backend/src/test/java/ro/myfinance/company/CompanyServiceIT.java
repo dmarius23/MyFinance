@@ -52,4 +52,36 @@ class CompanyServiceIT extends AbstractPostgresIT {
         assertThatThrownBy(() -> companies.create("Alpha2 SRL", "RO-DUP", "SRL", "Cluj", null, null, null, null, null))
                 .isInstanceOf(ConflictException.class);
     }
+
+    @Test
+    void updatesCui() {
+        asTenant(TENANT_A);
+        UUID id = companies.create("Alpha SRL", "RO-OLD", "SRL", "Cluj", null, null, null, null, null).getId();
+
+        companies.update(id, "RO-NEW", "Alpha SRL", null, null, null, null, null, null, null);
+
+        assertThat(companies.get(id).getCui()).isEqualTo("RO-NEW");
+    }
+
+    @Test
+    void rejectsUpdateToAnotherCompanysCui() {
+        asTenant(TENANT_A);
+        companies.create("Alpha SRL", "RO-A", "SRL", "Cluj", null, null, null, null, null);
+        UUID id = companies.create("Beta SRL", "RO-B", "SRL", "Cluj", null, null, null, null, null).getId();
+
+        assertThatThrownBy(() -> companies.update(id, "RO-A", "Beta SRL", null, null, null, null, null, null, null))
+                .isInstanceOf(ConflictException.class);
+        assertThat(companies.get(id).getCui()).isEqualTo("RO-B"); // unchanged
+    }
+
+    @Test
+    void keepsCuiWhenUpdateOmitsIt() {
+        asTenant(TENANT_A);
+        UUID id = companies.create("Alpha SRL", "RO-KEEP", "SRL", "Cluj", null, null, null, null, null).getId();
+
+        companies.update(id, null, "Alpha Renamed SRL", null, null, null, null, null, null, null);
+
+        assertThat(companies.get(id).getCui()).isEqualTo("RO-KEEP");
+        assertThat(companies.get(id).getLegalName()).isEqualTo("Alpha Renamed SRL");
+    }
 }

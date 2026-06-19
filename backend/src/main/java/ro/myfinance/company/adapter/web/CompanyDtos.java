@@ -16,7 +16,7 @@ public final class CompanyDtos {
                                        UUID responsibleUserId) {
     }
 
-    public record UpdateCompanyRequest(String legalName, String entityType, String locality,
+    public record UpdateCompanyRequest(String cui, String legalName, String entityType, String locality,
                                        String vatStatus, String vatPeriod, String taxRegime,
                                        Boolean hasEmployees, UUID responsibleUserId) {
     }

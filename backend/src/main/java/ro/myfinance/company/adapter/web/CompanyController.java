@@ -52,7 +52,7 @@ public class CompanyController {
 
     @PutMapping("/{id}")
     public CompanyResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateCompanyRequest r) {
-        return CompanyResponse.from(service.update(id, r.legalName(), r.entityType(), r.locality(),
+        return CompanyResponse.from(service.update(id, r.cui(), r.legalName(), r.entityType(), r.locality(),
                 r.vatStatus(), r.vatPeriod(), r.taxRegime(), r.hasEmployees(), r.responsibleUserId()));
     }
 

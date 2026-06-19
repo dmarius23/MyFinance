@@ -93,8 +93,11 @@ function GeneralInfoSection({ company }: { company: Company }) {
         <Field label="Legal name *">
           <input required value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
         </Field>
-        <Field label="CUI">
-          <input value={company.cui} disabled />
+        <Field label="CUI *">
+          <input required value={form.cui} onChange={(e) => setForm({ ...form, cui: e.target.value })} />
+          <span style={{ display: "block", color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
+            {t("company.cuiEditHint")}
+          </span>
         </Field>
         <Field label={t("company.entityType")}>
           <select value={form.entityType} onChange={(e) => setForm({ ...form, entityType: e.target.value })}>
@@ -194,6 +197,7 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
 
 function toForm(c: Company) {
   return {
+    cui: c.cui,
     legalName: c.legalName,
     entityType: c.entityType ?? "",
     locality: c.locality ?? "",
@@ -201,6 +205,9 @@ function toForm(c: Company) {
     vatPeriod: c.vatPeriod ?? "",
     taxRegime: c.taxRegime ?? "",
     hasEmployees: c.hasEmployees ?? false,
+    // Round-trip so saving the edit form doesn't unassign the responsible accountant
+    // (the backend overwrites responsibleUserId on every update).
+    responsibleUserId: c.responsibleUserId ?? undefined,
   };
 }
 
