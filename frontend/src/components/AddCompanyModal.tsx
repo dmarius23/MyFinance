@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { companiesApi, type CreateCompanyInput } from "../api/companies";
+import { companiesApi, TAX_REGIMES, taxRegimeKey, type CreateCompanyInput } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES } from "../domain/company";
@@ -76,6 +76,17 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </Field>
+        <Field label={t("company.taxRegime")}>
+          <select value={form.taxRegime ?? ""} onChange={set("taxRegime")}>
+            <option value="">—</option>
+            {TAX_REGIMES.map((v) => <option key={v} value={v}>{t(taxRegimeKey(v))}</option>)}
+          </select>
+        </Field>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13 }}>
+          <input type="checkbox" style={{ width: "auto" }} checked={form.hasEmployees ?? false}
+            onChange={(e) => setForm((f) => ({ ...f, hasEmployees: e.target.checked }))} />
+          {t("company.hasEmployees")}
+        </label>
         {error && <p style={{ color: "#dc2626" }}>{error}</p>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
           <button type="button" onClick={onClose}>Cancel</button>

@@ -89,7 +89,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         jdbc.update("insert into tenant(id, name, status, plan) values (?, ?, 'ACTIVE', 'STANDARD') on conflict do nothing",
                 tenantId, "T-" + tenantId);
-        return companies.create("Client SRL", "RO-REC-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        return companies.create("Client SRL", "RO-REC-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
     }
 
     private List<BankTransaction> companyTxns(UUID companyId) {
@@ -236,7 +236,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     @Test
     void unlinkRejectsWrongCompany() throws Exception {
         UUID companyA = asTenantWithCompany(TENANT_A);
-        UUID companyB = companies.create("Other SRL", "RO-OTH-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        UUID companyB = companies.create("Other SRL", "RO-OTH-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
         documents.upload(companyA, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
         BankTransaction supplier = companyTxns(companyA).stream()
                 .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();

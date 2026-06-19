@@ -36,10 +36,10 @@ class CompanyServiceIT extends AbstractPostgresIT {
     @Test
     void createsAndListsCompaniesScopedToTenant() {
         asTenant(TENANT_A);
-        companies.create("Alpha SRL", "RO-A-1", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null);
+        companies.create("Alpha SRL", "RO-A-1", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null, null, null);
 
         asTenant(TENANT_B);
-        companies.create("Beta SRL", "RO-B-1", "SRL", "București", "NON_VAT_PAYER", "QUARTERLY", null);
+        companies.create("Beta SRL", "RO-B-1", "SRL", "București", "NON_VAT_PAYER", "QUARTERLY", null, null, null);
 
         assertThat(companies.list()).hasSize(1);
         assertThat(companies.list().get(0).getLegalName()).isEqualTo("Beta SRL");
@@ -48,8 +48,8 @@ class CompanyServiceIT extends AbstractPostgresIT {
     @Test
     void rejectsDuplicateCuiWithinTenant() {
         asTenant(TENANT_A);
-        companies.create("Alpha SRL", "RO-DUP", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null);
-        assertThatThrownBy(() -> companies.create("Alpha2 SRL", "RO-DUP", "SRL", "Cluj", null, null, null))
+        companies.create("Alpha SRL", "RO-DUP", "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null, null, null);
+        assertThatThrownBy(() -> companies.create("Alpha2 SRL", "RO-DUP", "SRL", "Cluj", null, null, null, null, null))
                 .isInstanceOf(ConflictException.class);
     }
 }

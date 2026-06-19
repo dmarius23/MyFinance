@@ -12,13 +12,14 @@ public final class SettingsDtos {
     private SettingsDtos() {
     }
 
-    public record SettingsResponse(BigDecimal vatRate) {
+    public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate) {
         public static SettingsResponse from(GeneralSettings s) {
-            return new SettingsResponse(s.getVatRate());
+            return new SettingsResponse(s.getVatRate(), s.getMicroRate(), s.getProfitRate());
         }
     }
 
-    public record UpdateVatRateRequest(@NotNull BigDecimal vatRate) {
+    public record UpdateRatesRequest(@NotNull BigDecimal vatRate, @NotNull BigDecimal microRate,
+                                     @NotNull BigDecimal profitRate) {
     }
 
     public record CreateCountyTreasuryRequest(@NotBlank String county, @NotBlank String taxType,

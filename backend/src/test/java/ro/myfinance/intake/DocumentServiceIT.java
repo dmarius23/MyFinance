@@ -33,7 +33,7 @@ class DocumentServiceIT extends AbstractPostgresIT {
         TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         jdbc.update("insert into tenant(id, name, status, plan) values (?, ?, 'ACTIVE', 'STANDARD') on conflict do nothing",
                 tenantId, "T-" + tenantId);
-        return companies.create("Client SRL", "RO-DOC-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        return companies.create("Client SRL", "RO-DOC-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
     }
 
     private static byte[] png() {

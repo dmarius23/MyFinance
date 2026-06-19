@@ -37,7 +37,8 @@ public class CompanyService {
     }
 
     public Company create(String legalName, String cui, String entityType, String locality,
-                          String vatStatus, String vatPeriod, UUID responsibleUserId) {
+                          String vatStatus, String vatPeriod, String taxRegime, Boolean hasEmployees,
+                          UUID responsibleUserId) {
         if (companies.existsByCui(cui)) {
             throw new ConflictException("A company with CUI " + cui + " already exists in this tenant");
         }
@@ -46,12 +47,15 @@ public class CompanyService {
         company.setLocality(locality);
         company.setVatStatus(vatStatus);
         company.setVatPeriod(vatPeriod);
+        company.setTaxRegime(taxRegime);
+        company.setHasEmployees(hasEmployees);
         company.setResponsibleUserId(responsibleUserId);
         return companies.save(company);
     }
 
     public Company update(UUID id, String legalName, String entityType, String locality,
-                          String vatStatus, String vatPeriod, UUID responsibleUserId) {
+                          String vatStatus, String vatPeriod, String taxRegime, Boolean hasEmployees,
+                          UUID responsibleUserId) {
         Company company = get(id);
         if (legalName != null) {
             company.setLegalName(legalName);
@@ -60,6 +64,8 @@ public class CompanyService {
         company.setLocality(locality);
         company.setVatStatus(vatStatus);
         company.setVatPeriod(vatPeriod);
+        company.setTaxRegime(taxRegime);
+        company.setHasEmployees(hasEmployees);
         company.setResponsibleUserId(responsibleUserId);
         return company;
     }

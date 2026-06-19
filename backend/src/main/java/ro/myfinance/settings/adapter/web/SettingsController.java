@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.settings.adapter.web.SettingsDtos.CountyTreasuryResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.CreateCountyTreasuryRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.SettingsResponse;
-import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateVatRateRequest;
+import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateRatesRequest;
 import ro.myfinance.settings.application.SettingsService;
 
 /** Tenant-level general settings. TENANT_ADMIN only. */
@@ -38,8 +38,8 @@ public class SettingsController {
     }
 
     @PutMapping
-    public SettingsResponse updateVatRate(@Valid @RequestBody UpdateVatRateRequest request) {
-        return SettingsResponse.from(service.updateVatRate(request.vatRate()));
+    public SettingsResponse updateRates(@Valid @RequestBody UpdateRatesRequest request) {
+        return SettingsResponse.from(service.updateRates(request.vatRate(), request.microRate(), request.profitRate()));
     }
 
     @GetMapping("/treasury-accounts")

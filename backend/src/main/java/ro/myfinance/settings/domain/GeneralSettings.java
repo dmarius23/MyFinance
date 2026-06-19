@@ -24,6 +24,12 @@ public class GeneralSettings {
     @Column(name = "vat_rate", nullable = false)
     private BigDecimal vatRate = new BigDecimal("21.00");
 
+    @Column(name = "micro_rate", nullable = false)
+    private BigDecimal microRate = new BigDecimal("3.00");
+
+    @Column(name = "profit_rate", nullable = false)
+    private BigDecimal profitRate = new BigDecimal("16.00");
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -34,10 +40,16 @@ public class GeneralSettings {
     public GeneralSettings(UUID tenantId) {
         this.tenantId = tenantId;
         this.vatRate = new BigDecimal("21.00");
+        this.microRate = new BigDecimal("3.00");
+        this.profitRate = new BigDecimal("16.00");
     }
 
     public UUID getTenantId() { return tenantId; }
     public BigDecimal getVatRate() { return vatRate; }
     public void setVatRate(BigDecimal vatRate) { this.vatRate = vatRate; }
+    public BigDecimal getMicroRate() { return microRate; }
+    public void setMicroRate(BigDecimal microRate) { this.microRate = microRate; }
+    public BigDecimal getProfitRate() { return profitRate; }
+    public void setProfitRate(BigDecimal profitRate) { this.profitRate = profitRate; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

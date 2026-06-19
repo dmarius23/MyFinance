@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { companiesApi, type Company } from "../api/companies";
+import { companiesApi, TAX_REGIMES, taxRegimeKey, type Company } from "../api/companies";
 import { representativesApi } from "../api/representatives";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
@@ -78,6 +78,8 @@ function GeneralInfoSection({ company }: { company: Company }) {
           <Row k={t("company.fiscalResidence")} v={company.locality ?? "—"} />
           <Row k={t("company.vatStatus")} v={company.vatStatus ? t(vatStatusKey(company.vatStatus), { defaultValue: company.vatStatus }) : "—"} />
           <Row k={t("company.vatPeriod")} v={company.vatPeriod ? t(vatPeriodKey(company.vatPeriod), { defaultValue: company.vatPeriod }) : "—"} />
+          <Row k={t("company.taxRegime")} v={company.taxRegime ? t(taxRegimeKey(company.taxRegime), { defaultValue: company.taxRegime }) : "—"} />
+          <Row k={t("company.hasEmployees")} v={company.hasEmployees == null ? "—" : t(company.hasEmployees ? "common.yes" : "common.no")} />
           <Row k="Status" v={company.status} />
         </dl>
       </div>
@@ -122,6 +124,17 @@ function GeneralInfoSection({ company }: { company: Company }) {
             ))}
           </select>
         </Field>
+        <Field label={t("company.taxRegime")}>
+          <select value={form.taxRegime} onChange={(e) => setForm({ ...form, taxRegime: e.target.value })}>
+            <option value="">—</option>
+            {TAX_REGIMES.map((v) => <option key={v} value={v}>{t(taxRegimeKey(v))}</option>)}
+          </select>
+        </Field>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13 }}>
+          <input type="checkbox" style={{ width: "auto" }} checked={form.hasEmployees}
+            onChange={(e) => setForm({ ...form, hasEmployees: e.target.checked })} />
+          {t("company.hasEmployees")}
+        </label>
         {error && <p style={{ color: "#dc2626" }}>{error}</p>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={() => setEditing(false)}>Cancel</button>
@@ -185,6 +198,8 @@ function toForm(c: Company) {
     locality: c.locality ?? "",
     vatStatus: c.vatStatus ?? "",
     vatPeriod: c.vatPeriod ?? "",
+    taxRegime: c.taxRegime ?? "",
+    hasEmployees: c.hasEmployees ?? false,
   };
 }
 

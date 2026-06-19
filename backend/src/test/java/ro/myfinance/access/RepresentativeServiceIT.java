@@ -31,7 +31,7 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     private UUID asTenantWithCompany() {
         TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         jdbc.update("insert into tenant(id, name, status, plan) values (?, 't', 'ACTIVE', 'STD') on conflict do nothing", TENANT);
-        return companies.create("Client SRL", "RO-REP-" + UUID.randomUUID(), "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null).getId();
+        return companies.create("Client SRL", "RO-REP-" + UUID.randomUUID(), "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null, null, null).getId();
     }
 
     @Test
@@ -56,7 +56,7 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     @Test
     void reinvitingSameEmailIsRejected() {
         UUID company1 = asTenantWithCompany();
-        UUID company2 = companies.create("Second SRL", "RO-REP2-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        UUID company2 = companies.create("Second SRL", "RO-REP2-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
         AppUser rep = representatives.inviteRepresentative(company1, "dup@client.ro", "Dup");
 
         // A different invite produces a different external id (new auth user) for the same email →

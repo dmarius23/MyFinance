@@ -48,6 +48,9 @@ public class Company {
     @Column(name = "tax_regime")
     private String taxRegime;
 
+    @Column(name = "has_employees")
+    private Boolean hasEmployees;
+
     @Column(name = "responsible_user_id")
     private UUID responsibleUserId;
 
@@ -146,6 +149,14 @@ public class Company {
 
     public void setTaxRegime(String taxRegime) {
         this.taxRegime = taxRegime;
+    }
+
+    public Boolean getHasEmployees() {
+        return hasEmployees;
+    }
+
+    public void setHasEmployees(Boolean hasEmployees) {
+        this.hasEmployees = hasEmployees;
     }
 
     public UUID getResponsibleUserId() {

@@ -46,13 +46,14 @@ public class CompanyController {
     @ResponseStatus(HttpStatus.CREATED)
     public CompanyResponse create(@Valid @RequestBody CreateCompanyRequest r) {
         return CompanyResponse.from(service.create(r.legalName(), r.cui(), r.entityType(),
-                r.locality(), r.vatStatus(), r.vatPeriod(), r.responsibleUserId()));
+                r.locality(), r.vatStatus(), r.vatPeriod(), r.taxRegime(), r.hasEmployees(),
+                r.responsibleUserId()));
     }
 
     @PutMapping("/{id}")
     public CompanyResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateCompanyRequest r) {
         return CompanyResponse.from(service.update(id, r.legalName(), r.entityType(), r.locality(),
-                r.vatStatus(), r.vatPeriod(), r.responsibleUserId()));
+                r.vatStatus(), r.vatPeriod(), r.taxRegime(), r.hasEmployees(), r.responsibleUserId()));
     }
 
     @PatchMapping("/{id}/status")

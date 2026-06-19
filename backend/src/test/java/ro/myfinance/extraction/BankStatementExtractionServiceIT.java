@@ -63,7 +63,7 @@ class BankStatementExtractionServiceIT extends AbstractPostgresIT {
         TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         jdbc.update("insert into tenant(id, name, status, plan) values (?, ?, 'ACTIVE', 'STANDARD') on conflict do nothing",
                 tenantId, "T-" + tenantId);
-        return companies.create("Client SRL", "RO-BNK-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null).getId();
+        return companies.create("Client SRL", "RO-BNK-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
     }
 
     // A tiny PDF whose text contains the STUBBANK marker.

@@ -2,6 +2,8 @@ import { api } from "../lib/apiClient";
 
 export interface GeneralSettings {
   vatRate: number;
+  microRate: number;
+  profitRate: number;
 }
 
 export interface CountyTreasuryAccount {
@@ -14,10 +16,10 @@ export interface CountyTreasuryAccount {
 
 export const settingsApi = {
   get: () => api<GeneralSettings>("/api/v1/settings"),
-  updateVatRate: (vatRate: number) =>
+  updateRates: (rates: { vatRate: number; microRate: number; profitRate: number }) =>
     api<GeneralSettings>("/api/v1/settings", {
       method: "PUT",
-      body: JSON.stringify({ vatRate }),
+      body: JSON.stringify(rates),
     }),
   listTreasury: () => api<CountyTreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
   addTreasury: (input: { county: string; taxType: string; iban: string; label?: string }) =>

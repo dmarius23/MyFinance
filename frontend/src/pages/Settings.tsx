@@ -25,43 +25,49 @@ function VatRateSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: settingsApi.get });
-  const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState<{ vatRate: string; microRate: string; profitRate: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const displayed = editing ?? String(data?.vatRate ?? "21");
+  const f = form ?? {
+    vatRate: String(data?.vatRate ?? "21"),
+    microRate: String(data?.microRate ?? "3"),
+    profitRate: String(data?.profitRate ?? "16"),
+  };
+  const setField = (k: "vatRate" | "microRate" | "profitRate") =>
+    (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...f, [k]: e.target.value });
 
   const save = useMutation({
-    mutationFn: () => settingsApi.updateVatRate(parseFloat(displayed)),
+    mutationFn: () => settingsApi.updateRates({
+      vatRate: parseFloat(f.vatRate), microRate: parseFloat(f.microRate), profitRate: parseFloat(f.profitRate),
+    }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["settings"] });
-      setEditing(null);
+      setForm(null);
       setError(null);
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to save"),
   });
 
+  const num = (label: string, k: "vatRate" | "microRate" | "profitRate") => (
+    <Field label={label}>
+      <input type="number" min="0" max="100" step="0.01" required
+        value={f[k]} onChange={setField(k)} style={{ maxWidth: 100 }} />
+    </Field>
+  );
+
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>{t("settings.vat")}</h2>
+      <h2 style={{ marginTop: 0 }}>{t("settings.taxRates")}</h2>
       {isLoading ? (
         <p>{t("common.loading")}</p>
       ) : (
         <form
           onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}
-          style={{ display: "flex", alignItems: "flex-end", gap: 12 }}
+          style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}
         >
-          <Field label={t("settings.vatRate")}>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              required
-              value={displayed}
-              onChange={(e) => setEditing(e.target.value)}
-              style={{ maxWidth: 100 }}
-            />
-          </Field>
+          {num(t("settings.vatRate"), "vatRate")}
+          {num(t("settings.microRate"), "microRate")}
+          {num(t("settings.profitRate"), "profitRate")}
           <button className="primary" type="submit" disabled={save.isPending} style={{ marginBottom: 10 }}>
             {save.isPending ? "Saving…" : t("common.save")}
           </button>

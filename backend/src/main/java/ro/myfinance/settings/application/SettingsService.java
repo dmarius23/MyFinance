@@ -40,13 +40,19 @@ public class SettingsService {
                 .orElseGet(() -> settings.save(new GeneralSettings(tenantId)));
     }
 
-    public GeneralSettings updateVatRate(BigDecimal rate) {
-        if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(new BigDecimal("100")) > 0) {
-            throw new IllegalArgumentException("VAT rate must be between 0 and 100");
-        }
+    public GeneralSettings updateRates(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate) {
         GeneralSettings s = getSettings();
-        s.setVatRate(rate);
+        s.setVatRate(requirePercent(vatRate, "VAT"));
+        s.setMicroRate(requirePercent(microRate, "Micro"));
+        s.setProfitRate(requirePercent(profitRate, "Profit"));
         return s;
+    }
+
+    private static BigDecimal requirePercent(BigDecimal rate, String name) {
+        if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(new BigDecimal("100")) > 0) {
+            throw new IllegalArgumentException(name + " rate must be between 0 and 100");
+        }
+        return rate;
     }
 
     @Transactional(readOnly = true)
