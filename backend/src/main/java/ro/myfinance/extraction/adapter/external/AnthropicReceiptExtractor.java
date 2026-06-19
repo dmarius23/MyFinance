@@ -92,7 +92,7 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
             }
             JsonNode n = MAPPER.readTree(text.substring(s, e + 1));
             return new ParsedReceipt(
-                    str(n, "issuerName"), validCif(str(n, "issuerCif")), validCif(str(n, "clientCif")),
+                    str(n, "issuerName"), cleanCif(str(n, "issuerCif")), cleanCif(str(n, "clientCif")),
                     money(n.get("total")), str(n, "currency"), date(str(n, "issueDate")),
                     str(n, "receiptNumber"), n.path("confidence").asDouble(0.0), "LLM",
                     bool(n.get("clientMatchesCompany")));
@@ -113,9 +113,18 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
                 + "Judge this by the overall code, tolerant of a single misread digit.";
     }
 
-    /** Keep a fiscal code only if it passes the RO control-digit check — drops LLM misreads. */
-    private static String validCif(String cif) {
-        return ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cif) ? cif : null;
+    /**
+     * Normalize a transcribed fiscal code for display (trim, strip spaces/dots, upper-case) but DO NOT
+     * drop it when the control digit fails: a wrong/different-party client CIF is exactly what the
+     * accountant needs to see. Wrong-party detection relies on the model's clientMatchesCompany verdict
+     * (tolerant of a single misread digit), not on this value.
+     */
+    private static String cleanCif(String cif) {
+        if (cif == null) {
+            return null;
+        }
+        String c = cif.replaceAll("[\\s.]", "").toUpperCase();
+        return c.isBlank() ? null : c;
     }
 
     private static Boolean bool(JsonNode v) {
