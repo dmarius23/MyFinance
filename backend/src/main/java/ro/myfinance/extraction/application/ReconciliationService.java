@@ -29,7 +29,10 @@ public class ReconciliationService {
 
     public enum Completeness { NOT_STARTED, PARTIAL, COMPLETE }
 
-    public record CompanyCompleteness(UUID companyId, Completeness completeness) {
+    /** Payment/matching roll-up over a company's invoices/receipts for a period. */
+    public enum Payment { NONE, PARTIAL, COMPLETE }
+
+    public record CompanyCompleteness(UUID companyId, Completeness completeness, Payment payment) {
     }
 
     public record MatchedInvoiceView(UUID invoiceId, UUID documentId, String filename,
@@ -176,31 +179,76 @@ public class ReconciliationService {
 
     @Transactional(readOnly = true)
     public List<CompanyCompleteness> completenessSummary(java.time.LocalDate periodMonth) {
-        java.util.Map<UUID, List<BankStatement>> byCompany = new java.util.HashMap<>();
+        java.util.Map<UUID, List<BankStatement>> stmtsByCompany = new java.util.HashMap<>();
         for (BankStatement s : statements.findByPeriodMonth(periodMonth)) {
-            byCompany.computeIfAbsent(s.getCompanyId(), k -> new java.util.ArrayList<>()).add(s);
+            stmtsByCompany.computeIfAbsent(s.getCompanyId(), k -> new java.util.ArrayList<>()).add(s);
         }
+        java.util.Map<UUID, List<Invoice>> invByCompany = new java.util.HashMap<>();
+        for (Invoice i : invoices.findByPeriodMonth(periodMonth.withDayOfMonth(1))) {
+            invByCompany.computeIfAbsent(i.getCompanyId(), k -> new java.util.ArrayList<>()).add(i);
+        }
+        java.util.Set<UUID> companyIds = new java.util.HashSet<>(stmtsByCompany.keySet());
+        companyIds.addAll(invByCompany.keySet());
+
         List<CompanyCompleteness> out = new java.util.ArrayList<>();
-        for (var e : byCompany.entrySet()) {
-            List<UUID> stmtIds = e.getValue().stream().map(BankStatement::getId).toList();
-            List<BankTransaction> reqTxns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
-                    .stream().filter(BankTransaction::isRequiresDocument).toList();
-            boolean missing;
-            if (reqTxns.isEmpty()) {
-                missing = false;
-            } else {
-                // A transaction that needs a document is satisfied only when fully allocated.
-                java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
-                for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(
-                        reqTxns.stream().map(BankTransaction::getId).toList())) {
-                    allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
-                }
-                missing = reqTxns.stream().anyMatch(t -> t.getAmount().abs()
-                        .subtract(allocated.getOrDefault(t.getId(), BigDecimal.ZERO)).compareTo(TOLERANCE) > 0);
-            }
-            out.add(new CompanyCompleteness(e.getKey(), missing ? Completeness.PARTIAL : Completeness.COMPLETE));
+        for (UUID companyId : companyIds) {
+            Completeness completeness = completenessFor(stmtsByCompany.get(companyId));
+            Payment payment = paymentRollup(invByCompany.get(companyId));
+            out.add(new CompanyCompleteness(companyId, completeness, payment));
         }
         return out;
+    }
+
+    /** Document-requirement completeness: every transaction that needs a document is fully allocated. */
+    private Completeness completenessFor(List<BankStatement> companyStatements) {
+        if (companyStatements == null || companyStatements.isEmpty()) {
+            return Completeness.NOT_STARTED;
+        }
+        List<UUID> stmtIds = companyStatements.stream().map(BankStatement::getId).toList();
+        List<BankTransaction> reqTxns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
+                .stream().filter(BankTransaction::isRequiresDocument).toList();
+        if (reqTxns.isEmpty()) {
+            return Completeness.COMPLETE;
+        }
+        java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
+        for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(
+                reqTxns.stream().map(BankTransaction::getId).toList())) {
+            allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
+        }
+        boolean missing = reqTxns.stream().anyMatch(t -> t.getAmount().abs()
+                .subtract(allocated.getOrDefault(t.getId(), BigDecimal.ZERO)).compareTo(TOLERANCE) > 0);
+        return missing ? Completeness.PARTIAL : Completeness.COMPLETE;
+    }
+
+    /**
+     * Payment/matching roll-up over a company's invoices/receipts: COMPLETE when every one is fully
+     * paid, PARTIAL when at least one carries an allocation, NONE when nothing is matched (or there are
+     * no invoices). The Statements list combines this with statement presence to colour the row dot.
+     */
+    private Payment paymentRollup(List<Invoice> companyInvoices) {
+        if (companyInvoices == null || companyInvoices.isEmpty()) {
+            return Payment.NONE;
+        }
+        java.util.Map<UUID, BigDecimal> paidByInvoice = new java.util.HashMap<>();
+        for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(
+                companyInvoices.stream().map(Invoice::getId).toList())) {
+            paidByInvoice.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
+        }
+        int paidInFull = 0;
+        boolean anyPaid = false;
+        for (Invoice i : companyInvoices) {
+            BigDecimal paid = paidByInvoice.getOrDefault(i.getId(), BigDecimal.ZERO);
+            if (paid.signum() > 0) {
+                anyPaid = true;
+            }
+            if ("PAID".equals(paymentStatus(i.getTotalAmount(), paid))) {
+                paidInFull++;
+            }
+        }
+        if (paidInFull == companyInvoices.size()) {
+            return Payment.COMPLETE;
+        }
+        return anyPaid ? Payment.PARTIAL : Payment.NONE;
     }
 
     public void matchPeriod(UUID companyId, java.time.LocalDate periodMonth) {

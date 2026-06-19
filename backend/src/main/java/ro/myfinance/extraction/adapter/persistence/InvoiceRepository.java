@@ -11,6 +11,10 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     List<Invoice> findByCompanyIdAndPeriodMonth(UUID companyId, LocalDate periodMonth);
 
+    // All invoices/receipts in a period across the tenant's companies (RLS-scoped). Used by the
+    // Statements list to roll up each company's payment/matching status.
+    List<Invoice> findByPeriodMonth(LocalDate periodMonth);
+
     List<Invoice> findByCompanyIdAndPeriodMonthBetween(UUID companyId, LocalDate from, LocalDate to);
 
     Optional<Invoice> findByDocumentId(UUID documentId);

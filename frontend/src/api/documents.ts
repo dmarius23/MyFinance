@@ -48,6 +48,8 @@ export interface CompanyDocSummary {
   hasBankStatement: boolean;
   hasInvoiceOrReceipt: boolean;
   fileCount: number;
+  bankStatementCount: number;
+  invoiceReceiptCount: number;
 }
 
 export const documentsSummaryApi = {

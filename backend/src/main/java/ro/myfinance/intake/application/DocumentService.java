@@ -82,21 +82,23 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public java.util.List<CompanyDocSummary> summary(java.time.LocalDate periodMonth) {
         java.util.Map<java.util.UUID, int[]> acc = new java.util.HashMap<>();
-        // int[]{fileCount, hasBank(0/1), hasInvRec(0/1)}
+        // int[]{fileCount, bankStatementCount, invoiceReceiptCount}
         for (Document d : documents.findByPeriodMonth(periodMonth.withDayOfMonth(1))) {
             int[] a = acc.computeIfAbsent(d.getCompanyId(), k -> new int[3]);
             a[0]++;
-            if (d.getType() == ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT) a[1] = 1;
+            if (d.getType() == ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT) a[1]++;
             if (d.getType() == ro.myfinance.intake.domain.DocumentType.INVOICE
-                    || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) a[2] = 1;
+                    || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) a[2]++;
         }
         return acc.entrySet().stream()
-                .map(e -> new CompanyDocSummary(e.getKey(), e.getValue()[1] == 1, e.getValue()[2] == 1, e.getValue()[0]))
+                .map(e -> new CompanyDocSummary(e.getKey(), e.getValue()[1] > 0, e.getValue()[2] > 0,
+                        e.getValue()[0], e.getValue()[1], e.getValue()[2]))
                 .toList();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
-                                    boolean hasInvoiceOrReceipt, int fileCount) {
+                                    boolean hasInvoiceOrReceipt, int fileCount,
+                                    int bankStatementCount, int invoiceReceiptCount) {
     }
 
     @Transactional(readOnly = true)

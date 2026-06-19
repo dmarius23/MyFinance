@@ -57,6 +57,8 @@ export interface BankTransaction {
 export interface CompanyCompleteness {
   companyId: string;
   completeness: "NOT_STARTED" | "PARTIAL" | "COMPLETE";
+  // Payment/matching roll-up over the company's invoices/receipts for the period.
+  payment: "NONE" | "PARTIAL" | "COMPLETE";
 }
 
 export const bankApi = {

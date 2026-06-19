@@ -2,23 +2,40 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
-import { documentsSummaryApi } from "../api/documents";
+import { documentsSummaryApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { MonthBar } from "../components/MonthBar";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 
-function pill(text: string, kind: "ok" | "bad" | "na") {
-  const colors: Record<string, React.CSSProperties> = {
-    ok: { background: "#dcfce7", color: "#166534" },
-    bad: { background: "#fee2e2", color: "#991b1b" },
-    na: { background: "var(--border)", color: "var(--text-muted)" },
-  };
-  return <span style={{ ...colors[kind], borderRadius: 999, padding: "2px 10px", fontSize: 12 }}>{text}</span>;
+type DotKind = "green" | "orange" | "red";
+const DOT_COLOR: Record<DotKind, string> = { green: "#16a34a", orange: "#d97706", red: "#dc2626" };
+type Payment = "NONE" | "PARTIAL" | "COMPLETE";
+
+/**
+ * Row health dot = payment/matching of the company's invoices/receipts for the period.
+ * green  = all invoices fully matched/paid
+ * orange = partially matched, OR invoices present but no bank statement yet (can't match → waiting)
+ * red    = has a statement but nothing matched, OR nothing uploaded at all
+ */
+function rowStatus(s: CompanyDocSummary | undefined, payment: Payment): { kind: DotKind; key: string } {
+  const inv = s?.invoiceReceiptCount ?? 0;
+  const hasBank = s?.hasBankStatement ?? false;
+  if (inv === 0) return { kind: "red", key: "statements.dot.nothing" };
+  if (payment === "COMPLETE") return { kind: "green", key: "statements.dot.complete" };
+  if (payment === "PARTIAL") return { kind: "orange", key: "statements.dot.partial" };
+  return hasBank
+    ? { kind: "red", key: "statements.dot.unmatched" }
+    : { kind: "orange", key: "statements.dot.waiting" };
 }
 
-/** Statements & invoices — monthly company list (follows the prototype). */
+const iconBtn: React.CSSProperties = {
+  background: "none", border: "1px solid var(--border)", borderRadius: 8,
+  cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "5px 8px", marginLeft: 6,
+};
+
+/** Statements & invoices — compact monthly company list (follows the prototype). */
 export function Statements() {
   const { t } = useTranslation();
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
@@ -37,6 +54,7 @@ export function Statements() {
     queryFn: () => reconciliationApi.summary(period),
   });
   const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
+  const paymentBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.payment]));
   const byCompany = new Map((summary.data ?? []).map((s) => [s.companyId, s]));
 
   // A company needs a reminder when anything for the period is still missing or incomplete.
@@ -107,13 +125,11 @@ export function Statements() {
                   disabled={selectableIds.length === 0} title={t("email.selectAll")}
                   style={{ cursor: selectableIds.length === 0 ? "default" : "pointer" }} />
               </th>
+              <th style={{ padding: 8, width: 24 }} title={t("statements.completeness")} />
               <th style={{ padding: 8 }}>{t("documents.company")}</th>
               <th style={{ padding: 8 }}>{t("statements.bankStatement")}</th>
               <th style={{ padding: 8 }}>{t("statements.invoices")}</th>
-              <th style={{ padding: 8 }}>{t("statements.completeness")}</th>
-              <th style={{ padding: 8 }}>{t("statements.reminder")}</th>
-              <th style={{ padding: 8 }}>{t("statements.files")}</th>
-              <th style={{ padding: 8 }} />
+              <th style={{ padding: 8, textAlign: "right" }}>{t("statements.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -121,6 +137,7 @@ export function Statements() {
               const s = byCompany.get(c.id);
               const hasBank = s?.hasBankStatement ?? false;
               const selectable = needsReminder(c.id);
+              const st = rowStatus(s, (paymentBy.get(c.id) ?? "NONE") as Payment);
               return (
                 <tr key={c.id} style={{
                   borderTop: "1px solid var(--border)",
@@ -132,37 +149,30 @@ export function Statements() {
                           style={{ cursor: "pointer" }} />
                       : <span style={{ color: "var(--text-muted)" }}>·</span>}
                   </td>
+                  <td style={{ padding: 8, textAlign: "center" }}>
+                    <span role="img" aria-label={t(st.key)} title={t(st.key)}
+                      style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: DOT_COLOR[st.kind] }} />
+                  </td>
                   <td style={{ padding: 8 }}>
                     <b>{c.legalName}</b>
                     <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
                   </td>
-                  <td style={{ padding: 8 }}>{hasBank ? pill(t("statements.uploaded"), "ok") : pill(t("statements.missing"), "bad")}</td>
-                  <td style={{ padding: 8 }}>{s?.hasInvoiceOrReceipt ? pill(t("statements.uploaded"), "ok") : pill(t("statements.missing"), "bad")}</td>
-                  <td style={{ padding: 8 }}>{(() => {
-                    const cs = completenessBy.get(c.id) ?? "NOT_STARTED";
-                    const kind = cs === "COMPLETE" ? "ok" : cs === "PARTIAL" ? "bad" : "na";
-                    return pill(t(`completeness.${cs}`), kind as "ok" | "bad" | "na");
-                  })()}</td>
                   <td style={{ padding: 8 }}>
-                    {selectable
-                      ? <button onClick={() => setSendList([target(c.id)])}>
-                          ✉ {t("email.send")}
+                    {hasBank
+                      ? <button onClick={() => setReconFor({ id: c.id, name: c.legalName })}
+                          title={t("statements.viewTransactions")}
+                          style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0, fontSize: 13.5 }}>
+                          {s?.bankStatementCount ?? 0} · ▸ {t("statements.transactions").toLowerCase()}
                         </button>
-                      : pill("—", "na")}
+                      : <span style={{ color: "var(--text-muted)" }}>— {t("statements.noStatement")}</span>}
                   </td>
-                  <td style={{ padding: 8 }}>
-                    <button onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>
-                      {s?.fileCount ?? 0} {t("statements.files").toLowerCase()}
-                    </button>
-                  </td>
+                  <td style={{ padding: 8 }}>{s?.invoiceReceiptCount ?? 0}</td>
                   <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button
-                      disabled={!hasBank}
-                      title={hasBank ? "" : t("recon.noStatement")}
-                      onClick={() => setReconFor({ id: c.id, name: c.legalName })}
-                    >
-                      {t("statements.transactions")}
-                    </button>
+                    <button style={iconBtn} title={t("statements.files")}
+                      onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>📁</button>
+                    <button title={t("email.send")} disabled={!selectable}
+                      onClick={() => setSendList([target(c.id)])}
+                      style={{ ...iconBtn, opacity: selectable ? 1 : 0.35, cursor: selectable ? "pointer" : "default" }}>✉</button>
                   </td>
                 </tr>
               );
