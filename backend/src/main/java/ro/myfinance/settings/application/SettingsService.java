@@ -60,17 +60,27 @@ public class SettingsService {
         return treasuryAccounts.findAll();
     }
 
-    public ResidenceTreasuryAccount addTreasuryAccount(String residence, List<String> taxTypes,
-                                                       String iban, String label) {
-        if (taxTypes == null || taxTypes.isEmpty()) {
-            throw new IllegalArgumentException("At least one tax type is required");
+    /** Create a residence row with its five per-category IBANs. One row per residence. */
+    public ResidenceTreasuryAccount addTreasuryAccount(String residence, String ibanCam, String ibanImpozite,
+                                                       String ibanCass, String ibanCas, String ibanTva) {
+        if (residence == null || residence.isBlank()) {
+            throw new IllegalArgumentException("Residence is required");
         }
-        if (treasuryAccounts.existsByResidenceAndIban(residence, iban)) {
-            throw new ConflictException(
-                    "A treasury account for " + residence + " / " + iban + " already exists");
+        if (treasuryAccounts.existsByResidence(residence)) {
+            throw new ConflictException("A treasury entry for " + residence + " already exists");
         }
-        return treasuryAccounts.save(
-                new ResidenceTreasuryAccount(currentTenant(), residence, taxTypes, iban, label));
+        ResidenceTreasuryAccount account = new ResidenceTreasuryAccount(currentTenant(), residence);
+        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva);
+        return treasuryAccounts.save(account);
+    }
+
+    /** Update the five IBANs of an existing residence row (residence itself is immutable). */
+    public ResidenceTreasuryAccount updateTreasuryAccount(UUID id, String ibanCam, String ibanImpozite,
+                                                          String ibanCass, String ibanCas, String ibanTva) {
+        ResidenceTreasuryAccount account = treasuryAccounts.findById(id)
+                .orElseThrow(() -> new NotFoundException("Treasury entry not found: " + id));
+        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva);
+        return account;
     }
 
     public void deleteTreasuryAccount(UUID id) {

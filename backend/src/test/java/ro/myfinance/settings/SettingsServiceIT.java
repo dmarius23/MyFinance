@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -75,24 +74,38 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void addsAndListsTreasuryAccounts() {
         asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49AAAA1B31007593840000", "TVA Cluj");
-        service.addTreasuryAccount("Cluj-Napoca", List.of("IMPOZIT_SALARII", "CAS"), "RO49AAAA1B31007593840001", "Sal Cluj");
+        service.addTreasuryAccount("Cluj-Napoca", "RO-CAM", "RO-IMP", "RO-CASS", "RO-CAS", "RO-TVA");
+        service.addTreasuryAccount("Brașov", null, "RO-IMP-BV", null, null, null);
         assertThat(service.listTreasuryAccounts()).hasSize(2);
+        var cluj = service.listTreasuryAccounts().stream()
+                .filter(a -> a.getResidence().equals("Cluj-Napoca")).findFirst().orElseThrow();
+        assertThat(cluj.getIbanTva()).isEqualTo("RO-TVA");
+        assertThat(cluj.getIbanImpozite()).isEqualTo("RO-IMP");
     }
 
     @Test
-    void rejectsDuplicateResidenceIban() {
+    void rejectsDuplicateResidence() {
         asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49AAAA1B31007593840000", "TVA Cluj");
-        assertThatThrownBy(() -> service.addTreasuryAccount(
-                "Cluj-Napoca", List.of("IMPOZIT_PROFIT"), "RO49AAAA1B31007593840000", "other"))
+        service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
+        assertThatThrownBy(() -> service.addTreasuryAccount("Cluj-Napoca", null, "RO-OTHER", null, null, null))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void updatesTreasuryIbans() {
+        asTenant(TENANT_A);
+        ResidenceTreasuryAccount a = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
+        service.updateTreasuryAccount(a.getId(), "RO-CAM2", "RO-IMP2", null, null, "RO-TVA2");
+        ResidenceTreasuryAccount updated = service.listTreasuryAccounts().get(0);
+        assertThat(updated.getIbanCam()).isEqualTo("RO-CAM2");
+        assertThat(updated.getIbanTva()).isEqualTo("RO-TVA2");
+        assertThat(updated.getIbanCass()).isNull();
     }
 
     @Test
     void deletesTreasuryAccount() {
         asTenant(TENANT_A);
-        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA");
+        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
         service.deleteTreasuryAccount(account.getId());
         assertThat(service.listTreasuryAccounts()).isEmpty();
     }
@@ -108,7 +121,7 @@ class SettingsServiceIT extends AbstractPostgresIT {
     void tenantBCannotSeeTenantASettings() {
         asTenant(TENANT_A);
         service.updateRates(new BigDecimal("5.00"), new BigDecimal("3.00"), new BigDecimal("16.00"));
-        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA A");
+        service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP-A", null, null, null);
 
         asTenant(TENANT_B);
         assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("21.00");
@@ -118,7 +131,7 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void tenantBCannotDeleteTenantAAccount() {
         asTenant(TENANT_A);
-        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA");
+        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
 
         asTenant(TENANT_B);
         assertThatThrownBy(() -> service.deleteTreasuryAccount(account.getId()))

@@ -1,11 +1,25 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { settingsApi } from "../api/settings";
+import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
-import { TAX_TYPES, taxTypeKey } from "../domain/taxTypes";
 import { Field } from "../components/Field";
+
+/** Treasury IBAN columns, in the requested order: CAM, impozite, CASS, CAS, TVA. */
+const IBAN_COLS = [
+  { key: "ibanCam", label: "CAM" },
+  { key: "ibanImpozite", labelKey: "settings.col.impozite" },
+  { key: "ibanCass", label: "CASS" },
+  { key: "ibanCas", label: "CAS" },
+  { key: "ibanTva", label: "TVA" },
+] as const satisfies ReadonlyArray<{ key: keyof TreasuryIbans; label?: string; labelKey?: string }>;
+
+function ibansOf(a: TreasuryAccount): TreasuryIbans {
+  return { ibanCam: a.ibanCam, ibanImpozite: a.ibanImpozite, ibanCass: a.ibanCass, ibanCas: a.ibanCas, ibanTva: a.ibanTva };
+}
+
+const ibanInput: React.CSSProperties = { width: "100%", fontFamily: "monospace", fontSize: 12, boxSizing: "border-box" };
 
 /** Tenant-level general settings: VAT rate + county treasury-account registry. TENANT_ADMIN only. */
 export function Settings() {
@@ -78,6 +92,50 @@ function VatRateSection() {
   );
 }
 
+/** A residence row with five inline-editable IBANs (saved on blur) and a delete button. */
+function TreasuryRow({ account }: { account: TreasuryAccount }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [ibans, setIbans] = useState<TreasuryIbans>(ibansOf(account));
+
+  const save = useMutation({
+    mutationFn: (next: TreasuryIbans) => settingsApi.updateTreasury(account.id, next),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["treasury"] }),
+  });
+  const remove = useMutation({
+    mutationFn: () => settingsApi.deleteTreasury(account.id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["treasury"] }),
+  });
+
+  const saveIfChanged = (key: keyof TreasuryIbans) => {
+    if ((ibans[key] ?? "") !== (account[key] ?? "")) save.mutate(ibans);
+  };
+
+  return (
+    <tr style={{ borderTop: "1px solid var(--border)" }}>
+      <td style={{ padding: 8, whiteSpace: "nowrap" }}><b>{account.residence}</b></td>
+      {IBAN_COLS.map((col) => (
+        <td key={col.key} style={{ padding: 4 }}>
+          <input
+            value={ibans[col.key] ?? ""}
+            placeholder="—"
+            onChange={(e) => setIbans({ ...ibans, [col.key]: e.target.value })}
+            onBlur={() => saveIfChanged(col.key)}
+            style={ibanInput}
+          />
+        </td>
+      ))}
+      <td style={{ padding: 8 }}>
+        <button onClick={() => remove.mutate()} disabled={remove.isPending}
+          title={t("common.delete")}
+          style={{ color: "#dc2626", border: "none", background: "none", cursor: "pointer", padding: "0 4px" }}>
+          ✕
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 function TreasurySection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -85,40 +143,38 @@ function TreasurySection() {
     queryKey: ["treasury"],
     queryFn: settingsApi.listTreasury,
   });
-  const [form, setForm] = useState<{ residence: string; taxTypes: string[]; iban: string; label: string }>(
-    { residence: "", taxTypes: [], iban: "", label: "" },
-  );
+  const empty = { residence: "", ibanCam: "", ibanImpozite: "", ibanCass: "", ibanCas: "", ibanTva: "" };
+  const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
 
   const add = useMutation({
-    mutationFn: () => settingsApi.addTreasury(form),
+    mutationFn: () => settingsApi.addTreasury({
+      residence: form.residence,
+      ibanCam: form.ibanCam || null,
+      ibanImpozite: form.ibanImpozite || null,
+      ibanCass: form.ibanCass || null,
+      ibanCas: form.ibanCas || null,
+      ibanTva: form.ibanTva || null,
+    }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["treasury"] });
-      setForm({ residence: "", taxTypes: [], iban: "", label: "" });
+      setForm(empty);
       setError(null);
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to add account"),
+    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to add residence"),
   });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => settingsApi.deleteTreasury(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["treasury"] }),
-  });
-
-  const toggleTax = (tt: string) =>
-    setForm((f) => ({
-      ...f,
-      taxTypes: f.taxTypes.includes(tt) ? f.taxTypes.filter((x) => x !== tt) : [...f.taxTypes, tt],
-    }));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (form.taxTypes.length === 0) {
-      setError(t("settings.taxTypeRequired"));
+    if (!form.residence.trim()) {
+      setError(t("settings.residenceRequired"));
       return;
     }
     add.mutate();
   };
+
+  const colLabel = (col: (typeof IBAN_COLS)[number]) =>
+    "labelKey" in col ? t(col.labelKey) : col.label;
 
   return (
     <div className="card">
@@ -134,85 +190,45 @@ function TreasurySection() {
             <thead>
               <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
                 <th style={{ padding: 8 }}>{t("settings.residence")}</th>
-                <th style={{ padding: 8 }}>{t("settings.taxType")}</th>
-                <th style={{ padding: 8 }}>IBAN</th>
-                <th style={{ padding: 8 }}>Label</th>
+                {IBAN_COLS.map((col) => <th key={col.key} style={{ padding: 8 }}>{colLabel(col)}</th>)}
                 <th style={{ padding: 8 }} />
               </tr>
             </thead>
             <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td style={{ padding: 8 }}>{a.residence}</td>
-                  <td style={{ padding: 8 }}>
-                    {a.taxTypes
-                      .map((tt) => t(taxTypeKey(tt), { defaultValue: tt }))
-                      .join(", ")}
-                  </td>
-                  <td style={{ padding: 8, fontFamily: "monospace" }}>{a.iban}</td>
-                  <td style={{ padding: 8 }}>{a.label ?? "—"}</td>
-                  <td style={{ padding: 8 }}>
-                    <button
-                      onClick={() => remove.mutate(a.id)}
-                      disabled={remove.isPending}
-                      style={{ color: "#dc2626", border: "none", background: "none", cursor: "pointer", padding: "0 4px" }}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {accounts.map((a) => <TreasuryRow key={a.id} account={a} />)}
               {accounts.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: 8, color: "var(--text-muted)" }}>
-                    No treasury accounts configured yet.
+                  <td colSpan={IBAN_COLS.length + 2} style={{ padding: 8, color: "var(--text-muted)" }}>
+                    {t("settings.noTreasury")}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
           {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-          <form style={{ display: "grid", gap: 8 }} onSubmit={submit}>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <input
-                required
-                list="ro-localities-settings"
-                placeholder={t("settings.residence")}
-                value={form.residence}
-                onChange={(e) => setForm({ ...form, residence: e.target.value })}
-                style={{ flex: "1 1 150px" }}
-              />
-              <input
-                required
-                placeholder="IBAN"
-                value={form.iban}
-                onChange={(e) => setForm({ ...form, iban: e.target.value })}
-                style={{ flex: "2 1 200px" }}
-              />
-              <input
-                placeholder="Label"
-                value={form.label}
-                onChange={(e) => setForm({ ...form, label: e.target.value })}
-                style={{ flex: "1 1 100px" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              {TAX_TYPES.map((tt) => (
-                <label key={tt} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14 }}>
-                  <input
-                    type="checkbox"
-                    checked={form.taxTypes.includes(tt)}
-                    onChange={() => toggleTax(tt)}
-                  />
-                  {t(taxTypeKey(tt))}
-                </label>
-              ))}
-            </div>
-            <div>
-              <button className="primary" type="submit" disabled={add.isPending}>
-                {add.isPending ? "Adding…" : "Add"}
-              </button>
-            </div>
+          <form onSubmit={submit}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: 4 }}>
+                    <input required list="ro-localities-settings" placeholder={t("settings.residence")}
+                      value={form.residence} onChange={(e) => setForm({ ...form, residence: e.target.value })}
+                      style={{ width: "100%", boxSizing: "border-box" }} />
+                  </td>
+                  {IBAN_COLS.map((col) => (
+                    <td key={col.key} style={{ padding: 4 }}>
+                      <input placeholder={colLabel(col)} value={form[col.key]}
+                        onChange={(e) => setForm({ ...form, [col.key]: e.target.value })} style={ibanInput} />
+                    </td>
+                  ))}
+                  <td style={{ padding: 4 }}>
+                    <button className="primary" type="submit" disabled={add.isPending}>
+                      {add.isPending ? "…" : "+"}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </form>
         </>
       )}

@@ -6,13 +6,22 @@ export interface GeneralSettings {
   profitRate: number;
 }
 
+/** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. */
 export interface TreasuryAccount {
   id: string;
   residence: string;
-  taxTypes: string[];
-  iban: string;
-  label: string | null;
+  ibanCam: string | null;
+  ibanImpozite: string | null;
+  ibanCass: string | null;
+  ibanCas: string | null;
+  ibanTva: string | null;
 }
+
+/** The five IBAN fields, keyed by category — column order: CAM, impozite, CASS, CAS, TVA. */
+export type TreasuryIbans = Pick<
+  TreasuryAccount,
+  "ibanCam" | "ibanImpozite" | "ibanCass" | "ibanCas" | "ibanTva"
+>;
 
 export const settingsApi = {
   get: () => api<GeneralSettings>("/api/v1/settings"),
@@ -22,10 +31,15 @@ export const settingsApi = {
       body: JSON.stringify(rates),
     }),
   listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
-  addTreasury: (input: { residence: string; taxTypes: string[]; iban: string; label?: string }) =>
+  addTreasury: (input: { residence: string } & TreasuryIbans) =>
     api<TreasuryAccount>("/api/v1/settings/treasury-accounts", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  updateTreasury: (id: string, ibans: TreasuryIbans) =>
+    api<TreasuryAccount>(`/api/v1/settings/treasury-accounts/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(ibans),
     }),
   deleteTreasury: (id: string) =>
     api<void>(`/api/v1/settings/treasury-accounts/${id}`, { method: "DELETE" }),

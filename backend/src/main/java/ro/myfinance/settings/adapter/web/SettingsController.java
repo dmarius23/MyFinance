@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.settings.adapter.web.SettingsDtos.CreateTreasuryRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.SettingsResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.TreasuryResponse;
+import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateTreasuryRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateRatesRequest;
 import ro.myfinance.settings.application.SettingsService;
 
@@ -49,9 +50,15 @@ public class SettingsController {
 
     @PostMapping("/treasury-accounts")
     @ResponseStatus(HttpStatus.CREATED)
-    public TreasuryResponse addTreasury(@Valid @RequestBody CreateTreasuryRequest request) {
-        return TreasuryResponse.from(
-                service.addTreasuryAccount(request.residence(), request.taxTypes(), request.iban(), request.label()));
+    public TreasuryResponse addTreasury(@Valid @RequestBody CreateTreasuryRequest r) {
+        return TreasuryResponse.from(service.addTreasuryAccount(r.residence(), r.ibanCam(), r.ibanImpozite(),
+                r.ibanCass(), r.ibanCas(), r.ibanTva()));
+    }
+
+    @PutMapping("/treasury-accounts/{id}")
+    public TreasuryResponse updateTreasury(@PathVariable UUID id, @Valid @RequestBody UpdateTreasuryRequest r) {
+        return TreasuryResponse.from(service.updateTreasuryAccount(id, r.ibanCam(), r.ibanImpozite(),
+                r.ibanCass(), r.ibanCas(), r.ibanTva()));
     }
 
     @DeleteMapping("/treasury-accounts/{id}")

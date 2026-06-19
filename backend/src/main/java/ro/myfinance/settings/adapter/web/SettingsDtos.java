@@ -22,15 +22,19 @@ public final class SettingsDtos {
                                      @NotNull BigDecimal profitRate) {
     }
 
-    public record CreateTreasuryRequest(@NotBlank String residence, java.util.List<String> taxTypes,
-                                        @NotBlank String iban, String label) {
+    public record CreateTreasuryRequest(@NotBlank String residence, String ibanCam, String ibanImpozite,
+                                        String ibanCass, String ibanCas, String ibanTva) {
     }
 
-    public record TreasuryResponse(UUID id, String residence, java.util.List<String> taxTypes,
-                                   String iban, String label) {
+    public record UpdateTreasuryRequest(String ibanCam, String ibanImpozite, String ibanCass,
+                                        String ibanCas, String ibanTva) {
+    }
+
+    public record TreasuryResponse(UUID id, String residence, String ibanCam, String ibanImpozite,
+                                   String ibanCass, String ibanCas, String ibanTva) {
         public static TreasuryResponse from(ResidenceTreasuryAccount a) {
-            return new TreasuryResponse(a.getId(), a.getResidence(), a.getTaxTypes(),
-                    a.getIban(), a.getLabel());
+            return new TreasuryResponse(a.getId(), a.getResidence(), a.getIbanCam(), a.getIbanImpozite(),
+                    a.getIbanCass(), a.getIbanCas(), a.getIbanTva());
         }
     }
 }
