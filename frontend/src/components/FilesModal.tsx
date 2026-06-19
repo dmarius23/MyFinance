@@ -102,10 +102,17 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                 const isStmt = d.type === "BANK_STATEMENT";
                 const showHeader = i === 0 || (ordered[i - 1].type === "BANK_STATEMENT") !== isStmt;
                 const isInvoice = d.type === "INVOICE" || d.type === "RECEIPT";
+                const wrongType = !["BANK_STATEMENT", "INVOICE", "RECEIPT"].includes(d.type);
                 const pay = st?.paymentStatus; // UNPAID | PARTIAL | PAID | null
                 const payStyle = pay === "PAID" ? { bg: "#dcfce7", bd: "#16a34a" }
                   : pay === "PARTIAL" ? { bg: "#fef3c7", bd: "#d97706" }
                   : { bg: "#fee2e2", bd: "#dc2626" }; // UNPAID / no association
+                const dateStyle = st?.dateFlag === "ORANGE" ? { bg: "#fef3c7", bd: "#d97706" }
+                  : { bg: "#fee2e2", bd: "#dc2626" }; // RED
+                const chip = (bg: string, color: string, bd: string): React.CSSProperties => ({
+                  background: bg, color, border: `1px solid ${bd}`, borderRadius: 999,
+                  padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase",
+                });
                 return (
                 <Fragment key={d.id}>
                 {showHeader && (
@@ -125,14 +132,17 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {st?.warning && (
-                        <span title={t(`doc.warn.${st.warningReason}`, { defaultValue: "" })}
-                          style={{ color: "#d97706", marginRight: 4 }}>⚠</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {st?.dateFlag && (
+                        <span title={t(`doc.warn.${st.dateReason}`, { defaultValue: "" })}
+                          style={{ background: dateStyle.bg, border: `1px solid ${dateStyle.bd}`, color: dateStyle.bd,
+                            borderRadius: 6, fontSize: 11, lineHeight: 1, padding: "2px 5px", flexShrink: 0 }}>📅</span>
                       )}
-                      {d.originalFilename}
+                      <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {d.originalFilename}
+                      </span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
                       <select
                         value={d.type}
                         disabled={changeType.isPending}
@@ -149,21 +159,32 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                           <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
                         ))}
                       </select>
+                      {wrongType && (
+                        <span title={t("doc.warn.wrongType")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
+                          {t("doc.wrongTypeChip")}
+                        </span>
+                      )}
                       {st?.duplicate && (
-                        <span title={t("doc.warn.duplicate")}
-                          style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fecaca",
-                            borderRadius: 999, padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>
+                        <span title={t("doc.warn.duplicate")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
                           {t("doc.duplicateChip")}
                         </span>
                       )}
-                      {st?.wrongParty && (
-                        <span title={t("doc.warn.wrongParty")}
-                          style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca",
-                            borderRadius: 999, padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>
+                      {isInvoice && st?.wrongParty === true && (
+                        <span title={t("doc.warn.wrongParty")} style={chip("#fee2e2", "#991b1b", "#fecaca")}>
                           {t("doc.wrongPartyChip")}
                         </span>
                       )}
+                      {isInvoice && (st?.wrongParty === null || st?.wrongParty === undefined) && (
+                        <span title={t("doc.warn.unidentifiedParty")} style={chip("#f3f4f6", "#6b7280", "#e5e7eb")}>
+                          {t("doc.unidentifiedChip")}
+                        </span>
+                      )}
                     </div>
+                    {isInvoice && (
+                      <div style={{ fontSize: 11, marginTop: 2, color: st?.wrongParty === true ? "#b91c1c" : "var(--text-muted)" }}>
+                        {t("doc.cifClient")}: {st?.clientCif ?? "—"}
+                      </div>
+                    )}
                   </div>
                   {/* Aligned, compact action icons. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -50,11 +50,15 @@ public class ReconciliationService {
     }
 
     /**
-     * Per-document flags for the documents list. warningReason is an i18n key code; paymentStatus is
-     * UNPAID/PARTIAL/PAID for invoices/receipts, null for bank statements.
+     * Per-document flags for the documents list.
+     * - dateFlag: "RED" (all outside the period / invoice date outside), "ORANGE" (statement has some
+     *   transactions outside the period), or null; dateReason is an i18n key for the tooltip.
+     * - paymentStatus: UNPAID/PARTIAL/PAID for invoices/receipts, null for statements.
+     * - wrongParty: TRUE (different fiscal code), FALSE (matches), null (undetermined / unidentified).
+     * - clientCif: the buyer fiscal code read off the document (for display).
      */
-    public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched,
-                                 boolean duplicate, String paymentStatus, boolean wrongParty) {
+    public record DocumentStatus(UUID documentId, String dateFlag, String dateReason, boolean duplicate,
+                                 String paymentStatus, Boolean wrongParty, String clientCif) {
     }
 
     /** A single payment (transaction allocation) applied to an invoice. */
@@ -627,10 +631,22 @@ public class ReconciliationService {
         List<DocumentStatus> out = new java.util.ArrayList<>();
 
         for (BankStatement s : statements.findByCompanyIdAndPeriodMonth(companyId, period)) {
-            boolean inPeriod = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId())).stream()
-                    .anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
-            out.add(new DocumentStatus(s.getDocumentId(), !inPeriod,
-                    inPeriod ? null : "no_transactions_in_period", false, false, null, false));
+            List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId()));
+            long total = txns.size();
+            long in = txns.stream().filter(t -> t.getTxnDate().withDayOfMonth(1).equals(period)).count();
+            String dateFlag;
+            String reason;
+            if (total == 0 || in == 0) {
+                dateFlag = "RED";
+                reason = "no_transactions_in_period";
+            } else if (in < total) {
+                dateFlag = "ORANGE";
+                reason = "some_transactions_outside_period";
+            } else {
+                dateFlag = null;
+                reason = null;
+            }
+            out.add(new DocumentStatus(s.getDocumentId(), dateFlag, reason, false, null, null, null));
         }
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
@@ -653,19 +669,15 @@ public class ReconciliationService {
             }
             for (Invoice inv : invs) {
                 BigDecimal p = paid.getOrDefault(inv.getId(), BigDecimal.ZERO);
-                boolean fullyPaid = inv.getTotalAmount() != null
-                        ? inv.getTotalAmount().subtract(p).compareTo(TOLERANCE) <= 0
-                        : p.signum() > 0; // unknown total (image receipt): any allocation counts as matched
-                boolean dateInPeriod = inv.getInvoiceDate() != null
-                        && inv.getInvoiceDate().withDayOfMonth(1).equals(period);
+                boolean dateOutside = inv.getInvoiceDate() != null
+                        && !inv.getInvoiceDate().withDayOfMonth(1).equals(period);
                 String key = invoiceDupKey(inv);
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
                         .anyMatch(o -> !o.getId().equals(inv.getId()) && datesClose(inv.getInvoiceDate(), o.getInvoiceDate()));
-                // Wrong party: verdict computed at extraction (client CIF / model comparison vs company CUI).
-                boolean wrongParty = Boolean.TRUE.equals(inv.getWrongParty());
-                out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
-                        dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate,
-                        paymentStatus(inv.getTotalAmount(), p), wrongParty));
+                out.add(new DocumentStatus(inv.getDocumentId(),
+                        dateOutside ? "RED" : null, dateOutside ? "date_outside_period" : null, duplicate,
+                        paymentStatus(inv.getTotalAmount(), p),
+                        inv.getWrongParty(), inv.getClientCif()));
             }
         }
         return out;

@@ -141,12 +141,12 @@ export const invoicesApi = {
 
 export interface DocumentStatus {
   documentId: string;
-  warning: boolean;
-  warningReason: string | null;
-  unmatched: boolean;
+  dateFlag: "RED" | "ORANGE" | null;
+  dateReason: string | null;
   duplicate: boolean;
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID" | null;
-  wrongParty: boolean;
+  wrongParty: boolean | null;
+  clientCif: string | null;
 }
 
 export interface SuggestionLink {
