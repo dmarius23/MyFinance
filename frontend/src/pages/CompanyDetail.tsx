@@ -7,7 +7,7 @@ import { representativesApi } from "../api/representatives";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES, VAT_PERIODS, vatPeriodKey } from "../domain/company";
-import { ROMANIAN_COUNTIES } from "../domain/counties";
+import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { Field } from "../components/Field";
 
 /** Client company detail: general info (view/edit), representatives. */
@@ -103,10 +103,11 @@ function GeneralInfoSection({ company }: { company: Company }) {
           </select>
         </Field>
         <Field label={t("company.fiscalResidence")}>
-          <select value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })}>
-            <option value="">—</option>
-            {ROMANIAN_COUNTIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <input list="ro-localities" value={form.locality} placeholder={t("company.fiscalResidencePlaceholder")}
+            onChange={(e) => setForm({ ...form, locality: e.target.value })} />
+          <datalist id="ro-localities">
+            {ROMANIAN_LOCALITIES.map((l) => <option key={l} value={l} />)}
+          </datalist>
         </Field>
         <Field label={t("company.vatStatus")}>
           <select value={form.vatStatus} onChange={(e) => setForm({ ...form, vatStatus: e.target.value })}>
