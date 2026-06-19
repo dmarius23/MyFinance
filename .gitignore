@@ -43,3 +43,7 @@ tmp/
 
 # Real bank-statement samples (PII) — never commit; redacted text fixtures live in test resources
 docs/samples/
+
+# Local dev launchers (machine-specific env)
+*.local.sh
+backend/run-local.sh

@@ -4,8 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.util.UUID;
-import ro.myfinance.settings.domain.CountyTreasuryAccount;
 import ro.myfinance.settings.domain.GeneralSettings;
+import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
 
 public final class SettingsDtos {
 
@@ -22,13 +22,14 @@ public final class SettingsDtos {
                                      @NotNull BigDecimal profitRate) {
     }
 
-    public record CreateCountyTreasuryRequest(@NotBlank String county, @NotBlank String taxType,
-                                              @NotBlank String iban, String label) {
+    public record CreateTreasuryRequest(@NotBlank String residence, java.util.List<String> taxTypes,
+                                        @NotBlank String iban, String label) {
     }
 
-    public record CountyTreasuryResponse(UUID id, String county, String taxType, String iban, String label) {
-        public static CountyTreasuryResponse from(CountyTreasuryAccount a) {
-            return new CountyTreasuryResponse(a.getId(), a.getCounty(), a.getTaxType(),
+    public record TreasuryResponse(UUID id, String residence, java.util.List<String> taxTypes,
+                                   String iban, String label) {
+        public static TreasuryResponse from(ResidenceTreasuryAccount a) {
+            return new TreasuryResponse(a.getId(), a.getResidence(), a.getTaxTypes(),
                     a.getIban(), a.getLabel());
         }
     }

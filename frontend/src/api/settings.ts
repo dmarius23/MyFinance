@@ -6,10 +6,10 @@ export interface GeneralSettings {
   profitRate: number;
 }
 
-export interface CountyTreasuryAccount {
+export interface TreasuryAccount {
   id: string;
-  county: string;
-  taxType: string;
+  residence: string;
+  taxTypes: string[];
   iban: string;
   label: string | null;
 }
@@ -21,9 +21,9 @@ export const settingsApi = {
       method: "PUT",
       body: JSON.stringify(rates),
     }),
-  listTreasury: () => api<CountyTreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
-  addTreasury: (input: { county: string; taxType: string; iban: string; label?: string }) =>
-    api<CountyTreasuryAccount>("/api/v1/settings/treasury-accounts", {
+  listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
+  addTreasury: (input: { residence: string; taxTypes: string[]; iban: string; label?: string }) =>
+    api<TreasuryAccount>("/api/v1/settings/treasury-accounts", {
       method: "POST",
       body: JSON.stringify(input),
     }),

@@ -8,13 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.settings.adapter.persistence.CountyTreasuryAccountRepository;
 import ro.myfinance.settings.adapter.persistence.GeneralSettingsRepository;
-import ro.myfinance.settings.domain.CountyTreasuryAccount;
+import ro.myfinance.settings.adapter.persistence.ResidenceTreasuryAccountRepository;
 import ro.myfinance.settings.domain.GeneralSettings;
+import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
 
 /**
- * Tenant-level general settings: VAT rate and the county/tax-type treasury-account registry.
+ * Tenant-level general settings: tax rates and the residence/tax-type treasury-account registry.
  * All reads/writes are RLS-scoped; tenant_id always comes from {@link TenantContext}.
  */
 @Service
@@ -22,10 +22,10 @@ import ro.myfinance.settings.domain.GeneralSettings;
 public class SettingsService {
 
     private final GeneralSettingsRepository settings;
-    private final CountyTreasuryAccountRepository treasuryAccounts;
+    private final ResidenceTreasuryAccountRepository treasuryAccounts;
 
     public SettingsService(GeneralSettingsRepository settings,
-                           CountyTreasuryAccountRepository treasuryAccounts) {
+                           ResidenceTreasuryAccountRepository treasuryAccounts) {
         this.settings = settings;
         this.treasuryAccounts = treasuryAccounts;
     }
@@ -56,21 +56,25 @@ public class SettingsService {
     }
 
     @Transactional(readOnly = true)
-    public List<CountyTreasuryAccount> listTreasuryAccounts() {
+    public List<ResidenceTreasuryAccount> listTreasuryAccounts() {
         return treasuryAccounts.findAll();
     }
 
-    public CountyTreasuryAccount addTreasuryAccount(String county, String taxType, String iban, String label) {
-        if (treasuryAccounts.existsByCountyAndTaxType(county, taxType)) {
+    public ResidenceTreasuryAccount addTreasuryAccount(String residence, List<String> taxTypes,
+                                                       String iban, String label) {
+        if (taxTypes == null || taxTypes.isEmpty()) {
+            throw new IllegalArgumentException("At least one tax type is required");
+        }
+        if (treasuryAccounts.existsByResidenceAndIban(residence, iban)) {
             throw new ConflictException(
-                    "A treasury account for " + county + " / " + taxType + " already exists");
+                    "A treasury account for " + residence + " / " + iban + " already exists");
         }
         return treasuryAccounts.save(
-                new CountyTreasuryAccount(currentTenant(), county, taxType, iban, label));
+                new ResidenceTreasuryAccount(currentTenant(), residence, taxTypes, iban, label));
     }
 
     public void deleteTreasuryAccount(UUID id) {
-        CountyTreasuryAccount account = treasuryAccounts.findById(id)
+        ResidenceTreasuryAccount account = treasuryAccounts.findById(id)
                 .orElseThrow(() -> new NotFoundException("Treasury account not found: " + id));
         treasuryAccounts.delete(account);
     }

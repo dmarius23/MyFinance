@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,7 @@ import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.settings.application.SettingsService;
-import ro.myfinance.settings.domain.CountyTreasuryAccount;
+import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
 import ro.myfinance.support.AbstractPostgresIT;
 
 class SettingsServiceIT extends AbstractPostgresIT {
@@ -74,23 +75,24 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void addsAndListsTreasuryAccounts() {
         asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj", "TVA", "RO49AAAA1B31007593840000", "TVA Cluj");
-        service.addTreasuryAccount("Cluj", "IMPOZIT_SALARII", "RO49AAAA1B31007593840001", "Sal Cluj");
+        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49AAAA1B31007593840000", "TVA Cluj");
+        service.addTreasuryAccount("Cluj-Napoca", List.of("IMPOZIT_SALARII", "CAS"), "RO49AAAA1B31007593840001", "Sal Cluj");
         assertThat(service.listTreasuryAccounts()).hasSize(2);
     }
 
     @Test
-    void rejectsDuplicateCountyTaxType() {
+    void rejectsDuplicateResidenceIban() {
         asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj", "TVA", "RO49AAAA1B31007593840000", "TVA Cluj");
-        assertThatThrownBy(() -> service.addTreasuryAccount("Cluj", "TVA", "RO99BBBB...", "other"))
+        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49AAAA1B31007593840000", "TVA Cluj");
+        assertThatThrownBy(() -> service.addTreasuryAccount(
+                "Cluj-Napoca", List.of("IMPOZIT_PROFIT"), "RO49AAAA1B31007593840000", "other"))
                 .isInstanceOf(ConflictException.class);
     }
 
     @Test
     void deletesTreasuryAccount() {
         asTenant(TENANT_A);
-        CountyTreasuryAccount account = service.addTreasuryAccount("Cluj", "TVA", "RO49...", "TVA");
+        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA");
         service.deleteTreasuryAccount(account.getId());
         assertThat(service.listTreasuryAccounts()).isEmpty();
     }
@@ -106,7 +108,7 @@ class SettingsServiceIT extends AbstractPostgresIT {
     void tenantBCannotSeeTenantASettings() {
         asTenant(TENANT_A);
         service.updateRates(new BigDecimal("5.00"), new BigDecimal("3.00"), new BigDecimal("16.00"));
-        service.addTreasuryAccount("Cluj", "TVA", "RO49...", "TVA A");
+        service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA A");
 
         asTenant(TENANT_B);
         assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("21.00");
@@ -116,7 +118,7 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void tenantBCannotDeleteTenantAAccount() {
         asTenant(TENANT_A);
-        CountyTreasuryAccount account = service.addTreasuryAccount("Cluj", "TVA", "RO49...", "TVA");
+        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", List.of("TVA"), "RO49...", "TVA");
 
         asTenant(TENANT_B);
         assertThatThrownBy(() -> service.deleteTreasuryAccount(account.getId()))

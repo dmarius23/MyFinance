@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import ro.myfinance.settings.adapter.web.SettingsDtos.CountyTreasuryResponse;
-import ro.myfinance.settings.adapter.web.SettingsDtos.CreateCountyTreasuryRequest;
+import ro.myfinance.settings.adapter.web.SettingsDtos.CreateTreasuryRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.SettingsResponse;
+import ro.myfinance.settings.adapter.web.SettingsDtos.TreasuryResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateRatesRequest;
 import ro.myfinance.settings.application.SettingsService;
 
@@ -43,15 +43,15 @@ public class SettingsController {
     }
 
     @GetMapping("/treasury-accounts")
-    public List<CountyTreasuryResponse> listTreasury() {
-        return service.listTreasuryAccounts().stream().map(CountyTreasuryResponse::from).toList();
+    public List<TreasuryResponse> listTreasury() {
+        return service.listTreasuryAccounts().stream().map(TreasuryResponse::from).toList();
     }
 
     @PostMapping("/treasury-accounts")
     @ResponseStatus(HttpStatus.CREATED)
-    public CountyTreasuryResponse addTreasury(@Valid @RequestBody CreateCountyTreasuryRequest request) {
-        return CountyTreasuryResponse.from(
-                service.addTreasuryAccount(request.county(), request.taxType(), request.iban(), request.label()));
+    public TreasuryResponse addTreasury(@Valid @RequestBody CreateTreasuryRequest request) {
+        return TreasuryResponse.from(
+                service.addTreasuryAccount(request.residence(), request.taxTypes(), request.iban(), request.label()));
     }
 
     @DeleteMapping("/treasury-accounts/{id}")
