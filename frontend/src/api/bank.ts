@@ -59,6 +59,8 @@ export interface CompanyCompleteness {
   completeness: "NOT_STARTED" | "PARTIAL" | "COMPLETE";
   // Payment/matching roll-up over the company's invoices/receipts for the period.
   payment: "NONE" | "PARTIAL" | "COMPLETE";
+  // Bank transactions that require a document but aren't matched yet — the docs still owed.
+  missingTxnCount: number;
 }
 
 export const bankApi = {

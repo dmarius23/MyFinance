@@ -32,7 +32,8 @@ public class ReconciliationService {
     /** Payment/matching roll-up over a company's invoices/receipts for a period. */
     public enum Payment { NONE, PARTIAL, COMPLETE }
 
-    public record CompanyCompleteness(UUID companyId, Completeness completeness, Payment payment) {
+    public record CompanyCompleteness(UUID companyId, Completeness completeness, Payment payment,
+                                      int missingTxnCount) {
     }
 
     public record MatchedInvoiceView(UUID invoiceId, UUID documentId, String filename,
@@ -192,32 +193,35 @@ public class ReconciliationService {
 
         List<CompanyCompleteness> out = new java.util.ArrayList<>();
         for (UUID companyId : companyIds) {
-            Completeness completeness = completenessFor(stmtsByCompany.get(companyId));
+            List<BankStatement> stmts = stmtsByCompany.get(companyId);
+            boolean hasStatements = stmts != null && !stmts.isEmpty();
+            int missingTxn = hasStatements ? missingDocTxnCount(stmts) : 0;
+            Completeness completeness = !hasStatements ? Completeness.NOT_STARTED
+                    : (missingTxn > 0 ? Completeness.PARTIAL : Completeness.COMPLETE);
             Payment payment = paymentRollup(invByCompany.get(companyId));
-            out.add(new CompanyCompleteness(companyId, completeness, payment));
+            out.add(new CompanyCompleteness(companyId, completeness, payment, missingTxn));
         }
         return out;
     }
 
-    /** Document-requirement completeness: every transaction that needs a document is fully allocated. */
-    private Completeness completenessFor(List<BankStatement> companyStatements) {
-        if (companyStatements == null || companyStatements.isEmpty()) {
-            return Completeness.NOT_STARTED;
-        }
+    /**
+     * Count of bank transactions that require a document but aren't fully allocated yet — i.e. the
+     * documents the client still owes. Drives both the completeness state and the "N missing" hint.
+     */
+    private int missingDocTxnCount(List<BankStatement> companyStatements) {
         List<UUID> stmtIds = companyStatements.stream().map(BankStatement::getId).toList();
         List<BankTransaction> reqTxns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
                 .stream().filter(BankTransaction::isRequiresDocument).toList();
         if (reqTxns.isEmpty()) {
-            return Completeness.COMPLETE;
+            return 0;
         }
         java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
         for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(
                 reqTxns.stream().map(BankTransaction::getId).toList())) {
             allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
         }
-        boolean missing = reqTxns.stream().anyMatch(t -> t.getAmount().abs()
-                .subtract(allocated.getOrDefault(t.getId(), BigDecimal.ZERO)).compareTo(TOLERANCE) > 0);
-        return missing ? Completeness.PARTIAL : Completeness.COMPLETE;
+        return (int) reqTxns.stream().filter(t -> t.getAmount().abs()
+                .subtract(allocated.getOrDefault(t.getId(), BigDecimal.ZERO)).compareTo(TOLERANCE) > 0).count();
     }
 
     /**

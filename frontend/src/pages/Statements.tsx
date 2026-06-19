@@ -55,6 +55,7 @@ export function Statements() {
   });
   const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
   const paymentBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.payment]));
+  const missingTxnBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.missingTxnCount]));
   const byCompany = new Map((summary.data ?? []).map((s) => [s.companyId, s]));
 
   // A company needs a reminder when anything for the period is still missing or incomplete.
@@ -159,17 +160,24 @@ export function Statements() {
                   </td>
                   <td style={{ padding: 8 }}>
                     {hasBank
-                      ? <button onClick={() => setReconFor({ id: c.id, name: c.legalName })}
-                          title={t("statements.viewTransactions")}
-                          style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0, fontSize: 13.5 }}>
-                          {s?.bankStatementCount ?? 0} · ▸ {t("statements.transactions").toLowerCase()}
-                        </button>
+                      ? <span>{s?.bankStatementCount ?? 0}</span>
                       : <span style={{ color: "var(--text-muted)" }}>— {t("statements.noStatement")}</span>}
                   </td>
-                  <td style={{ padding: 8 }}>{s?.invoiceReceiptCount ?? 0}</td>
+                  <td style={{ padding: 8 }}>
+                    {s?.invoiceReceiptCount ?? 0}
+                    {(missingTxnBy.get(c.id) ?? 0) > 0 && (
+                      <span title={t("statements.missingTxnTip")}
+                        style={{ color: DOT_COLOR.orange, marginLeft: 6, fontSize: 12.5 }}>
+                        · {t("statements.txnMissing", { n: missingTxnBy.get(c.id) })}
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                     <button style={iconBtn} title={t("statements.files")}
                       onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>📁</button>
+                    <button title={t("statements.viewTransactions")} disabled={!hasBank}
+                      onClick={() => setReconFor({ id: c.id, name: c.legalName })}
+                      style={{ ...iconBtn, opacity: hasBank ? 1 : 0.35, cursor: hasBank ? "pointer" : "default" }}>⇄</button>
                     <button title={t("email.send")} disabled={!selectable}
                       onClick={() => setSendList([target(c.id)])}
                       style={{ ...iconBtn, opacity: selectable ? 1 : 0.35, cursor: selectable ? "pointer" : "default" }}>✉</button>
