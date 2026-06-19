@@ -10,7 +10,7 @@ import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 
 type DotKind = "green" | "orange" | "red";
-const DOT_COLOR: Record<DotKind, string> = { green: "#16a34a", orange: "#d97706", red: "#dc2626" };
+const DOT_COLOR: Record<DotKind, string> = { green: "#16a34a", orange: "#fb923c", red: "#dc2626" };
 type Payment = "NONE" | "PARTIAL" | "COMPLETE";
 
 /**
@@ -42,15 +42,22 @@ const CHIP: Record<ChipKind, { bg: string; fg: string; bd: string }> = {
   gray: { bg: "#f3f4f6", fg: "#6b7280", bd: "#e5e7eb" },
 };
 
-function Chip({ label, kind, title }: { label: React.ReactNode; kind: ChipKind; title: string }) {
+function Chip({ label, kind, title, onClick }:
+  { label: React.ReactNode; kind: ChipKind; title: string; onClick?: () => void }) {
   const c = CHIP[kind];
-  return (
-    <span title={title} aria-label={title}
-      style={{ background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, borderRadius: 999,
-        padding: "1px 8px", fontSize: 12, marginRight: 4, display: "inline-block" }}>
-      {label}
-    </span>
-  );
+  const style: React.CSSProperties = {
+    background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, borderRadius: 999,
+    padding: "1px 8px", fontSize: 12, marginRight: 4, display: "inline-block", font: "inherit",
+  };
+  if (onClick) {
+    return (
+      <button type="button" title={title} aria-label={title} onClick={onClick}
+        style={{ ...style, cursor: "pointer" }}>
+        {label}
+      </button>
+    );
+  }
+  return <span title={title} aria-label={title} style={style}>{label}</span>;
 }
 
 /** Statements & invoices — compact monthly company list (follows the prototype). */
@@ -179,8 +186,10 @@ export function Statements() {
                   </td>
                   <td style={{ padding: 8 }}>
                     {hasBank
-                      ? <Chip kind="green" label={s?.bankStatementCount ?? 0} title={t("statements.bankStatement")} />
-                      : <Chip kind="red" label={t("statements.missing")} title={t("statements.bankStatement")} />}
+                      ? <Chip kind="green" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")}
+                          onClick={() => setFilesFor({ id: c.id, name: c.legalName })} />
+                      : <Chip kind="red" label={t("statements.missing")} title={t("statements.chip.noStatement")}
+                          onClick={() => setFilesFor({ id: c.id, name: c.legalName })} />}
                   </td>
                   <td style={{ padding: 8 }}>{(() => {
                     const present = s?.invoiceReceiptCount ?? 0;
@@ -189,11 +198,12 @@ export function Statements() {
                     if (present === 0 && missing === 0 && noMatch === 0) {
                       return <span style={{ color: "var(--text-muted)" }}>—</span>;
                     }
+                    const openFiles = () => setFilesFor({ id: c.id, name: c.legalName });
                     return (
                       <>
-                        {present > 0 && <Chip kind="green" label={present} title={t("statements.chip.present")} />}
-                        {missing > 0 && <Chip kind="red" label={missing} title={t("statements.chip.missing")} />}
-                        {noMatch > 0 && <Chip kind="gray" label={noMatch} title={t("statements.chip.noMatch")} />}
+                        {present > 0 && <Chip kind="green" label={present} title={t("statements.chip.present")} onClick={openFiles} />}
+                        {missing > 0 && <Chip kind="red" label={missing} title={t("statements.chip.missing")} onClick={openFiles} />}
+                        {noMatch > 0 && <Chip kind="gray" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
                       </>
                     );
                   })()}</td>
