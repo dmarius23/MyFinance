@@ -33,21 +33,56 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             text = new PDFTextStripper().getText(doc);
         } catch (IOException | RuntimeException e) {
             log.debug("Invoice text extraction failed", e);
-            return new ParsedInvoice(null, null, null, null);
+            return new ParsedInvoice(null, null, null, null, null);
         }
         String iban = null;
         BigDecimal total = null;
         LocalDate date = null;
         String supplier = null;
+        String clientCif = null;
         try {
             iban = firstMatch(IBAN, text);
             total = totalAmount(text);
             date = invoiceDate(text);
             supplier = supplierName(text, ownCompanyName);
+            clientCif = clientCif(text);
         } catch (RuntimeException e) {
             log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
         }
-        return new ParsedInvoice(supplier, iban, total, date);
+        return new ParsedInvoice(supplier, iban, total, date, clientCif);
+    }
+
+    private static final Pattern CIF = Pattern.compile("(?i)\\bRO\\s?\\d{2,10}\\b|\\b\\d{2,10}\\b");
+
+    /**
+     * The buyer's fiscal code (CIF/CUI) from the "Cumpărător"/"Client"/"Beneficiar" block — used to
+     * verify the invoice is addressed to this company. Looks for a CIF-labelled line within the buyer
+     * block; returns null if the block or a labelled code can't be found (don't guess the supplier's).
+     */
+    private String clientCif(String text) {
+        String[] lines = text.split("\\R");
+        int buyer = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            if (n.contains("cumparator") || n.contains("client") || n.contains("beneficiar")) {
+                buyer = i;
+                break;
+            }
+        }
+        if (buyer < 0) {
+            return null;
+        }
+        for (int i = buyer; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            if (n.contains("cif") || n.contains("cui") || n.contains("cod fiscal")
+                    || n.contains("cod de identificare") || n.contains("c.i.f")) {
+                Matcher m = CIF.matcher(lines[i]);
+                if (m.find()) {
+                    return m.group().trim();
+                }
+            }
+        }
+        return null;
     }
 
     /** Diacritics-insensitive lowercase of a line (for label/marker detection). */

@@ -146,6 +146,7 @@ export interface DocumentStatus {
   unmatched: boolean;
   duplicate: boolean;
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID" | null;
+  wrongParty: boolean;
 }
 
 export interface SuggestionLink {

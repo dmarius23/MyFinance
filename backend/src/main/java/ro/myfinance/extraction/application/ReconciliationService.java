@@ -54,7 +54,7 @@ public class ReconciliationService {
      * UNPAID/PARTIAL/PAID for invoices/receipts, null for bank statements.
      */
     public record DocumentStatus(UUID documentId, boolean warning, String warningReason, boolean unmatched,
-                                 boolean duplicate, String paymentStatus) {
+                                 boolean duplicate, String paymentStatus, boolean wrongParty) {
     }
 
     /** A single payment (transaction allocation) applied to an invoice. */
@@ -630,9 +630,11 @@ public class ReconciliationService {
             boolean inPeriod = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId())).stream()
                     .anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
             out.add(new DocumentStatus(s.getDocumentId(), !inPeriod,
-                    inPeriod ? null : "no_transactions_in_period", false, false, null));
+                    inPeriod ? null : "no_transactions_in_period", false, false, null, false));
         }
 
+        // The company's own fiscal code — to verify each invoice/receipt is addressed to it.
+        String companyCui = digitsOnly(companies.findById(companyId).map(c -> c.getCui()).orElse(null));
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
         if (!invs.isEmpty()) {
             // Allocation-aware: paid per invoice across ALL its matches (payments can span months).
@@ -661,9 +663,12 @@ public class ReconciliationService {
                 String key = invoiceDupKey(inv);
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
                         .anyMatch(o -> !o.getId().equals(inv.getId()) && datesClose(inv.getInvoiceDate(), o.getInvoiceDate()));
+                // Wrong party: the document names a buyer fiscal code that isn't this company's.
+                String docCif = digitsOnly(inv.getClientCif());
+                boolean wrongParty = docCif != null && companyCui != null && !docCif.equals(companyCui);
                 out.add(new DocumentStatus(inv.getDocumentId(), !dateInPeriod,
                         dateInPeriod ? null : "date_outside_period", !fullyPaid, duplicate,
-                        paymentStatus(inv.getTotalAmount(), p)));
+                        paymentStatus(inv.getTotalAmount(), p), wrongParty));
             }
         }
         return out;
@@ -683,6 +688,15 @@ public class ReconciliationService {
             return null;
         }
         return supplier + "|" + i.getTotalAmount().stripTrailingZeros().toPlainString();
+    }
+
+    /** Normalize a fiscal code to bare digits (drops "RO", spaces, dots) for comparison; null if empty. */
+    private static String digitsOnly(String cif) {
+        if (cif == null) {
+            return null;
+        }
+        String d = cif.replaceAll("[^0-9]", "");
+        return d.isEmpty() ? null : d;
     }
 
     /** Same-invoice date check: within tolerance, or flagged when either date is missing (can't distinguish). */

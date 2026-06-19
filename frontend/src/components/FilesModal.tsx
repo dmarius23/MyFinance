@@ -156,6 +156,13 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                           {t("doc.duplicateChip")}
                         </span>
                       )}
+                      {st?.wrongParty && (
+                        <span title={t("doc.warn.wrongParty")}
+                          style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca",
+                            borderRadius: 999, padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>
+                          {t("doc.wrongPartyChip")}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {/* Aligned, compact action icons. */}

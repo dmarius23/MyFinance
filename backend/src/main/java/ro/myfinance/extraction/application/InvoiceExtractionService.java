@@ -67,7 +67,8 @@ public class InvoiceExtractionService {
     private Fields fromPdf(byte[] bytes, String ownName) {
         ParsedInvoice p = extractor.extract(bytes, ownName);
         String status = (p.supplierIban() != null && p.totalAmount() != null) ? "EXTRACTED" : "NEEDS_REVIEW";
-        return new Fields(p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), status, null, null, null);
+        return new Fields(p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), status,
+                null, p.clientCif(), null);
     }
 
     private Fields fromReceiptImage(byte[] bytes, String filename) {
