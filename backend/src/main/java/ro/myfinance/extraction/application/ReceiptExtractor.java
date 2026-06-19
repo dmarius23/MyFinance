@@ -7,5 +7,9 @@ package ro.myfinance.extraction.application;
  */
 public interface ReceiptExtractor {
 
-    ParsedReceipt extract(byte[] image, String mediaType);
+    /**
+     * @param ownCompanyCui the fiscal code of the company the receipt should belong to; the extractor
+     *                      sets clientMatchesCompany by comparing the printed CIF CLIENT to it. May be null.
+     */
+    ParsedReceipt extract(byte[] image, String mediaType, String ownCompanyCui);
 }

@@ -56,6 +56,9 @@ public class Invoice {
     @Column(name = "receipt_number")
     private String receiptNumber;
 
+    @Column(name = "wrong_party")
+    private Boolean wrongParty;
+
     @Column(nullable = false)
     private String status;
 
@@ -92,17 +95,19 @@ public class Invoice {
         this.status = status;
     }
 
-    /** Receipt-specific identifiers (null for invoices). */
-    public void updateReceiptFields(String issuerCif, String clientCif, String receiptNumber) {
+    /** Receipt-specific identifiers + the wrong-party verdict (null for invoices / undetermined). */
+    public void updateReceiptFields(String issuerCif, String clientCif, String receiptNumber, Boolean wrongParty) {
         this.issuerCif = issuerCif;
         this.clientCif = clientCif;
         this.receiptNumber = receiptNumber;
+        this.wrongParty = wrongParty;
     }
 
     public UUID getId() { return id; }
     public String getIssuerCif() { return issuerCif; }
     public String getClientCif() { return clientCif; }
     public String getReceiptNumber() { return receiptNumber; }
+    public Boolean getWrongParty() { return wrongParty; }
     public UUID getDocumentId() { return documentId; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }

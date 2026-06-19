@@ -7,7 +7,7 @@ import ro.myfinance.extraction.application.ReceiptExtractor;
 public class NoopReceiptExtractor implements ReceiptExtractor {
 
     @Override
-    public ParsedReceipt extract(byte[] image, String mediaType) {
+    public ParsedReceipt extract(byte[] image, String mediaType, String ownCompanyCui) {
         return ParsedReceipt.empty();
     }
 }

@@ -36,16 +36,19 @@ public class InvoiceExtractionService {
 
     /** Extracted fields, from either the PDF parser or the receipt-image OCR/LLM. */
     private record Fields(String supplierName, String supplierIban, BigDecimal total, LocalDate date,
-                          String status, String issuerCif, String clientCif, String receiptNumber) {
+                          String status, String issuerCif, String clientCif, String receiptNumber,
+                          Boolean wrongParty) {
     }
 
     public void process(UUID documentId, UUID companyId, LocalDate periodMonth, String filename, byte[] bytes) {
         UUID tenantId = TenantContext.tenantId().orElseThrow(() -> new IllegalStateException("No tenant bound"));
+        var company = companies.findById(companyId);
         // The document belongs to this company, which is the buyer — exclude it from supplier detection.
-        String ownName = companies.findById(companyId).map(c -> c.getLegalName()).orElse(null);
+        String ownName = company.map(c -> c.getLegalName()).orElse(null);
+        String ownCui = company.map(c -> c.getCui()).orElse(null);
         LocalDate period = periodMonth.withDayOfMonth(1);
 
-        final Fields f = isPdf(bytes) ? fromPdf(bytes, ownName) : fromReceiptImage(bytes, filename);
+        final Fields f = isPdf(bytes) ? fromPdf(bytes, ownName, ownCui) : fromReceiptImage(bytes, filename, ownCui);
 
         // Upsert by document: re-scan updates the existing row in place (preserving its id and any
         // matches) rather than delete+insert, which would break match FKs and trip the unique
@@ -53,29 +56,43 @@ public class InvoiceExtractionService {
         invoices.findByDocumentId(documentId).ifPresentOrElse(
                 existing -> {
                     existing.updateExtraction(f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
-                    existing.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber());
+                    existing.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                 },
                 () -> {
                     Invoice inv = new Invoice(tenantId, documentId, companyId, period,
                             f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
-                    inv.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber());
+                    inv.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                     invoices.save(inv);
                 });
         reconciliation.matchPeriod(companyId, period);
     }
 
-    private Fields fromPdf(byte[] bytes, String ownName) {
+    private Fields fromPdf(byte[] bytes, String ownName, String ownCui) {
         ParsedInvoice p = extractor.extract(bytes, ownName);
         String status = (p.supplierIban() != null && p.totalAmount() != null) ? "EXTRACTED" : "NEEDS_REVIEW";
+        // Invoice client CIF is checksum-valid (extractor guarantees), so a direct digit compare is sound.
+        Boolean wrongParty = wrongPartyFromCif(p.clientCif(), ownCui);
         return new Fields(p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), status,
-                null, p.clientCif(), null);
+                null, p.clientCif(), null, wrongParty);
     }
 
-    private Fields fromReceiptImage(byte[] bytes, String filename) {
-        ParsedReceipt r = receipts.extract(bytes, mediaType(filename, bytes));
+    private Fields fromReceiptImage(byte[] bytes, String filename, String ownCui) {
+        ParsedReceipt r = receipts.extract(bytes, mediaType(filename, bytes), ownCui);
         boolean ok = r.total() != null && r.issueDate() != null && r.confidence() >= receiptProps.confidenceThreshold();
+        // Receipt CIFs are easily misread; trust the model's match verdict (tolerant of a misread digit).
+        Boolean wrongParty = r.clientMatchesCompany() == null ? null : !r.clientMatchesCompany();
         return new Fields(r.issuerName(), null, r.total(), r.issueDate(), ok ? "EXTRACTED" : "NEEDS_REVIEW",
-                r.issuerCif(), r.clientCif(), r.receiptNumber());
+                r.issuerCif(), r.clientCif(), r.receiptNumber(), wrongParty);
+    }
+
+    /** true when both codes are present and differ, false when they match, null when undeterminable. */
+    private static Boolean wrongPartyFromCif(String clientCif, String ownCui) {
+        String a = RoFiscalCode.digits(clientCif);
+        String b = RoFiscalCode.digits(ownCui);
+        if (a == null || b == null) {
+            return null;
+        }
+        return !a.equals(b);
     }
 
     private static boolean isPdf(byte[] b) {

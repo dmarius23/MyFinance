@@ -10,9 +10,9 @@ import java.time.LocalDate;
  */
 public record ParsedReceipt(String issuerName, String issuerCif, String clientCif, BigDecimal total,
                             String currency, LocalDate issueDate, String receiptNumber,
-                            double confidence, String source) {
+                            double confidence, String source, Boolean clientMatchesCompany) {
 
     public static ParsedReceipt empty() {
-        return new ParsedReceipt(null, null, null, null, null, null, null, 0.0, "NONE");
+        return new ParsedReceipt(null, null, null, null, null, null, null, 0.0, "NONE", null);
     }
 }
