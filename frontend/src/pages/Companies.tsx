@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { companiesApi } from "../api/companies";
+import { companiesApi, taxRegimeKey } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
 import { vatStatusKey } from "../domain/vat";
@@ -39,6 +39,8 @@ export function Companies() {
               <th style={{ padding: 8 }}>Type</th>
               <th style={{ padding: 8 }}>Locality</th>
               <th style={{ padding: 8 }}>{t("company.vat")}</th>
+              <th style={{ padding: 8 }}>{t("company.taxRegime")}</th>
+              <th style={{ padding: 8 }}>{t("company.hasEmployees")}</th>
               <th style={{ padding: 8 }}>Status</th>
             </tr>
           </thead>
@@ -50,6 +52,8 @@ export function Companies() {
                 <td style={{ padding: 8 }}>{c.entityType ?? "—"}</td>
                 <td style={{ padding: 8 }}>{c.locality ?? "—"}</td>
                 <td style={{ padding: 8 }}>{c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"}</td>
+                <td style={{ padding: 8 }}>{c.taxRegime ? t(taxRegimeKey(c.taxRegime), { defaultValue: c.taxRegime }) : "—"}</td>
+                <td style={{ padding: 8 }}>{c.hasEmployees == null ? "—" : t(c.hasEmployees ? "common.yes" : "common.no")}</td>
                 <td style={{ padding: 8 }}>{c.status}</td>
               </tr>
             ))}
