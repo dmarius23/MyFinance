@@ -33,7 +33,7 @@ public class ReconciliationService {
     public enum Payment { NONE, PARTIAL, COMPLETE }
 
     public record CompanyCompleteness(UUID companyId, Completeness completeness, Payment payment,
-                                      int missingTxnCount) {
+                                      int missingTxnCount, int unmatchedInvoiceCount) {
     }
 
     public record MatchedInvoiceView(UUID invoiceId, UUID documentId, String filename,
@@ -198,8 +198,9 @@ public class ReconciliationService {
             int missingTxn = hasStatements ? missingDocTxnCount(stmts) : 0;
             Completeness completeness = !hasStatements ? Completeness.NOT_STARTED
                     : (missingTxn > 0 ? Completeness.PARTIAL : Completeness.COMPLETE);
-            Payment payment = paymentRollup(invByCompany.get(companyId));
-            out.add(new CompanyCompleteness(companyId, completeness, payment, missingTxn));
+            InvoiceRollup roll = paymentRollup(invByCompany.get(companyId));
+            out.add(new CompanyCompleteness(companyId, completeness, roll.payment(), missingTxn,
+                    roll.unmatched()));
         }
         return out;
     }
@@ -229,9 +230,12 @@ public class ReconciliationService {
      * paid, PARTIAL when at least one carries an allocation, NONE when nothing is matched (or there are
      * no invoices). The Statements list combines this with statement presence to colour the row dot.
      */
-    private Payment paymentRollup(List<Invoice> companyInvoices) {
+    private record InvoiceRollup(Payment payment, int unmatched) {
+    }
+
+    private InvoiceRollup paymentRollup(List<Invoice> companyInvoices) {
         if (companyInvoices == null || companyInvoices.isEmpty()) {
-            return Payment.NONE;
+            return new InvoiceRollup(Payment.NONE, 0);
         }
         java.util.Map<UUID, BigDecimal> paidByInvoice = new java.util.HashMap<>();
         for (TransactionInvoiceMatch m : matches.findByInvoiceIdIn(
@@ -239,20 +243,22 @@ public class ReconciliationService {
             paidByInvoice.merge(m.getInvoiceId(), m.getAllocatedAmount(), BigDecimal::add);
         }
         int paidInFull = 0;
+        int unmatched = 0;
         boolean anyPaid = false;
         for (Invoice i : companyInvoices) {
             BigDecimal paid = paidByInvoice.getOrDefault(i.getId(), BigDecimal.ZERO);
             if (paid.signum() > 0) {
                 anyPaid = true;
+            } else {
+                unmatched++; // uploaded but not linked to any transaction
             }
             if ("PAID".equals(paymentStatus(i.getTotalAmount(), paid))) {
                 paidInFull++;
             }
         }
-        if (paidInFull == companyInvoices.size()) {
-            return Payment.COMPLETE;
-        }
-        return anyPaid ? Payment.PARTIAL : Payment.NONE;
+        Payment payment = paidInFull == companyInvoices.size() ? Payment.COMPLETE
+                : (anyPaid ? Payment.PARTIAL : Payment.NONE);
+        return new InvoiceRollup(payment, unmatched);
     }
 
     public void matchPeriod(UUID companyId, java.time.LocalDate periodMonth) {

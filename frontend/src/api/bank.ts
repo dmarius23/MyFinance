@@ -61,6 +61,8 @@ export interface CompanyCompleteness {
   payment: "NONE" | "PARTIAL" | "COMPLETE";
   // Bank transactions that require a document but aren't matched yet — the docs still owed.
   missingTxnCount: number;
+  // Uploaded invoices/receipts not linked to any transaction yet.
+  unmatchedInvoiceCount: number;
 }
 
 export const bankApi = {

@@ -35,6 +35,24 @@ const iconBtn: React.CSSProperties = {
   cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "5px 8px", marginLeft: 6,
 };
 
+type ChipKind = "green" | "red" | "gray";
+const CHIP: Record<ChipKind, { bg: string; fg: string; bd: string }> = {
+  green: { bg: "#dcfce7", fg: "#166534", bd: "#bbf7d0" },
+  red: { bg: "#fee2e2", fg: "#991b1b", bd: "#fecaca" },
+  gray: { bg: "#f3f4f6", fg: "#6b7280", bd: "#e5e7eb" },
+};
+
+function Chip({ label, kind, title }: { label: React.ReactNode; kind: ChipKind; title: string }) {
+  const c = CHIP[kind];
+  return (
+    <span title={title} aria-label={title}
+      style={{ background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, borderRadius: 999,
+        padding: "1px 8px", fontSize: 12, marginRight: 4, display: "inline-block" }}>
+      {label}
+    </span>
+  );
+}
+
 /** Statements & invoices — compact monthly company list (follows the prototype). */
 export function Statements() {
   const { t } = useTranslation();
@@ -56,6 +74,7 @@ export function Statements() {
   const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
   const paymentBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.payment]));
   const missingTxnBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.missingTxnCount]));
+  const unmatchedBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.unmatchedInvoiceCount]));
   const byCompany = new Map((summary.data ?? []).map((s) => [s.companyId, s]));
 
   // A company needs a reminder when anything for the period is still missing or incomplete.
@@ -160,18 +179,24 @@ export function Statements() {
                   </td>
                   <td style={{ padding: 8 }}>
                     {hasBank
-                      ? <span>{s?.bankStatementCount ?? 0}</span>
-                      : <span style={{ color: "var(--text-muted)" }}>— {t("statements.noStatement")}</span>}
+                      ? <Chip kind="green" label={s?.bankStatementCount ?? 0} title={t("statements.bankStatement")} />
+                      : <Chip kind="red" label={t("statements.missing")} title={t("statements.bankStatement")} />}
                   </td>
-                  <td style={{ padding: 8 }}>
-                    {s?.invoiceReceiptCount ?? 0}
-                    {(missingTxnBy.get(c.id) ?? 0) > 0 && (
-                      <span title={t("statements.missingTxnTip")}
-                        style={{ color: DOT_COLOR.orange, marginLeft: 6, fontSize: 12.5 }}>
-                        · {t("statements.txnMissing", { n: missingTxnBy.get(c.id) })}
-                      </span>
-                    )}
-                  </td>
+                  <td style={{ padding: 8 }}>{(() => {
+                    const present = s?.invoiceReceiptCount ?? 0;
+                    const missing = missingTxnBy.get(c.id) ?? 0;
+                    const noMatch = unmatchedBy.get(c.id) ?? 0;
+                    if (present === 0 && missing === 0 && noMatch === 0) {
+                      return <span style={{ color: "var(--text-muted)" }}>—</span>;
+                    }
+                    return (
+                      <>
+                        {present > 0 && <Chip kind="green" label={present} title={t("statements.chip.present")} />}
+                        {missing > 0 && <Chip kind="red" label={missing} title={t("statements.chip.missing")} />}
+                        {noMatch > 0 && <Chip kind="gray" label={noMatch} title={t("statements.chip.noMatch")} />}
+                      </>
+                    );
+                  })()}</td>
                   <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
                     <button style={iconBtn} title={t("statements.files")}
                       onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>📁</button>
