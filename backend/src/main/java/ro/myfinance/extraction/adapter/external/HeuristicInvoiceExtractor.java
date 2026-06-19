@@ -76,9 +76,11 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             String n = norm(lines[i]);
             if (n.contains("cif") || n.contains("cui") || n.contains("cod fiscal")
                     || n.contains("cod de identificare") || n.contains("c.i.f")) {
-                Matcher m = CIF.matcher(lines[i]);
-                if (m.find()) {
-                    return m.group().trim();
+                for (Matcher m = CIF.matcher(lines[i]); m.find(); ) {
+                    String cand = m.group().trim();
+                    if (ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cand)) {
+                        return cand; // a real CUI (control-digit valid), not a stray number
+                    }
                 }
             }
         }

@@ -27,17 +27,21 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
 
     private static final String PROMPT = """
             You extract fields from a photographed Romanian fiscal receipt (bon fiscal). It may be \
-            crumpled, angled, faded or partly stamped. Return ONLY a JSON object (no markdown, no \
-            commentary) with exactly these keys:
-            - issuerName: the merchant/company that issued the receipt (e.g. "MEGA IMAGE S.R.L.")
-            - issuerCif: the merchant fiscal code (CIF/CUI), e.g. "RO6719278" or "14571643"
-            - clientCif: the buyer's fiscal code if present (e.g. "RO20464846"), else null
+            crumpled, angled, faded or partly stamped. Transcribe digits EXACTLY as printed — never \
+            guess or invent a number; if you cannot read a digit, return null for that field.
+            Return ONLY a JSON object (no markdown, no commentary) with exactly these keys:
+            - issuerName: the merchant/company that issued the receipt (header, e.g. "MEGA IMAGE S.R.L.")
+            - issuerCif: the MERCHANT's fiscal code from the header, labelled "C.I.F." / \
+            "Cod Identificare Fiscala" (e.g. "RO6719278" or "14571643")
+            - clientCif: the BUYER's fiscal code, only from a line explicitly labelled \
+            "CIF Client" / "C.I.F. Client" / "CIF CLIENT" (e.g. "RO20464846"); null if there is no such line
             - total: the grand total to pay as a number (SUMA TOTALA / TOTAL / TOTAL DE PLATA), dot decimals
             - currency: e.g. "RON"
             - issueDate: the receipt date in ISO format yyyy-MM-dd
             - receiptNumber: the fiscal receipt number (BF / AMEF / RL) if present, else null
             - confidence: your overall confidence 0..1 that these values are correct
-            Use null for any field you cannot read confidently.""";
+            Use null for any field you cannot read with confidence. Do not confuse the merchant CIF \
+            with the client CIF.""";
 
     private final RestClient client;
     private final String model;
@@ -58,6 +62,7 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
             Map<String, Object> body = Map.of(
                     "model", model,
                     "max_tokens", 1024,
+                    "temperature", 0, // deterministic extraction — same image yields the same fields
                     "messages", List.of(Map.of("role", "user", "content", List.of(
                             Map.of("type", "image", "source",
                                     Map.of("type", "base64", "media_type", mediaType, "data", b64)),
@@ -84,13 +89,18 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
             }
             JsonNode n = MAPPER.readTree(text.substring(s, e + 1));
             return new ParsedReceipt(
-                    str(n, "issuerName"), str(n, "issuerCif"), str(n, "clientCif"),
+                    str(n, "issuerName"), validCif(str(n, "issuerCif")), validCif(str(n, "clientCif")),
                     money(n.get("total")), str(n, "currency"), date(str(n, "issueDate")),
                     str(n, "receiptNumber"), n.path("confidence").asDouble(0.0), "LLM");
         } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.warn("Receipt LLM response was not valid JSON", ex);
             return ParsedReceipt.empty();
         }
+    }
+
+    /** Keep a fiscal code only if it passes the RO control-digit check — drops LLM misreads. */
+    private static String validCif(String cif) {
+        return ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cif) ? cif : null;
     }
 
     private static String str(JsonNode n, String field) {
