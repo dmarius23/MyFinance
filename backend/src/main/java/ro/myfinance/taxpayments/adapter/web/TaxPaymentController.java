@@ -50,6 +50,13 @@ public class TaxPaymentController {
         return declarations.list(companyId, period);
     }
 
+    /** Parsed content of one declaration for the structured preview. */
+    @GetMapping("/api/v1/companies/{companyId}/declarations/{declarationId}/detail")
+    public ro.myfinance.taxpayments.domain.DeclarationDetail declarationDetail(
+            @PathVariable UUID companyId, @PathVariable UUID declarationId) {
+        return declarations.detail(companyId, declarationId);
+    }
+
     @DeleteMapping("/api/v1/companies/{companyId}/declarations/{declarationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDeclaration(@PathVariable UUID companyId, @PathVariable UUID declarationId) {

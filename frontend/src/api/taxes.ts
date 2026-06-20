@@ -87,9 +87,29 @@ export interface DeclarationFile {
   duplicate: boolean;
 }
 
+export interface DeclarationLine {
+  category: string;
+  codOblig: string;
+  amount: number;
+  scadenta: string | null;
+  refund: boolean;
+}
+
+export interface DeclarationDetail {
+  type: "D100" | "D112" | "D300";
+  cui: string | null;
+  period: string | null;
+  declaredTotal: number | null;
+  computedTotal: number;
+  mismatch: boolean;
+  obligations: DeclarationLine[];
+}
+
 export const declarationsApi = {
   list: (companyId: string, period: string) =>
     api<DeclarationFile[]>(`/api/v1/companies/${companyId}/declarations?period=${period}`),
+  detail: (companyId: string, declarationId: string) =>
+    api<DeclarationDetail>(`/api/v1/companies/${companyId}/declarations/${declarationId}/detail`),
   remove: (companyId: string, declarationId: string) =>
     api<void>(`/api/v1/companies/${companyId}/declarations/${declarationId}`, { method: "DELETE" }),
 };
