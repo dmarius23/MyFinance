@@ -23,8 +23,10 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     queryFn: () => reconciliationApi.documentStatus(companyId, period),
   });
   const statusByDoc = new Map(statuses.map((s) => [s.documentId, s]));
+  // ANAF declarations live on the Taxes & payments screen, not here.
+  const docs = data.filter((d) => d.type !== "DECLARATION");
   // Bank statements first, then a divider, then invoices/receipts (stable within each group).
-  const ordered = [...data].sort((a, b) =>
+  const ordered = [...docs].sort((a, b) =>
     (a.type === "BANK_STATEMENT" ? 0 : 1) - (b.type === "BANK_STATEMENT" ? 0 : 1));
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   const [paymentsFor, setPaymentsFor] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const selected: Document | undefined = data.find((d) => d.id === selId) ?? data[0];
+  const selected: Document | undefined = docs.find((d) => d.id === selId) ?? docs[0];
 
   useEffect(() => {
     let revoked: string | null = null;
@@ -96,7 +98,7 @@ export function FilesModal({ companyId, companyName, period, onClose }:
         <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
           <div>
             <div style={{ maxHeight: 560, overflow: "auto" }}>
-              {data.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
+              {ordered.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
               {ordered.map((d, i) => {
                 const st = statusByDoc.get(d.id);
                 const isStmt = d.type === "BANK_STATEMENT";
