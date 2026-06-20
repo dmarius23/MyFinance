@@ -66,6 +66,21 @@ class AnafDeclarationExtractorTest {
     }
 
     @Test
+    void d100_falls_back_to_de_restituit_when_de_plata_is_zero() {
+        // suma_plata = 0 → use suma_rest ("De restituit") as a negative refund, not a payment.
+        String xml = "<?xml version=\"1.0\"?>"
+                + "<declaratie100 luna=\"03\" an=\"2026\" cui=\"49443957\" den=\"X SRL\" totalPlata_A=\"0\">"
+                + "<obligatie cod_oblig=\"121\" scadenta=\"25.04.2026\" suma_dat=\"0\" suma_plata=\"0\" suma_rest=\"500\"/>"
+                + "</declaratie100>";
+        ParsedDeclaration d = extractor.parseXmlBytes(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(d.obligations()).hasSize(1);
+        TaxObligation o = d.obligations().get(0);
+        assertThat(o.refund()).isTrue();
+        assertThat(o.amount()).isEqualByComparingTo("-500");
+        assertThat(d.computedTotal()).isEqualByComparingTo("0"); // nothing to pay
+    }
+
+    @Test
     void d300_vat_payable_from_row41_not_header() throws IOException {
         ParsedDeclaration d = extractFixture("D300.pdf");
         assertThat(d.type()).isEqualTo(DeclarationType.D300);

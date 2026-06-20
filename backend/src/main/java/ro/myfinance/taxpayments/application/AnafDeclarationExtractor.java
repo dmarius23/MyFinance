@@ -50,18 +50,23 @@ public class AnafDeclarationExtractor {
             if (xml == null) {
                 throw new IllegalArgumentException("No embedded ANAF XML found in the PDF");
             }
-            Document dom = parseXml(xml);
-            String root = dom.getDocumentElement().getLocalName() != null
-                    ? dom.getDocumentElement().getLocalName() : dom.getDocumentElement().getTagName();
-            return switch (root) {
-                case "declaratie100" -> parseD100(dom);
-                case "declaratieUnica" -> parseD112(dom);
-                case "declaratie300" -> parseD300(dom);
-                default -> throw new IllegalArgumentException("Unsupported ANAF declaration root: " + root);
-            };
+            return parseXmlBytes(xml);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read ANAF PDF", e);
         }
+    }
+
+    /** Parse a raw ANAF declaration XML (the bytes embedded in the PDF). */
+    public ParsedDeclaration parseXmlBytes(byte[] xml) {
+        Document dom = parseXml(xml);
+        String root = dom.getDocumentElement().getLocalName() != null
+                ? dom.getDocumentElement().getLocalName() : dom.getDocumentElement().getTagName();
+        return switch (root) {
+            case "declaratie100" -> parseD100(dom);
+            case "declaratieUnica" -> parseD112(dom);
+            case "declaratie300" -> parseD300(dom);
+            default -> throw new IllegalArgumentException("Unsupported ANAF declaration root: " + root);
+        };
     }
 
     // ---- per-declaration parsers ------------------------------------------------------------------
@@ -71,8 +76,10 @@ public class AnafDeclarationExtractor {
         YearMonth period = period(r.getAttribute("luna"), r.getAttribute("an"));
         List<TaxObligation> obligations = new ArrayList<>();
         for (Element o : elements(dom, "obligatie")) {
-            BigDecimal amount = amount(o.getAttribute("suma_plata"));
-            if (amount.signum() <= 0) {
+            // Row "3. De plata" (suma_plata) is the amount to pay; if it is zero, the row below,
+            // "De restituit" (suma_rest), is a refund — recorded as a negative amount, never paid.
+            BigDecimal amount = signedAmount(o.getAttribute("suma_plata"), o.getAttribute("suma_rest"));
+            if (amount.signum() == 0) {
                 continue;
             }
             LocalDate scadenta = parseDate(o.getAttribute("scadenta"), period);
@@ -103,12 +110,12 @@ public class AnafDeclarationExtractor {
     private ParsedDeclaration parseD300(Document dom) {
         Element r = dom.getDocumentElement();
         YearMonth period = period(r.getAttribute("luna"), r.getAttribute("an"));
-        // D300 has no <obligatie>; the VAT payable is row 41 ("TVA de plată"). Row 42 ("de recuperat")
-        // is a refund and yields no payment. The header totalPlata_A is NOT the VAT, so it is ignored.
-        BigDecimal payable = amount(r.getAttribute("R41_2"));
+        // D300 has no <obligatie>; the VAT payable is row 41 ("TVA de plată"). If that is zero, row 42
+        // ("TVA de recuperat") is a refund — recorded as negative. The header totalPlata_A is NOT the VAT.
+        BigDecimal amount = signedAmount(r.getAttribute("R41_2"), r.getAttribute("R42_2"));
         List<TaxObligation> obligations = new ArrayList<>();
-        if (payable.signum() > 0) {
-            obligations.add(new TaxObligation(TaxCategory.TVA, "TVA", payable, defaultDeadline(period)));
+        if (amount.signum() != 0) {
+            obligations.add(new TaxObligation(TaxCategory.TVA, "TVA", amount, defaultDeadline(period)));
         }
         return new ParsedDeclaration(DeclarationType.D300, r.getAttribute("cui"), r.getAttribute("den"),
                 period, obligations, null);
@@ -233,5 +240,15 @@ public class AnafDeclarationExtractor {
 
     private static BigDecimal amountOrNull(String s) {
         return (s == null || s.isBlank()) ? null : amount(s);
+    }
+
+    /** "De plată" if &gt; 0, else "De restituit" as a negative refund, else zero. */
+    private static BigDecimal signedAmount(String dePlata, String deRestituit) {
+        BigDecimal pay = amount(dePlata);
+        if (pay.signum() > 0) {
+            return pay;
+        }
+        BigDecimal refund = amount(deRestituit);
+        return refund.signum() > 0 ? refund.negate() : BigDecimal.ZERO;
     }
 }

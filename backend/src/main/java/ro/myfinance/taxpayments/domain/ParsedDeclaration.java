@@ -12,8 +12,10 @@ import java.util.List;
 public record ParsedDeclaration(DeclarationType type, String cui, String name, YearMonth period,
                                 List<TaxObligation> obligations, BigDecimal declaredTotal) {
 
+    /** Total amount to pay = sum of payable obligations (refunds are excluded). */
     public BigDecimal computedTotal() {
-        return obligations.stream().map(TaxObligation::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return obligations.stream().filter(TaxObligation::payable)
+                .map(TaxObligation::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     public boolean totalsMismatch() {
