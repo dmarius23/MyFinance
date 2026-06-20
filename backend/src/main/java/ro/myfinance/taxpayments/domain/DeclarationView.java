@@ -1,16 +1,17 @@
 package ro.myfinance.taxpayments.domain;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
-/** A stored declaration for the manager modal: amounts, mismatch, and the wrong-party / outside-period flags. */
+/** A stored declaration for the manager modal: amounts, flags, and how many times it's been emailed. */
 public record DeclarationView(UUID id, UUID documentId, DeclarationType type, BigDecimal computedTotal,
                              BigDecimal declaredTotal, boolean mismatch, String cui, boolean wrongParty,
-                             boolean outsidePeriod, boolean duplicate) {
+                             boolean outsidePeriod, boolean duplicate, int sentCount, Instant lastSentAt) {
 
-    public static DeclarationView from(TaxDeclaration d) {
+    public static DeclarationView from(TaxDeclaration d, int sentCount, Instant lastSentAt) {
         return new DeclarationView(d.getId(), d.getDocumentId(), d.getType(), d.getComputedTotal(),
                 d.getDeclaredTotal(), d.isMismatch(), d.getCui(), d.isWrongParty(), d.isOutsidePeriod(),
-                d.isDuplicate());
+                d.isDuplicate(), sentCount, lastSentAt);
     }
 }

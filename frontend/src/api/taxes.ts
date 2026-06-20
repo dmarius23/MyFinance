@@ -85,6 +85,8 @@ export interface DeclarationFile {
   wrongParty: boolean;
   outsidePeriod: boolean;
   duplicate: boolean;
+  sentCount: number;
+  lastSentAt: string | null;
 }
 
 export interface DeclarationLine {
