@@ -7,6 +7,7 @@ export interface DeclarationSummary {
   computedTotal: number;
   declaredTotal: number | null;
   mismatch: boolean;
+  duplicate: boolean;
   sentCount: number;
   lastSentAt: string | null;
 }
@@ -83,6 +84,7 @@ export interface DeclarationFile {
   cui: string | null;
   wrongParty: boolean;
   outsidePeriod: boolean;
+  duplicate: boolean;
 }
 
 export const declarationsApi = {

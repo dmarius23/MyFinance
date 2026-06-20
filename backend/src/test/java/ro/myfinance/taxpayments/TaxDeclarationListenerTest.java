@@ -80,6 +80,16 @@ class TaxDeclarationListenerTest {
     }
 
     @Test
+    void flagsDuplicateWhenSameTypeAndPeriodAlreadyExists() throws IOException {
+        byte[] d100 = fixture("D100.pdf");
+        assumeTrue(d100 != null, "fixtures missing");
+        when(declarations.existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
+                any(), any(), any(), any())).thenReturn(true);
+        TaxDeclaration saved = onUpload(d100, "D100.pdf", LocalDate.of(2026, 6, 1), "49443957");
+        assertThat(saved.isDuplicate()).isTrue();
+    }
+
+    @Test
     void flagsWrongPartyWhenCuiDiffers() throws IOException {
         byte[] d300 = fixture("D300.pdf"); // MERIC SRL, CUI 20464846
         assumeTrue(d300 != null, "fixtures missing");

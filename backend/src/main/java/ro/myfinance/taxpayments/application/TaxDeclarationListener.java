@@ -46,11 +46,15 @@ public class TaxDeclarationListener {
             String ownCui = companies.findById(e.companyId()).map(Company::getCui).orElse(null);
             boolean wrongParty = differentCui(pd.cui(), ownCui);
             LocalDate declPeriod = pd.period() == null ? null : pd.period().atDay(1);
+            // Duplicate when another (canonical) declaration of the same type already covers this period.
+            boolean duplicate = declPeriod != null
+                    && declarations.existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
+                            e.companyId(), pd.type(), declPeriod, e.documentId());
             TaxDeclaration row = declarations.findByDocumentId(e.documentId())
                     .orElseGet(() -> new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
                             e.companyId(), e.periodMonth().withDayOfMonth(1), e.documentId()));
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
-                    declPeriod, wrongParty);
+                    declPeriod, wrongParty, duplicate);
             declarations.save(row);
         } catch (RuntimeException ex) {
             log.warn("Failed to store tax declaration for document {}", e.documentId(), ex);

@@ -19,7 +19,8 @@ public record TaxPaymentSummary(UUID companyId, String companyName, String cui, 
 
     /** One stored declaration: itemized vs header total, mismatch flag, and its email send count/last. */
     public record DeclarationSummary(UUID id, UUID documentId, DeclarationType type, BigDecimal computedTotal,
-                                     BigDecimal declaredTotal, boolean mismatch, int sentCount, Instant lastSentAt) {
+                                     BigDecimal declaredTotal, boolean mismatch, boolean duplicate,
+                                     int sentCount, Instant lastSentAt) {
     }
 
     /** A payable category whose treasury IBAN isn't configured yet (so it can't be put on a payment line). */

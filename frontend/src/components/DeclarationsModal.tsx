@@ -100,6 +100,11 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
                       {t("taxes.wrongParty")}
                     </span>
                   )}
+                  {d.duplicate && (
+                    <span title={t("taxes.duplicateTip")} style={chip("#f3f4f6", "#6b7280", "#e5e7eb")}>
+                      {t("taxes.duplicate")}
+                    </span>
+                  )}
                 </div>
                 <button title={t("common.delete")}
                   onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }}

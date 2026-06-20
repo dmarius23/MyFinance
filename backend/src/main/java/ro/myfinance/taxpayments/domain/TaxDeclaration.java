@@ -56,6 +56,10 @@ public class TaxDeclaration {
     @Column(name = "wrong_party", nullable = false)
     private boolean wrongParty;
 
+    /** True when another declaration of the same type already exists for this company + period. */
+    @Column(nullable = false)
+    private boolean duplicate;
+
     protected TaxDeclaration() {
     }
 
@@ -67,7 +71,7 @@ public class TaxDeclaration {
     }
 
     public void apply(DeclarationType type, String cui, BigDecimal declaredTotal, BigDecimal computedTotal,
-                      boolean mismatch, LocalDate declPeriod, boolean wrongParty) {
+                      boolean mismatch, LocalDate declPeriod, boolean wrongParty, boolean duplicate) {
         this.type = type;
         this.cui = cui;
         this.declaredTotal = declaredTotal;
@@ -75,6 +79,7 @@ public class TaxDeclaration {
         this.mismatch = mismatch;
         this.declPeriod = declPeriod;
         this.wrongParty = wrongParty;
+        this.duplicate = duplicate;
     }
 
     /** Outside the period it was filed under (its own period differs from the upload month). */
@@ -93,4 +98,5 @@ public class TaxDeclaration {
     public boolean isMismatch() { return mismatch; }
     public LocalDate getDeclPeriod() { return declPeriod; }
     public boolean isWrongParty() { return wrongParty; }
+    public boolean isDuplicate() { return duplicate; }
 }

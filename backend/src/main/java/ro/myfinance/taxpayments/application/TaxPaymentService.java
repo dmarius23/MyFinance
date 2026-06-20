@@ -86,6 +86,9 @@ public class TaxPaymentService {
         for (Company c : companies.findAll()) {
             List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
             for (TaxDeclaration d : declByCompany.getOrDefault(c.getId(), List.of())) {
+                if (d.isDuplicate()) {
+                    continue; // the list shows the canonical declaration per type
+                }
                 cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
                         d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
             }
@@ -117,7 +120,7 @@ public class TaxPaymentService {
                 }
             }
             declViews.add(new DeclarationSummary(d.getId(), d.getDocumentId(), d.getType(),
-                    d.getComputedTotal(), d.getDeclaredTotal(), d.isMismatch(), count, last));
+                    d.getComputedTotal(), d.getDeclaredTotal(), d.isMismatch(), d.isDuplicate(), count, last));
         }
 
         Computation c = compute(company, decls);
@@ -147,6 +150,9 @@ public class TaxPaymentService {
     private Computation compute(Company company, List<TaxDeclaration> decls) {
         List<ParsedDeclaration> parsed = new ArrayList<>();
         for (TaxDeclaration d : decls) {
+            if (d.isDuplicate()) {
+                continue; // never count a duplicate declaration in the payment total / email
+            }
             try {
                 parsed.add(extractor.extract(documents.getContent(d.getDocumentId()).bytes()));
             } catch (RuntimeException e) {

@@ -100,9 +100,17 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                 </tr></thead>
                 <tbody>
                   {decls.map((d) => (
-                    <tr key={d.id} style={{ borderTop: "1px solid var(--border)" }}>
-                      <td style={td}><input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} /></td>
-                      <td style={td}><b>{d.type}</b></td>
+                    <tr key={d.id} style={{ borderTop: "1px solid var(--border)", opacity: d.duplicate ? 0.55 : 1 }}>
+                      <td style={td}>
+                        <input type="checkbox" checked={selected.has(d.id) && !d.duplicate}
+                          disabled={d.duplicate} title={d.duplicate ? t("taxes.duplicateTip") : ""}
+                          onChange={() => toggle(d.id)} />
+                      </td>
+                      <td style={td}>
+                        <b>{d.type}</b>
+                        {d.duplicate && <span title={t("taxes.duplicateTip")}
+                          style={{ marginLeft: 6, fontSize: 11, color: "#6b7280" }}>· {t("taxes.duplicate")}</span>}
+                      </td>
                       <td style={{ ...td, textAlign: "right" }}>
                         {money(d.computedTotal)}
                         {d.mismatch && <span title={t("taxes.mismatchTip", { declared: d.declaredTotal })} style={{ marginLeft: 6, color: "#b45309" }}>⚠</span>}
