@@ -38,16 +38,17 @@ class AnafDeclarationExtractorTest {
     }
 
     @Test
-    void d100_micro_tax_itemized_442_with_header_mismatch() throws IOException {
+    void d100_micro_tax_itemized_442_no_spurious_mismatch() throws IOException {
         ParsedDeclaration d = extractFixture("D100.pdf");
         assertThat(d.type()).isEqualTo(DeclarationType.D100);
         assertThat(d.cui()).isEqualTo("49443957");
         assertThat(d.period()).isEqualTo(YearMonth.of(2026, 3));
+        // "3. De plată" = 442 is authoritative.
         assertThat(byCategory(d).get(TaxCategory.IMPOZIT)).isEqualByComparingTo("442");
         assertThat(d.computedTotal()).isEqualByComparingTo("442");
-        // Header total reads 884 → must flag a mismatch (itemized 442 is authoritative).
-        assertThat(d.declaredTotal()).isEqualByComparingTo("884");
-        assertThat(d.totalsMismatch()).isTrue();
+        // D100's header totalPlata_A is not a meaningful total → no cross-check, no warning.
+        assertThat(d.declaredTotal()).isNull();
+        assertThat(d.totalsMismatch()).isFalse();
     }
 
     @Test

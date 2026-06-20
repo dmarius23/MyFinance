@@ -86,8 +86,12 @@ public class AnafDeclarationExtractor {
             obligations.add(new TaxObligation(category(o.getAttribute("cod_oblig")),
                     o.getAttribute("cod_oblig"), amount, scadenta));
         }
+        // D100's header totalPlata_A is not the sum of the de-plată obligations (it reads double on the
+        // sample), so it's not a useful cross-check — the itemized "3. De plată" is authoritative. Leave
+        // declaredTotal null so D100 never raises a spurious mismatch. (D112's header DOES match, so it
+        // keeps its cross-check below.)
         return new ParsedDeclaration(DeclarationType.D100, r.getAttribute("cui"), r.getAttribute("den"),
-                period, obligations, amountOrNull(r.getAttribute("totalPlata_A")));
+                period, obligations, null);
     }
 
     private ParsedDeclaration parseD112(Document dom) {
