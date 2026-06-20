@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
-import { MonthBar } from "../components/MonthBar";
+import { usePeriod } from "../lib/period";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
@@ -63,7 +63,7 @@ function Chip({ label, kind, title, onClick }:
 /** Statements & invoices — compact monthly company list (follows the prototype). */
 export function Statements() {
   const { t } = useTranslation();
-  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
+  const { period } = usePeriod();
   const [filesFor, setFilesFor] = useState<{ id: string; name: string } | null>(null);
   const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -120,13 +120,8 @@ export function Statements() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
-            <h1 style={{ margin: "2px 0 0" }}>{t("documents.title")}</h1>
-          </div>
-          <MonthBar value={period} onChange={setPeriod} />
-        </div>
+        <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
+        <h1 style={{ margin: "2px 0 0" }}>{t("documents.title")}</h1>
       </div>
 
       {/* Bulk bar — appears only when at least one company is selected. */}

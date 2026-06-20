@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow } from "../api/taxes";
 import { ApiError } from "../lib/apiClient";
-import { MonthBar } from "../components/MonthBar";
+import { usePeriod } from "../lib/period";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
 import { DeclarationsModal } from "../components/DeclarationsModal";
 
@@ -14,7 +14,7 @@ const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO");
 export function TaxPayments() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
+  const { period } = usePeriod();
   const [emailFor, setEmailFor] = useState<{ id: string; name: string } | null>(null);
   const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
 
@@ -28,10 +28,7 @@ export function TaxPayments() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 style={{ marginTop: 0 }}>{t("taxes.title")}</h1>
-          <MonthBar value={period} onChange={setPeriod} />
-        </div>
+        <h1 style={{ margin: 0 }}>{t("taxes.title")}</h1>
       </div>
 
       <div className="card">
