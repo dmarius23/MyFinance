@@ -1,6 +1,7 @@
 package ro.myfinance.taxpayments.application;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -16,21 +17,24 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.application.DocumentService;
-import ro.myfinance.intake.domain.Document;
-import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.settings.adapter.persistence.ResidenceTreasuryAccountRepository;
 import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
+import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
+import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.PaymentLine;
 import ro.myfinance.taxpayments.domain.TaxCategory;
+import ro.myfinance.taxpayments.domain.TaxDeclaration;
+import ro.myfinance.taxpayments.domain.TaxEmail;
 import ro.myfinance.taxpayments.domain.TaxObligation;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.DeclarationSummary;
+import ro.myfinance.taxpayments.domain.TaxPaymentSummary.EmailView;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.Unconfigured;
 
 /**
- * MOD-07 — computes the Tax &amp; Payments view for a company + period live from its uploaded ANAF
- * declaration PDFs. Read-only: no money figure is persisted or emailed here. Tenant-scoped via RLS.
+ * MOD-07 — computes the Tax &amp; Payments view from the stored declarations (and re-derives payment
+ * lines from their PDFs). Read-only: no money figure is persisted or emailed here. Tenant-scoped via RLS.
  */
 @Service
 @Transactional(readOnly = true)
@@ -41,47 +45,90 @@ public class TaxPaymentService {
     private final CompanyRepository companies;
     private final DocumentService documents;
     private final ResidenceTreasuryAccountRepository treasury;
+    private final TaxDeclarationRepository declarations;
+    private final TaxEmailRepository emails;
     private final AnafDeclarationExtractor extractor;
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
 
     public TaxPaymentService(CompanyRepository companies, DocumentService documents,
-                             ResidenceTreasuryAccountRepository treasury, AnafDeclarationExtractor extractor,
+                             ResidenceTreasuryAccountRepository treasury, TaxDeclarationRepository declarations,
+                             TaxEmailRepository emails, AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder) {
         this.companies = companies;
         this.documents = documents;
         this.treasury = treasury;
+        this.declarations = declarations;
+        this.emails = emails;
         this.extractor = extractor;
         this.calculator = calculator;
         this.emailBuilder = emailBuilder;
     }
 
-    public TaxPaymentSummary summary(UUID companyId, LocalDate period) {
-        Company company = companies.findById(companyId)
-                .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
-        LocalDate month = period.withDayOfMonth(1);
+    /** The result of computing payment lines + email body over a set of declarations. */
+    public record Computation(String beneficiary, List<PaymentLine> lines, List<Unconfigured> unconfigured,
+                              BigDecimal total, String body) {
+    }
 
-        List<ParsedDeclaration> parsed = new ArrayList<>();
+    public TaxPaymentSummary summary(UUID companyId, LocalDate period) {
+        Company company = company(companyId);
+        LocalDate month = period.withDayOfMonth(1);
+        List<TaxDeclaration> decls = declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(companyId, month);
+        List<TaxEmail> sent = emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(companyId, month);
+
         List<DeclarationSummary> declViews = new ArrayList<>();
-        for (Document d : documents.list(companyId, month)) {
-            if (d.getType() != DocumentType.DECLARATION) {
-                continue;
+        for (TaxDeclaration d : decls) {
+            int count = 0;
+            Instant last = null;
+            for (TaxEmail e : sent) {
+                if (e.getDeclarationIds().contains(d.getId())) {
+                    count++;
+                    if (last == null) {
+                        last = e.getSentAt(); // list is sorted newest-first
+                    }
+                }
             }
-            try {
-                ParsedDeclaration pd = extractor.extract(documents.getContent(d.getId()).bytes());
-                parsed.add(pd);
-                declViews.add(new DeclarationSummary(d.getId(), d.getOriginalFilename(), pd.type(),
-                        pd.computedTotal(), pd.declaredTotal(), pd.totalsMismatch()));
-            } catch (RuntimeException e) {
-                log.warn("Failed to extract declaration {} ({})", d.getId(), d.getOriginalFilename(), e);
-            }
+            declViews.add(new DeclarationSummary(d.getId(), d.getDocumentId(), d.getType(),
+                    d.getComputedTotal(), d.getDeclaredTotal(), d.isMismatch(), count, last));
         }
 
+        Computation c = compute(company, decls);
+        List<EmailView> history = sent.stream().map(EmailView::from).toList();
+        return new TaxPaymentSummary(companyId, company.getLegalName(), company.getCui(), month,
+                c.beneficiary(), declViews, c.lines(), c.unconfigured(), c.total(), c.body(), history);
+    }
+
+    /** Compute the default email body + lines for a chosen subset of declarations (for the editor). */
+    public Computation composeFor(UUID companyId, List<UUID> declarationIds) {
+        Company company = company(companyId);
+        List<TaxDeclaration> chosen = declarations.findAllById(declarationIds).stream()
+                .filter(d -> d.getCompanyId().equals(companyId))
+                .toList();
+        if (chosen.isEmpty()) {
+            throw new NotFoundException("No declarations selected");
+        }
+        return compute(company, chosen);
+    }
+
+    String beneficiaryFor(UUID companyId) {
+        return beneficiary(company(companyId).getLocality());
+    }
+
+    // ---- core computation -------------------------------------------------------------------------
+
+    private Computation compute(Company company, List<TaxDeclaration> decls) {
+        List<ParsedDeclaration> parsed = new ArrayList<>();
+        for (TaxDeclaration d : decls) {
+            try {
+                parsed.add(extractor.extract(documents.getContent(d.getDocumentId()).bytes()));
+            } catch (RuntimeException e) {
+                log.warn("Failed to re-extract declaration {} (doc {})", d.getId(), d.getDocumentId(), e);
+            }
+        }
         Map<TaxCategory, String> ibans = resolveIbans(company.getLocality());
         List<PaymentLine> all = calculator.compute(parsed, ibans);
         List<PaymentLine> configured = all.stream().filter(l -> !l.iban().isBlank()).toList();
 
-        // Payable amount per category, to surface those still missing an IBAN and to total the bill.
         Map<TaxCategory, BigDecimal> payableByCat = new EnumMap<>(TaxCategory.class);
         for (ParsedDeclaration pd : parsed) {
             for (TaxObligation o : pd.obligations()) {
@@ -101,13 +148,16 @@ public class TaxPaymentService {
         }
 
         String beneficiary = beneficiary(company.getLocality());
-        String emailBody = (beneficiary != null && !configured.isEmpty())
-                ? emailBuilder.build(company.getLegalName(), company.getCui(), YearMonth.from(month),
-                        beneficiary, configured)
+        YearMonth period = decls.isEmpty() ? null : YearMonth.from(decls.get(0).getPeriodMonth());
+        String body = (beneficiary != null && !configured.isEmpty() && period != null)
+                ? emailBuilder.build(company.getLegalName(), company.getCui(), period, beneficiary, configured)
                 : null;
+        return new Computation(beneficiary, configured, unconfigured, total, body);
+    }
 
-        return new TaxPaymentSummary(companyId, company.getLegalName(), company.getCui(), month,
-                beneficiary, declViews, configured, unconfigured, total, emailBody);
+    private Company company(UUID companyId) {
+        return companies.findById(companyId)
+                .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
     }
 
     private Map<TaxCategory, String> resolveIbans(String locality) {
