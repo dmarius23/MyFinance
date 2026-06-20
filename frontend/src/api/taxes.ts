@@ -73,6 +73,25 @@ export interface TaxPaymentRow {
 /** Declaration columns shown in the monthly list, in order. */
 export const DECLARATION_TYPES = ["D100", "D112", "D300"] as const;
 
+export interface DeclarationFile {
+  id: string;
+  documentId: string;
+  type: "D100" | "D112" | "D300";
+  computedTotal: number;
+  declaredTotal: number | null;
+  mismatch: boolean;
+  cui: string | null;
+  wrongParty: boolean;
+  outsidePeriod: boolean;
+}
+
+export const declarationsApi = {
+  list: (companyId: string, period: string) =>
+    api<DeclarationFile[]>(`/api/v1/companies/${companyId}/declarations?period=${period}`),
+  remove: (companyId: string, declarationId: string) =>
+    api<void>(`/api/v1/companies/${companyId}/declarations/${declarationId}`, { method: "DELETE" }),
+};
+
 export const taxPaymentsApi = {
   list: (period: string) => api<TaxPaymentRow[]>(`/api/v1/tax-payments?period=${period}`),
 

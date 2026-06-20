@@ -9,15 +9,20 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ro.myfinance.taxpayments.application.TaxDeclarationService;
 import ro.myfinance.taxpayments.application.TaxEmailService;
 import ro.myfinance.taxpayments.application.TaxPaymentService;
 import ro.myfinance.taxpayments.application.TaxPaymentService.Computation;
+import ro.myfinance.taxpayments.domain.DeclarationView;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.EmailView;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.Unconfigured;
@@ -29,10 +34,26 @@ public class TaxPaymentController {
 
     private final TaxPaymentService payments;
     private final TaxEmailService emails;
+    private final TaxDeclarationService declarations;
 
-    public TaxPaymentController(TaxPaymentService payments, TaxEmailService emails) {
+    public TaxPaymentController(TaxPaymentService payments, TaxEmailService emails,
+                               TaxDeclarationService declarations) {
         this.payments = payments;
         this.emails = emails;
+        this.declarations = declarations;
+    }
+
+    /** Stored declarations for the manager modal (with wrong-party / outside-period flags). */
+    @GetMapping("/api/v1/companies/{companyId}/declarations")
+    public List<DeclarationView> declarations(@PathVariable UUID companyId,
+                                              @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return declarations.list(companyId, period);
+    }
+
+    @DeleteMapping("/api/v1/companies/{companyId}/declarations/{declarationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDeclaration(@PathVariable UUID companyId, @PathVariable UUID declarationId) {
+        declarations.delete(companyId, declarationId);
     }
 
     @GetMapping("/api/v1/tax-payments")

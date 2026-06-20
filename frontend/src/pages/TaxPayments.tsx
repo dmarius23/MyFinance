@@ -1,11 +1,11 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow } from "../api/taxes";
-import { documentsApi } from "../api/documents";
 import { ApiError } from "../lib/apiClient";
 import { MonthBar } from "../components/MonthBar";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
+import { DeclarationsModal } from "../components/DeclarationsModal";
 
 const money = (n: number) => n.toLocaleString("ro-RO");
 const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO");
@@ -15,32 +15,13 @@ export function TaxPayments() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7) + "-01");
-  const [openFor, setOpenFor] = useState<{ id: string; name: string } | null>(null);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [emailFor, setEmailFor] = useState<{ id: string; name: string } | null>(null);
+  const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading, error: loadErr } = useQuery({
     queryKey: ["tax-list", period],
     queryFn: () => taxPaymentsApi.list(period),
   });
-
-  const upload = useMutation({
-    mutationFn: ({ companyId, file }: { companyId: string; file: File }) =>
-      documentsApi.upload(companyId, period, file),
-    onSuccess: () => {
-      setError(null);
-      void qc.invalidateQueries({ queryKey: ["tax-list", period] });
-    },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Upload failed"),
-  });
-
-  const pickUpload = (companyId: string) => { setUploadFor(companyId); fileRef.current?.click(); };
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && uploadFor) upload.mutate({ companyId: uploadFor, file });
-    e.target.value = "";
-  };
 
   const cellFor = (row: TaxPaymentRow, type: string) => row.declarations.find((d) => d.type === type);
 
@@ -56,8 +37,6 @@ export function TaxPayments() {
       <div className="card">
         {isLoading && <p>{t("common.loading")}</p>}
         {loadErr && <p style={{ color: "#dc2626" }}>{loadErr instanceof ApiError ? loadErr.message : "Failed to load"}</p>}
-        {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-        <input ref={fileRef} type="file" accept="application/pdf" onChange={onFile} style={{ display: "none" }} />
 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -97,12 +76,11 @@ export function TaxPayments() {
                     : <span style={{ color: "var(--text-muted)", fontSize: 13 }}>{t("taxes.notSent")}</span>}
                 </td>
                 <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                  <button style={iconBtn} title={t("taxes.uploadDeclaration")}
-                    disabled={upload.isPending}
-                    onClick={() => pickUpload(row.companyId)}>📤</button>
+                  <button style={iconBtn} title={t("taxes.manageDeclarations")}
+                    onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })}>📤</button>
                   <button style={iconBtn} title={t("taxes.sendEmail")}
                     disabled={row.declarations.length === 0}
-                    onClick={() => setOpenFor({ id: row.companyId, name: row.companyName })}>✉</button>
+                    onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })}>✉</button>
                 </td>
               </tr>
             ))}
@@ -115,9 +93,13 @@ export function TaxPayments() {
         </table>
       </div>
 
-      {openFor && (
-        <TaxPaymentModal companyId={openFor.id} companyName={openFor.name} period={period}
-          onClose={() => { setOpenFor(null); void qc.invalidateQueries({ queryKey: ["tax-list", period] }); }} />
+      {declFor && (
+        <DeclarationsModal companyId={declFor.id} companyName={declFor.name} period={period}
+          onClose={() => { setDeclFor(null); void qc.invalidateQueries({ queryKey: ["tax-list", period] }); }} />
+      )}
+      {emailFor && (
+        <TaxPaymentModal companyId={emailFor.id} companyName={emailFor.name} period={period}
+          onClose={() => { setEmailFor(null); void qc.invalidateQueries({ queryKey: ["tax-list", period] }); }} />
       )}
     </div>
   );

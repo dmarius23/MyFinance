@@ -48,6 +48,14 @@ public class TaxDeclaration {
     @Column(nullable = false)
     private boolean mismatch;
 
+    /** The declaration's own period from its XML (to detect a doc filed under the wrong month). */
+    @Column(name = "decl_period")
+    private LocalDate declPeriod;
+
+    /** True when the declaration's CUI does not match the company it was uploaded for. */
+    @Column(name = "wrong_party", nullable = false)
+    private boolean wrongParty;
+
     protected TaxDeclaration() {
     }
 
@@ -58,13 +66,20 @@ public class TaxDeclaration {
         this.documentId = documentId;
     }
 
-    public void apply(DeclarationType type, String cui, BigDecimal declaredTotal,
-                      BigDecimal computedTotal, boolean mismatch) {
+    public void apply(DeclarationType type, String cui, BigDecimal declaredTotal, BigDecimal computedTotal,
+                      boolean mismatch, LocalDate declPeriod, boolean wrongParty) {
         this.type = type;
         this.cui = cui;
         this.declaredTotal = declaredTotal;
         this.computedTotal = computedTotal;
         this.mismatch = mismatch;
+        this.declPeriod = declPeriod;
+        this.wrongParty = wrongParty;
+    }
+
+    /** Outside the period it was filed under (its own period differs from the upload month). */
+    public boolean isOutsidePeriod() {
+        return declPeriod != null && !declPeriod.equals(periodMonth);
     }
 
     public UUID getId() { return id; }
@@ -76,4 +91,6 @@ public class TaxDeclaration {
     public BigDecimal getDeclaredTotal() { return declaredTotal; }
     public BigDecimal getComputedTotal() { return computedTotal; }
     public boolean isMismatch() { return mismatch; }
+    public LocalDate getDeclPeriod() { return declPeriod; }
+    public boolean isWrongParty() { return wrongParty; }
 }
