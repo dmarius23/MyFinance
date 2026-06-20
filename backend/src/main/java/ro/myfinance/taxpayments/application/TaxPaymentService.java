@@ -70,6 +70,34 @@ public class TaxPaymentService {
                               BigDecimal total, String body) {
     }
 
+    /** The monthly list: one row per company with its uploaded declarations and last-email status. */
+    public List<ro.myfinance.taxpayments.domain.TaxPaymentRow> list(LocalDate period) {
+        LocalDate month = period.withDayOfMonth(1);
+        Map<UUID, List<TaxDeclaration>> declByCompany = new java.util.HashMap<>();
+        for (TaxDeclaration d : declarations.findByPeriodMonth(month)) {
+            declByCompany.computeIfAbsent(d.getCompanyId(), k -> new ArrayList<>()).add(d);
+        }
+        Map<UUID, List<TaxEmail>> emailByCompany = new java.util.HashMap<>();
+        for (TaxEmail e : emails.findByPeriodMonth(month)) {
+            emailByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
+
+        List<ro.myfinance.taxpayments.domain.TaxPaymentRow> rows = new ArrayList<>();
+        for (Company c : companies.findAll()) {
+            List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
+            for (TaxDeclaration d : declByCompany.getOrDefault(c.getId(), List.of())) {
+                cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
+                        d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
+            }
+            List<TaxEmail> es = emailByCompany.getOrDefault(c.getId(), List.of());
+            Instant last = es.stream().map(TaxEmail::getSentAt).max(Instant::compareTo).orElse(null);
+            rows.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
+                    c.getCui(), c.getLocality(), cells, last, es.size()));
+        }
+        rows.sort(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()));
+        return rows;
+    }
+
     public TaxPaymentSummary summary(UUID companyId, LocalDate period) {
         Company company = company(companyId);
         LocalDate month = period.withDayOfMonth(1);

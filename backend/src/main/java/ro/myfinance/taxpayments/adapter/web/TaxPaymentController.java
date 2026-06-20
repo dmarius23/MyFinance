@@ -35,6 +35,12 @@ public class TaxPaymentController {
         this.emails = emails;
     }
 
+    @GetMapping("/api/v1/tax-payments")
+    public List<ro.myfinance.taxpayments.domain.TaxPaymentRow> list(
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return payments.list(period);
+    }
+
     @GetMapping("/api/v1/companies/{companyId}/tax-payments")
     public TaxPaymentSummary summary(@PathVariable UUID companyId,
                                      @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {

@@ -53,7 +53,29 @@ export interface EmailPreview {
   unconfigured: Unconfigured[];
 }
 
+export interface DeclarationCell {
+  id: string;
+  type: "D100" | "D112" | "D300";
+  amount: number;
+  mismatch: boolean;
+}
+
+export interface TaxPaymentRow {
+  companyId: string;
+  companyName: string;
+  cui: string;
+  residence: string | null;
+  declarations: DeclarationCell[];
+  lastEmailAt: string | null;
+  emailCount: number;
+}
+
+/** Declaration columns shown in the monthly list, in order. */
+export const DECLARATION_TYPES = ["D100", "D112", "D300"] as const;
+
 export const taxPaymentsApi = {
+  list: (period: string) => api<TaxPaymentRow[]>(`/api/v1/tax-payments?period=${period}`),
+
   summary: (companyId: string, period: string) =>
     api<TaxPaymentSummary>(`/api/v1/companies/${companyId}/tax-payments?period=${period}`),
 

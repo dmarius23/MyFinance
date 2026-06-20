@@ -9,4 +9,6 @@ import ro.myfinance.taxpayments.domain.TaxEmail;
 public interface TaxEmailRepository extends JpaRepository<TaxEmail, UUID> {
 
     List<TaxEmail> findByCompanyIdAndPeriodMonthOrderBySentAtDesc(UUID companyId, LocalDate periodMonth);
+
+    List<TaxEmail> findByPeriodMonth(LocalDate periodMonth);
 }

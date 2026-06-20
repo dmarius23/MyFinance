@@ -13,5 +13,7 @@ public interface TaxDeclarationRepository extends JpaRepository<TaxDeclaration, 
 
     List<TaxDeclaration> findByCompanyIdAndPeriodMonthOrderByTypeAsc(UUID companyId, LocalDate periodMonth);
 
+    List<TaxDeclaration> findByPeriodMonth(LocalDate periodMonth);
+
     void deleteByDocumentId(UUID documentId);
 }
