@@ -82,6 +82,13 @@ public class TaxPaymentController {
         return new PreviewResponse(c.body(), c.total(), c.unconfigured());
     }
 
+    /** Email send history for a company + period (notification log). */
+    @GetMapping("/api/v1/companies/{companyId}/tax-emails")
+    public List<EmailView> emailHistory(@PathVariable UUID companyId,
+                                        @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return emails.history(companyId, period);
+    }
+
     /** Record + send an email for the chosen declarations with the (edited) body. */
     @PostMapping("/api/v1/companies/{companyId}/tax-emails")
     public EmailView send(@PathVariable UUID companyId, @Valid @RequestBody SendRequest r) {

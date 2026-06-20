@@ -40,6 +40,13 @@ public class TaxEmailService {
         return payments.composeFor(companyId, declarationIds);
     }
 
+    /** Full send history for a company + period (newest first), for the notification log. */
+    @Transactional(readOnly = true)
+    public List<ro.myfinance.taxpayments.domain.TaxPaymentSummary.EmailView> history(UUID companyId, LocalDate period) {
+        return emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(companyId, period.withDayOfMonth(1))
+                .stream().map(ro.myfinance.taxpayments.domain.TaxPaymentSummary.EmailView::from).toList();
+    }
+
     /**
      * Record and dispatch one email for the chosen declarations with the (possibly edited) body. Always
      * persists a row: SENT on success, FAILED with the error otherwise.

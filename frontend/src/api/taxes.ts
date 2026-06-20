@@ -133,4 +133,7 @@ export const taxPaymentsApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  emailHistory: (companyId: string, period: string) =>
+    api<EmailView[]>(`/api/v1/companies/${companyId}/tax-emails?period=${period}`),
 };
