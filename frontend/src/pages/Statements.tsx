@@ -1,90 +1,59 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
-import { documentsSummaryApi, type CompanyDocSummary } from "../api/documents";
+import { documentsApi, documentsSummaryApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
+import { Icon } from "../components/Icon";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 
 type DotKind = "green" | "orange" | "red";
-const DOT_COLOR: Record<DotKind, string> = { green: "#16a34a", orange: "#fb923c", red: "#dc2626" };
+const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
 type Payment = "NONE" | "PARTIAL" | "COMPLETE";
 
-/**
- * Row health dot = payment/matching of the company's invoices/receipts for the period.
- * green  = all invoices fully matched/paid
- * orange = partially matched, OR invoices present but no bank statement yet (can't match → waiting)
- * red    = has a statement but nothing matched, OR nothing uploaded at all
- */
+/** Row health dot = payment/matching of the company's invoices/receipts for the period. */
 function rowStatus(s: CompanyDocSummary | undefined, payment: Payment): { kind: DotKind; key: string } {
   const inv = s?.invoiceReceiptCount ?? 0;
   const hasBank = s?.hasBankStatement ?? false;
   if (inv === 0) return { kind: "red", key: "statements.dot.nothing" };
   if (payment === "COMPLETE") return { kind: "green", key: "statements.dot.complete" };
   if (payment === "PARTIAL") return { kind: "orange", key: "statements.dot.partial" };
-  return hasBank
-    ? { kind: "red", key: "statements.dot.unmatched" }
-    : { kind: "orange", key: "statements.dot.waiting" };
+  return hasBank ? { kind: "red", key: "statements.dot.unmatched" } : { kind: "orange", key: "statements.dot.waiting" };
 }
 
-const iconBtn: React.CSSProperties = {
-  background: "none", border: "1px solid var(--border)", borderRadius: 8,
-  cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "5px 8px", marginLeft: 6,
-};
-
-type ChipKind = "green" | "red" | "gray";
-const CHIP: Record<ChipKind, { bg: string; fg: string; bd: string }> = {
-  green: { bg: "#dcfce7", fg: "#166534", bd: "#bbf7d0" },
-  red: { bg: "#fee2e2", fg: "#991b1b", bd: "#fecaca" },
-  gray: { bg: "#f3f4f6", fg: "#6b7280", bd: "#e5e7eb" },
-};
-
-function Chip({ label, kind, title, onClick }:
-  { label: React.ReactNode; kind: ChipKind; title: string; onClick?: () => void }) {
-  const c = CHIP[kind];
-  const style: React.CSSProperties = {
-    background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, borderRadius: 999,
-    padding: "1px 8px", fontSize: 12, marginRight: 4, display: "inline-block", font: "inherit",
-  };
-  if (onClick) {
-    return (
-      <button type="button" title={title} aria-label={title} onClick={onClick}
-        style={{ ...style, cursor: "pointer" }}>
-        {label}
-      </button>
-    );
-  }
-  return <span title={title} aria-label={title} style={style}>{label}</span>;
+function ClickPill({ label, kind, title, onClick }:
+  { label: React.ReactNode; kind: "ok" | "danger" | "muted" | "warn"; title: string; onClick?: () => void }) {
+  const cls = `pill round ${kind}`;
+  return onClick
+    ? <button type="button" className={cls} title={title} onClick={onClick} style={{ cursor: "pointer", marginRight: 4, font: "inherit" }}>{label}</button>
+    : <span className={cls} title={title} style={{ marginRight: 4 }}>{label}</span>;
 }
 
-/** Statements & invoices — compact monthly company list (follows the prototype). */
+/** Statements & invoices — monthly hub list, Console (B) skin. */
 export function Statements() {
   const { t } = useTranslation();
   const { period } = usePeriod();
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadFor, setUploadFor] = useState<string | null>(null);
   const [filesFor, setFilesFor] = useState<{ id: string; name: string } | null>(null);
   const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
-  const summary = useQuery({
-    queryKey: ["doc-summary", period],
-    queryFn: () => documentsSummaryApi.summary(period),
-  });
-  const completeness = useQuery({
-    queryKey: ["recon-summary", period],
-    queryFn: () => reconciliationApi.summary(period),
-  });
+  const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
+  const completeness = useQuery({ queryKey: ["recon-summary", period], queryFn: () => reconciliationApi.summary(period) });
+
   const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
   const paymentBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.payment]));
   const missingTxnBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.missingTxnCount]));
   const unmatchedBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.unmatchedInvoiceCount]));
   const byCompany = new Map((summary.data ?? []).map((s) => [s.companyId, s]));
 
-  // A company needs a reminder when anything for the period is still missing or incomplete.
   const needsReminder = (id: string) => {
     const s = byCompany.get(id);
     const cs = completenessBy.get(id) ?? "NOT_STARTED";
@@ -94,140 +63,129 @@ export function Statements() {
   const rows = companies.data ?? [];
   const selectableIds = rows.filter((c) => needsReminder(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const incomplete = selectableIds.length;
 
-  // Reset the selection whenever the period changes — the missing set is period-specific.
   useEffect(() => { setSelected(new Set()); }, [period]);
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  const toggleAll = () =>
-    setSelected(allSelected ? new Set() : new Set(selectableIds));
+  const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): ReminderTarget => {
     const s = byCompany.get(id);
-    return {
-      id, name: nameOf(id),
-      hasBankStatement: s?.hasBankStatement ?? false,
-      hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false,
-    };
+    return { id, name: nameOf(id), hasBankStatement: s?.hasBankStatement ?? false, hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false };
   };
-  const sendSelected = () => setSendList([...selected].map(target));
+
+  const upload = useMutation({
+    mutationFn: ({ companyId, file }: { companyId: string; file: File }) => documentsApi.upload(companyId, period, file),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
+      void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
+    },
+  });
+  const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (f && uploadFor) upload.mutate({ companyId: uploadFor, file: f }); e.target.value = "";
+  };
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div className="card">
-        <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
-        <h1 style={{ margin: "2px 0 0" }}>{t("documents.title")}</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
+          <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("documents.title")}</h2>
+        </div>
+        {incomplete > 0 && (
+          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--dot-orange)", marginRight: 5 }} />
+            {incomplete} {t("statements.legendIncomplete")}
+          </div>
+        )}
       </div>
 
-      {/* Bulk bar — appears only when at least one company is selected. */}
       {selected.size > 0 && (
-        <div className="card" style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 14px", borderColor: "var(--primary)",
-        }}>
-          <span style={{ fontSize: 13.5 }}>✓ <b>{selected.size}</b> {t("email.selected", { n: selected.size })}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", borderRadius: 10, padding: "9px 14px" }}>
+          <span style={{ fontSize: 13.5, color: "var(--chrome-text)" }}><b style={{ color: "var(--primary)" }}>{selected.size}</b> {t("email.selected", { n: selected.size })}</span>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setSelected(new Set())}>{t("email.clear")}</button>
-            <button className="primary" onClick={sendSelected}>✉ {t("email.sendN", { n: selected.size })}</button>
+            <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
+            <button className="primary" onClick={() => setSendList([...selected].map(target))}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
           </div>
         </div>
       )}
 
-      <div className="card">
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
-              <th style={{ padding: 8, width: 34 }}>
-                <input type="checkbox" checked={allSelected} onChange={toggleAll}
-                  disabled={selectableIds.length === 0} title={t("email.selectAll")}
-                  style={{ cursor: selectableIds.length === 0 ? "default" : "pointer" }} />
-              </th>
-              <th style={{ padding: 8, width: 24 }} title={t("statements.completeness")} />
-              <th style={{ padding: 8 }}>{t("documents.company")}</th>
-              <th style={{ padding: 8 }}>{t("statements.bankStatement")}</th>
-              <th style={{ padding: 8 }}>{t("statements.invoices")}</th>
-              <th style={{ padding: 8, textAlign: "right" }}>{t("statements.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => {
-              const s = byCompany.get(c.id);
-              const hasBank = s?.hasBankStatement ?? false;
-              const selectable = needsReminder(c.id);
-              const st = rowStatus(s, (paymentBy.get(c.id) ?? "NONE") as Payment);
-              return (
-                <tr key={c.id} style={{
-                  borderTop: "1px solid var(--border)",
-                  background: selected.has(c.id) ? "var(--primary-light, #eef2ff)" : undefined,
-                }}>
-                  <td style={{ padding: 8, textAlign: "center" }}>
-                    {selectable
-                      ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)}
-                          style={{ cursor: "pointer" }} />
-                      : <span style={{ color: "var(--text-muted)" }}>·</span>}
-                  </td>
-                  <td style={{ padding: 8, textAlign: "center" }}>
-                    <span role="img" aria-label={t(st.key)} title={t(st.key)}
-                      style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: DOT_COLOR[st.kind] }} />
-                  </td>
-                  <td style={{ padding: 8 }}>
-                    <b>{c.legalName}</b>
-                    <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
-                  </td>
-                  <td style={{ padding: 8 }}>
-                    {hasBank
-                      ? <Chip kind="green" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")}
-                          onClick={() => setFilesFor({ id: c.id, name: c.legalName })} />
-                      : <Chip kind="red" label={t("statements.missing")} title={t("statements.chip.noStatement")}
-                          onClick={() => setFilesFor({ id: c.id, name: c.legalName })} />}
-                  </td>
-                  <td style={{ padding: 8 }}>{(() => {
-                    const present = s?.invoiceReceiptCount ?? 0;
-                    const missing = missingTxnBy.get(c.id) ?? 0;
-                    const noMatch = unmatchedBy.get(c.id) ?? 0;
-                    if (present === 0 && missing === 0 && noMatch === 0) {
-                      return <span style={{ color: "var(--text-muted)" }}>—</span>;
-                    }
-                    const openFiles = () => setFilesFor({ id: c.id, name: c.legalName });
-                    return (
-                      <>
-                        {present > 0 && <Chip kind="green" label={present} title={t("statements.chip.present")} onClick={openFiles} />}
-                        {missing > 0 && <Chip kind="red" label={missing} title={t("statements.chip.missing")} onClick={openFiles} />}
-                        {noMatch > 0 && <Chip kind="gray" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
-                      </>
-                    );
-                  })()}</td>
-                  <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                    <button style={iconBtn} title={t("statements.files")}
-                      onClick={() => setFilesFor({ id: c.id, name: c.legalName })}>📁</button>
-                    <button title={t("statements.viewTransactions")} disabled={!hasBank}
-                      onClick={() => setReconFor({ id: c.id, name: c.legalName })}
-                      style={{ ...iconBtn, opacity: hasBank ? 1 : 0.35, cursor: hasBank ? "pointer" : "default" }}>⇄</button>
-                    <button title={t("email.send")} disabled={!selectable}
-                      onClick={() => setSendList([target(c.id)])}
-                      style={{ ...iconBtn, opacity: selectable ? 1 : 0.35, cursor: selectable ? "pointer" : "default" }}>✉</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
+
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ minWidth: 940 }}>
+          <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
+            <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
+            <div />
+            <div>{t("documents.company")}</div>
+            <div>{t("statements.bankStatement")}</div>
+            <div>{t("statements.invoices")}</div>
+            <div>{t("statements.completeness")}</div>
+            <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
+          </div>
+
+          {rows.map((c) => {
+            const s = byCompany.get(c.id);
+            const hasBank = s?.hasBankStatement ?? false;
+            const selectable = needsReminder(c.id);
+            const st = rowStatus(s, (paymentBy.get(c.id) ?? "NONE") as Payment);
+            const cpl = completenessBy.get(c.id) ?? "NOT_STARTED";
+            const present = s?.invoiceReceiptCount ?? 0;
+            const missing = missingTxnBy.get(c.id) ?? 0;
+            const noMatch = unmatchedBy.get(c.id) ?? 0;
+            const openFiles = () => setFilesFor({ id: c.id, name: c.legalName });
+            return (
+              <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
+                <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
+                <div><span role="img" aria-label={t(st.key)} title={t(st.key)} style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: DOT_COLOR[st.kind] }} /></div>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{c.legalName}</div>
+                  <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
+                </div>
+                <div>
+                  {hasBank
+                    ? <ClickPill kind="ok" label={t("statements.nStatements", { n: s?.bankStatementCount ?? 0 })} title={t("statements.chip.statements")} onClick={openFiles} />
+                    : <ClickPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} onClick={openFiles} />}
+                </div>
+                <div>
+                  {present === 0 && missing === 0 && noMatch === 0
+                    ? <span style={{ color: "var(--text-faint)" }}>—</span>
+                    : <>
+                        {present > 0 && <ClickPill kind="ok" label={present} title={t("statements.chip.present")} onClick={openFiles} />}
+                        {missing > 0 && <ClickPill kind="danger" label={t("statements.needsDocN", { n: missing })} title={t("statements.chip.missing")} onClick={openFiles} />}
+                        {noMatch > 0 && <ClickPill kind="muted" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
+                      </>}
+                </div>
+                <div>
+                  {cpl === "COMPLETE" ? <span className="pill round ok">{t("statements.cpl.complete")}</span>
+                    : cpl === "PARTIAL" ? <span className="pill round warn">{t("statements.cpl.partial")}</span>
+                    : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
+                </div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button style={iconBtn} title={t("statements.upload")} disabled={upload.isPending} onClick={() => pickUpload(c.id)}><Icon name="upload" size={14} /></button>
+                  <button style={iconBtn} title={t("statements.files")} onClick={openFiles}><Icon name="folder" size={14} /></button>
+                  <button style={{ ...iconBtn, opacity: hasBank ? 1 : 0.4 }} title={t("statements.viewTransactions")} disabled={!hasBank} onClick={() => setReconFor({ id: c.id, name: c.legalName })}><Icon name="reconcile" size={14} /></button>
+                  <button style={{ ...iconBtn, opacity: selectable ? 1 : 0.4 }} title={t("email.send")} disabled={!selectable} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {filesFor && (
-        <FilesModal companyId={filesFor.id} companyName={filesFor.name} period={period} onClose={() => setFilesFor(null)} />
-      )}
-      {reconFor && (
-        <ReconModal companyId={reconFor.id} companyName={reconFor.name} period={period} onClose={() => setReconFor(null)} />
-      )}
-      {sendList && (
-        <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />
-      )}
+      {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} period={period} onClose={() => setFilesFor(null)} />}
+      {reconFor && <ReconModal companyId={reconFor.id} companyName={reconFor.name} period={period} onClose={() => setReconFor(null)} />}
+      {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
     </div>
   );
 }
+
+const gridRow: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "30px 24px minmax(210px,1.5fr) 130px 170px 110px 132px",
+  alignItems: "center", gap: 10, padding: "10px 16px",
+};
+const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
+const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
