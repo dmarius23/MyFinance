@@ -22,6 +22,7 @@ export function Payroll() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<PayrollTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
@@ -45,11 +46,35 @@ export function Payroll() {
     },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll", period] }); },
   });
+  const removeDoc = useMutation({
+    mutationFn: ({ companyId, id }: { companyId: string; id: string }) => documentsApi.remove(companyId, id),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll", period] }); },
+  });
   const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length && uploadFor) upload.mutate({ companyId: uploadFor, files });
+    const cid = uploadFor;
     e.target.value = "";
+    if (!files.length || !cid) return;
+    // Duplicate guard — filename only (case-insensitive), against what's already uploaded for the
+    // company/period and within the current selection. Duplicates are skipped, not uploaded twice.
+    const existing = new Set((rowBy.get(cid)?.documents ?? []).map((d) => d.filename.trim().toLowerCase()));
+    const seen = new Set<string>();
+    const toUpload: File[] = [];
+    const skipped: string[] = [];
+    for (const f of files) {
+      const key = f.name.trim().toLowerCase();
+      if (existing.has(key) || seen.has(key)) { skipped.push(f.name); continue; }
+      seen.add(key);
+      toUpload.push(f);
+    }
+    setUploadNote(skipped.length ? t("payroll.duplicateSkipped", { names: skipped.join(", ") }) : null);
+    if (toUpload.length) upload.mutate({ companyId: cid, files: toUpload });
+  };
+  const deleteDoc = (companyId: string, id: string, filename: string) => {
+    if (window.confirm(t("payroll.confirmDelete", { name: filename }))) {
+      removeDoc.mutate({ companyId, id });
+    }
   };
 
   return (
@@ -72,6 +97,13 @@ export function Payroll() {
       )}
 
       <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
+
+      {uploadNote && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "var(--warn-bg, #fef3c7)", border: "1px solid var(--warn-bd, #fcd34d)", color: "var(--warn-fg, #92400e)", borderRadius: 10, padding: "8px 12px", fontSize: 12.5 }}>
+          <span>{uploadNote}</span>
+          <button onClick={() => setUploadNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}><Icon name="x" size={14} /></button>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 920 }}>
@@ -98,11 +130,16 @@ export function Payroll() {
                   {docs.length === 0
                     ? <span className="pill round danger">{t("payroll.missing")}</span>
                     : docs.map((d) => (
-                        <button key={d.id} className="pill round muted" title={t("payroll.download")}
-                          onClick={() => documentsApi.download(c.id, d.id)}
-                          style={{ cursor: "pointer", font: "inherit", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
-                        </button>
+                        <span key={d.id} style={docChip}>
+                          <button className="pill round muted" title={t("payroll.download")}
+                            onClick={() => documentsApi.download(c.id, d.id)}
+                            style={{ cursor: "pointer", font: "inherit", border: "none", background: "none", padding: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
+                          </button>
+                          <button title={t("payroll.deleteDoc")} disabled={removeDoc.isPending}
+                            onClick={() => deleteDoc(c.id, d.id, d.filename)}
+                            style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "0 2px", lineHeight: 1, fontSize: 12 }}>✕</button>
+                        </span>
                       ))}
                 </div>
                 <div>
@@ -138,5 +175,6 @@ const gridRow: React.CSSProperties = {
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
+const docChip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 2, background: "var(--th-bg)", border: "1px solid var(--border)", borderRadius: 999, padding: "1px 5px 1px 8px", fontSize: 11, color: "var(--text-muted)" };
 const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };
