@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { bankApi, type BankTransaction } from "../api/bank";
+import { remindersApi } from "../api/documents";
+import { ApiError } from "../lib/apiClient";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
@@ -17,19 +19,23 @@ export interface ReminderTarget {
   hasInvoiceOrReceipt: boolean;
 }
 
+interface Draft { recipient: string; body: string; loading: boolean; sent: boolean; error?: string }
+
 /**
- * Missing-documents reminder preview. The body is tailored per company: if the bank statement is
- * already uploaded we ask only for the missing invoices/receipts and list the specific transactions
- * still lacking a document; otherwise we ask for the statement too.
- *
- * Email delivery (MOD-07/09) isn't wired yet, so confirming is preview-only (mirrors the prototype);
- * the confirm handler is the single place to call the real endpoint once it exists.
+ * Missing-documents reminder. The body is tailored per company: if the bank statement is already
+ * uploaded we ask only for the missing invoices/receipts and list the specific transactions still
+ * lacking a document; otherwise we ask for the statement too. Each send is recorded (MOD-04/09), so
+ * the Statements list shows "last sent" and the notification log keeps history.
  */
 export function SendReminderModal({ companies, period, onClose }:
   { companies: ReminderTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
-  const [sent, setSent] = useState(false);
+  const qc = useQueryClient();
   const month = period.slice(0, 7);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(
+    () => Object.fromEntries(companies.map((c) => [c.id, { recipient: "", body: "", loading: true, sent: false }])),
+  );
+  const [sending, setSending] = useState(false);
 
   // Fetch each company's transactions so we can suggest the ones missing a document.
   const txnQueries = useQueries({
@@ -39,9 +45,6 @@ export function SendReminderModal({ companies, period, onClose }:
       enabled: c.hasBankStatement, // no statement → nothing to suggest
     })),
   });
-
-  const missingFor = (i: number): BankTransaction[] =>
-    (txnQueries[i].data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
 
   const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string => {
     const lines = [t("email.greeting"), ""];
@@ -59,11 +62,49 @@ export function SendReminderModal({ companies, period, onClose }:
     return lines.join("\n");
   };
 
+  // Populate each company's body once its transactions have loaded (or immediately if no statement).
+  useEffect(() => {
+    companies.forEach((c, i) => {
+      const q = txnQueries[i];
+      const ready = !c.hasBankStatement || (!q.isLoading && q.data !== undefined);
+      if (!ready) return;
+      setDrafts((d) => {
+        const cur = d[c.id];
+        if (!cur || !cur.loading) return d; // already filled (don't clobber edits)
+        const missing = (q.data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
+        return { ...d, [c.id]: { ...cur, body: bodyFor(c, missing), loading: false } };
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txnQueries.map((q) => `${q.isLoading}:${(q.data ?? []).length}`).join("|")]);
+
+  const patch = (id: string, p: Partial<Draft>) =>
+    setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
+
+  const sendAll = async () => {
+    setSending(true);
+    for (const c of companies) {
+      const d = drafts[c.id];
+      if (!d || d.sent || d.loading || !d.body.trim()) continue;
+      try {
+        await remindersApi.send(c.id, { period, recipient: d.recipient, body: d.body });
+        patch(c.id, { sent: true, error: undefined });
+        void qc.invalidateQueries({ queryKey: ["doc-reminder-history", c.id, period] });
+      } catch (e) {
+        patch(c.id, { error: e instanceof ApiError ? e.message : "Send failed" });
+      }
+    }
+    setSending(false);
+    void qc.invalidateQueries({ queryKey: ["doc-reminders", period] });
+  };
+
+  const allSent = companies.every((c) => drafts[c.id]?.sent);
+
   return (
     <div style={overlay} onClick={onClose}>
       <div className="card" style={{ width: 660, maxWidth: "94vw", maxHeight: "88vh", overflow: "auto" }}
         onClick={(e) => e.stopPropagation()}>
-        {sent ? (
+        {allSent ? (
           <div style={{ textAlign: "center", padding: "8px 4px" }}>
             <div style={{ fontSize: 40, color: "#16a34a" }}>✓</div>
             <h2 style={{ margin: "6px 0" }}>{t("email.sentTitle")}</h2>
@@ -80,17 +121,30 @@ export function SendReminderModal({ companies, period, onClose }:
               {t("email.previewIntro", { n: companies.length, month })}
             </p>
             <div style={{ display: "grid", gap: 10 }}>
-              {companies.map((c, i) => {
-                const loading = c.hasBankStatement && txnQueries[i].isLoading;
-                const missing = missingFor(i);
+              {companies.map((c) => {
+                const d = drafts[c.id];
                 return (
                   <div key={c.id} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-                    <div style={{ background: "#fafbfc", padding: "8px 12px", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+                    <div style={{ background: "#fafbfc", padding: "8px 12px", borderBottom: "1px solid var(--border)", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <b>{c.name}</b>
+                      {d?.sent && <span className="pill ok round">✓</span>}
+                      {d?.error && <span className="pill danger round" title={d.error}>{t("email.failed")}</span>}
                     </div>
-                    <div style={{ padding: 12, fontSize: 13, whiteSpace: "pre-line", lineHeight: 1.6 }}>
-                      <b>{t("email.subjectLabel")}:</b> {t("email.subject", { month })}{"\n"}
-                      {loading ? t("common.loading") : bodyFor(c, missing)}
+                    <div style={{ padding: 12 }}>
+                      {d?.loading
+                        ? <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("common.loading")}</div>
+                        : (
+                          <>
+                            <input
+                              placeholder={t("taxes.recipient")} value={d?.recipient ?? ""} disabled={d?.sent}
+                              onChange={(e) => patch(c.id, { recipient: e.target.value })}
+                              style={input} />
+                            <textarea
+                              value={d?.body ?? ""} disabled={d?.sent}
+                              onChange={(e) => patch(c.id, { body: e.target.value })}
+                              style={{ ...input, minHeight: 150, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
+                          </>
+                        )}
                     </div>
                   </div>
                 );
@@ -98,12 +152,19 @@ export function SendReminderModal({ companies, period, onClose }:
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
               <button onClick={onClose}>{t("email.cancel")}</button>
-              <button className="primary" onClick={() => setSent(true)}>✉ {t("email.sendNow")}</button>
+              <button className="primary" onClick={sendAll} disabled={sending || allSent}>
+                ✉ {sending ? t("taxes.sending") : t("email.sendNow")}
+              </button>
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 8 }}>{t("email.previewNote")}</div>
+            <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 8 }}>{t("taxes.eachLogged")}</div>
           </>
         )}
       </div>
     </div>
   );
 }
+
+const input: React.CSSProperties = {
+  width: "100%", boxSizing: "border-box", padding: "7px 9px",
+  border: "1px solid var(--border)", borderRadius: 8, fontSize: 13,
+};

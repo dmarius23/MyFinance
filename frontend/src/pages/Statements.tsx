@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
-import { documentsApi, documentsSummaryApi, type CompanyDocSummary } from "../api/documents";
+import { documentsApi, documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { FilesModal } from "../components/FilesModal";
 import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
+import { ReminderLogModal } from "../components/ReminderLogModal";
+
+const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -43,10 +46,13 @@ export function Statements() {
   const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
+  const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
   const completeness = useQuery({ queryKey: ["recon-summary", period], queryFn: () => reconciliationApi.summary(period) });
+  const reminders = useQuery({ queryKey: ["doc-reminders", period], queryFn: () => remindersApi.list(period) });
+  const reminderBy = new Map((reminders.data ?? []).map((r) => [r.companyId, r]));
 
   const completenessBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.completeness]));
   const paymentBy = new Map((completeness.data ?? []).map((c) => [c.companyId, c.payment]));
@@ -115,7 +121,7 @@ export function Statements() {
       <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 940 }}>
+        <div style={{ minWidth: 1020 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
@@ -123,6 +129,7 @@ export function Statements() {
             <div>{t("statements.bankStatement")}</div>
             <div>{t("statements.invoices")}</div>
             <div>{t("statements.completeness")}</div>
+            <div>{t("statements.lastSent")}</div>
             <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
           </div>
 
@@ -163,6 +170,16 @@ export function Statements() {
                     : cpl === "PARTIAL" ? <span className="pill round warn">{t("statements.cpl.partial")}</span>
                     : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
                 </div>
+                <div>
+                  {(() => {
+                    const r = reminderBy.get(c.id);
+                    return r?.lastSentAt
+                      ? <button className="pill teal round" style={pillBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>
+                          <Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(r.lastSentAt)}{r.count > 1 ? ` · ${r.count}` : ""}
+                        </button>
+                      : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>;
+                  })()}
+                </div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                   <button style={iconBtn} title={t("statements.upload")} disabled={upload.isPending} onClick={() => pickUpload(c.id)}><Icon name="upload" size={14} /></button>
                   <button style={iconBtn} title={t("statements.files")} onClick={openFiles}><Icon name="folder" size={14} /></button>
@@ -178,14 +195,19 @@ export function Statements() {
       {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} period={period} onClose={() => setFilesFor(null)} />}
       {reconFor && <ReconModal companyId={reconFor.id} companyName={reconFor.name} period={period} onClose={() => setReconFor(null)} />}
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
+      {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
+        onClose={() => setLogFor(null)}
+        onCompose={() => setSendList([target(logFor.id)])} />}
     </div>
   );
 }
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 24px minmax(210px,1.5fr) 130px 170px 110px 132px",
+  gridTemplateColumns: "30px 24px minmax(200px,1.4fr) 120px 160px 104px 116px 128px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
+const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
+const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

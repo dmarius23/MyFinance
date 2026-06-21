@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:#d2d8d6;border-radius:6px;border:2px solid #fafafa;}
+textarea,input{font-family:inherit;}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;min-height:600px;background:#fafafa;font-family:'Hanken Grotesk',sans-serif;color:#16201f;overflow:hidden;">
+
+  <!-- dark sidebar -->
+  <div style="width:210px;flex:none;background:#0c1413;padding:16px 11px;display:flex;flex-direction:column;gap:2px;">
+    <div style="display:flex;align-items:center;gap:9px;padding:6px 8px 16px;">
+      <div style="width:27px;height:27px;border-radius:8px;background:#14b8a6;color:#06201d;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;">M</div>
+      <div style="line-height:1.1;"><div style="font-size:14px;font-weight:700;color:#f3f8f7;">MyFinance</div><div style="font-size:11px;color:#5e716e;">ContaZone SRL</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#8aa09c;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>Dashboard</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#8aa09c;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h5l3 3v8H4z" stroke-linejoin="round"/><path d="M9 2.5v3h3"/><path d="M6 9h4M6 11h3"/></svg>Statements &amp; invoices</div>
+    <div onClick="{{ goList }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:600;color:#fff;background:#16211f;box-shadow:inset 2px 0 0 #14b8a6;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#2dd4bf" stroke-width="1.5"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg>Taxes &amp; payments</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#8aa09c;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M2.5 7h11"/></svg>Payroll</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#8aa09c;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13V8M7 13V4M11 13V10"/></svg>Reports</div>
+    <div style="height:1px;background:#1a2624;margin:10px 8px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#8aa09c;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>Companies</div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-top:1px solid #1a2624;margin-top:6px;"><div style="width:24px;height:24px;border-radius:50%;background:#14b8a6;color:#06201d;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;">AP</div><div style="line-height:1.1;"><div style="font-size:12px;font-weight:600;color:#e7efed;">Alina Pop</div><div style="font-size:10.5px;color:#5e716e;">Accountant</div></div></div>
+  </div>
+
+  <!-- main -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+
+    <!-- dark topbar -->
+    <div style="height:54px;flex:none;background:#0c1413;display:flex;align-items:center;gap:12px;padding:0 20px;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#eef4f3;font-weight:600;">
+        <span onClick="{{ goList }}" style="cursor:pointer;">Taxes &amp; payments</span>
+        <sc-if value="{{ isWork }}" hint-placeholder-val="{{ false }}"><span style="color:#3a4845;">/</span><span style="color:#9fb3af;font-weight:500;">INNOVATECODE IT SRL</span></sc-if>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;gap:6px;background:#16211f;border-radius:8px;padding:4px 5px;"><span style="color:#7d918e;cursor:pointer;">‹</span><span style="font-size:13px;font-weight:600;color:#eef4f3;min-width:104px;text-align:center;">March 2026</span><span style="color:#7d918e;cursor:pointer;">›</span></div>
+      <span style="font-size:12px;color:#6f857f;">RO / <span style="color:#cfdbd9;font-weight:600;">EN</span></span>
+    </div>
+
+    <!-- ===================== LIST (HUB) ===================== -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;overflow:auto;padding:22px 24px;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:12.5px;color:#5e716e;">Monthly declarations &amp; payment obligations · March 2026</div>
+          <h2 style="font-size:21px;font-weight:700;margin:3px 0 0;letter-spacing:-0.01em;">Taxes &amp; payments</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;font-size:12px;color:#5e716e;">
+          <span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#dc2626;"></span>2 mismatch</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#fb923c;"></span>1 not emailed</span>
+        </div>
+      </div>
+
+      <sc-if value="{{ bulkOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#0c1413;border-radius:10px;padding:9px 14px;margin-bottom:12px;">
+        <span style="font-size:13px;color:#eef4f3;"><b style="color:#2dd4bf;">{{ selCount2 }}</b> companies selected</span>
+        <div style="display:flex;gap:8px;"><button onClick="{{ clearSel }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#cfdbd9;background:#16211f;border:1px solid #1c2926;border-radius:8px;padding:7px 12px;cursor:pointer;">Clear</button><button onClick="{{ openMailSel }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#06201d;background:#14b8a6;border:none;border-radius:8px;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="M2.5 4.5L8 8.5l5.5-4"/></svg>Send email · {{ selCount2 }}</button></div>
+      </div>
+      </sc-if>
+      <div style="border:1px solid #e4e7e6;border-radius:11px;overflow-x:auto;background:#fff;">
+        <div style="min-width:836px;display:grid;grid-template-columns:minmax(210px,1.5fr) 104px 104px 104px 120px 124px 110px;align-items:center;padding:9px 16px;background:#f5f6f6;border-bottom:1px solid #e8eae9;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;color:#8a9794;font-weight:700;">
+          <div>Company</div><div style="text-align:right;">D100</div><div style="text-align:right;">D112</div><div style="text-align:right;">D300</div><div style="text-align:right;">To pay</div><div>Last sent</div><div style="text-align:right;">Actions</div>
+        </div>
+
+        <!-- c1 -->
+        <div style="min-width:836px;display:grid;grid-template-columns:minmax(210px,1.5fr) 104px 104px 104px 120px 124px 110px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f3f2;">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div onClick="{{ toggleC1 }}" style="width:16px;height:16px;border-radius:4px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ c1ChkBg }};border:1.5px solid {{ c1ChkBd }};"><sc-if value="{{ selC1 }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div><div style="min-width:0;"><div style="font-size:13px;font-weight:600;">Client Unu SRL</div><div style="font-size:11px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">RO22223333 · Cluj-Napoca</div></div></div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">1.240,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;color:#b45309;">3.480,00<span title="Computed ≠ declared" style="margin-left:3px;">⚠</span></div>
+          <div style="text-align:right;font-size:12.5px;color:#bcc6c3;">—</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;">4.720,00</div>
+          <div><div onClick="{{ openC1 }}" title="View email history" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:#e6f4f2;border:1px solid #c9e9e3;border-radius:7px;padding:2px 7px;font-size:10.5px;font-weight:600;color:#0f766e;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>12 Mar · 2</div></div>
+          <div style="display:flex;justify-content:flex-end;gap:5px;">
+            <div onClick="{{ openDecl }}" title="Manage declarations" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg></div>
+            <div onClick="{{ goWork }}" title="Tax payment workspace" style="width:28px;height:28px;border:1px solid #b6e7df;background:#dff5f1;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#0f766e;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg></div>
+            <div onClick="{{ openMailC1 }}" title="Send email — preview text" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+          </div>
+        </div>
+
+        <!-- c2 -->
+        <div style="min-width:836px;display:grid;grid-template-columns:minmax(210px,1.5fr) 104px 104px 104px 120px 124px 110px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f3f2;">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div onClick="{{ toggleC2 }}" style="width:16px;height:16px;border-radius:4px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ c2ChkBg }};border:1.5px solid {{ c2ChkBd }};"><sc-if value="{{ selC2 }}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div><div style="min-width:0;"><div style="font-size:13px;font-weight:600;">Client Doi SRL</div><div style="font-size:11px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">RO44445555 · București</div></div></div>
+          <div style="text-align:right;font-size:12.5px;color:#bcc6c3;">—</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">2.150,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">4.700,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;">6.850,00</div>
+          <div><div onClick="{{ openC2 }}" title="Send first email" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;border:1px dashed #d2d8d6;border-radius:7px;padding:2px 7px;font-size:10.5px;color:#9aa6a3;">Never sent<span style="text-decoration:underline;color:#0f766e;">send</span></div></div>
+          <div style="display:flex;justify-content:flex-end;gap:5px;">
+            <div onClick="{{ openDecl }}" title="Manage declarations" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg></div>
+            <div onClick="{{ goWork }}" title="Tax payment workspace" style="width:28px;height:28px;border:1px solid #b6e7df;background:#dff5f1;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#0f766e;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg></div>
+            <div onClick="{{ openMailC2 }}" title="Send email — preview text" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+          </div>
+        </div>
+
+        <!-- c3 active -->
+        <div style="min-width:836px;display:grid;grid-template-columns:minmax(210px,1.5fr) 104px 104px 104px 120px 124px 110px;align-items:center;padding:11px 16px;border-bottom:1px solid #f1f3f2;background:#ecf7f5;box-shadow:inset 2px 0 0 #14b8a6;">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div onClick="{{ toggleC3 }}" style="width:16px;height:16px;border-radius:4px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ c3ChkBg }};border:1.5px solid {{ c3ChkBd }};"><sc-if value="{{ selC3 }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div><div style="min-width:0;"><div style="font-size:13px;font-weight:600;">INNOVATECODE IT SRL</div><div style="font-size:11px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">49443957 · Cluj</div></div></div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">860,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;color:#b45309;">5.200,00<span title="Computed 5.200 ≠ declared 5.060" style="margin-left:3px;">⚠</span></div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">9.720,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;">15.780,00</div>
+          <div><div onClick="{{ openC3 }}" title="View email history" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:#e6f4f2;border:1px solid #c9e9e3;border-radius:7px;padding:2px 7px;font-size:10.5px;font-weight:600;color:#0f766e;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>10 Mar · 3</div></div>
+          <div style="display:flex;justify-content:flex-end;gap:5px;">
+            <div onClick="{{ openDecl }}" title="Manage declarations" style="width:28px;height:28px;border:1px solid #cfe6e2;background:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg></div>
+            <div onClick="{{ goWork }}" title="Tax payment workspace" style="width:28px;height:28px;border:1px solid #14b8a6;background:#14b8a6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#06201d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg></div>
+            <div onClick="{{ openMailC3 }}" title="Send email — preview text" style="width:28px;height:28px;border:1px solid #cfe6e2;background:#fff;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+          </div>
+        </div>
+
+        <!-- c4 -->
+        <div style="min-width:836px;display:grid;grid-template-columns:minmax(210px,1.5fr) 104px 104px 104px 120px 124px 110px;align-items:center;padding:11px 16px;">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0;"><div onClick="{{ toggleC4 }}" style="width:16px;height:16px;border-radius:4px;flex:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ c4ChkBg }};border:1.5px solid {{ c4ChkBd }};"><sc-if value="{{ selC4 }}" hint-placeholder-val="{{ false }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div><div style="min-width:0;"><div style="font-size:13px;font-weight:600;">Lumina Verde SRL</div><div style="font-size:11px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">RO39112764 · Cluj</div></div></div>
+          <div style="text-align:right;font-size:12.5px;color:#bcc6c3;">—</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">1.980,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums;">3.100,00</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;">5.080,00</div>
+          <div><div onClick="{{ openC4 }}" title="View email history" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:#e6f4f2;border:1px solid #c9e9e3;border-radius:7px;padding:2px 7px;font-size:10.5px;font-weight:600;color:#0f766e;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>5 Mar · 1</div></div>
+          <div style="display:flex;justify-content:flex-end;gap:5px;">
+            <div onClick="{{ openDecl }}" title="Manage declarations" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg></div>
+            <div onClick="{{ goWork }}" title="Tax payment workspace" style="width:28px;height:28px;border:1px solid #b6e7df;background:#dff5f1;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#0f766e;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg></div>
+            <div onClick="{{ openMailC4 }}" title="Send email — preview text" style="width:28px;height:28px;border:1px solid #e0e4e3;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:13px;font-size:12px;color:#9aa6a3;line-height:1.5;">Columns D100 / D112 / D300 show the computed amount per declaration · <span style="color:#b45309;">⚠</span> = computed differs from the declared total. Open the <b style="color:#0f766e;">workspace</b> on INNOVATECODE to compose payments &amp; emails, or click a <b style="color:#0f766e;">Last sent</b> pill to see email history.</div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== TAX WORKSPACE ===================== -->
+    <sc-if value="{{ isWork }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow:auto;padding:18px 24px 24px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:11px;">
+          <div onClick="{{ goList }}" style="width:30px;height:30px;border:1px solid #d8dcdb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52605d;font-size:16px;cursor:pointer;">‹</div>
+          <div><h2 style="font-size:19px;font-weight:700;margin:0;letter-spacing:-0.01em;">INNOVATECODE IT SRL</h2><div style="font-size:12px;color:#5e716e;font-family:'IBM Plex Mono',monospace;margin-top:2px;">CIF 49443957 · Cluj · March 2026</div></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onClick="{{ openDecl }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#16201f;background:#fff;border:1px solid #d8dcdb;border-radius:8px;padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg>Declarations · 3</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px;align-items:start;">
+
+        <!-- left: declarations + to-pay -->
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+          <!-- declarations -->
+          <div style="border:1px solid #e4e7e6;border-radius:12px;background:#fff;overflow:hidden;">
+            <div style="padding:12px 16px;border-bottom:1px solid #f0f1f0;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;">Declarations</span>
+              <span style="font-size:11.5px;color:#9aa6a3;">select to compose an email</span>
+            </div>
+            <div style="display:grid;grid-template-columns:34px 1.6fr 120px 1fr;align-items:center;padding:8px 16px;background:#f7f8f8;border-bottom:1px solid #eef0ef;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9aa6a3;font-weight:700;">
+              <div></div><div>Form</div><div style="text-align:right;">Amount</div><div style="text-align:right;">Sent</div>
+            </div>
+            <!-- D100 -->
+            <div style="display:grid;grid-template-columns:34px 1.6fr 120px 1fr;align-items:center;padding:11px 16px;border-bottom:1px solid #f4f5f5;font-size:12.5px;">
+              <div><div onClick="{{ toggleD100 }}" style="width:16px;height:16px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ d100Bg }};border:1.5px solid {{ d100Bd }};"><sc-if value="{{ selD100 }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div></div>
+              <div><span style="font-weight:700;">D100</span> <span style="color:#9aa6a3;">· Impozit pe profit</span></div>
+              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;">860,00</div>
+              <div style="text-align:right;font-size:11px;color:#5e716e;">3× · 10 Mar</div>
+            </div>
+            <!-- D112 mismatch -->
+            <div style="display:grid;grid-template-columns:34px 1.6fr 120px 1fr;align-items:center;padding:11px 16px;border-bottom:1px solid #f4f5f5;font-size:12.5px;">
+              <div><div onClick="{{ toggleD112 }}" style="width:16px;height:16px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ d112Bg }};border:1.5px solid {{ d112Bd }};"><sc-if value="{{ selD112 }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div></div>
+              <div><span style="font-weight:700;">D112</span> <span style="color:#9aa6a3;">· Contribuții CAS/CASS/CAM</span></div>
+              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;color:#b45309;">5.200,00 <span title="declared 5.060,00">⚠</span></div>
+              <div style="text-align:right;font-size:11px;color:#5e716e;">3× · 10 Mar</div>
+            </div>
+            <!-- D300 -->
+            <div style="display:grid;grid-template-columns:34px 1.6fr 120px 1fr;align-items:center;padding:11px 16px;font-size:12.5px;">
+              <div><div onClick="{{ toggleD300 }}" style="width:16px;height:16px;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;background:{{ d300Bg }};border:1.5px solid {{ d300Bd }};"><sc-if value="{{ selD300 }}" hint-placeholder-val="{{ true }}"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#06201d" stroke-width="2.2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></sc-if></div></div>
+              <div><span style="font-weight:700;">D300</span> <span style="color:#9aa6a3;">· TVA · decont</span></div>
+              <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:600;">9.720,00</div>
+              <div style="text-align:right;font-size:11px;color:#5e716e;">3× · 10 Mar</div>
+            </div>
+            <div style="padding:11px 16px;border-top:1px solid #f0f1f0;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:11.5px;color:#9aa6a3;">{{ selCount }} selected</span>
+              <button onClick="{{ openCompose }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#06201d;background:#14b8a6;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>Compose email · {{ selCount }}</button>
+            </div>
+          </div>
+
+          <!-- compose (conditional) -->
+          <sc-if value="{{ composeOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="border:1px solid #14b8a6;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 6px 22px rgba(20,184,166,0.1);">
+            <div style="padding:11px 16px;background:#0c1413;display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12.5px;font-weight:700;color:#f3f8f7;">Compose email · {{ selCount }} declarations</span><div onClick="{{ closeCompose }}" style="cursor:pointer;color:#6f857f;">✕</div></div>
+            <div style="padding:14px 16px;">
+              <div style="display:flex;align-items:center;gap:8px;border:1px solid #e4e7e6;border-radius:8px;padding:8px 11px;margin-bottom:10px;"><span style="font-size:11.5px;color:#9aa6a3;flex:none;">To</span><input value="{{ recipient }}" onInput="{{ onRecipient }}" style="border:none;outline:none;background:none;font-size:12.5px;flex:1;color:#16201f;" /></div>
+              <textarea onInput="{{ onBody }}" style="width:100%;min-height:150px;border:1px solid #e4e7e6;border-radius:8px;padding:11px;font-size:12.5px;line-height:1.55;color:#3f4946;resize:vertical;outline:none;">Bună ziua,
+
+Vă transmitem situația obligațiilor fiscale pentru luna martie 2026:
+• D100 Impozit pe profit — 860,00 RON
+• D112 Contribuții — 5.200,00 RON
+• D300 TVA — 9.720,00 RON
+
+Total de plată: 15.780,00 RON, scadență 25.03.2026.
+Detaliile conturilor IBAN sunt în tabelul atașat.
+
+Cu stimă,
+ContaZone SRL</textarea>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:11px;">
+                <span style="font-size:11px;color:#9aa6a3;">Prefilled from the selected declarations · editable</span>
+                <div style="display:flex;gap:8px;"><button onClick="{{ closeCompose }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#52605d;background:#f5f6f6;border:1px solid #e4e7e6;border-radius:8px;padding:8px 13px;cursor:pointer;">Cancel</button><button onClick="{{ doSend }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#06201d;background:#14b8a6;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;">Send email</button></div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <!-- to pay -->
+          <div style="border:1px solid #e4e7e6;border-radius:12px;background:#fff;overflow:hidden;">
+            <div style="padding:12px 16px;border-bottom:1px solid #f0f1f0;display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;font-weight:700;">To pay</span>
+              <span style="font-size:11.5px;color:#9aa6a3;">scadență 25 Mar 2026</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:8px 16px;background:#f7f8f8;border-bottom:1px solid #eef0ef;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9aa6a3;font-weight:700;">
+              <div>Explanation</div><div>IBAN</div><div>Due</div><div style="text-align:right;">Amount</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:9px 16px;border-bottom:1px solid #f4f5f5;font-size:12px;"><div style="font-weight:500;">Impozit pe profit</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5e716e;">RO49 TREZ 7005 0101</div><div style="color:#5e716e;">25 Mar</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;">860,00</div></div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:9px 16px;border-bottom:1px solid #f4f5f5;font-size:12px;"><div style="font-weight:500;">CAS · pensii</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5e716e;">RO12 TREZ 2210 2A47</div><div style="color:#5e716e;">25 Mar</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;">2.400,00</div></div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:9px 16px;border-bottom:1px solid #f4f5f5;font-size:12px;"><div style="font-weight:500;">CASS · sănătate</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5e716e;">RO12 TREZ 2210 2A48</div><div style="color:#5e716e;">25 Mar</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;">1.800,00</div></div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:9px 16px;border-bottom:1px solid #f4f5f5;font-size:12px;"><div style="font-weight:500;">CAM · muncă</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5e716e;">RO12 TREZ 2210 2A49</div><div style="color:#5e716e;">25 Mar</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;">1.000,00</div></div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:9px 16px;border-bottom:1px solid #f4f5f5;font-size:12px;"><div style="font-weight:500;">TVA de plată</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5e716e;">RO33 TREZ 7005 0202</div><div style="color:#5e716e;">25 Mar</div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;">9.720,00</div></div>
+            <div style="display:grid;grid-template-columns:1.5fr 1.4fr 90px 130px;align-items:center;padding:11px 16px;background:#fafafa;"><div style="font-weight:700;font-size:12.5px;">Total</div><div></div><div></div><div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13.5px;font-variant-numeric:tabular-nums;">15.780,00</div></div>
+            <div style="margin:0 16px 14px;padding:9px 12px;border-radius:8px;background:#fef3c7;border:1px solid #fde68a;color:#92400e;font-size:11.5px;display:flex;gap:8px;align-items:flex-start;"><span>⚠</span><span>Unconfigured category: <b>Impozit dividende (1.250,00)</b> has no IBAN mapping — set it in Settings to include it in the total.</span></div>
+          </div>
+        </div>
+
+        <!-- right: send history -->
+        <div style="border:1px solid #e4e7e6;border-radius:12px;background:#fff;overflow:hidden;">
+          <div style="padding:12px 16px;border-bottom:1px solid #f0f1f0;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:13px;font-weight:700;">Email history</span>
+            <span style="font-size:11px;font-weight:700;color:#fff;background:#14b8a6;border-radius:999px;padding:1px 8px;color:#06201d;">{{ historyCount }}</span>
+          </div>
+          <div style="padding:6px 16px 14px;">
+            <sc-for list="{{ history }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:11px;padding:11px 0;border-bottom:1px solid #f4f5f5;">
+                <div style="width:30px;height:30px;border-radius:8px;background:#e6f4f2;color:#0f766e;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:7px;"><span style="font-size:12.5px;font-weight:600;">{{ h.decls }}</span><sc-if value="{{ h.justNow }}" hint-placeholder-val="{{ false }}"><span style="font-size:9px;font-weight:700;background:#dcfce7;color:#166534;border-radius:5px;padding:1px 6px;">JUST NOW</span></sc-if></div>
+                  <div style="font-size:11px;color:#9aa6a3;margin-top:2px;">to <span style="font-family:'IBM Plex Mono',monospace;">{{ h.to }}</span></div>
+                </div>
+                <div style="text-align:right;flex:none;"><div style="font-size:11.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;">{{ h.date }}</div><div style="font-size:10.5px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">{{ h.time }}</div><span style="display:inline-block;margin-top:3px;font-size:9.5px;font-weight:700;background:{{ h.stBg }};color:{{ h.stFg }};border-radius:5px;padding:1px 6px;">{{ h.status }}</span></div>
+              </div>
+            </sc-for>
+            <div style="font-size:11px;color:#9aa6a3;margin-top:8px;line-height:1.4;">Resend any past email from the list, or compose a new one from the selected declarations.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <!-- ============ DECLARATIONS / FILES MODAL ============ -->
+  <sc-if value="{{ declOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeDecl }}" style="position:fixed;inset:0;background:rgba(12,20,19,0.5);display:flex;align-items:center;justify-content:center;z-index:60;padding:32px;">
+    <div onClick="{{ stop }}" style="width:1080px;max-width:96vw;height:84vh;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.34);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 20px;background:#0c1413;">
+        <div><div style="font-size:11px;color:#6f857f;">ANAF declarations uploaded</div><h2 style="font-size:17px;font-weight:700;margin:2px 0 0;color:#f3f8f7;">Declarations · INNOVATECODE IT SRL</h2></div>
+        <div onClick="{{ closeDecl }}" style="cursor:pointer;color:#cfdbd9;font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #1c2926;border-radius:8px;">✕</div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0;">
+        <div style="width:420px;flex:none;border-right:1px solid #e8eae9;display:flex;flex-direction:column;background:#fafafa;">
+          <div style="flex:1;overflow:auto;padding:14px;">
+            <div onClick="{{ selD100f }}" style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:9px;margin-bottom:6px;cursor:pointer;background:{{ f100Bg }};border:1px solid {{ f100Bd }};"><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">D100_impozit_profit.pdf</div><div style="font-size:11px;color:#9aa6a3;margin-top:3px;"><span style="font-family:'IBM Plex Mono',monospace;">860,00</span> · CIF 49443957</div><div style="margin-top:5px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;border-radius:6px;padding:1px 7px;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg>Sent 3× · last 10 Mar</span></div></div><div title="Delete" style="width:26px;height:26px;border:1px solid #e4e7e6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:11px;">✕</div></div>
+            <div onClick="{{ selD112f }}" style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:9px;margin-bottom:6px;cursor:pointer;background:{{ f112Bg }};border:1px solid {{ f112Bd }};"><div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12.5px;font-weight:600;">D112_contributii.pdf</span><span style="flex:none;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:999px;padding:0 6px;font-size:9px;font-weight:700;">MISMATCH</span></div><div style="font-size:11px;color:#9aa6a3;margin-top:3px;"><span style="font-family:'IBM Plex Mono',monospace;">5.200,00</span> · declared 5.060,00</div><div style="margin-top:5px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;border-radius:6px;padding:1px 7px;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg>Sent 3× · last 10 Mar</span></div></div><div title="Delete" style="width:26px;height:26px;border:1px solid #e4e7e6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:11px;">✕</div></div>
+            <div onClick="{{ selD300f }}" style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:9px;margin-bottom:6px;cursor:pointer;background:{{ f300Bg }};border:1px solid {{ f300Bd }};"><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">D300_TVA_decont.pdf</div><div style="font-size:11px;color:#9aa6a3;margin-top:3px;"><span style="font-family:'IBM Plex Mono',monospace;">9.720,00</span> · CIF 49443957</div><div style="margin-top:5px;"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#166534;background:#dcfce7;border:1px solid #bbf7d0;border-radius:6px;padding:1px 7px;"><svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg>Sent 3× · last 10 Mar</span></div></div><div title="Delete" style="width:26px;height:26px;border:1px solid #e4e7e6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:11px;">✕</div></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:9px;margin-bottom:6px;background:#fff;border:1px solid #e4e7e6;"><div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12.5px;font-weight:600;">D112_ian_2026.pdf</span><span style="flex:none;background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:999px;padding:0 6px;font-size:9px;font-weight:700;">OUT OF PERIOD</span></div><div style="font-size:11px;color:#9aa6a3;margin-top:3px;">📅 January 2026 · wrong month</div><div style="margin-top:5px;"><span style="font-size:10px;font-weight:600;color:#9aa6a3;background:#f1f3f2;border:1px solid #e4e7e6;border-radius:6px;padding:1px 7px;">Not sent</span></div></div><div title="Delete" style="width:26px;height:26px;border:1px solid #e4e7e6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:11px;">✕</div></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:9px;background:#fff;border:1px solid #f3dad7;"><div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12.5px;font-weight:600;">scan_anaf.pdf</span><span style="flex:none;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:999px;padding:0 6px;font-size:9px;font-weight:700;">WRONG PARTY</span></div><div style="font-size:11px;color:#991b1b;margin-top:3px;">CIF 11122233 ≠ this company</div><div style="margin-top:5px;"><span style="font-size:10px;font-weight:600;color:#9aa6a3;background:#f1f3f2;border:1px solid #e4e7e6;border-radius:6px;padding:1px 7px;">Not sent</span></div></div><div title="Delete" style="width:26px;height:26px;border:1px solid #e4e7e6;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:11px;">✕</div></div>
+          </div>
+          <div style="padding:12px 14px;border-top:1px solid #e8eae9;">
+            <div style="border:1.5px dashed #9fd2cb;background:#f1faf8;border-radius:10px;padding:13px;text-align:center;cursor:pointer;"><div style="display:flex;align-items:center;justify-content:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#0d9488" stroke-width="1.6"><path d="M8 10.5V3.5M5.5 6L8 3.5 10.5 6"/><path d="M3 10.5v2a1 1 0 001 1h8a1 1 0 001-1v-2"/></svg><span style="font-size:12.5px;font-weight:600;color:#0f766e;">Upload a declaration (PDF)</span></div><div style="font-size:11px;color:#9aa6a3;margin-top:3px;">type &amp; amount auto-extracted on upload</div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px;background:#f5f6f6;">
+          <div style="font-size:12.5px;font-weight:600;margin-bottom:8px;">{{ declPreviewName }}</div>
+          <div style="flex:1;border:1px solid #e4e7e6;border-radius:10px;background:repeating-linear-gradient(135deg,#f4f4f3,#f4f4f3 11px,#efefee 11px,#efefee 22px);display:flex;align-items:center;justify-content:center;min-height:300px;">
+            <div style="width:72%;max-width:430px;background:#fff;border:1px solid #e6e6e4;box-shadow:0 4px 16px rgba(0,0,0,0.07);padding:26px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #16201f;padding-bottom:10px;margin-bottom:12px;"><div style="font-size:14px;font-weight:800;">ANAF · {{ declPreviewType }}</div><div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:#9aa6a3;text-align:right;">CIF 49443957<br/>Martie 2026</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px;"><div style="height:7px;width:64%;background:#ececeb;border-radius:2px;"></div><div style="height:7px;width:46%;background:#ececeb;border-radius:2px;"></div></div>
+              <div style="margin-top:14px;border:1px solid #ececeb;border-radius:4px;padding:8px 10px;font-size:10.5px;color:#5e716e;display:flex;justify-content:space-between;"><span>Total declarat</span><span style="font-family:'IBM Plex Mono',monospace;">{{ declPreviewAmt }}</span></div>
+              <div style="margin-top:12px;text-align:center;font-size:8.5px;color:#bcc6c3;font-family:'IBM Plex Mono',monospace;">— rendered declaration preview —</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ EMAIL PREVIEW (BULK / SINGLE) MODAL ============ -->
+  <sc-if value="{{ mailOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeMail }}" style="position:fixed;inset:0;background:rgba(12,20,19,0.5);display:flex;align-items:center;justify-content:center;z-index:75;padding:32px;">
+    <div onClick="{{ stop }}" style="width:640px;max-width:95vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.34);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;background:#0c1413;">
+        <div><div style="font-size:11px;color:#6f857f;">Review before sending</div><h2 style="font-size:17px;font-weight:700;margin:2px 0 0;color:#f3f8f7;">Email preview · {{ mailCount }} companies</h2><div style="font-size:12px;color:#8aa09c;margin-top:2px;">One email per company — text is generated from each company’s declarations &amp; total</div></div>
+        <div onClick="{{ closeMail }}" style="cursor:pointer;color:#cfdbd9;font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #1c2926;border-radius:8px;">✕</div>
+      </div>
+      <div style="overflow:auto;flex:1;padding:14px 20px;background:#fafafa;">
+        <sc-for list="{{ mailList }}" as="m" hint-placeholder-count="2">
+          <div style="border:1px solid #e4e7e6;border-radius:12px;background:#fff;overflow:hidden;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #f0f1f0;">
+              <div style="display:flex;align-items:center;gap:9px;min-width:0;"><div style="width:24px;height:24px;border-radius:7px;background:#e6f4f2;color:#0f766e;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div><div style="min-width:0;"><div style="font-size:13px;font-weight:700;">{{ m.name }}</div><div style="font-size:11px;color:#9aa6a3;">To <span style="font-family:'IBM Plex Mono',monospace;">{{ m.to }}</span></div></div></div>
+              <span style="flex:none;font-size:11px;font-weight:600;color:#0f766e;background:#e6f4f2;border:1px solid #c9e9e3;border-radius:999px;padding:2px 9px;font-family:'IBM Plex Mono',monospace;">{{ m.total }} RON</span>
+            </div>
+            <div style="padding:12px 14px;font-size:12px;line-height:1.6;color:#3f4946;white-space:pre-wrap;font-family:'Hanken Grotesk',sans-serif;">{{ m.body }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-top:1px solid #eef0ef;background:#fff;">
+        <span style="font-size:11.5px;color:#9aa6a3;">Each email is logged in that company’s history with today’s date.</span>
+        <div style="display:flex;gap:8px;"><button onClick="{{ closeMail }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#52605d;background:#f5f6f6;border:1px solid #e4e7e6;border-radius:9px;padding:9px 14px;cursor:pointer;">Cancel</button><button onClick="{{ sendMail }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#06201d;background:#14b8a6;border:none;border-radius:9px;padding:9px 16px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>Send {{ mailCount }} emails</button></div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ NOTIFICATIONS MODAL ============ -->
+  <sc-if value="{{ notifOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeNotif }}" style="position:fixed;inset:0;background:rgba(12,20,19,0.5);display:flex;align-items:center;justify-content:center;z-index:70;padding:32px;">
+    <div onClick="{{ stop }}" style="width:560px;max-width:94vw;max-height:86vh;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.34);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;background:#0c1413;">
+        <div><div style="font-size:11px;color:#6f857f;">Tax emails sent</div><h2 style="font-size:17px;font-weight:700;margin:2px 0 0;color:#f3f8f7;">{{ notif.name }}</h2><div style="font-size:12px;color:#8aa09c;margin-top:2px;">{{ notif.count }} sent · to {{ notif.email }}</div></div>
+        <div onClick="{{ closeNotif }}" style="cursor:pointer;color:#cfdbd9;font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #1c2926;border-radius:8px;">✕</div>
+      </div>
+      <div style="padding:14px 20px;border-bottom:1px solid #f1f3f2;background:#fafafa;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;color:#8a9794;text-transform:uppercase;margin-bottom:8px;">Send a new email</div>
+        <div style="display:flex;gap:9px;align-items:center;"><button onClick="{{ notif.onSend }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#06201d;background:#14b8a6;border:none;border-radius:9px;padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>Send email now</button><div title="WhatsApp — coming soon" style="font-size:12.5px;font-weight:600;color:#9aa6a3;background:#f5f6f6;border:1px dashed #d2d8d6;border-radius:9px;padding:9px 14px;cursor:not-allowed;display:flex;align-items:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5a5.5 5.5 0 00-4.7 8.3L2.5 13.5l2.8-.8A5.5 5.5 0 108 2.5z"/></svg>WhatsApp<span style="font-size:9.5px;font-weight:700;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 5px;">SOON</span></div></div>
+      </div>
+      <div style="overflow:auto;flex:1;padding:8px 20px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;color:#8a9794;text-transform:uppercase;padding:10px 0 4px;">History</div>
+        <sc-if value="{{ notif.emptyLog }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;padding:30px 16px;color:#9aa6a3;font-size:12.5px;">No tax emails sent yet. Use <b style="color:#0f766e;">Send email now</b> to send the first.</div></sc-if>
+        <sc-if value="{{ notif.hasLog }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ notif.log }}" as="n" hint-placeholder-count="3">
+          <div style="display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #f4f5f5;">
+            <div style="width:30px;height:30px;border-radius:8px;background:#e6f4f2;color:#0f766e;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div>
+            <div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12.5px;font-weight:600;">{{ n.subject }}</span><sc-if value="{{ n.justNow }}" hint-placeholder-val="{{ false }}"><span style="font-size:9.5px;font-weight:700;background:#dcfce7;color:#166534;border-radius:5px;padding:1px 6px;">JUST NOW</span></sc-if></div><div style="font-size:11.5px;color:#9aa6a3;margin-top:2px;">Email · to <span style="font-family:'IBM Plex Mono',monospace;">{{ n.to }}</span></div></div>
+            <div style="text-align:right;flex:none;"><div style="font-size:12px;font-weight:600;font-family:'IBM Plex Mono',monospace;">{{ n.dateStr }}</div><div style="font-size:11px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">{{ n.time }}</div><span style="display:inline-block;margin-top:4px;font-size:10px;font-weight:600;background:{{ n.statusBg }};color:{{ n.statusFg }};border-radius:5px;padding:1px 7px;">{{ n.statusLabel }}</span></div>
+          </div>
+        </sc-for>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    view: 'list',
+    sel: { D100:true, D112:true, D300:true },
+    composeOpen: false,
+    recipient: 'razvan@innovatecode.ro',
+    declOpen: false,
+    selDeclFile: 'D112',
+    notifFor: null,
+    today: '20 Jun 2026',
+    history: [
+      { decls:'3 declarations · D100, D112, D300', to:'razvan@innovatecode.ro', date:'10 Mar 2026', time:'16:45', status:'SENT' },
+      { decls:'2 declarations · D112, D300', to:'razvan@innovatecode.ro', date:'5 Mar 2026', time:'10:12', status:'SENT' },
+      { decls:'1 declaration · D300', to:'razvan@innovatecode.ro', date:'28 Feb 2026', time:'09:00', status:'SENT' },
+    ],
+    notifData: {
+      c1: { name:'Client Unu SRL', email:'contact@clientunu.ro', notifications:[
+        { subject:'Obligații fiscale martie 2026', to:'contact@clientunu.ro', date:'12 Mar 2026', time:'09:14', status:'opened' },
+        { subject:'Reamintire declarații februarie', to:'contact@clientunu.ro', date:'4 Mar 2026', time:'08:30', status:'delivered' },
+      ] },
+      c2: { name:'Client Doi SRL', email:'office@clientdoi.ro', notifications:[] },
+      c3: { name:'INNOVATECODE IT SRL', email:'razvan@innovatecode.ro', notifications:[
+        { subject:'Obligații fiscale martie 2026 · 3 declarații', to:'razvan@innovatecode.ro', date:'10 Mar 2026', time:'16:45', status:'opened' },
+        { subject:'Reamintire D112 + D300', to:'razvan@innovatecode.ro', date:'5 Mar 2026', time:'10:12', status:'opened' },
+        { subject:'Decont TVA februarie', to:'razvan@innovatecode.ro', date:'28 Feb 2026', time:'09:00', status:'delivered' },
+      ] },
+      c4: { name:'Lumina Verde SRL', email:'contabilitate@luminaverde.ro', notifications:[
+        { subject:'Obligații fiscale martie 2026', to:'contabilitate@luminaverde.ro', date:'5 Mar 2026', time:'11:20', status:'delivered' },
+      ] },
+    },
+    extraNotif: {},
+    selectedCos: ['c1','c3'],
+    mailFor: null,
+    companies: {
+      c1:{ name:'Client Unu SRL', to:'contact@clientunu.ro', lines:[['D100 Impozit pe profit','1.240,00'],['D112 Contribuții','3.480,00']], total:'4.720,00' },
+      c2:{ name:'Client Doi SRL', to:'office@clientdoi.ro', lines:[['D112 Contribuții','2.150,00'],['D300 TVA','4.700,00']], total:'6.850,00' },
+      c3:{ name:'INNOVATECODE IT SRL', to:'razvan@innovatecode.ro', lines:[['D100 Impozit pe profit','860,00'],['D112 Contribuții','5.200,00'],['D300 TVA','9.720,00']], total:'15.780,00' },
+      c4:{ name:'Lumina Verde SRL', to:'contabilitate@luminaverde.ro', lines:[['D112 Contribuții','1.980,00'],['D300 TVA','3.100,00']], total:'5.080,00' },
+    },
+  };
+
+  goList(){ this.setState({ view:'list', composeOpen:false }); }
+  goWork(){ this.setState({ view:'work' }); }
+  toggle(type){ this.setState(s=>({ sel: { ...s.sel, [type]: !s.sel[type] } })); }
+  openCompose(){ if(this.selCount()>0) this.setState({ composeOpen:true }); }
+  closeCompose(){ this.setState({ composeOpen:false }); }
+  onRecipient(e){ this.setState({ recipient:e.target.value }); }
+  onBody(){ /* free text, uncontrolled */ }
+  selCount(){ const s=this.state.sel; return (s.D100?1:0)+(s.D112?1:0)+(s.D300?1:0); }
+  doSend(){
+    const types = Object.keys(this.state.sel).filter(k=>this.state.sel[k]);
+    const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+    const entry={ decls:types.length+' declarations · '+types.join(', '), to:this.state.recipient, date:this.state.today, time:`${hh}:${mm}`, status:'SENT', justNow:true };
+    this.setState(s=>({ history:[entry, ...s.history], composeOpen:false }));
+  }
+  openDecl(){ this.setState({ declOpen:true }); }
+  closeDecl(){ this.setState({ declOpen:false }); }
+  selDeclF(id){ this.setState({ selDeclFile:id }); }
+  openNotif(id){ this.setState({ notifFor:id }); }
+  closeNotif(){ this.setState({ notifFor:null }); }
+  sendNotif(id){
+    const c=this.state.notifData[id];
+    const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+    const entry={ subject:'Reamintire obligații fiscale martie 2026', to:c.email, date:this.state.today, time:`${hh}:${mm}`, status:'sent', justNow:true };
+    this.setState(s=>({ extraNotif: { ...s.extraNotif, [id]:[entry, ...(s.extraNotif[id]||[])] } }));
+  }
+  toggleCo(id){ this.setState(s=>({ selectedCos: s.selectedCos.includes(id)? s.selectedCos.filter(x=>x!==id): [...s.selectedCos,id] })); }
+  clearSel(){ this.setState({ selectedCos:[] }); }
+  openMail(ids){ if(ids && ids.length) this.setState({ mailFor:ids }); }
+  closeMail(){ this.setState({ mailFor:null }); }
+  buildBody(co){ const L=co.lines.map(l=>'• '+l[0]+' — '+l[1]+' RON').join('\n'); return 'Bună ziua,\n\nVă transmitem obligațiile fiscale pentru luna martie 2026:\n'+L+'\n\nTotal de plată: '+co.total+' RON, scadență 25.03.2026.\nDetaliile conturilor IBAN sunt în documentul atașat.\n\nCu stimă,\nContaZone SRL'; }
+  sendMail(){
+    const ids=this.state.mailFor||[]; const now=new Date(); const hh=String(now.getHours()).padStart(2,'0'),mm=String(now.getMinutes()).padStart(2,'0');
+    this.setState(s=>{ const ex={...s.extraNotif}; ids.forEach(id=>{ const co=s.companies[id]; const e={subject:'Obligații fiscale martie 2026', to:co.to, date:s.today, time:`${hh}:${mm}`, status:'sent', justNow:true}; ex[id]=[e,...(ex[id]||[])]; }); return { extraNotif:ex, mailFor:null, selectedCos:[] }; });
+  }
+  stop(e){ e.stopPropagation(); }
+
+  renderVals(){
+    const s=this.state;
+    const chk=(on)=>({ bg: on?'#14b8a6':'#fff', bd: on?'#14b8a6':'#c2cbc8' });
+    const c100=chk(s.sel.D100), c112=chk(s.sel.D112), c300=chk(s.sel.D300);
+    const fileMeta={ D100:{name:'D100_impozit_profit.pdf',type:'D100',amt:'860,00'}, D112:{name:'D112_contributii.pdf',type:'D112',amt:'5.200,00'}, D300:{name:'D300_TVA_decont.pdf',type:'D300',amt:'9.720,00'} };
+    const fsel=(id)=>({ bg: s.selDeclFile===id?'#ecf7f5':'#fff', bd: s.selDeclFile===id?'#b6e7df':'#e4e7e6' });
+    const f100=fsel('D100'), f112=fsel('D112'), f300=fsel('D300');
+    const dp = fileMeta[s.selDeclFile] || fileMeta.D112;
+
+    const statusMeta={ sent:{label:'Sent',bg:'#e0e7ff',fg:'#3730a3'}, delivered:{label:'Delivered',bg:'#dcfce7',fg:'#166534'}, opened:{label:'Opened',bg:'#e6f4f2',fg:'#0f766e'} };
+    const nco = s.notifFor ? s.notifData[s.notifFor] : null;
+    const merged = nco ? [ ...(s.extraNotif[s.notifFor]||[]), ...nco.notifications ] : [];
+    const notif = nco ? {
+      name:nco.name, email:nco.email, count:merged.length, hasLog:merged.length>0, emptyLog:merged.length===0,
+      log: merged.map(n=>{ const sm=statusMeta[n.status]||statusMeta.sent; return { subject:n.subject, to:n.to, dateStr:n.date, time:n.time, statusLabel:sm.label, statusBg:sm.bg, statusFg:sm.fg, justNow:!!n.justNow }; }),
+      onSend:()=>this.sendNotif(s.notifFor),
+    } : { name:'', email:'', count:0, hasLog:false, emptyLog:true, log:[], onSend:()=>{} };
+
+    const history = s.history.map(h=>({ decls:h.decls, to:h.to, date:h.date, time:h.time, status:h.status, justNow:!!h.justNow,
+      stBg: h.status==='SENT'?'#dcfce7':'#fee2e2', stFg: h.status==='SENT'?'#166534':'#991b1b' }));
+    const sel = s.selectedCos;
+    const coChk=(id)=>({ bg: sel.includes(id)?'#14b8a6':'#fff', bd: sel.includes(id)?'#14b8a6':'#c2cbc8' });
+    const k1=coChk('c1'), k2=coChk('c2'), k3=coChk('c3'), k4=coChk('c4');
+    const mailList = (s.mailFor||[]).map(id=>{ const co=s.companies[id]; return { name:co.name, to:co.to, body:this.buildBody(co), total:co.total, count:co.lines.length }; });
+
+    return {
+      isList: s.view==='list', isWork: s.view==='work',
+      selC1:sel.includes('c1'), selC2:sel.includes('c2'), selC3:sel.includes('c3'), selC4:sel.includes('c4'),
+      c1ChkBg:k1.bg, c1ChkBd:k1.bd, c2ChkBg:k2.bg, c2ChkBd:k2.bd, c3ChkBg:k3.bg, c3ChkBd:k3.bd, c4ChkBg:k4.bg, c4ChkBd:k4.bd,
+      toggleC1:()=>this.toggleCo('c1'), toggleC2:()=>this.toggleCo('c2'), toggleC3:()=>this.toggleCo('c3'), toggleC4:()=>this.toggleCo('c4'),
+      bulkOpen: sel.length>0, selCount2: sel.length, clearSel:()=>this.clearSel(),
+      openMailSel:()=>this.openMail(sel), openMailC1:()=>this.openMail(['c1']), openMailC2:()=>this.openMail(['c2']), openMailC3:()=>this.openMail(['c3']), openMailC4:()=>this.openMail(['c4']),
+      mailOpen: !!s.mailFor, mailList, mailCount:(s.mailFor||[]).length, closeMail:()=>this.closeMail(), sendMail:()=>this.sendMail(),
+      goList:()=>this.goList(), goWork:()=>this.goWork(),
+      selD100:s.sel.D100, selD112:s.sel.D112, selD300:s.sel.D300,
+      d100Bg:c100.bg, d100Bd:c100.bd, d112Bg:c112.bg, d112Bd:c112.bd, d300Bg:c300.bg, d300Bd:c300.bd,
+      toggleD100:()=>this.toggle('D100'), toggleD112:()=>this.toggle('D112'), toggleD300:()=>this.toggle('D300'),
+      selCount:this.selCount(),
+      composeOpen:s.composeOpen, openCompose:()=>this.openCompose(), closeCompose:()=>this.closeCompose(),
+      recipient:s.recipient, onRecipient:(e)=>this.onRecipient(e), onBody:()=>this.onBody(), doSend:()=>this.doSend(),
+      history, historyCount:s.history.length,
+      declOpen:s.declOpen, openDecl:()=>this.openDecl(), closeDecl:()=>this.closeDecl(),
+      selD100f:()=>this.selDeclF('D100'), selD112f:()=>this.selDeclF('D112'), selD300f:()=>this.selDeclF('D300'),
+      f100Bg:f100.bg, f100Bd:f100.bd, f112Bg:f112.bg, f112Bd:f112.bd, f300Bg:f300.bg, f300Bd:f300.bd,
+      declPreviewName:dp.name, declPreviewType:dp.type, declPreviewAmt:dp.amt,
+      notifOpen:!!s.notifFor, notif,
+      openC1:()=>this.openNotif('c1'), openC2:()=>this.openNotif('c2'), openC3:()=>this.openNotif('c3'), openC4:()=>this.openNotif('c4'),
+      closeNotif:()=>this.closeNotif(), stop:(e)=>this.stop(e),
+    };
+  }
+}
+</script>
+</body>
+</html>

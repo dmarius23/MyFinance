@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:#dcdcd9;border-radius:6px;border:2px solid #fff;}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;min-height:560px;background:#fbfbfa;font-family:'Public Sans',sans-serif;color:#18181b;overflow:hidden;">
+
+  <!-- sidebar -->
+  <div style="width:212px;flex:none;background:#fcfcfb;border-right:1px solid #ededeb;padding:16px 12px;display:flex;flex-direction:column;gap:3px;">
+    <div style="display:flex;align-items:center;gap:9px;padding:6px 8px 16px;">
+      <div style="width:27px;height:27px;border-radius:8px;background:#0d9488;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;">M</div>
+      <div style="line-height:1.1;"><div style="font-size:14px;font-weight:700;">MyFinance</div><div style="font-size:11px;color:#a0a0a0;">ContaZone SRL</div></div>
+    </div>
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:0.08em;color:#b3b3b0;text-transform:uppercase;padding:6px 10px 4px;">Workspace</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>Dashboard</div>
+    <div onClick="{{ goList }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:600;color:#0f766e;background:#e9f4f2;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h5l3 3v8H4z" stroke-linejoin="round"/><path d="M9 2.5v3h3"/><path d="M6 9h4M6 11h3"/></svg>Statements &amp; invoices</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="1.6"/><circle cx="11" cy="11" r="1.6"/><path d="M4 12L12 4"/></svg>Taxes &amp; payments</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M2.5 7h11"/></svg>Payroll</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13V8M7 13V4M11 13V10"/></svg>Reports</div>
+    <div style="height:1px;background:#ededeb;margin:10px 8px;"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2.5" width="10" height="11" rx="1.5"/><path d="M5.5 6h5M5.5 8.5h5M5.5 11h3"/></svg>Companies</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#52525b;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5a3.5 3.5 0 00-3.5 3.5c0 3-1.5 4-1.5 4h10s-1.5-1-1.5-4A3.5 3.5 0 008 2.5z"/></svg>Notifications</div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-top:1px solid #ededeb;margin-top:8px;">
+      <div style="width:26px;height:26px;border-radius:50%;background:#0d9488;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;">AP</div>
+      <div style="line-height:1.1;"><div style="font-size:12.5px;font-weight:600;">Alina Pop</div><div style="font-size:11px;color:#a0a0a0;">Accountant</div></div>
+    </div>
+  </div>
+
+  <!-- main -->
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+
+    <!-- topbar -->
+    <div style="height:54px;flex:none;border-bottom:1px solid #ededeb;display:flex;align-items:center;gap:12px;padding:0 20px;background:#fff;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#18181b;font-weight:600;">
+        <span onClick="{{ goList }}" style="cursor:pointer;">Statements &amp; invoices</span>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;gap:8px;border:1px solid #e7e7e5;border-radius:9px;padding:4px 5px;">
+        <div style="width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#9b9b9b;font-size:15px;cursor:pointer;">‹</div>
+        <div style="font-size:13px;font-weight:600;min-width:104px;text-align:center;">February 2026</div>
+        <div style="width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#9b9b9b;font-size:15px;cursor:pointer;">›</div>
+      </div>
+      <span style="font-size:12px;color:#a0a0a0;">RO / <span style="color:#18181b;font-weight:600;">EN</span></span>
+    </div>
+
+    <!-- ============ LIST VIEW ============ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;overflow:auto;padding:22px 24px;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:12.5px;color:#a0a0a0;">Documents uploaded by representatives · February 2026</div>
+          <h2 style="font-size:21px;font-weight:700;margin:3px 0 0;letter-spacing:-0.01em;">Statements &amp; invoices</h2>
+        </div>
+      </div>
+
+      <sc-if value="{{ bulkOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#f4faf9;border:1px solid #cfe6e2;border-radius:10px;padding:9px 14px;margin-bottom:12px;">
+        <span style="font-size:13px;"><b style="color:#0f766e;">{{ selCount }}</b> companies selected</span>
+        <div style="display:flex;gap:8px;"><button onClick="{{ onClearSel }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#52525b;background:#fff;border:1px solid #e2e2e0;border-radius:8px;padding:7px 12px;cursor:pointer;">Clear</button><button style="font-family:inherit;font-size:12.5px;font-weight:600;color:#fff;background:#0d9488;border:none;border-radius:8px;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="M2.5 4.5L8 8.5l5.5-4"/></svg>Send reminder email · {{ selCount }}</button></div>
+      </div>
+      </sc-if>
+
+      <div style="border:1px solid #ededeb;border-radius:11px;overflow:hidden;background:#fff;">
+        <div style="display:grid;grid-template-columns:34px 20px 1.5fr 138px 150px 104px 116px 150px;align-items:center;padding:9px 14px;background:#fafafa;border-bottom:1px solid #ededeb;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9b9b9b;font-weight:600;">
+          <div></div><div></div><div>Company</div><div>Bank statement</div><div>Invoices</div><div>Completeness</div><div>Last sent</div><div style="text-align:right;">Per-company actions</div>
+        </div>
+        <sc-for list="{{ companies }}" as="co" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:34px 20px 1.5fr 138px 150px 104px 116px 150px;align-items:center;padding:12px 14px;border-bottom:1px solid #f4f4f2;background:{{ co.rowBg }};">
+            <div>
+              <sc-if value="{{ co.selected }}" hint-placeholder-val="{{ false }}"><div onClick="{{ co.onToggle }}" style="width:16px;height:16px;border-radius:4px;background:#0d9488;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg></div></sc-if>
+              <sc-if value="{{ co.unselected }}" hint-placeholder-val="{{ true }}"><div onClick="{{ co.onToggle }}" style="width:16px;height:16px;border-radius:4px;border:1.5px solid #d4d4d2;cursor:pointer;"></div></sc-if>
+            </div>
+            <div><span style="width:10px;height:10px;border-radius:50%;background:{{ co.dotColor }};display:inline-block;"></span></div>
+            <div style="min-width:0;"><div style="font-size:13.5px;font-weight:600;">{{ co.name }}</div><div style="font-size:11.5px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">{{ co.cui }} · {{ co.loc }}</div></div>
+            <div>
+              <sc-if value="{{ co.bankHas }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;align-items:center;gap:6px;"><span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;">{{ co.bankCount }}</span><span style="font-size:11px;color:#a0a0a0;">statements</span></span></sc-if>
+              <sc-if value="{{ co.bankMissing }}" hint-placeholder-val="{{ false }}"><span style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;">missing</span></sc-if>
+            </div>
+            <div>
+              <sc-if value="{{ co.hasInv }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex;gap:5px;"><span style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;">{{ co.present }}</span><sc-if value="{{ co.needsInv }}" hint-placeholder-val="{{ false }}"><span style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;border-radius:999px;padding:2px 9px;font-size:11.5px;font-weight:600;">{{ co.needs }} needs doc</span></sc-if></span></sc-if>
+              <sc-if value="{{ co.noInv }}" hint-placeholder-val="{{ false }}"><span style="color:#b8b8b6;">—</span></sc-if>
+            </div>
+            <div><span style="display:inline-flex;align-items:center;gap:6px;background:{{ co.compBg }};color:{{ co.compFg }};border:1px solid {{ co.compBd }};border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;">{{ co.compLabel }}</span></div>
+            <div onClick="{{ co.onRemind }}" style="cursor:pointer;">
+              <sc-if value="{{ co.hasNotif }}" hint-placeholder-val="{{ true }}"><div style="font-size:12px;font-weight:600;color:#3f3f46;">{{ co.lastSentStr }}</div><div style="font-size:10.5px;color:#0d9488;">View log</div></sc-if>
+              <sc-if value="{{ co.noNotif }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:#c4c4c2;">Never sent</span></sc-if>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:6px;">
+              <div onClick="{{ co.onFiles }}" title="Upload a file for this company" style="width:30px;height:30px;border:1px solid #e7e7e5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52525b;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 10.5V4M5.5 6.5L8 4l2.5 2.5"/><path d="M3 10.5v2a1 1 0 001 1h8a1 1 0 001-1v-2"/></svg></div>
+              <div onClick="{{ co.onFiles }}" title="View uploaded files" style="width:30px;height:30px;border:1px solid #e7e7e5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52525b;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg></div>
+              <sc-if value="{{ co.reconEnabled }}" hint-placeholder-val="{{ true }}"><div onClick="{{ co.onReconcile }}" title="Reconcile bank transactions" style="width:30px;height:30px;border:1px solid #cfe6e2;background:#e9f4f2;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#0f766e;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h9l-2.2-2.2M13 10H4l2.2 2.2"/></svg></div></sc-if>
+              <sc-if value="{{ co.reconDisabled }}" hint-placeholder-val="{{ false }}"><div title="Upload a bank statement first" style="width:30px;height:30px;border:1px solid #f0f0ee;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#d4d4d2;cursor:default;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h9l-2.2-2.2M13 10H4l2.2 2.2"/></svg></div></sc-if>
+              <div onClick="{{ co.onRemind }}" title="Notifications — send &amp; view history" style="position:relative;width:30px;height:30px;border:1px solid #e7e7e5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52525b;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg><sc-if value="{{ co.hasNotif }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#0d9488;color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;">{{ co.notifCount }}</span></sc-if></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:13px;font-size:12px;color:#a0a0a0;line-height:1.5;">Per company — <b style="color:#0d9488;">Upload</b> / <b style="color:#0d9488;">Files</b> to manage documents, <b style="color:#0d9488;">Reconcile</b> to match bank transactions (needs a statement), <b style="color:#0d9488;">Remind</b> to email the rep. Try <b style="color:#0d9488;">Reconcile</b> on INNOVATECODE, or <b style="color:#0d9488;">Files</b> on a company with no statement.</div>
+    </div>
+    </sc-if>
+
+    <!-- ============ RECON WORKSPACE ============ -->
+    <sc-if value="{{ isRecon }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+
+      <!-- workspace header -->
+      <div style="flex:none;padding:18px 24px 0;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div onClick="{{ goList }}" style="width:30px;height:30px;border:1px solid #e7e7e5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#71717a;font-size:16px;cursor:pointer;">‹</div>
+            <div>
+              <h2 style="font-size:20px;font-weight:700;margin:0;letter-spacing:-0.01em;">Reconciliation · INNOVATECODE IT SRL</h2>
+              <div style="font-size:12.5px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;margin-top:2px;">CIF 49443957 · Cluj · February 2026</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:9px;">
+            <button onClick="{{ openFiles }}" style="font-family:inherit;font-size:13px;font-weight:600;color:#3f3f46;background:#fff;border:1px solid #e2e2e0;border-radius:9px;padding:8px 13px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg>Files · 7</button>
+            <button style="font-family:inherit;font-size:13px;font-weight:600;color:#fff;background:#0d9488;border:1px solid #0d9488;border-radius:9px;padding:8px 14px;cursor:pointer;">Request from client · {{ missingCount }}</button>
+          </div>
+        </div>
+
+        <!-- statement strip -->
+        <div style="display:flex;align-items:center;gap:18px;margin-top:14px;padding:10px 14px;background:#fff;border:1px solid #ededeb;border-radius:10px;font-size:12.5px;">
+          <span style="font-weight:700;">BRD</span>
+          <span style="color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">…1300</span>
+          <span style="color:#71717a;font-family:'Spline Sans Mono',monospace;">11.063,29 → 11.286,94</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;color:#166534;"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7.3l2.5 2.5L11 4"/></svg>Extracted</span>
+          <span style="color:#a0a0a0;">21 transactions parsed</span>
+          <span style="flex:1;"></span>
+          <span style="color:#b91c1c;font-weight:600;">{{ missingCount }} need a document</span>
+        </div>
+      </div>
+
+      <!-- body: table + rail -->
+      <div style="flex:1;display:flex;min-height:0;gap:16px;padding:16px 24px 22px;">
+
+        <!-- transactions table -->
+        <div style="flex:1;min-width:0;border:1px solid #ededeb;border-radius:12px;background:#fff;display:flex;flex-direction:column;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:62px 1.7fr 110px 1.5fr 132px 132px;align-items:center;padding:9px 16px;background:#fafafa;border-bottom:1px solid #ededeb;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:#9b9b9b;font-weight:600;flex:none;">
+            <div>Date</div><div>Partner</div><div style="text-align:right;">Amount</div><div>Document</div><div>Decided by</div><div style="text-align:center;">Accountant sets</div>
+          </div>
+          <div style="overflow:auto;flex:1;">
+            <sc-for list="{{ txns }}" as="row" hint-placeholder-count="9">
+              <div style="display:grid;grid-template-columns:62px 1.7fr 110px 1.5fr 132px 132px;align-items:center;padding:11px 16px;border-bottom:1px solid #f4f4f2;background:{{ row.rowBg }};">
+                <div style="font-size:12px;font-family:'Spline Sans Mono',monospace;color:#71717a;display:flex;align-items:center;gap:3px;">{{ row.date }}<sc-if value="{{ row.outside }}" hint-placeholder-val="{{ false }}"><span title="Outside the selected period" style="color:#d97706;">⚠</span></sc-if></div>
+                <div style="min-width:0;">
+                  <div style="font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.partner }}</span><span style="flex:none;font-size:9.5px;letter-spacing:0.04em;color:#8a8a86;background:#f1f1ef;border-radius:5px;padding:1px 6px;">{{ row.category }}</span></div>
+                  <div style="font-size:11px;color:#a0a0a0;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.desc }} · <span style="font-family:'Spline Sans Mono',monospace;">{{ row.tail }}</span></div>
+                </div>
+                <div style="text-align:right;font-size:12.5px;font-family:'Spline Sans Mono',monospace;font-variant-numeric:tabular-nums;font-weight:600;color:{{ row.amountColor }};">{{ row.amountStr }}</div>
+
+                <!-- document status -->
+                <div style="font-size:11.5px;padding-right:8px;">
+                  <sc-if value="{{ row.isMatchedFull }}" hint-placeholder-val="{{ false }}">
+                    <sc-for list="{{ row.matched }}" as="m" hint-placeholder-count="1">
+                      <div style="display:flex;align-items:center;gap:5px;color:#166534;margin-bottom:2px;"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg><span style="text-decoration:underline;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ m.file }}</span><span style="font-family:'Spline Sans Mono',monospace;color:#a0a0a0;flex:none;">{{ m.amountStr }}</span><span onClick="{{ m.onUnlink }}" title="Unlink" style="color:#b91c1c;cursor:pointer;flex:none;">✕</span></div>
+                    </sc-for>
+                  </sc-if>
+                  <sc-if value="{{ row.isMatchedPartial }}" hint-placeholder-val="{{ false }}">
+                    <sc-for list="{{ row.matched }}" as="m" hint-placeholder-count="1">
+                      <div style="display:flex;align-items:center;gap:5px;color:#166534;margin-bottom:2px;"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;"><path d="M2.5 6.2l2.2 2.3 4.8-5"/></svg><span style="text-decoration:underline;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ m.file }}</span><span style="font-family:'Spline Sans Mono',monospace;color:#a0a0a0;flex:none;">{{ m.amountStr }}</span><span onClick="{{ m.onUnlink }}" title="Unlink" style="color:#b91c1c;cursor:pointer;flex:none;">✕</span></div>
+                    </sc-for>
+                    <div style="margin-top:2px;color:#b45309;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>⚠ {{ row.remainingStr }} left</span><button onClick="{{ row.onAssociate }}" style="font-family:inherit;font-size:11px;font-weight:600;color:#0f766e;background:#e9f4f2;border:none;border-radius:6px;padding:3px 8px;cursor:pointer;">+ Associate</button></div>
+                  </sc-if>
+                  <sc-if value="{{ row.isNeeds }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:8px;"><span style="color:#b91c1c;font-weight:600;display:flex;align-items:center;gap:4px;"><span style="width:5px;height:5px;border-radius:50%;background:#dc2626;"></span>Needs document</span><button onClick="{{ row.onAssociate }}" style="font-family:inherit;font-size:11px;font-weight:600;color:#fff;background:#0d9488;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;">Associate</button></div>
+                    <div style="color:#b8b8b6;margin-top:2px;">{{ row.reason }}</div>
+                  </sc-if>
+                  <sc-if value="{{ row.isNone }}" hint-placeholder-val="{{ false }}">
+                    <span style="color:#a0a0a0;">Not needed</span>
+                    <div style="color:#c4c4c2;margin-top:2px;">{{ row.reason }}</div>
+                  </sc-if>
+                </div>
+
+                <!-- decided by -->
+                <div style="font-size:11px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;">
+                  <span style="color:#71717a;">{{ row.decidedLabel }}</span>
+                  <sc-if value="{{ row.remembered }}" hint-placeholder-val="{{ false }}"><span style="background:#ede9fe;color:#6d28d9;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:600;">✓ remembered</span></sc-if>
+                </div>
+
+                <!-- accountant sets toggle -->
+                <div style="display:flex;justify-content:center;">
+                  <sc-if value="{{ row.reqActive }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:inline-flex;background:#f8eceb;border:1px solid #f0d8d5;border-radius:8px;padding:2px;gap:2px;">
+                      <span style="font-size:10.5px;padding:4px 9px;border-radius:6px;background:#fff;color:#b91c1c;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,0.08);">Needs</span>
+                      <span onClick="{{ row.onNo }}" style="font-size:10.5px;padding:4px 9px;border-radius:6px;color:#c08a86;cursor:pointer;">No</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ row.noActive }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:inline-flex;background:#eaf5ee;border:1px solid #cde9d6;border-radius:8px;padding:2px;gap:2px;">
+                      <span onClick="{{ row.onNeeds }}" style="font-size:10.5px;padding:4px 9px;border-radius:6px;color:#8bb89a;cursor:pointer;">Needs</span>
+                      <span style="font-size:10.5px;padding:4px 9px;border-radius:6px;background:#fff;color:#166534;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,0.08);">No</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- right rail -->
+        <div style="width:392px;flex:none;display:flex;flex-direction:column;min-height:0;">
+
+          <!-- ASSOCIATE PANEL -->
+          <sc-if value="{{ assocOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid #cfe6e2;border-radius:12px;background:#fff;display:flex;flex-direction:column;min-height:0;flex:1;box-shadow:0 6px 22px rgba(13,148,136,0.08);overflow:hidden;">
+            <div style="padding:13px 15px;border-bottom:1px solid #f0eee7;display:flex;align-items:center;justify-content:space-between;background:#f4faf9;">
+              <div style="font-size:13.5px;font-weight:700;color:#0f766e;">Associate invoice / receipt</div>
+              <div onClick="{{ closeAssoc }}" style="cursor:pointer;color:#9b9b9b;font-size:15px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">✕</div>
+            </div>
+            <div style="padding:13px 15px;border-bottom:1px solid #f4f4f2;">
+              <div style="font-size:11px;color:#a0a0a0;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:5px;">For transaction</div>
+              <div style="font-size:12.5px;font-weight:600;">{{ assoc.date }} · {{ assoc.partner }}</div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:8px;padding:8px 10px;background:#f6f6f5;border-radius:8px;">
+                <span style="font-size:11.5px;color:#71717a;">Remaining to allocate</span>
+                <span style="font-size:15px;font-weight:700;font-family:'Spline Sans Mono',monospace;color:#0f766e;">{{ assoc.remainingStr }} RON</span>
+              </div>
+              <sc-if value="{{ assoc.done }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:12px;color:#166534;font-weight:600;"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7.3l2.5 2.5L11 4"/></svg>Fully allocated — done</div>
+              </sc-if>
+            </div>
+            <div style="padding:11px 15px 8px;">
+              <div style="display:flex;align-items:center;gap:8px;background:#f6f6f5;border:1px solid #eeeeec;border-radius:9px;padding:8px 11px;">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#a0a0a0" stroke-width="1.5"><circle cx="7" cy="7" r="4.2"/><path d="M10.5 10.5L14 14"/></svg>
+                <input value="{{ search }}" onInput="{{ onSearch }}" placeholder="Search by file, supplier or amount" style="border:none;outline:none;background:none;font-family:inherit;font-size:12.5px;flex:1;color:#18181b;" />
+              </div>
+            </div>
+            <div style="overflow:auto;flex:1;padding:0 11px 11px;">
+              <div style="font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#b3b3b0;text-transform:uppercase;padding:6px 4px;">Open invoices · {{ invoiceCount }}</div>
+              <sc-for list="{{ invoices }}" as="inv" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:9px;padding:10px;border-radius:9px;border:1px solid #f0f0ee;margin-bottom:6px;cursor:pointer;" onClick="{{ inv.onPick }}">
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ inv.file }}</span><sc-if value="{{ inv.duplicate }}" hint-placeholder-val="{{ false }}"><span style="flex:none;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:999px;padding:0 6px;font-size:9px;font-weight:700;text-transform:uppercase;">Duplicate</span></sc-if></div>
+                    <div style="font-size:11px;color:#a0a0a0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ inv.supplier }}</div>
+                    <div style="font-size:11px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">{{ inv.date }}</div>
+                  </div>
+                  <div style="text-align:right;flex:none;">
+                    <div style="font-size:12.5px;font-weight:700;font-family:'Spline Sans Mono',monospace;color:{{ inv.amtColor }};">{{ inv.remainingStr }}</div>
+                    <div style="font-size:10px;color:#a0a0a0;">remaining</div>
+                  </div>
+                  <span title="Unpaid" style="flex:none;width:9px;height:9px;border-radius:50%;background:{{ inv.payDot }};"></span>
+                  <div onClick="{{ inv.onPreview }}" title="Preview" style="flex:none;width:26px;height:26px;border:1px solid #e7e7e5;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#71717a;cursor:pointer;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 8S3.5 3.5 8 3.5 14.5 8 14.5 8 12.5 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/></svg></div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noInvoices }}" hint-placeholder-val="{{ false }}">
+                <div style="text-align:center;color:#b8b8b6;font-size:12px;padding:24px 0;">No open invoices left to associate.</div>
+              </sc-if>
+            </div>
+            <div style="padding:11px 15px;border-top:1px solid #f4f4f2;font-size:11px;color:#a0a0a0;line-height:1.4;">Click an invoice to associate it. Linking allocates min(remaining payment, remaining invoice) — associate several to cover one transaction.</div>
+          </div>
+          </sc-if>
+
+          <!-- DEFAULT RAIL: missing + suggestions -->
+          <sc-if value="{{ assocClosed }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;">
+            <div style="border:1px solid #f0dcda;border-radius:12px;background:#fff;overflow:hidden;">
+              <div style="padding:12px 15px;background:#fef6f5;border-bottom:1px solid #f6e3e1;display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:12.5px;font-weight:700;color:#991b1b;">Documents needed from representative</span>
+                <span style="font-size:11px;font-weight:700;color:#fff;background:#dc2626;border-radius:999px;padding:1px 8px;">{{ missingCount }}</span>
+              </div>
+              <sc-for list="{{ missingList }}" as="mm" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 15px;border-bottom:1px solid #f6f3f3;">
+                  <div style="min-width:0;"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ mm.partner }}</div><div style="font-size:10.5px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">{{ mm.date }} · {{ mm.category }}</div></div>
+                  <span style="font-size:12px;font-weight:700;font-family:'Spline Sans Mono',monospace;flex:none;margin-left:10px;">{{ mm.amountStr }}</span>
+                </div>
+              </sc-for>
+              <div style="padding:11px 15px;"><button style="width:100%;font-family:inherit;font-size:12.5px;font-weight:600;color:#fff;background:#0d9488;border:none;border-radius:8px;padding:9px;cursor:pointer;">Send document request</button></div>
+            </div>
+
+            <div style="border:1px solid #e3e8f5;border-radius:12px;background:#fff;overflow:hidden;">
+              <div style="padding:12px 15px;background:#eef2ff;border-bottom:1px solid #dfe5fb;font-size:12.5px;font-weight:700;color:#3730a3;">Suggested matches · 1</div>
+              <div style="padding:12px 15px;">
+                <div style="display:flex;align-items:flex-start;gap:8px;">
+                  <span style="flex:none;background:#3730a3;color:#fff;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:600;margin-top:1px;">EXACT</span>
+                  <div style="font-size:12px;flex:1;line-height:1.4;"><b>04 Feb</b> · BT Leasing · <span style="font-family:'Spline Sans Mono',monospace;">2.869,46</span> ↔ <span style="overflow-wrap:anywhere;">factura_16566201 + 1 more</span></div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:10px;"><button style="flex:1;font-family:inherit;font-size:12px;font-weight:600;color:#fff;background:#3730a3;border:none;border-radius:7px;padding:7px;cursor:pointer;">Apply</button><button style="font-family:inherit;font-size:12px;font-weight:600;color:#52525b;background:#f1f1ef;border:none;border-radius:7px;padding:7px 12px;cursor:pointer;">Dismiss</button></div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <!-- ============ FILES MODAL ============ -->
+  <sc-if value="{{ filesOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeFiles }}" style="position:fixed;inset:0;background:rgba(24,24,27,0.42);display:flex;align-items:center;justify-content:center;z-index:50;padding:32px;">
+    <div onClick="{{ stop }}" style="width:1180px;max-width:96vw;height:88vh;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.3);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #ededeb;">
+        <div><div style="font-size:11px;color:#a0a0a0;">Files uploaded by representatives · February 2026</div><h2 style="font-size:18px;font-weight:700;margin:2px 0 0;">Files · {{ filesName }}</h2></div>
+        <div style="display:flex;gap:9px;align-items:center;">
+          <button style="font-family:inherit;font-size:12.5px;font-weight:600;color:#3f3f46;background:#fff;border:1px solid #e2e2e0;border-radius:9px;padding:7px 12px;cursor:pointer;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 8a5.5 5.5 0 11-1.6-3.9"/><path d="M13.5 2v2.5H11"/></svg>Reclassify</button>
+          <div onClick="{{ closeFiles }}" style="cursor:pointer;color:#71717a;font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #e7e7e5;border-radius:8px;">✕</div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0;">
+        <!-- file list -->
+        <div style="width:460px;flex:none;border-right:1px solid #ededeb;display:flex;flex-direction:column;">
+          <div style="overflow:auto;flex:1;padding:14px;">
+            <sc-if value="{{ filesNoFiles }}" hint-placeholder-val="{{ false }}">
+              <div style="text-align:center;padding:38px 16px;">
+                <div style="width:46px;height:46px;border-radius:12px;background:#f1f1ef;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:#b8b8b6;"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 4.5a1 1 0 011-1h3l1.5 1.5h4.5a1 1 0 011 1V12a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/></svg></div>
+                <div style="font-size:13px;font-weight:600;">No files yet for this company</div>
+                <div style="font-size:12px;color:#a0a0a0;margin-top:4px;line-height:1.5;">The representative hasn’t uploaded anything for February 2026. Drop a bank statement, invoice or receipt below to get started.</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ filesHasFiles }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#b3b3b0;text-transform:uppercase;padding:2px 4px 8px;">Bank statements</div>
+            <sc-for list="{{ bankFiles }}" as="f" hint-placeholder-count="1">
+              <div onClick="{{ f.onSelect }}" style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;margin-bottom:5px;cursor:pointer;border:1px solid {{ f.selBd }};background:{{ f.selBg }};">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ f.file }}</div>
+                  <div style="margin-top:5px;"><span style="font-size:10.5px;color:#3730a3;background:#eef2ff;border:1px solid #dfe5fb;border-radius:6px;padding:2px 7px;">{{ f.type }}</span></div>
+                </div>
+                <div onClick="{{ f.onDelete }}" title="Delete" style="flex:none;width:28px;height:28px;border:1px solid #e7e7e5;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;cursor:pointer;font-size:12px;">✕</div>
+              </div>
+            </sc-for>
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:0.05em;color:#b3b3b0;text-transform:uppercase;padding:14px 4px 8px;border-top:1px solid #ededeb;margin-top:8px;">Invoices &amp; receipts</div>
+            <sc-for list="{{ invFiles }}" as="f" hint-placeholder-count="6">
+              <div onClick="{{ f.onSelect }}" style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;margin-bottom:5px;cursor:pointer;border:1px solid {{ f.selBd }};background:{{ f.selBg }};">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ f.file }}</span><sc-if value="{{ f.duplicate }}" hint-placeholder-val="{{ false }}"><span style="flex:none;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:999px;padding:0 6px;font-size:9px;font-weight:700;text-transform:uppercase;">Duplicate</span></sc-if></div>
+                  <div style="display:flex;align-items:center;gap:7px;margin-top:5px;"><span style="font-size:10.5px;color:#3730a3;background:#eef2ff;border:1px solid #dfe5fb;border-radius:6px;padding:2px 7px;">{{ f.type }}</span><span style="font-size:10.5px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">CIF 49443957</span></div>
+                </div>
+                <div onClick="{{ f.onPayments }}" title="{{ f.payTitle }}" style="flex:none;width:30px;height:28px;border:1px solid {{ f.payBd }};background:{{ f.payBg }};color:{{ f.payFg }};border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="8" cy="4.3" rx="4.5" ry="1.8"/><path d="M3.5 4.3v3.4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V4.3"/><path d="M3.5 7.7v3.4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V7.7"/></svg></div>
+                <div onClick="{{ f.onDelete }}" title="Delete" style="flex:none;width:28px;height:28px;border:1px solid #e7e7e5;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#dc2626;cursor:pointer;font-size:12px;">✕</div>
+              </div>
+            </sc-for>
+            </sc-if>
+          </div>
+          <div style="padding:12px 14px;border-top:1px solid #ededeb;">
+            <div style="border:1.5px dashed #b9ddd7;background:#f6fbfa;border-radius:10px;padding:14px;text-align:center;cursor:pointer;">
+              <div style="display:flex;align-items:center;justify-content:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#0d9488" stroke-width="1.6"><path d="M8 10.5V3.5M5.5 6L8 3.5 10.5 6"/><path d="M3 10.5v2a1 1 0 001 1h8a1 1 0 001-1v-2"/></svg><span style="font-size:12.5px;font-weight:600;color:#0f766e;">Drop files to upload</span></div>
+              <div style="font-size:11px;color:#a0a0a0;margin-top:3px;">or <span style="text-decoration:underline;color:#0f766e;font-weight:600;">browse</span> · PDF, PNG, JPG · auto-extracted on upload</div>
+            </div>
+          </div>
+        </div>
+        <!-- preview -->
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:14px 16px;background:#fafafa;">
+          <div style="font-size:12.5px;font-weight:600;margin-bottom:8px;">{{ previewName }}</div>
+          <sc-if value="{{ filesNoFiles }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;border:1px dashed #d8d8d6;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;text-align:center;color:#b8b8b6;font-size:12.5px;">Select a file to preview — or drop one to upload</div>
+          </sc-if>
+          <sc-if value="{{ filesHasFiles }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;border:1px solid #e2e2e0;border-radius:10px;background:#fff;overflow:hidden;display:flex;flex-direction:column;">
+            <div style="height:38px;flex:none;background:#525659;display:flex;align-items:center;gap:10px;padding:0 14px;color:#cfcfcf;font-size:11px;font-family:'Spline Sans Mono',monospace;"><span>{{ previewName }}</span><span style="flex:1;"></span><span>1 / 1 · 100%</span></div>
+            <div style="flex:1;background:repeating-linear-gradient(135deg,#f4f4f3,#f4f4f3 11px,#efefee 11px,#efefee 22px);display:flex;align-items:center;justify-content:center;">
+              <div style="width:74%;max-width:560px;background:#fff;border:1px solid #e6e6e4;box-shadow:0 4px 16px rgba(0,0,0,0.06);padding:30px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #18181b;padding-bottom:12px;margin-bottom:14px;"><div style="font-size:17px;font-weight:800;letter-spacing:0.02em;">BT Leasing</div><div style="font-size:10px;font-family:'Spline Sans Mono',monospace;color:#a0a0a0;text-align:right;">FACTURA<br/>BTLE.3844891</div></div>
+                <div style="display:flex;flex-direction:column;gap:7px;">
+                  <div style="height:8px;width:62%;background:#ececeb;border-radius:2px;"></div>
+                  <div style="height:8px;width:48%;background:#ececeb;border-radius:2px;"></div>
+                  <div style="height:8px;width:70%;background:#f1f1f0;border-radius:2px;"></div>
+                </div>
+                <div style="margin-top:18px;border:1px solid #ececeb;border-radius:4px;overflow:hidden;">
+                  <div style="display:flex;background:#f6f6f5;font-size:9.5px;color:#a0a0a0;padding:6px 10px;font-family:'Spline Sans Mono',monospace;"><span style="flex:1;">Denumire</span><span style="width:80px;text-align:right;">Valoare</span><span style="width:70px;text-align:right;">TVA</span></div>
+                  <div style="display:flex;padding:8px 10px;border-top:1px solid #f1f1f0;font-size:11px;"><span style="flex:1;color:#71717a;">Rată principal ctr. 53017C1</span><span style="width:80px;text-align:right;font-family:'Spline Sans Mono',monospace;">2.327,83</span><span style="width:70px;text-align:right;font-family:'Spline Sans Mono',monospace;">488,84</span></div>
+                  <div style="display:flex;padding:8px 10px;border-top:1px solid #f1f1f0;font-size:11px;"><span style="flex:1;color:#71717a;">Servicii logistică 53017C1</span><span style="width:80px;text-align:right;font-family:'Spline Sans Mono',monospace;">500,00</span><span style="width:70px;text-align:right;font-family:'Spline Sans Mono',monospace;">105,00</span></div>
+                </div>
+                <div style="margin-top:14px;text-align:center;font-size:9px;color:#c4c4c2;font-family:'Spline Sans Mono',monospace;">— rendered document preview —</div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ PAYMENTS MODAL ============ -->
+  <sc-if value="{{ paymentsOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closePayments }}" style="position:fixed;inset:0;background:rgba(24,24,27,0.42);display:flex;align-items:center;justify-content:center;z-index:60;padding:32px;">
+    <div onClick="{{ stop }}" style="width:560px;max-width:94vw;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.3);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #ededeb;">
+        <h2 style="font-size:16px;font-weight:700;margin:0;">Payments</h2>
+        <div onClick="{{ closePayments }}" style="cursor:pointer;color:#71717a;font-size:16px;">✕</div>
+      </div>
+      <div style="padding:16px 18px;">
+        <div style="background:#fafafa;border:1px solid #ededeb;border-radius:10px;padding:13px;">
+          <div style="font-size:13px;font-weight:600;">{{ pay.file }}</div>
+          <div style="font-size:11.5px;color:#a0a0a0;margin-top:2px;">{{ pay.supplier }} · {{ pay.date }}</div>
+          <div style="display:flex;gap:18px;margin-top:11px;align-items:center;font-size:12.5px;flex-wrap:wrap;">
+            <span>Total <b style="font-family:'Spline Sans Mono',monospace;">{{ pay.total }}</b></span>
+            <span>Paid <b style="font-family:'Spline Sans Mono',monospace;">{{ pay.paid }}</b></span>
+            <span>Remaining <b style="font-family:'Spline Sans Mono',monospace;">{{ pay.remaining }}</b></span>
+            <span style="background:{{ pay.statusBg }};color:{{ pay.statusFg }};border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;">{{ pay.statusLabel }}</span>
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <sc-for list="{{ pay.rows }}" as="p" hint-placeholder-count="1">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 4px;border-bottom:1px solid #f1f1f0;">
+              <div><div style="font-size:12.5px;font-weight:600;">{{ p.partner }}</div><div style="font-size:11px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">{{ p.date }}</div></div>
+              <div style="display:flex;align-items:center;gap:10px;"><b style="font-size:12.5px;font-family:'Spline Sans Mono',monospace;">{{ p.amount }} RON</b><span style="color:#b91c1c;cursor:pointer;">✕</span></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px;"><button style="font-family:inherit;font-size:12.5px;font-weight:600;color:#fff;background:#0d9488;border:none;border-radius:9px;padding:8px 14px;cursor:pointer;">+ Add payment</button></div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ NOTIFICATIONS MODAL ============ -->
+  <sc-if value="{{ notifOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeNotif }}" style="position:fixed;inset:0;background:rgba(24,24,27,0.42);display:flex;align-items:center;justify-content:center;z-index:60;padding:32px;">
+    <div onClick="{{ stop }}" style="width:580px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,0.3);overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #ededeb;">
+        <div><div style="font-size:11px;color:#a0a0a0;">Notifications sent</div><h2 style="font-size:17px;font-weight:700;margin:2px 0 0;">{{ notif.name }}</h2><div style="font-size:12px;color:#71717a;margin-top:2px;">{{ notif.count }} sent · to {{ notif.email }}</div></div>
+        <div onClick="{{ closeNotif }}" style="cursor:pointer;color:#71717a;font-size:18px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #e7e7e5;border-radius:8px;">✕</div>
+      </div>
+
+      <!-- send bar: channels -->
+      <div style="padding:14px 20px;border-bottom:1px solid #f4f4f2;background:#fbfbfa;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;color:#b3b3b0;text-transform:uppercase;margin-bottom:8px;">Send a new notification</div>
+        <div style="display:flex;gap:9px;align-items:center;">
+          <button onClick="{{ notif.onSendEmail }}" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#fff;background:#0d9488;border:none;border-radius:9px;padding:9px 14px;cursor:pointer;display:flex;align-items:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg>Send email now</button>
+          <div title="WhatsApp — coming soon" style="font-family:inherit;font-size:12.5px;font-weight:600;color:#a0a0a0;background:#f4f4f3;border:1px dashed #d8d8d6;border-radius:9px;padding:9px 14px;cursor:not-allowed;display:flex;align-items:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5a5.5 5.5 0 00-4.7 8.3L2.5 13.5l2.8-.8A5.5 5.5 0 108 2.5z"/></svg>WhatsApp<span style="font-size:9.5px;font-weight:700;background:#ede9fe;color:#6d28d9;border-radius:5px;padding:1px 5px;">SOON</span></div>
+        </div>
+      </div>
+
+      <!-- history timeline -->
+      <div style="overflow:auto;flex:1;padding:8px 20px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;color:#b3b3b0;text-transform:uppercase;padding:10px 0 4px;">History</div>
+        <sc-if value="{{ notif.emptyLog }}" hint-placeholder-val="{{ false }}">
+          <div style="text-align:center;padding:30px 16px;color:#b8b8b6;font-size:12.5px;">No notifications sent yet. Use <b style="color:#0d9488;">Send email now</b> above to send the first reminder.</div>
+        </sc-if>
+        <sc-if value="{{ notif.hasLog }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ notif.log }}" as="n" hint-placeholder-count="3">
+          <div style="display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #f4f4f2;">
+            <div style="display:flex;flex-direction:column;align-items:center;flex:none;padding-top:2px;">
+              <sc-if value="{{ n.isEmail }}" hint-placeholder-val="{{ true }}"><div style="width:30px;height:30px;border-radius:8px;background:#e9f4f2;color:#0f766e;display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M3 5l5 3.5L13 5"/></svg></div></sc-if>
+              <sc-if value="{{ n.isWhatsapp }}" hint-placeholder-val="{{ false }}"><div style="width:30px;height:30px;border-radius:8px;background:#dcfce7;color:#15803d;display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5a5.5 5.5 0 00-4.7 8.3L2.5 13.5l2.8-.8A5.5 5.5 0 108 2.5z"/></svg></div></sc-if>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:12.5px;font-weight:600;">{{ n.subject }}</span>
+                <sc-if value="{{ n.justNow }}" hint-placeholder-val="{{ false }}"><span style="font-size:9.5px;font-weight:700;background:#dcfce7;color:#166534;border-radius:5px;padding:1px 6px;">JUST NOW</span></sc-if>
+              </div>
+              <div style="font-size:11.5px;color:#a0a0a0;margin-top:2px;">{{ n.channelLabel }} · to <span style="font-family:'Spline Sans Mono',monospace;">{{ n.to }}</span></div>
+            </div>
+            <div style="text-align:right;flex:none;">
+              <div style="font-size:12px;font-weight:600;font-family:'Spline Sans Mono',monospace;">{{ n.dateStr }}</div>
+              <div style="font-size:11px;color:#a0a0a0;font-family:'Spline Sans Mono',monospace;">{{ n.time }}</div>
+              <span style="display:inline-block;margin-top:4px;font-size:10px;font-weight:600;background:{{ n.statusBg }};color:{{ n.statusFg }};border-radius:5px;padding:1px 7px;">{{ n.statusLabel }}</span>
+            </div>
+          </div>
+        </sc-for>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    view: 'list',
+    filesFor: null,
+    selectedCos: ['c1','c2'],
+    paymentsFor: null,
+    assocTxn: 't10',
+    search: '',
+    selFile: 'CASCO',
+    txns: [
+      { id:'t1', date:'24 Feb', partner:'DI Marius-Florin Dragomir', desc:'Salariu luna ianuarie', tail:'…1300', amount:-4250.00, category:'PAYROLL', reason:'Payroll · covered by D112', decidedBy:'base', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t2', date:'24 Feb', partner:'Trezoreria Cluj-Napoca', desc:'CAM luna ianuarie 2026', tail:'…TREZ', amount:-186.00, category:'TAX', reason:'Tax · covered by declaration', decidedBy:'learned', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t3', date:'24 Feb', partner:'Trezoreria Cluj-Napoca', desc:'Contribuții sociale ianuarie', tail:'…TREZ', amount:-1240.00, category:'TAX', reason:'Tax · covered by declaration', decidedBy:'base', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t4', date:'19 Feb', partner:'CYC3DESIGN SRL', desc:'Servicii design', tail:'…1355', amount:-400.00, category:'SUPPLIER', reason:'Supplier purchase · invoice required', decidedBy:'base', requiresDoc:true, matched:[], remaining:400.00 },
+      { id:'t5', date:'13 Feb', partner:'Arobis Services Limited', desc:'04260W74GNO', tail:'…4012', amount:-128.40, category:'FEE', reason:'Bank fee · no document', decidedBy:'base', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t6', date:'11 Feb', partner:'Innovatecode IT SRL', desc:'Transfer între conturi proprii', tail:'…1300', amount:5000.00, category:'TRANSFER', reason:'Own transfer · no document', decidedBy:'learned', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t7', date:'10 Feb', partner:'Municipiul Cluj-Napoca', desc:'Taxă · card', tail:'…7755', amount:-226.00, category:'SUPPLIER', reason:'Supplier purchase · invoice required', decidedBy:'base', requiresDoc:true, matched:[], remaining:226.00 },
+      { id:'t8', date:'09 Feb', partner:'BT Leasing Transilvania IFN SA', desc:'TVA pt rată leasing', tail:'…86XX', amount:-602.58, category:'LEASING', reason:'Leasing invoice / schedule required', decidedBy:'base', requiresDoc:true, matched:[], remaining:602.58 },
+      { id:'t9', date:'07 Feb', partner:'Dragomiroiu Marius', desc:'Card', tail:'…7755', amount:-10.00, category:'FEE', reason:'Set by accountant · learned rule saved', decidedBy:'accountant', requiresDoc:false, matched:[], remaining:0 },
+      { id:'t10', date:'04 Feb', partner:'BT Leasing Transilvania IFN SA', desc:'Rată leasing luna Feb 2026', tail:'…86XX', amount:-2869.46, category:'LEASING', reason:'Leasing invoice / schedule required', decidedBy:'base', requiresDoc:true, matched:[], remaining:2869.46 },
+      { id:'t11', date:'04 Feb', partner:'BT Leasing Transilvania IFN SA', desc:'CASCO - 2026', tail:'…86XX', amount:-7318.86, category:'SUPPLIER', reason:'Supplier purchase · invoice required', decidedBy:'base', requiresDoc:true, matched:[{file:'INNOVATECODE_IT-CASCO-2026.pdf', amount:7318.86}], remaining:0 },
+      { id:'t12', date:'02 Feb', partner:'Creative Ricaccount SRL', desc:'Servicii contabile ianuarie', tail:'…6023', amount:-605.00, category:'SUPPLIER', reason:'Supplier purchase · invoice required', decidedBy:'base', requiresDoc:true, matched:[], remaining:605.00 },
+      { id:'t13', date:'05 Jan', partner:'Creative Ricaccount SRL', desc:'Servicii contabile decembrie', tail:'…6023', amount:-605.00, category:'SUPPLIER', reason:'Supplier purchase · invoice required', decidedBy:'base', requiresDoc:true, matched:[], remaining:605.00, outside:true },
+    ],
+    invoices: [
+      { id:'i1', file:'factura_16566201_Comosion Contract Leasing.pdf', supplier:'BT Leasing Transilvania IFN SA', date:'2025-12-30', remaining:2044.59, duplicate:false, pay:'unpaid' },
+      { id:'i2', file:'F4223647-03.2026.pdf', supplier:'BT Leasing Transilvania IFN SA', date:'2026-04-03', remaining:3485.18, duplicate:false, pay:'unpaid' },
+      { id:'i3', file:'INNOVATECODE_IT_rata leasing Jan2026.pdf', supplier:'BT Leasing Transilvania IFN SA', date:'2026-01-08', remaining:4070.97, duplicate:true, pay:'unpaid' },
+    ],
+    files: [
+      { id:'b1', file:'1781021396109.pdf', kind:'bank', type:'Bank statement' },
+      { id:'f1', file:'INNOVATECODE_IT_rata leasing Jan2026.pdf', kind:'inv', type:'Invoice', duplicate:true, pay:'unpaid' },
+      { id:'f2', file:'F4223647-03.2026.pdf', kind:'inv', type:'Invoice', pay:'unpaid' },
+      { id:'f3', file:'INNOVATECODE_IT-CASCO-2026.pdf', kind:'inv', type:'Invoice', pay:'paid', sel:true },
+      { id:'f4', file:'factura_16762360_RCA.pdf', kind:'inv', type:'Invoice', pay:'paid' },
+      { id:'f5', file:'factura_16566201_Comosion Contract Leasing.pdf', kind:'inv', type:'Invoice', pay:'unpaid' },
+      { id:'f6', file:'factura_16734545-Rata 01.2026 Contract Leasing.pdf', kind:'inv', type:'Invoice', duplicate:true, pay:'paid' },
+    ],
+    companies: [
+      { id:'c1', name:'Client Unu SRL', cui:'RO22223333', loc:'Cluj-Napoca', email:'contact@clientunu.ro', dot:'red', hasBank:false, bankCount:0, present:0, needs:0, complete:'missing', hasFiles:false,
+        notifications:[
+          { channel:'email', to:'contact@clientunu.ro', subject:'Lipsă extras de cont — februarie 2026', date:'2026-03-09', time:'09:14', status:'opened' },
+          { channel:'email', to:'contact@clientunu.ro', subject:'Reamintire: documente februarie', date:'2026-03-04', time:'08:30', status:'delivered' },
+        ] },
+      { id:'c2', name:'Client Doi SRL', cui:'RO44445555', loc:'București', email:'office@clientdoi.ro', dot:'red', hasBank:false, bankCount:0, present:0, needs:0, complete:'missing', hasFiles:false,
+        notifications:[
+          { channel:'email', to:'office@clientdoi.ro', subject:'Lipsă extras de cont — februarie 2026', date:'2026-03-06', time:'11:02', status:'delivered' },
+        ] },
+      { id:'c3', name:'INNOVATECODE IT SRL', cui:'49443957', loc:'Cluj', email:'razvan@innovatecode.ro', dot:'orange', hasBank:true, bankCount:2, present:6, needs:5, complete:'partial', hasFiles:true, recon:true,
+        notifications:[
+          { channel:'email', to:'razvan@innovatecode.ro', subject:'5 documente lipsă pentru reconciliere', date:'2026-03-10', time:'16:45', status:'opened' },
+          { channel:'email', to:'razvan@innovatecode.ro', subject:'Reamintire documente februarie', date:'2026-03-05', time:'10:12', status:'opened' },
+          { channel:'email', to:'razvan@innovatecode.ro', subject:'Solicitare extrase februarie', date:'2026-02-28', time:'09:00', status:'delivered' },
+        ] },
+      { id:'c4', name:'Lumina Verde SRL', cui:'RO39112764', loc:'Cluj', email:'contabilitate@luminaverde.ro', dot:'green', hasBank:true, bankCount:1, present:12, needs:0, complete:'complete', hasFiles:true,
+        notifications:[] },
+    ],
+    notifFor: null,
+    today: '2026-06-20',
+  };
+
+  fmt(n){ return Number(n).toLocaleString('ro-RO', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+  r2(n){ return Math.round(n*100)/100; }
+
+  goList(){ this.setState({ view:'list', assocTxn:null, filesFor:null }); }
+  goRecon(){ this.setState({ view:'recon' }); }
+  openAssociate(id){ this.setState({ assocTxn:id, search:'' }); }
+  closeAssoc(){ this.setState({ assocTxn:null }); }
+  onSearch(e){ this.setState({ search:e.target.value }); }
+  setReq(id, val){ this.setState(s=>({ txns: s.txns.map(t=> t.id===id ? { ...t, requiresDoc:val, decidedBy:'accountant' } : t) })); }
+  unmatch(id, idx){ this.setState(s=>({ txns: s.txns.map(t=>{ if(t.id!==id) return t; const m=[...t.matched]; const rm=m.splice(idx,1)[0]; return { ...t, matched:m, remaining:this.r2(t.remaining + rm.amount) }; }) })); }
+  associate(invId){
+    this.setState(s=>{
+      const t = s.txns.find(x=>x.id===s.assocTxn); if(!t) return {};
+      const inv = s.invoices.find(x=>x.id===invId); if(!inv || t.remaining<=0.01) return {};
+      const alloc = this.r2(Math.min(t.remaining, inv.remaining));
+      const txns = s.txns.map(x=> x.id===t.id ? { ...x, matched:[...x.matched, { file:inv.file, amount:alloc }], remaining:this.r2(x.remaining - alloc) } : x);
+      const invoices = s.invoices
+        .map(x=> x.id===inv.id ? { ...x, remaining:this.r2(x.remaining - alloc) } : x)
+        .filter(x=> x.remaining > 0.01);
+      return { txns, invoices };
+    });
+  }
+  openFiles(){ this.setState({ filesFor:{ name:'INNOVATECODE IT SRL', hasFiles:true } }); }
+  openFilesFor(name, hasFiles){ this.setState({ filesFor:{ name, hasFiles } }); }
+  closeFiles(){ this.setState({ filesFor:null }); }
+  toggleCo(id){ this.setState(s=>({ selectedCos: s.selectedCos.includes(id) ? s.selectedCos.filter(x=>x!==id) : [...s.selectedCos, id] })); }
+  clearSel(){ this.setState({ selectedCos:[] }); }
+  selectFile(id){ this.setState({ selFile:id }); }
+  openPayments(id){ this.setState({ paymentsFor:id }); }
+  closePayments(){ this.setState({ paymentsFor:null }); }
+  openNotif(id){ this.setState({ notifFor:id }); }
+  closeNotif(){ this.setState({ notifFor:null }); }
+  sendNotif(id, channel){
+    const c = this.state.companies.find(x=>x.id===id);
+    const to = channel==='whatsapp' ? (c.phone || '+40 7xx xxx xxx') : c.email;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0'), mm = String(now.getMinutes()).padStart(2,'0');
+    const entry = { channel, to, subject: channel==='whatsapp' ? 'Mesaj WhatsApp — documente lipsă' : 'Reamintire: documente lipsă februarie 2026', date: this.state.today, time:`${hh}:${mm}`, status:'sent', justNow:true };
+    this.setState(s=>({ companies: s.companies.map(x=> x.id===id ? { ...x, notifications:[entry, ...x.notifications] } : x) }));
+  }
+  stop(e){ e.stopPropagation(); }
+
+  payDot(p){ return p==='paid' ? '#16a34a' : p==='partial' ? '#d97706' : '#dc2626'; }
+  payBox(p){ return p==='paid' ? {bg:'#dcfce7',bd:'#16a34a',fg:'#166534'} : p==='partial' ? {bg:'#fef3c7',bd:'#d97706',fg:'#92400e'} : {bg:'#fee2e2',bd:'#dc2626',fg:'#991b1b'}; }
+
+  renderVals(){
+    const s = this.state;
+    const txns = s.txns.map(t=>{
+      const isMatchedFull = t.matched.length>0 && t.remaining<=0.01;
+      const isMatchedPartial = t.matched.length>0 && t.remaining>0.01;
+      const isNeeds = t.requiresDoc && t.matched.length===0;
+      const isNone = !t.requiresDoc && t.matched.length===0;
+      return {
+        id:t.id, date:t.date, partner:t.partner, desc:t.desc, tail:t.tail, category:t.category, reason:t.reason,
+        outside: !!t.outside,
+        amountStr: (t.amount<0?'−':'+') + this.fmt(Math.abs(t.amount)),
+        amountColor: t.amount<0 ? '#18181b' : '#15803d',
+        isMatchedFull, isMatchedPartial, isNeeds, isNone,
+        remembered: t.decidedBy==='learned' || t.decidedBy==='accountant',
+        decidedLabel: t.decidedBy==='base' ? 'Base rule' : t.decidedBy==='learned' ? 'Learned' : 'Accountant',
+        rowBg: t.id===s.assocTxn ? '#f4faf9' : (isNeeds ? '#fefaf9' : '#ffffff'),
+        remainingStr: this.fmt(t.remaining),
+        reqActive: t.requiresDoc, noActive: !t.requiresDoc,
+        matched: t.matched.map((m,idx)=>({ file:m.file, amountStr:this.fmt(m.amount), onUnlink:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); this.unmatch(t.id, idx); } })),
+        onAssociate:()=>this.openAssociate(t.id),
+        onNeeds:()=>this.setReq(t.id, true),
+        onNo:()=>this.setReq(t.id, false),
+      };
+    });
+
+    const missingRaw = s.txns.filter(t=> t.requiresDoc && t.matched.length===0 && t.remaining>0.01);
+    const missingList = missingRaw.map(t=>({ partner:t.partner, date:t.date+' 2026', category:t.category, amountStr:this.fmt(Math.abs(t.amount)) }));
+
+    const assocT = s.txns.find(t=>t.id===s.assocTxn);
+    const assoc = assocT ? { date:assocT.date, partner:assocT.partner, remainingStr:this.fmt(assocT.remaining), done: assocT.remaining<=0.01 } : { date:'', partner:'', remainingStr:'0,00', done:false };
+
+    const needle = s.search.trim().toLowerCase();
+    const invoices = s.invoices
+      .filter(inv=> !needle || (inv.file+' '+inv.supplier+' '+inv.remaining).toLowerCase().includes(needle))
+      .map(inv=>{
+        const exact = assocT && Math.abs(inv.remaining - assocT.remaining) < 0.01;
+        return { file:inv.file, supplier:inv.supplier, date:inv.date, duplicate:!!inv.duplicate,
+          remainingStr:this.fmt(inv.remaining)+(exact?' ✓':''), amtColor: exact ? '#15803d' : '#18181b',
+          payDot:this.payDot(inv.pay), onPick:()=>this.associate(inv.id), onPreview:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); } };
+      });
+
+    const decorateFile = (f)=>{ const pb=this.payBox(f.pay); const selected=s.selFile===f.id || (s.selFile==='CASCO'&&f.id==='f3');
+      return { file:f.file, type:f.type, duplicate:!!f.duplicate,
+        selBg: selected ? '#f4faf9' : 'transparent', selBd: selected ? '#cfe6e2' : 'transparent',
+        payBg:pb.bg, payBd:pb.bd, payFg:pb.fg, payTitle: f.pay==='paid'?'Paid in full':f.pay==='partial'?'Partially paid':'Unpaid',
+        onSelect:()=>this.selectFile(f.id), onDelete:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); },
+        onPayments:(e)=>{ e&&e.stopPropagation&&e.stopPropagation(); this.openPayments(f.id); } };
+    };
+    const bankFiles = s.files.filter(f=>f.kind==='bank').map(decorateFile);
+    const invFiles = s.files.filter(f=>f.kind==='inv').map(decorateFile);
+    const selectedFile = s.files.find(f=> s.selFile===f.id) || s.files.find(f=>f.id==='f3');
+    const previewName = selectedFile ? selectedFile.file : '—';
+
+    const pf = s.files.find(f=>f.id===s.paymentsFor);
+    const pay = pf ? (pf.pay==='paid'
+      ? { file:pf.file, supplier:'BT Leasing Transilvania IFN SA', date:'2026-02-04', total:'7.318,86', paid:'7.318,86', remaining:'0,00', statusLabel:'Paid in full', statusBg:'#dcfce7', statusFg:'#166534', rows:[{ partner:'BT Leasing Transilvania IFN SA', date:'2026-02-04', amount:'7.318,86' }] }
+      : { file:pf.file, supplier:'BT Leasing Transilvania IFN SA', date:'2026-01-08', total:'2.044,59', paid:'0,00', remaining:'2.044,59', statusLabel:'Unpaid', statusBg:'#fee2e2', statusFg:'#991b1b', rows:[] })
+      : { file:'', supplier:'', date:'', total:'', paid:'', remaining:'', statusLabel:'', statusBg:'#eee', statusFg:'#555', rows:[] };
+
+    const dotColor = { red:'#dc2626', orange:'#fb923c', green:'#16a34a' };
+    const compMeta = { missing:{label:'No statement',bg:'#fee2e2',fg:'#991b1b',bd:'#fecaca'}, partial:{label:'Partial',bg:'#fef3c7',fg:'#92400e',bd:'#fde68a'}, complete:{label:'Complete',bg:'#dcfce7',fg:'#166534',bd:'#bbf7d0'} };
+    const fmtDate = (d)=>{ const [y,m,dd]=d.split('-'); const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m,10)-1]; return `${parseInt(dd,10)} ${mo}`; };
+    const companies = s.companies.map(c=>{
+      const cm = compMeta[c.complete];
+      const sel = s.selectedCos.includes(c.id);
+      const nc = c.notifications.length;
+      const last = nc>0 ? c.notifications[0] : null;
+      return {
+        name:c.name, cui:c.cui, loc:c.loc, dotColor:dotColor[c.dot],
+        bankHas:c.hasBank, bankMissing:!c.hasBank, bankCount:c.bankCount,
+        hasInv:c.present>0, needsInv:c.needs>0, noInv:(c.present===0 && c.needs===0), present:c.present, needs:c.needs,
+        compLabel:cm.label, compBg:cm.bg, compFg:cm.fg, compBd:cm.bd,
+        reconEnabled:c.hasBank, reconDisabled:!c.hasBank,
+        selected:sel, unselected:!sel, rowBg: sel ? '#f4faf9' : '#ffffff',
+        hasNotif: nc>0, noNotif: nc===0, notifCount:nc,
+        lastSentStr: last ? `${fmtDate(last.date)} · ${nc}×` : 'Never',
+        onToggle:()=>this.toggleCo(c.id),
+        onFiles:()=>this.openFilesFor(c.name, c.hasFiles),
+        onReconcile: c.hasBank ? (()=>this.goRecon()) : (()=>{}),
+        onRemind:()=>this.openNotif(c.id),
+      };
+    });
+    const selCount = s.selectedCos.length;
+    const statusMeta = { sent:{label:'Sent',bg:'#e0e7ff',fg:'#3730a3'}, delivered:{label:'Delivered',bg:'#dcfce7',fg:'#166534'}, opened:{label:'Opened',bg:'#e9f4f2',fg:'#0f766e'}, bounced:{label:'Bounced',bg:'#fee2e2',fg:'#991b1b'} };
+    const channelMeta = { email:{label:'Email'}, whatsapp:{label:'WhatsApp'} };
+    const nco = s.companies.find(c=>c.id===s.notifFor);
+    const notif = nco ? {
+      name:nco.name, email:nco.email, count:nco.notifications.length, hasLog:nco.notifications.length>0, emptyLog:nco.notifications.length===0,
+      log: nco.notifications.map((n,i)=>{
+        const sm = statusMeta[n.status]||statusMeta.sent;
+        return { channel:n.channel, channelLabel:(channelMeta[n.channel]||{}).label||n.channel, isEmail:n.channel==='email', isWhatsapp:n.channel==='whatsapp',
+          to:n.to, subject:n.subject, dateStr:fmtDate(n.date)+' 2026', time:n.time,
+          statusLabel:sm.label, statusBg:sm.bg, statusFg:sm.fg, justNow:!!n.justNow, isLast:i===0 };
+      }),
+      onSendEmail:()=>this.sendNotif(nco.id,'email'),
+    } : { name:'', email:'', count:0, hasLog:false, emptyLog:true, log:[], onSendEmail:()=>{} };
+
+    return {
+      isList: s.view==='list', isRecon: s.view==='recon',
+      companies, selCount, bulkOpen: selCount>0, onClearSel:()=>this.clearSel(),
+      filesName: s.filesFor ? s.filesFor.name : '', filesHasFiles: s.filesFor ? !!s.filesFor.hasFiles : false, filesNoFiles: s.filesFor ? !s.filesFor.hasFiles : false,
+      txns, missingList, missingCount: missingRaw.length,
+      assocOpen: !!s.assocTxn, assocClosed: !s.assocTxn, assoc,
+      invoices, invoiceCount: invoices.length, noInvoices: invoices.length===0, search:s.search,
+      filesOpen: !!s.filesFor, bankFiles, invFiles, previewName,
+      openFilesFor:(n,h)=>this.openFilesFor(n,h),
+      paymentsOpen: !!s.paymentsFor, pay,
+      notifOpen: !!s.notifFor, notif,
+      openNotif:(id)=>this.openNotif(id), closeNotif:()=>this.closeNotif(),
+      goList:()=>this.goList(), goRecon:()=>this.goRecon(),
+      openFiles:()=>this.openFiles(), closeFiles:()=>this.closeFiles(),
+      closeAssoc:()=>this.closeAssoc(), onSearch:(e)=>this.onSearch(e),
+      closePayments:()=>this.closePayments(), stop:(e)=>this.stop(e),
+    };
+  }
+}
+</script>
+</body>
+</html>

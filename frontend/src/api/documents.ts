@@ -56,3 +56,34 @@ export const documentsSummaryApi = {
   summary: (period: string) =>
     api<CompanyDocSummary[]>(`/api/v1/documents/summary?period=${period}`),
 };
+
+/** Per-company "last reminder sent" for a period (Statements list column). */
+export interface ReminderRow {
+  companyId: string;
+  lastSentAt: string | null;
+  count: number;
+}
+
+/** One reminder send (notification log + resend). */
+export interface ReminderView {
+  id: string;
+  recipient: string | null;
+  status: "SENT" | "FAILED";
+  sentAt: string;
+  body: string;
+}
+
+export const remindersApi = {
+  /** Per-company last-sent + count for the period. */
+  list: (period: string) =>
+    api<ReminderRow[]>(`/api/v1/document-reminders?period=${period}`),
+  /** Full send history for one company + period (newest first). */
+  history: (companyId: string, period: string) =>
+    api<ReminderView[]>(`/api/v1/companies/${companyId}/document-reminders?period=${period}`),
+  /** Record + dispatch one reminder. */
+  send: (companyId: string, input: { period: string; recipient: string; body: string }) =>
+    api<ReminderView>(`/api/v1/companies/${companyId}/document-reminders`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+};
