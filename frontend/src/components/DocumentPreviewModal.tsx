@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { documentsApi } from "../api/documents";
 
 const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 75,
 };
 

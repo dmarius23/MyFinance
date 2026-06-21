@@ -5,7 +5,7 @@ import { invoicesApi, type BankTransaction, type OpenInvoice } from "../api/bank
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
 
 const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 60,
 };
 const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

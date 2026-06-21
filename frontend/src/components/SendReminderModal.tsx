@@ -4,7 +4,7 @@ import { useQueries } from "@tanstack/react-query";
 import { bankApi, type BankTransaction } from "../api/bank";
 
 const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 60,
 };
 
