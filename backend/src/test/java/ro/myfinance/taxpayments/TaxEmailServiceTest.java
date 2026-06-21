@@ -27,12 +27,16 @@ class TaxEmailServiceTest {
     private final TaxPaymentService payments = mock(TaxPaymentService.class);
     private final TaxEmailRepository repo = mock(TaxEmailRepository.class);
     private final EmailSender sender = mock(EmailSender.class);
-    private final TaxEmailService service = new TaxEmailService(payments, repo, sender);
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
+            mock(ro.myfinance.access.application.EmailEnvelopeService.class);
+    private final TaxEmailService service = new TaxEmailService(payments, repo, sender, envelopes);
 
     @BeforeEach
     void bindTenant() {
         TenantContext.set(new TenantContext.Identity(UUID.randomUUID(), UUID.randomUUID(), Role.TENANT_ADMIN, null));
         when(repo.save(any(TaxEmail.class))).thenAnswer(i -> i.getArgument(0));
+        when(envelopes.resolve(any(), any())).thenAnswer(i -> new ro.myfinance.access.application
+                .EmailEnvelopeService.Envelope("Maria Pop", "firma@contabil.ro", i.getArgument(1)));
     }
 
     @AfterEach
@@ -52,7 +56,7 @@ class TaxEmailServiceTest {
 
     @Test
     void recordsFailedWhenSenderThrows() {
-        doThrow(new RuntimeException("SES down")).when(sender).send(anyString(), anyString(), anyString());
+        doThrow(new RuntimeException("SES down")).when(sender).send(any(EmailSender.Message.class));
         TaxEmail saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 3, 10),
                 List.of(UUID.randomUUID()), "client@example.com", "body");
         assertThat(saved.getStatus()).isEqualTo(TaxEmail.Status.FAILED);

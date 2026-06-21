@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { taxPaymentsApi } from "../api/taxes";
+import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
 
@@ -27,8 +28,8 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
     let cancelled = false;
     setDrafts(Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", total: 0, loading: true, sent: false }])));
     targets.forEach((x) => {
-      taxPaymentsApi.previewEmail(x.companyId, x.declarationIds)
-        .then((p) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body ?? "", total: p.total, loading: false } })); })
+      Promise.all([taxPaymentsApi.previewEmail(x.companyId, x.declarationIds), emailApi.envelope(x.companyId)])
+        .then(([p, env]) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body ?? "", total: p.total, recipient: env.recipient ?? "", loading: false } })); })
         .catch((e) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], loading: false, error: e instanceof ApiError ? e.message : "Failed" } })); });
     });
     return () => { cancelled = true; };

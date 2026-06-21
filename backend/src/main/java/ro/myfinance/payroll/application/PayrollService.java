@@ -34,11 +34,14 @@ public class PayrollService {
     private final DocumentService documents;
     private final PayrollEmailRepository emails;
     private final EmailSender sender;
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
-    public PayrollService(DocumentService documents, PayrollEmailRepository emails, EmailSender sender) {
+    public PayrollService(DocumentService documents, PayrollEmailRepository emails, EmailSender sender,
+                          ro.myfinance.access.application.EmailEnvelopeService envelopes) {
         this.documents = documents;
         this.emails = emails;
         this.sender = sender;
+        this.envelopes = envelopes;
     }
 
     /** One payroll document (for the list chips and the attach set). */
@@ -92,10 +95,10 @@ public class PayrollService {
                 .stream().map(d -> new PayrollDoc(d.getId(), d.getOriginalFilename())).toList();
     }
 
-    /** Default editable email body for a company/period. */
+    /** Default editable email body for a company/period — signed with the logged-in user's name. */
     @Transactional(readOnly = true)
     public String composeBody(UUID companyId, LocalDate period) {
-        return PayrollEmailBuilder.body(period, null);
+        return PayrollEmailBuilder.body(period, envelopes.currentUserName());
     }
 
     /** Full send history for a company + period (newest first). */
@@ -122,16 +125,21 @@ public class PayrollService {
             attachments.add(new EmailSender.Attachment(d.getOriginalFilename(), d.getContentType(), bytes));
         }
 
+        // From = logged-in user (name) + accounting firm (address); recipient defaults to the rep.
+        var env = envelopes.resolve(companyId, recipient);
+        String to = env.recipient();
+
         PayrollEmail.Status status = PayrollEmail.Status.SENT;
         String error = null;
         try {
-            sender.send(recipient, PayrollEmailBuilder.subject(month), body, attachments);
+            sender.send(new EmailSender.Message(env.fromName(), env.fromEmail(), to,
+                    PayrollEmailBuilder.subject(month), body, attachments));
         } catch (RuntimeException e) {
             status = PayrollEmail.Status.FAILED;
             error = e.getMessage();
             log.warn("Payroll email send failed for company {} period {}", companyId, month, e);
         }
         return PayrollEmailView.from(emails.save(new PayrollEmail(
-                tenantId, companyId, month, docIds, recipient, body, status, error, userId)));
+                tenantId, companyId, month, docIds, to, body, status, error, userId)));
     }
 }

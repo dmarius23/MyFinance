@@ -29,10 +29,13 @@ public class DocumentReminderService {
 
     private final DocumentReminderRepository reminders;
     private final EmailSender sender;
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
-    public DocumentReminderService(DocumentReminderRepository reminders, EmailSender sender) {
+    public DocumentReminderService(DocumentReminderRepository reminders, EmailSender sender,
+                                   ro.myfinance.access.application.EmailEnvelopeService envelopes) {
         this.reminders = reminders;
         this.sender = sender;
+        this.envelopes = envelopes;
     }
 
     /** One reminder send, for the notification log / list. */
@@ -77,17 +80,20 @@ public class DocumentReminderService {
         UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         LocalDate month = period.withDayOfMonth(1);
         String subject = "Documente lipsă — " + MONTH.format(month);
+        // From = logged-in user (name) + accounting firm (address); recipient defaults to the rep.
+        var env = envelopes.resolve(companyId, recipient);
+        String to = env.recipient();
 
         DocumentReminder.Status status = DocumentReminder.Status.SENT;
         String error = null;
         try {
-            sender.send(recipient, subject, body);
+            sender.send(new EmailSender.Message(env.fromName(), env.fromEmail(), to, subject, body, List.of()));
         } catch (RuntimeException e) {
             status = DocumentReminder.Status.FAILED;
             error = e.getMessage();
             log.warn("Reminder send failed for company {} period {}", companyId, month, e);
         }
         return ReminderView.from(reminders.save(new DocumentReminder(
-                tenantId, companyId, month, recipient, body, status, error, userId)));
+                tenantId, companyId, month, to, body, status, error, userId)));
     }
 }

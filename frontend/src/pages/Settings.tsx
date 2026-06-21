@@ -39,20 +39,22 @@ function VatRateSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: settingsApi.get });
-  const [form, setForm] = useState<{ vatRate: string; microRate: string; profitRate: string } | null>(null);
+  const [form, setForm] = useState<{ vatRate: string; microRate: string; profitRate: string; senderEmail: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const f = form ?? {
     vatRate: String(data?.vatRate ?? "21"),
     microRate: String(data?.microRate ?? "3"),
     profitRate: String(data?.profitRate ?? "16"),
+    senderEmail: data?.senderEmail ?? "",
   };
-  const setField = (k: "vatRate" | "microRate" | "profitRate") =>
+  const setField = (k: "vatRate" | "microRate" | "profitRate" | "senderEmail") =>
     (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...f, [k]: e.target.value });
 
   const save = useMutation({
     mutationFn: () => settingsApi.updateRates({
       vatRate: parseFloat(f.vatRate), microRate: parseFloat(f.microRate), profitRate: parseFloat(f.profitRate),
+      senderEmail: f.senderEmail,
     }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["settings"] });
@@ -82,6 +84,10 @@ function VatRateSection() {
           {num(t("settings.vatRate"), "vatRate")}
           {num(t("settings.microRate"), "microRate")}
           {num(t("settings.profitRate"), "profitRate")}
+          <Field label={t("settings.senderEmail")}>
+            <input type="email" placeholder="contact@firma-contabila.ro" value={f.senderEmail}
+              onChange={setField("senderEmail")} style={{ minWidth: 240 }} />
+          </Field>
           <button className="primary" type="submit" disabled={save.isPending} style={{ marginBottom: 10 }}>
             {save.isPending ? "Saving…" : t("common.save")}
           </button>

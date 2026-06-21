@@ -27,11 +27,14 @@ public class TaxEmailService {
     private final TaxPaymentService payments;
     private final TaxEmailRepository emails;
     private final EmailSender sender;
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
-    public TaxEmailService(TaxPaymentService payments, TaxEmailRepository emails, EmailSender sender) {
+    public TaxEmailService(TaxPaymentService payments, TaxEmailRepository emails, EmailSender sender,
+                           ro.myfinance.access.application.EmailEnvelopeService envelopes) {
         this.payments = payments;
         this.emails = emails;
         this.sender = sender;
+        this.envelopes = envelopes;
     }
 
     /** Default editable body + totals for the chosen declarations. */
@@ -56,17 +59,20 @@ public class TaxEmailService {
         UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         LocalDate month = period.withDayOfMonth(1);
         String subject = subject(companyId, month);
+        // From = logged-in user (name) + accounting firm (address); recipient defaults to the rep.
+        var env = envelopes.resolve(companyId, recipient);
+        String to = env.recipient();
 
         TaxEmail.Status status = TaxEmail.Status.SENT;
         String error = null;
         try {
-            sender.send(recipient, subject, body);
+            sender.send(new EmailSender.Message(env.fromName(), env.fromEmail(), to, subject, body, List.of()));
         } catch (RuntimeException e) {
             status = TaxEmail.Status.FAILED;
             error = e.getMessage();
             log.warn("Email send failed for company {} period {}", companyId, month, e);
         }
-        return emails.save(new TaxEmail(tenantId, companyId, month, declarationIds, recipient, body,
+        return emails.save(new TaxEmail(tenantId, companyId, month, declarationIds, to, body,
                 status, error, userId));
     }
 

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { bankApi, type BankTransaction } from "../api/bank";
 import { remindersApi } from "../api/documents";
+import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 
 const overlay: React.CSSProperties = {
@@ -36,6 +37,26 @@ export function SendReminderModal({ companies, period, onClose }:
     () => Object.fromEntries(companies.map((c) => [c.id, { recipient: "", body: "", loading: true, sent: false }])),
   );
   const [sending, setSending] = useState(false);
+  const [fromName, setFromName] = useState<string | null>(null);
+  const [envLoaded, setEnvLoaded] = useState(false);
+
+  // Prefill each company's representative as recipient, and capture the sender (logged-in user) name.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(companies.map((c) => emailApi.envelope(c.id).then((e) => ({ id: c.id, e })).catch(() => ({ id: c.id, e: null }))))
+      .then((results) => {
+        if (cancelled) return;
+        setDrafts((d) => {
+          const next = { ...d };
+          for (const r of results) if (r.e?.recipient) next[r.id] = { ...next[r.id], recipient: r.e.recipient };
+          return next;
+        });
+        const fn = results.map((r) => r.e?.fromName).find(Boolean) ?? null;
+        setFromName(fn);
+        setEnvLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [companies]);
 
   // Fetch each company's transactions so we can suggest the ones missing a document.
   const txnQueries = useQueries({
@@ -59,11 +80,14 @@ export function SendReminderModal({ companies, period, onClose }:
       lines.push(t("email.needDocs", { month }));
     }
     lines.push("", t("email.uploadPortal"), "", t("email.signoff"));
+    if (fromName) lines.push(fromName);
     return lines.join("\n");
   };
 
-  // Populate each company's body once its transactions have loaded (or immediately if no statement).
+  // Populate each company's body once its transactions AND the envelope (sender name) have loaded,
+  // so the signature carries the logged-in user's name.
   useEffect(() => {
+    if (!envLoaded) return;
     companies.forEach((c, i) => {
       const q = txnQueries[i];
       const ready = !c.hasBankStatement || (!q.isLoading && q.data !== undefined);
@@ -76,7 +100,7 @@ export function SendReminderModal({ companies, period, onClose }:
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [txnQueries.map((q) => `${q.isLoading}:${(q.data ?? []).length}`).join("|")]);
+  }, [envLoaded, txnQueries.map((q) => `${q.isLoading}:${(q.data ?? []).length}`).join("|")]);
 
   const patch = (id: string, p: Partial<Draft>) =>
     setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));

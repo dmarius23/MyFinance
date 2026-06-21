@@ -287,7 +287,10 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/api/v1/does-not-exist-xyz\")",
       "Bash(mvn -q -o -Dtest=TaxEmailServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(mvn -o -Dtest=TaxEmailServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
-      "Bash(mvn -o -Dtest=PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)"
+      "Bash(mvn -o -Dtest=PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(sed -i '' -E 's/\\(service\\\\.updateRates\\\\\\(new BigDecimal\\\\\\(\"[^\"]*\"\\\\\\), new BigDecimal\\\\\\(\"3\\\\.00\"\\\\\\), new BigDecimal\\\\\\(\"16\\\\.00\"\\\\\\)\\)\\)\\\\\\)/\\\\0X/' /dev/null)",
+      "Bash(perl -0pi -e 's/\\(service\\\\.updateRates\\\\\\(new BigDecimal\\\\\\(\"[^\"]+\"\\\\\\), new BigDecimal\\\\\\(\"3\\\\.00\"\\\\\\), new BigDecimal\\\\\\(\"16\\\\.00\"\\\\\\)\\)\\\\\\)/\\\\1, null\\)/g' src/test/java/ro/myfinance/settings/SettingsServiceIT.java)",
+      "Bash(mvn -o -Dtest=TaxEmailServiceTest,PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }

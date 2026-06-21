@@ -40,12 +40,21 @@ public class SettingsService {
                 .orElseGet(() -> settings.save(new GeneralSettings(tenantId)));
     }
 
-    public GeneralSettings updateRates(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate) {
+    public GeneralSettings updateRates(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate,
+                                       String senderEmail) {
         GeneralSettings s = getSettings();
         s.setVatRate(requirePercent(vatRate, "VAT"));
         s.setMicroRate(requirePercent(microRate, "Micro"));
         s.setProfitRate(requirePercent(profitRate, "Profit"));
+        s.setSenderEmail(senderEmail == null || senderEmail.isBlank() ? null : senderEmail.trim());
         return s;
+    }
+
+    /** The accounting firm's outbound From address (null if not configured yet). */
+    @Transactional(readOnly = true)
+    public String senderEmail() {
+        return TenantContext.tenantId().flatMap(settings::findById)
+                .map(GeneralSettings::getSenderEmail).orElse(null);
     }
 
     private static BigDecimal requirePercent(BigDecimal rate, String name) {

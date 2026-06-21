@@ -40,7 +40,8 @@ public class SettingsController {
 
     @PutMapping
     public SettingsResponse updateRates(@Valid @RequestBody UpdateRatesRequest request) {
-        return SettingsResponse.from(service.updateRates(request.vatRate(), request.microRate(), request.profitRate()));
+        return SettingsResponse.from(service.updateRates(request.vatRate(), request.microRate(),
+                request.profitRate(), request.senderEmail()));
     }
 
     @GetMapping("/treasury-accounts")

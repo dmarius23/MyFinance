@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { payrollApi } from "../api/payroll";
+import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
 
@@ -23,12 +24,12 @@ export function PayrollEmailModal({ targets, period, onClose }:
   );
   const [sending, setSending] = useState(false);
 
-  // Generate each company's standard body once on open.
+  // Generate each company's standard body + prefill the representative as recipient, once on open.
   useEffect(() => {
     let cancelled = false;
     targets.forEach((x) => {
-      payrollApi.emailBody(x.companyId, period)
-        .then((p) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body, loading: false } })); })
+      Promise.all([payrollApi.emailBody(x.companyId, period), emailApi.envelope(x.companyId)])
+        .then(([p, env]) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body, recipient: env.recipient ?? "", loading: false } })); })
         .catch((e) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], loading: false, error: e instanceof ApiError ? e.message : "Failed" } })); });
     });
     return () => { cancelled = true; };

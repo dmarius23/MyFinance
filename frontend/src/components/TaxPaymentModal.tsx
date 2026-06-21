@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, type EmailView } from "../api/taxes";
 import { documentsApi } from "../api/documents";
+import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
 
@@ -49,7 +50,15 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
   const openCompose = (ids: string[]) => {
     if (!ids.length) return;
     setComposeError(null);
-    preview.mutate(ids, { onSuccess: (p) => setCompose({ declarationIds: ids, recipient: "", body: p.body ?? "" }) });
+    preview.mutate(ids, {
+      onSuccess: (p) => {
+        setCompose({ declarationIds: ids, recipient: "", body: p.body ?? "" });
+        // Prefill the company's representative as recipient.
+        emailApi.envelope(companyId)
+          .then((env) => setCompose((c) => (c && !c.recipient ? { ...c, recipient: env.recipient ?? "" } : c)))
+          .catch(() => undefined);
+      },
+    });
   };
   const resend = (e: EmailView) => {
     setComposeError(null);

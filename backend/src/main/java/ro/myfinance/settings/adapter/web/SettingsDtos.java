@@ -12,14 +12,15 @@ public final class SettingsDtos {
     private SettingsDtos() {
     }
 
-    public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate) {
+    public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate,
+                                   String senderEmail) {
         public static SettingsResponse from(GeneralSettings s) {
-            return new SettingsResponse(s.getVatRate(), s.getMicroRate(), s.getProfitRate());
+            return new SettingsResponse(s.getVatRate(), s.getMicroRate(), s.getProfitRate(), s.getSenderEmail());
         }
     }
 
     public record UpdateRatesRequest(@NotNull BigDecimal vatRate, @NotNull BigDecimal microRate,
-                                     @NotNull BigDecimal profitRate) {
+                                     @NotNull BigDecimal profitRate, String senderEmail) {
     }
 
     public record CreateTreasuryRequest(@NotBlank String residence, String ibanCam, String ibanImpozite,

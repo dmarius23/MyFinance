@@ -3,12 +3,12 @@ package ro.myfinance.taxpayments.application;
 import java.util.List;
 
 /**
- * Port for delivering a plain-text email, optionally with file attachments. The production adapter is
- * Amazon SES (EU); local/dev uses a logging no-op. Implementations should throw to signal a delivery
- * failure (recorded as FAILED).
+ * Port for delivering an email. The production adapter is Amazon SES (EU); local/dev uses a logging
+ * no-op. Implementations should throw to signal a delivery failure (recorded as FAILED).
  *
- * <p>Shared across modules (tax payments, document reminders, payroll) — payroll attaches the payslip,
- * pay statement and timesheet documents.
+ * <p>Shared across modules (tax payments, document reminders, payroll). The {@link Message} carries the
+ * From identity — display name (the logged-in user) and address (the accounting firm) — the recipient,
+ * and any attachments (payroll attaches the pay statement / payslip / timesheet).
  */
 public interface EmailSender {
 
@@ -16,11 +16,17 @@ public interface EmailSender {
     record Attachment(String filename, String contentType, byte[] bytes) {
     }
 
-    /** Send with attachments (the primary operation). */
-    void send(String to, String subject, String body, List<Attachment> attachments);
+    /** A fully-addressed email ready to send. */
+    record Message(String fromName, String fromEmail, String to, String subject, String body,
+                   List<Attachment> attachments) {
+        public Message {
+            attachments = attachments == null ? List.of() : List.copyOf(attachments);
+        }
 
-    /** Convenience for plain-text emails without attachments. */
-    default void send(String to, String subject, String body) {
-        send(to, subject, body, List.of());
+        public static Message of(String fromName, String fromEmail, String to, String subject, String body) {
+            return new Message(fromName, fromEmail, to, subject, body, List.of());
+        }
     }
+
+    void send(Message message);
 }

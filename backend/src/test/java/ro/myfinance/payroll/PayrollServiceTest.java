@@ -31,13 +31,17 @@ class PayrollServiceTest {
     private final DocumentService documents = mock(DocumentService.class);
     private final PayrollEmailRepository repo = mock(PayrollEmailRepository.class);
     private final EmailSender sender = mock(EmailSender.class);
-    private final PayrollService service = new PayrollService(documents, repo, sender);
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
+            mock(ro.myfinance.access.application.EmailEnvelopeService.class);
+    private final PayrollService service = new PayrollService(documents, repo, sender, envelopes);
 
     @BeforeEach
     void bindTenant() {
         TenantContext.set(new TenantContext.Identity(UUID.randomUUID(), UUID.randomUUID(), Role.TENANT_ADMIN, null));
         when(documents.listByCompanyPeriodType(any(), any(), any())).thenReturn(List.of());
         when(repo.save(any(PayrollEmail.class))).thenAnswer(i -> i.getArgument(0));
+        when(envelopes.resolve(any(), any())).thenAnswer(i -> new ro.myfinance.access.application
+                .EmailEnvelopeService.Envelope("Maria Pop", "firma@contabil.ro", i.getArgument(1)));
     }
 
     @AfterEach
@@ -57,7 +61,7 @@ class PayrollServiceTest {
     @Test
     void recordsFailedWhenSenderThrows() {
         doThrow(new RuntimeException("SES down")).when(sender)
-                .send(anyString(), anyString(), anyString(), anyList());
+                .send(any(EmailSender.Message.class));
         PayrollEmailView saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 4, 10),
                 "client@example.com", "body");
         assertThat(saved.status()).isEqualTo(PayrollEmail.Status.FAILED);

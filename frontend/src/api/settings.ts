@@ -4,6 +4,7 @@ export interface GeneralSettings {
   vatRate: number;
   microRate: number;
   profitRate: number;
+  senderEmail: string | null;
 }
 
 /** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. */
@@ -25,7 +26,7 @@ export type TreasuryIbans = Pick<
 
 export const settingsApi = {
   get: () => api<GeneralSettings>("/api/v1/settings"),
-  updateRates: (rates: { vatRate: number; microRate: number; profitRate: number }) =>
+  updateRates: (rates: { vatRate: number; microRate: number; profitRate: number; senderEmail?: string | null }) =>
     api<GeneralSettings>("/api/v1/settings", {
       method: "PUT",
       body: JSON.stringify(rates),

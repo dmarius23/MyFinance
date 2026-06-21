@@ -20,12 +20,13 @@ public class LoggingEmailSender {
     @Bean
     @ConditionalOnMissingBean(EmailSender.class)
     public EmailSender defaultEmailSender() {
-        return (to, subject, body, attachments) -> {
-            String names = attachments == null || attachments.isEmpty() ? "none"
-                    : attachments.stream().map(EmailSender.Attachment::filename)
+        return message -> {
+            String names = message.attachments().isEmpty() ? "none"
+                    : message.attachments().stream().map(EmailSender.Attachment::filename)
                         .collect(java.util.stream.Collectors.joining(", "));
-            log.info("[email:dev] to={} subject={} ({} chars) attachments=[{}] — not actually sent",
-                    to, subject, body == null ? 0 : body.length(), names);
+            log.info("[email:dev] from=\"{}\" <{}> to={} subject={} ({} chars) attachments=[{}] — not actually sent",
+                    message.fromName(), message.fromEmail(), message.to(), message.subject(),
+                    message.body() == null ? 0 : message.body().length(), names);
         };
     }
 }

@@ -53,21 +53,21 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void updatesVatRate() {
         asTenant(TENANT_A);
-        service.updateRates(new BigDecimal("19.00"), new BigDecimal("3.00"), new BigDecimal("16.00"));
+        service.updateRates(new BigDecimal("19.00"), new BigDecimal("3.00"), new BigDecimal("16.00"), null);
         assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("19.00");
     }
 
     @Test
     void rejectsVatRateAbove100() {
         asTenant(TENANT_A);
-        assertThatThrownBy(() -> service.updateRates(new BigDecimal("101"), new BigDecimal("3.00"), new BigDecimal("16.00")))
+        assertThatThrownBy(() -> service.updateRates(new BigDecimal("101"), new BigDecimal("3.00"), new BigDecimal("16.00"), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsNegativeVatRate() {
         asTenant(TENANT_A);
-        assertThatThrownBy(() -> service.updateRates(new BigDecimal("-1"), new BigDecimal("3.00"), new BigDecimal("16.00")))
+        assertThatThrownBy(() -> service.updateRates(new BigDecimal("-1"), new BigDecimal("3.00"), new BigDecimal("16.00"), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -120,7 +120,7 @@ class SettingsServiceIT extends AbstractPostgresIT {
     @Test
     void tenantBCannotSeeTenantASettings() {
         asTenant(TENANT_A);
-        service.updateRates(new BigDecimal("5.00"), new BigDecimal("3.00"), new BigDecimal("16.00"));
+        service.updateRates(new BigDecimal("5.00"), new BigDecimal("3.00"), new BigDecimal("16.00"), null);
         service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP-A", null, null, null);
 
         asTenant(TENANT_B);

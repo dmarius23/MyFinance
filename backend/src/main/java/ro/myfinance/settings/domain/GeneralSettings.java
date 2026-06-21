@@ -30,6 +30,10 @@ public class GeneralSettings {
     @Column(name = "profit_rate", nullable = false)
     private BigDecimal profitRate = new BigDecimal("16.00");
 
+    /** The accounting firm's outbound "From" email for all client emails. */
+    @Column(name = "sender_email")
+    private String senderEmail;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -51,5 +55,7 @@ public class GeneralSettings {
     public void setMicroRate(BigDecimal microRate) { this.microRate = microRate; }
     public BigDecimal getProfitRate() { return profitRate; }
     public void setProfitRate(BigDecimal profitRate) { this.profitRate = profitRate; }
+    public String getSenderEmail() { return senderEmail; }
+    public void setSenderEmail(String senderEmail) { this.senderEmail = senderEmail; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
