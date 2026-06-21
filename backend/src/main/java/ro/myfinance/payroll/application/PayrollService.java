@@ -112,12 +112,19 @@ public class PayrollService {
      * Record + dispatch one payroll email with the (possibly edited) body, attaching the company's
      * payroll documents for the period. Always persists a row: SENT on success, FAILED otherwise.
      */
-    public PayrollEmailView send(UUID companyId, LocalDate period, String recipient, String body) {
+    public PayrollEmailView send(UUID companyId, LocalDate period, String recipient, String body,
+                                 List<UUID> documentIds) {
         UUID tenantId = TenantContext.tenantId().orElseThrow(() -> new IllegalStateException("No tenant bound"));
         UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         LocalDate month = period.withDayOfMonth(1);
 
+        // Attach the company's payroll documents for the period. When the caller passes an explicit set
+        // (the user unchecked some in the compose modal) only those are attached; null = attach all.
         List<Document> docs = documents.listByCompanyPeriodType(companyId, month, DocumentType.PAYROLL);
+        if (documentIds != null) {
+            java.util.Set<UUID> wanted = new java.util.HashSet<>(documentIds);
+            docs = docs.stream().filter(d -> wanted.contains(d.getId())).toList();
+        }
         List<UUID> docIds = docs.stream().map(Document::getId).toList();
         List<EmailSender.Attachment> attachments = new ArrayList<>();
         for (Document d : docs) {

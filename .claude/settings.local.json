@@ -290,7 +290,9 @@
       "Bash(mvn -o -Dtest=PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(sed -i '' -E 's/\\(service\\\\.updateRates\\\\\\(new BigDecimal\\\\\\(\"[^\"]*\"\\\\\\), new BigDecimal\\\\\\(\"3\\\\.00\"\\\\\\), new BigDecimal\\\\\\(\"16\\\\.00\"\\\\\\)\\)\\)\\\\\\)/\\\\0X/' /dev/null)",
       "Bash(perl -0pi -e 's/\\(service\\\\.updateRates\\\\\\(new BigDecimal\\\\\\(\"[^\"]+\"\\\\\\), new BigDecimal\\\\\\(\"3\\\\.00\"\\\\\\), new BigDecimal\\\\\\(\"16\\\\.00\"\\\\\\)\\)\\\\\\)/\\\\1, null\\)/g' src/test/java/ro/myfinance/settings/SettingsServiceIT.java)",
-      "Bash(mvn -o -Dtest=TaxEmailServiceTest,PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)"
+      "Bash(mvn -o -Dtest=TaxEmailServiceTest,PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=PayrollServiceTest,TaxEmailServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(./backend/run-local.sh)"
     ]
   }
 }

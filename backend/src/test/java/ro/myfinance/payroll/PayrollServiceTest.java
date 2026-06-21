@@ -52,7 +52,7 @@ class PayrollServiceTest {
     @Test
     void recordsSentOnSuccess() {
         PayrollEmailView saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 4, 10),
-                "client@example.com", "Bună ziua, ...");
+                "client@example.com", "Bună ziua, ...", null);
         assertThat(saved.status()).isEqualTo(PayrollEmail.Status.SENT);
         assertThat(saved.sentAt()).isNotNull();
         assertThat(saved.recipient()).isEqualTo("client@example.com");
@@ -63,7 +63,7 @@ class PayrollServiceTest {
         doThrow(new RuntimeException("SES down")).when(sender)
                 .send(any(EmailSender.Message.class));
         PayrollEmailView saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 4, 10),
-                "client@example.com", "body");
+                "client@example.com", "body", null);
         assertThat(saved.status()).isEqualTo(PayrollEmail.Status.FAILED);
     }
 

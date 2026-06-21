@@ -57,10 +57,12 @@ public class PayrollController {
     /** Record + dispatch one payroll email (attaches the company's payroll documents). */
     @PostMapping("/api/v1/companies/{companyId}/payroll/emails")
     public PayrollEmailResponse send(@PathVariable UUID companyId, @RequestBody SendRequest req) {
-        return PayrollEmailResponse.from(payroll.send(companyId, req.period(), req.recipient(), req.body()));
+        return PayrollEmailResponse.from(
+                payroll.send(companyId, req.period(), req.recipient(), req.body(), req.documentIds()));
     }
 
-    public record SendRequest(LocalDate period, String recipient, String body) {
+    /** {@code documentIds} = the payroll documents to attach; null attaches all for the period. */
+    public record SendRequest(LocalDate period, String recipient, String body, List<UUID> documentIds) {
     }
 
     public record BodyResponse(String body) {

@@ -63,8 +63,11 @@ public class DocumentService {
                            String contentType, byte[] bytes, DocumentType forcedType) {
         validate(contentType, bytes);
         UUID tenantId = currentTenant();
-        companies.findById(companyId)
+        var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
+        if (forcedType == DocumentType.PAYROLL) {
+            verifyBelongsToCompany(company.getCui(), contentType, bytes);
+        }
 
         LocalDate period = periodMonth.withDayOfMonth(1);
         DocumentType type = forcedType != null ? forcedType : classifier.classify(filename, contentType, bytes);
@@ -177,6 +180,35 @@ public class DocumentService {
     private Document require(UUID id) {
         return documents.findById(id)
                 .orElseThrow(() -> new NotFoundException("Document not found: " + id));
+    }
+
+    /**
+     * Payroll guard: a payroll document must belong to the company it's uploaded for. We read the PDF
+     * text and require the company's fiscal code (CUI, digits only) to appear in it; otherwise the file
+     * is rejected so one company's payroll can't be attached to another. Conservative: if the file isn't
+     * a readable text PDF (e.g. a scan) or the company has no CUI, we can't verify and allow the upload.
+     */
+    private void verifyBelongsToCompany(String companyCui, String contentType, byte[] bytes) {
+        if (companyCui == null || contentType == null || !contentType.toLowerCase().contains("pdf")) {
+            return;
+        }
+        String cuiDigits = companyCui.replaceAll("\\D", "");
+        if (cuiDigits.isBlank()) {
+            return;
+        }
+        String text;
+        try (org.apache.pdfbox.pdmodel.PDDocument pdf = org.apache.pdfbox.Loader.loadPDF(bytes)) {
+            text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
+        } catch (java.io.IOException | RuntimeException e) {
+            return; // unreadable / not a real PDF → can't verify, allow
+        }
+        if (text == null || text.isBlank()) {
+            return; // scanned PDF with no extractable text → can't verify, allow
+        }
+        if (!text.replaceAll("\\D", "").contains(cuiDigits)) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "Documentul nu pare emis pentru această firmă (CUI " + companyCui + " negăsit în document).");
+        }
     }
 
     private void validate(String contentType, byte[] bytes) {

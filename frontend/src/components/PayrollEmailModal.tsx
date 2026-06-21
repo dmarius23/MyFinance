@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { payrollApi } from "../api/payroll";
+import { payrollApi, type PayrollDoc } from "../api/payroll";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
@@ -9,10 +9,10 @@ import { Icon } from "./Icon";
 export interface PayrollTarget {
   companyId: string;
   companyName: string;
-  docCount: number;
+  documents: PayrollDoc[];
 }
 
-interface Draft { recipient: string; body: string; loading: boolean; sent: boolean; error?: string }
+interface Draft { recipient: string; body: string; loading: boolean; sent: boolean; error?: string; docIds: string[] }
 
 /** Bulk payroll email preview before sending — one card per company, standard body + attachments. */
 export function PayrollEmailModal({ targets, period, onClose }:
@@ -20,7 +20,7 @@ export function PayrollEmailModal({ targets, period, onClose }:
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
-    () => Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", loading: true, sent: false }])),
+    () => Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", loading: true, sent: false, docIds: x.documents.map((d) => d.id) }])),
   );
   const [sending, setSending] = useState(false);
 
@@ -38,8 +38,14 @@ export function PayrollEmailModal({ targets, period, onClose }:
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
   const sendOne = useMutation({
-    mutationFn: (v: { companyId: string; recipient: string; body: string }) =>
-      payrollApi.send(v.companyId, { period, recipient: v.recipient, body: v.body }),
+    mutationFn: (v: { companyId: string; recipient: string; body: string; documentIds: string[] }) =>
+      payrollApi.send(v.companyId, { period, recipient: v.recipient, body: v.body, documentIds: v.documentIds }),
+  });
+
+  const toggleDoc = (companyId: string, docId: string) => setDrafts((d) => {
+    const cur = d[companyId];
+    const has = cur.docIds.includes(docId);
+    return { ...d, [companyId]: { ...cur, docIds: has ? cur.docIds.filter((x) => x !== docId) : [...cur.docIds, docId] } };
   });
 
   const sendAll = async () => {
@@ -48,7 +54,7 @@ export function PayrollEmailModal({ targets, period, onClose }:
       const d = drafts[x.companyId];
       if (!d || d.sent || d.loading || !d.body.trim()) continue;
       try {
-        await sendOne.mutateAsync({ companyId: x.companyId, recipient: d.recipient, body: d.body });
+        await sendOne.mutateAsync({ companyId: x.companyId, recipient: d.recipient, body: d.body, documentIds: d.docIds });
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["payroll-history", x.companyId, period] });
       } catch (e) {
@@ -86,7 +92,7 @@ export function PayrollEmailModal({ targets, period, onClose }:
                     {d?.error && <span className="pill danger round" title={d.error}>{t("email.failed")}</span>}
                   </div>
                   <span className="pill info round" title={t("payroll.attachments")}>
-                    <Icon name="folder" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{x.docCount}
+                    <Icon name="folder" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{(d?.docIds.length ?? 0)}/{x.documents.length}
                   </span>
                 </div>
                 <div style={{ padding: 12 }}>
@@ -98,7 +104,23 @@ export function PayrollEmailModal({ targets, period, onClose }:
                         style={input} disabled={d.sent} />
                       <textarea value={d.body} disabled={d.sent}
                         onChange={(e) => patch(x.companyId, { body: e.target.value })}
-                        style={{ ...input, minHeight: 190, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
+                        style={{ ...input, minHeight: 170, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
+                      {/* Attachments — uncheck to exclude a file from this email. */}
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 700, marginBottom: 5 }}>
+                          {t("payroll.attachments")} ({d.docIds.length}/{x.documents.length})
+                        </div>
+                        {x.documents.length === 0
+                          ? <div style={{ fontSize: 12, color: "var(--text-faint)" }}>{t("payroll.missing")}</div>
+                          : x.documents.map((doc) => (
+                              <label key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", fontSize: 12.5, cursor: d.sent ? "default" : "pointer" }}>
+                                <input type="checkbox" checked={d.docIds.includes(doc.id)} disabled={d.sent}
+                                  onChange={() => toggleDoc(x.companyId, doc.id)} />
+                                <Icon name="doc" size={12} style={{ color: "var(--text-muted)" }} />
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.filename}</span>
+                              </label>
+                            ))}
+                      </div>
                     </>
                   )}
                 </div>

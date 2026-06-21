@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsApi } from "../api/documents";
 import { payrollApi, type PayrollRow } from "../api/payroll";
+import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
@@ -38,13 +39,28 @@ export function Payroll() {
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): PayrollTarget =>
-    ({ companyId: id, companyName: nameOf(id), docCount: rowBy.get(id)?.documents.length ?? 0 });
+    ({ companyId: id, companyName: nameOf(id), documents: rowBy.get(id)?.documents ?? [] });
 
   const upload = useMutation({
+    // Upload each file independently so one rejection (e.g. wrong organization) doesn't block the rest.
     mutationFn: async ({ companyId, files }: { companyId: string; files: File[] }) => {
-      for (const file of files) await documentsApi.upload(companyId, period, file, "PAYROLL");
+      const rejected: { name: string; reason: string }[] = [];
+      for (const file of files) {
+        try {
+          await documentsApi.upload(companyId, period, file, "PAYROLL");
+        } catch (e) {
+          rejected.push({ name: file.name, reason: e instanceof ApiError ? e.message : t("payroll.uploadError") });
+        }
+      }
+      return rejected;
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll", period] }); },
+    onSuccess: (rejected) => {
+      void qc.invalidateQueries({ queryKey: ["payroll", period] });
+      if (rejected.length) {
+        const msg = t("payroll.uploadRejected", { items: rejected.map((r) => `${r.name} — ${r.reason}`).join(" · ") });
+        setUploadNote((prev) => (prev ? `${prev} · ${msg}` : msg));
+      }
+    },
   });
   const removeDoc = useMutation({
     mutationFn: ({ companyId, id }: { companyId: string; id: string }) => documentsApi.remove(companyId, id),

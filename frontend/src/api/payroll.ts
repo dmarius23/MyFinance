@@ -33,8 +33,8 @@ export const payrollApi = {
   /** Full send history for one company + period (newest first). */
   history: (companyId: string, period: string) =>
     api<PayrollEmailView[]>(`/api/v1/companies/${companyId}/payroll/emails?period=${period}`),
-  /** Record + dispatch one payroll email (attaches the company's payroll documents). */
-  send: (companyId: string, input: { period: string; recipient: string; body: string }) =>
+  /** Record + dispatch one payroll email. documentIds = which payroll docs to attach (omit = all). */
+  send: (companyId: string, input: { period: string; recipient: string; body: string; documentIds?: string[] }) =>
     api<PayrollEmailView>(`/api/v1/companies/${companyId}/payroll/emails`, {
       method: "POST",
       body: JSON.stringify(input),
