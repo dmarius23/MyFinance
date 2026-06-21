@@ -82,7 +82,11 @@ export function Statements() {
   };
 
   const upload = useMutation({
-    mutationFn: ({ companyId, file }: { companyId: string; file: File }) => documentsApi.upload(companyId, period, file),
+    // Sequential: each upload triggers synchronous extraction + reconciliation, so serializing
+    // avoids races on the shared matching state (same rationale as the files modal).
+    mutationFn: async ({ companyId, files }: { companyId: string; files: File[] }) => {
+      for (const file of files) await documentsApi.upload(companyId, period, file);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
       void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
@@ -90,7 +94,9 @@ export function Statements() {
   });
   const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f && uploadFor) upload.mutate({ companyId: uploadFor, file: f }); e.target.value = "";
+    const files = Array.from(e.target.files ?? []);
+    if (files.length && uploadFor) upload.mutate({ companyId: uploadFor, files });
+    e.target.value = "";
   };
 
   return (
@@ -118,7 +124,7 @@ export function Statements() {
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
+      <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1020 }}>

@@ -40,13 +40,16 @@ export function Payroll() {
     ({ companyId: id, companyName: nameOf(id), docCount: rowBy.get(id)?.documents.length ?? 0 });
 
   const upload = useMutation({
-    mutationFn: ({ companyId, file }: { companyId: string; file: File }) =>
-      documentsApi.upload(companyId, period, file, "PAYROLL"),
+    mutationFn: async ({ companyId, files }: { companyId: string; files: File[] }) => {
+      for (const file of files) await documentsApi.upload(companyId, period, file, "PAYROLL");
+    },
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll", period] }); },
   });
   const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f && uploadFor) upload.mutate({ companyId: uploadFor, file: f }); e.target.value = "";
+    const files = Array.from(e.target.files ?? []);
+    if (files.length && uploadFor) upload.mutate({ companyId: uploadFor, files });
+    e.target.value = "";
   };
 
   return (
@@ -68,7 +71,7 @@ export function Payroll() {
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
+      <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 920 }}>
