@@ -6,8 +6,15 @@ import { reconciliationApi } from "../api/bank";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
 const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
-  display: "grid", placeItems: "center", zIndex: 50,
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+  display: "grid", placeItems: "center", zIndex: 50, padding: "3vh 12px",
+};
+const modalBox: React.CSSProperties = {
+  background: "var(--surface)", borderRadius: 14, width: 1340, maxWidth: "97vw", maxHeight: "92vh",
+  display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "var(--shadow-modal)",
+};
+const darkHeader: React.CSSProperties = {
+  display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", padding: "12px 16px",
 };
 
 export function FilesModal({ companyId, companyName, period, onClose }:
@@ -85,17 +92,21 @@ export function FilesModal({ companyId, companyName, period, onClose }:
   return (
     <>
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 1340, maxWidth: "97vw", maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0 }}>{t("files.title")} — {companyName}</h2>
+      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+        <div style={darkHeader}>
+          <div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{t("files.title")}</div>
+            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{companyName}</div>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => reclassify.mutate()} disabled={reclassify.isPending} title={t("files.rescanHint")}>
+            <button onClick={() => reclassify.mutate()} disabled={reclassify.isPending} title={t("files.rescanHint")}
+              style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>
               {reclassify.isPending ? "…" : `↻ ${t("files.rescan")}`}
             </button>
-            <button onClick={onClose}>✕</button>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--chrome-text)", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, marginTop: 12, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, padding: 16, overflowY: "auto", alignItems: "start" }}>
           <div>
             <div style={{ maxHeight: 560, overflow: "auto" }}>
               {ordered.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}

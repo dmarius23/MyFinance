@@ -6,9 +6,18 @@ import { LinkInvoiceModal } from "./LinkInvoiceModal";
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
 
 const overlay: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)",
-  display: "grid", placeItems: "center", zIndex: 50,
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+  display: "grid", placeItems: "center", zIndex: 50, padding: "3vh 12px",
 };
+const modalBox: React.CSSProperties = {
+  background: "var(--surface)", borderRadius: 14, width: 1360, maxWidth: "98vw", maxHeight: "92vh",
+  display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "var(--shadow-modal)",
+};
+const darkHeader: React.CSSProperties = {
+  display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", padding: "12px 16px",
+};
+const closeBtn: React.CSSProperties = { background: "none", border: "none", color: "var(--chrome-text)", cursor: "pointer", fontSize: 16 };
+const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)" };
 const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const maskIban = (iban: string | null) =>
   !iban || iban.length <= 4 ? (iban ?? "") : `…${iban.slice(-4)}`;
@@ -105,25 +114,30 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   return (
     <div style={overlay} onClick={onClose}>
-      <div className="card" style={{ width: 1360, maxWidth: "98vw", maxHeight: "92vh", overflowX: "hidden", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0 }}>{t("recon.title")} — {companyName}</h2>
-          <button onClick={onClose}>✕</button>
-        </div>
-        <div style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "4px 0 12px" }}>
-          {t("recon.parsed", { n: list.length })}
-        </div>
-
-        {(statements.data ?? []).map((s) => (
-          <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
-            <b>{s.bankCode ?? "—"}</b>
-            <span style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
-            <span style={{ color: "var(--text-muted)" }}>
-              {s.openingBalance != null ? fmt(s.openingBalance) : "—"} → {s.closingBalance != null ? fmt(s.closingBalance) : "—"}
-            </span>
-            <span style={{ color: s.crossCheckOk ? "#166534" : "#991b1b" }}>{s.crossCheckOk ? "✓" : "⚠"} {s.status}</span>
+      <div style={modalBox} onClick={(e) => e.stopPropagation()}>
+        <div style={darkHeader}>
+          <div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{t("recon.parsed", { n: list.length })}</div>
+            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{t("recon.title")} — {companyName}</div>
           </div>
-        ))}
+          <button onClick={onClose} style={closeBtn}>✕</button>
+        </div>
+        <div style={{ padding: 16, overflowY: "auto" }}>
+
+        {(statements.data ?? []).length > 0 && (
+          <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "4px 12px", marginBottom: 12 }}>
+            {(statements.data ?? []).map((s) => (
+              <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid var(--hair)" }}>
+                <b>{s.bankCode ?? "—"}</b>
+                <span className="mono" style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
+                <span className="mono" style={{ color: "var(--text-muted)" }}>
+                  {s.openingBalance != null ? fmt(s.openingBalance) : "—"} → {s.closingBalance != null ? fmt(s.closingBalance) : "—"}
+                </span>
+                <span className={`pill round ${s.crossCheckOk ? "ok" : "danger"}`}>{s.crossCheckOk ? "✓" : "⚠"} {s.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {(suggestions.data ?? []).some((_, i) => !dismissed.has(i)) && (
           <div style={{ border: "1px solid #c7d2fe", background: "#eef2ff", borderRadius: 10, padding: 12, margin: "12px 0" }}>
@@ -170,7 +184,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
             <col style={{ width: "8%" }} />
           </colgroup>
           <thead>
-            <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
+            <tr style={{ textAlign: "left", background: "var(--th-bg)", ...thText }}>
               <th style={{ padding: 8 }}>{t("recon.date")}</th>
               <th style={{ padding: 8 }}>{t("recon.partner")}</th>
               <th style={{ padding: 8, textAlign: "right" }}>{t("recon.amount")}</th>
@@ -182,8 +196,8 @@ export function ReconModal({ companyId, companyName, period, onClose }:
           </thead>
           <tbody>
             {list.map((tx) => (
-              <tr key={tx.id} style={{ borderTop: "1px solid var(--border)", background: tx.requiresDocument && !tx.matched ? "#fff7f6" : undefined }}>
-                <td style={{ padding: 8, whiteSpace: "nowrap" }}>
+              <tr key={tx.id} style={{ borderTop: "1px solid var(--hair)", background: tx.requiresDocument && !tx.matched ? "#fefaf9" : undefined }}>
+                <td className="mono" style={{ padding: 8, whiteSpace: "nowrap", fontSize: 12 }}>
                   {tx.txnDate}
                   {tx.txnDate.slice(0, 7) !== period.slice(0, 7) && (
                     <span title={t("recon.txnOutsidePeriod")} style={{ color: "#d97706", marginLeft: 4 }}>⚠</span>
@@ -193,7 +207,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
                   <b>{tx.partnerName ?? "—"}</b>
                   <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{[tx.description, maskIban(tx.partnerIban)].filter(Boolean).join(" · ")}</div>
                 </td>
-                <td style={{ padding: 8, textAlign: "right", fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "inherit" : "#166534" }}>
+                <td className="mono" style={{ padding: 8, textAlign: "right", fontWeight: 600, color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>
                   {tx.amount < 0 ? "-" : "+"}{fmt(Math.abs(tx.amount))}
                 </td>
                 <td style={{ padding: 8, fontSize: 12, overflowWrap: "anywhere" }}>
@@ -281,10 +295,11 @@ export function ReconModal({ companyId, companyName, period, onClose }:
         </table>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button onClick={onClose}>{t("recon.notNeeded") && "Close"}</button>
+          <button onClick={onClose}>{t("common.cancel")}</button>
           <button className="primary" disabled={missing.length === 0} onClick={requestFromClient}>
             {t("recon.requestClient")} ({missing.length})
           </button>
+        </div>
         </div>
       </div>
 
