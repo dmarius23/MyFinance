@@ -43,10 +43,11 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     public DocumentResponse upload(@PathVariable UUID companyId,
                                    @RequestParam("periodMonth") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodMonth,
-                                   @RequestParam("file") MultipartFile file) {
+                                   @RequestParam("file") MultipartFile file,
+                                   @RequestParam(value = "type", required = false) ro.myfinance.intake.domain.DocumentType type) {
         try {
             return DocumentResponse.from(service.upload(companyId, periodMonth,
-                    file.getOriginalFilename(), file.getContentType(), file.getBytes()));
+                    file.getOriginalFilename(), file.getContentType(), file.getBytes(), type));
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read uploaded file", e);
         }

@@ -9,6 +9,7 @@ import { RepHome } from "./pages/RepHome";
 import { Settings } from "./pages/Settings";
 import { Statements } from "./pages/Statements";
 import { TaxPayments } from "./pages/TaxPayments";
+import { Payroll } from "./pages/Payroll";
 
 /**
  * Routing — one route per page (no stacked sections). Guards are UX-only; the server enforces
@@ -32,7 +33,7 @@ export default function App() {
           <Route path="/companies/:id" element={<CompanyDetail />} />
           <Route path="/statements" element={<Statements />} />
           <Route path="/taxes" element={<TaxPayments />} />
-          <Route path="/payroll" element={<PagePlaceholder title="Payroll" module="MOD-08" />} />
+          <Route path="/payroll" element={<Payroll />} />
           <Route path="/reports" element={<PagePlaceholder title="Reports" module="MOD-06" />} />
           <Route path="/notifications" element={<PagePlaceholder title="Notifications" module="MOD-09" />} />
           <Route path="/tasks" element={<PagePlaceholder title="Tasks" module="MOD-10" />} />

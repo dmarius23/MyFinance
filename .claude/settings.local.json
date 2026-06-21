@@ -284,7 +284,10 @@
       "Bash(grep -c '\"__TRACKED_VAR__\"' i18n.ts)",
       "Bash(xargs kill -9)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/api/v1/document-reminders?period=2026-06-01\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/api/v1/does-not-exist-xyz\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/api/v1/does-not-exist-xyz\")",
+      "Bash(mvn -q -o -Dtest=TaxEmailServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=TaxEmailServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=PayrollServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }

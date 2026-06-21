@@ -17,10 +17,11 @@ export const documentsApi = {
     api<Document[]>(
       `/api/v1/companies/${companyId}/documents${period ? `?period=${period}` : ""}`,
     ),
-  upload: (companyId: string, periodMonth: string, file: File) => {
+  upload: (companyId: string, periodMonth: string, file: File, type?: string) => {
     const form = new FormData();
     form.append("file", file);
     form.append("periodMonth", periodMonth);
+    if (type) form.append("type", type);
     return upload<Document>(`/api/v1/companies/${companyId}/documents`, form);
   },
   download: (companyId: string, id: string) =>

@@ -51,13 +51,23 @@ public class DocumentService {
 
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
                            String contentType, byte[] bytes) {
+        return upload(companyId, periodMonth, filename, contentType, bytes, null);
+    }
+
+    /**
+     * Upload a document. When {@code forcedType} is non-null the classifier is bypassed and the document
+     * is stored as that type — used by module-specific intakes (e.g. payroll uploads as PAYROLL) where
+     * the type is known from context and content-based classification would be unreliable.
+     */
+    public Document upload(UUID companyId, LocalDate periodMonth, String filename,
+                           String contentType, byte[] bytes, DocumentType forcedType) {
         validate(contentType, bytes);
         UUID tenantId = currentTenant();
         companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
 
         LocalDate period = periodMonth.withDayOfMonth(1);
-        DocumentType type = classifier.classify(filename, contentType, bytes);
+        DocumentType type = forcedType != null ? forcedType : classifier.classify(filename, contentType, bytes);
         String safeName = sanitize(filename);
         UUID id = UUID.randomUUID();
         String key = "%s/%s/%s/%s-%s".formatted(tenantId, companyId, period.format(MONTH), id, safeName);
@@ -99,6 +109,20 @@ public class DocumentService {
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
                                     boolean hasInvoiceOrReceipt, int fileCount,
                                     int bankStatementCount, int invoiceReceiptCount) {
+    }
+
+    /** All documents of a given type for a company + period (e.g. payroll files). */
+    @Transactional(readOnly = true)
+    public List<Document> listByCompanyPeriodType(UUID companyId, LocalDate periodMonth, DocumentType type) {
+        return documents.findByCompanyIdAndPeriodMonthOrderByUploadedAtDesc(companyId, periodMonth.withDayOfMonth(1))
+                .stream().filter(d -> d.getType() == type).toList();
+    }
+
+    /** All documents of a given type across all companies for a period. */
+    @Transactional(readOnly = true)
+    public List<Document> listByPeriodAndType(LocalDate periodMonth, DocumentType type) {
+        return documents.findByPeriodMonth(periodMonth.withDayOfMonth(1))
+                .stream().filter(d -> d.getType() == type).toList();
     }
 
     @Transactional(readOnly = true)
