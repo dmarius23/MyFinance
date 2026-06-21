@@ -101,6 +101,7 @@ export interface OpenInvoice {
   paidAmount: number;
   remaining: number | null;
   duplicate: boolean;
+  wrongParty: boolean | null;
 }
 
 export interface OpenTransaction {

@@ -9,6 +9,10 @@ const overlay: React.CSSProperties = {
   display: "grid", placeItems: "center", zIndex: 60,
 };
 const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const miniChip = (bg: string, fg: string, bd: string): React.CSSProperties => ({
+  background: bg, color: fg, border: `1px solid ${bd}`, borderRadius: 999,
+  padding: "0 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase", whiteSpace: "nowrap",
+});
 
 /**
  * Picks an invoice/receipt to link to a transaction. Sources the company's OPEN invoices across a
@@ -139,8 +143,18 @@ export function LinkInvoiceModal({ companyId, period, tx, pending, onPick, onClo
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{inv.filename ?? inv.supplierName ?? "factura"}</span>
+                        {inv.wrongParty === true && (
+                          <span title={t("doc.warn.wrongParty")} style={miniChip("#fee2e2", "#991b1b", "#fecaca")}>
+                            {t("doc.wrongPartyChip")}
+                          </span>
+                        )}
+                        {(inv.wrongParty === null || inv.wrongParty === undefined) && (
+                          <span title={t("doc.warn.unidentifiedParty")} style={miniChip("#f3f4f6", "#6b7280", "#e5e7eb")}>
+                            {t("doc.unidentifiedChip")}
+                          </span>
+                        )}
                         {inv.duplicate && (
-                          <span title={t("doc.warn.duplicate")} style={{ background: "#fee2e2", color: "#b91c1c", border: "1px solid #fecaca", borderRadius: 999, padding: "0 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase" }}>
+                          <span title={t("doc.warn.duplicate")} style={miniChip("#fee2e2", "#b91c1c", "#fecaca")}>
                             {t("doc.duplicateChip")}
                           </span>
                         )}
