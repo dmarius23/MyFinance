@@ -49,4 +49,20 @@ class CompanyMatcherTest {
     void matchesRealCuiAsStandaloneNumber() {
         assertThat(CompanyMatcher.present("X SRL c.f. 49443957 r.c. ...", "RO49443957", "X")).isTrue();
     }
+
+    @Test
+    void commonNameWordDoesNotFalseMatchAccountingTerm() {
+        // "Client Doi SRL" shares the word "Client" with account 4111 CLIENTI present in ANY balanță —
+        // it must NOT match a different company's balance sheet.
+        String innovBalance = "INNOVATECODE IT SRL c.f. 49443957\n4111  CLIENTI  15 346.77  0.00";
+        assertThat(CompanyMatcher.present(innovBalance, "22334455", "Client Doi SRL")).isFalse();
+    }
+
+    @Test
+    void clientDoiMatchesItsOwnDocument() {
+        String own = "CLIENT DOI SRL c.f. 22334455\n4111 CLIENTI ...";
+        assertThat(CompanyMatcher.present(own, "22334455", "Client Doi SRL")).isTrue();
+        // even without the CUI (e.g. a payslip), the full name still matches
+        assertThat(CompanyMatcher.present("CLIENT DOI SRL\nFLUTURAS ...", null, "Client Doi SRL")).isTrue();
+    }
 }

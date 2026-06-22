@@ -12,7 +12,6 @@ import java.util.regex.Pattern;
 final class CompanyMatcher {
 
     private static final Pattern NON_ALNUM = Pattern.compile("[^A-Z0-9]");
-    private static final Pattern WORD = Pattern.compile("\\p{L}+");
 
     private CompanyMatcher() {
     }
@@ -28,7 +27,7 @@ final class CompanyMatcher {
         if (haveCui && Pattern.compile("(?<!\\d)" + Pattern.quote(cuiDigits) + "(?!\\d)").matcher(text).find()) {
             return true;
         }
-        String key = significantToken(companyName);
+        String key = coreName(companyName);
         boolean haveName = key != null;
         if (haveName && normalize(text).contains(key)) {
             return true;
@@ -39,20 +38,20 @@ final class CompanyMatcher {
         return false;
     }
 
-    /** The longest alphabetic word of the name (≥4 chars, e.g. "INNOVATECODE"), normalized; null if none. */
-    private static String significantToken(String name) {
+    /**
+     * The full distinctive company name, normalized, with leading/trailing legal forms stripped
+     * (SC… / …SRL/SA/PFA/…). Matching the whole core — not a single word — avoids a common word in the
+     * name (e.g. "Client" in "Client Doi SRL") false-matching an accounting term in the document
+     * (account 4111 CLIENTI). Returns null when the core is too short to be distinctive (&lt; 5 chars).
+     */
+    private static String coreName(String name) {
         if (name == null) {
             return null;
         }
-        String best = null;
-        var m = WORD.matcher(name);
-        while (m.find()) {
-            String w = normalize(m.group());
-            if (w.length() >= 4 && (best == null || w.length() > best.length())) {
-                best = w;
-            }
-        }
-        return best;
+        String n = normalize(name);
+        n = n.replaceFirst("^SC(?=.{5,}$)", "");
+        n = n.replaceFirst("(?<=.{5})(SRLD|SRL|SNC|SCS|SCA|SA|PFA|IF|II)$", "");
+        return n.length() >= 5 ? n : null;
     }
 
     private static String normalize(String s) {
