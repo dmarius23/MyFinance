@@ -79,4 +79,20 @@ class TrialBalanceExtractorTest {
         assertThat(opEx).isEqualByComparingTo(of("7802.02"));
         assertThat(revenue.subtract(opEx)).isEqualByComparingTo(of("1851.76")); // gross profit
     }
+
+    @Test
+    void computesReportMatchingSituatieProfit() throws Exception {
+        var r = ro.myfinance.reports.application.ReportCalculator.compute(parseFixture());
+        assertThat(r.profitLoss().revenue()).isEqualByComparingTo(of("9653.78"));
+        assertThat(r.profitLoss().operatingExpenses()).isEqualByComparingTo(of("7802.02"));
+        assertThat(r.profitLoss().grossProfit()).isEqualByComparingTo(of("1851.76"));
+        assertThat(r.profitLoss().incomeTax()).isEqualByComparingTo(of("442.00"));
+        assertThat(r.profitLoss().netProfit()).isEqualByComparingTo(of("1409.76"));
+        // Top expense is salaries.
+        assertThat(r.profitLoss().expenseItems().get(0).amount()).isEqualByComparingTo(of("4060.00"));
+        // Balance sheet self-balances: assets == liabilities + equity.
+        assertThat(r.balanceSheet().totalAssets())
+                .isEqualByComparingTo(r.balanceSheet().totalLiabilities().add(r.balanceSheet().totalEquity()));
+        assertThat(r.balanceSheet().totalAssets()).isGreaterThan(of("100000"));
+    }
 }
