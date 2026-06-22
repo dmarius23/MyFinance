@@ -4,6 +4,7 @@ import { PagePlaceholder } from "./components/PagePlaceholder";
 import { RequireRole } from "./auth/RequireRole";
 import { Login } from "./pages/Login";
 import { Companies } from "./pages/Companies";
+import { Dashboard } from "./pages/Dashboard";
 import { CompanyDetail } from "./pages/CompanyDetail";
 import { RepHome } from "./pages/RepHome";
 import { Settings } from "./pages/Settings";
@@ -29,7 +30,7 @@ export default function App() {
       {/* Firm app — staff */}
       <Route element={<RequireRole allow={["TENANT_ADMIN", "EMPLOYEE", "SUPER_ADMIN"]} />}>
         <Route element={<FirmLayout />}>
-          <Route path="/dashboard" element={<PagePlaceholder title="Dashboard" module="MOD-11" />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/companies" element={<Companies />} />
           <Route path="/companies/:id" element={<CompanyDetail />} />
           <Route path="/statements" element={<Statements />} />

@@ -14,7 +14,7 @@ const NAV = [
 ] as const;
 
 /** Routes where the topbar month stepper is meaningful. */
-const MONTH_ROUTES = ["/statements", "/taxes", "/payroll", "/reports"];
+const MONTH_ROUTES = ["/dashboard", "/statements", "/taxes", "/payroll", "/reports"];
 
 function monthLabel(period: string, lang: string) {
   return new Date(period).toLocaleDateString(lang === "ro" ? "ro-RO" : "en-US", { month: "long", year: "numeric" });
