@@ -50,3 +50,4 @@ backend/src/test/resources/fixtures/anaf/
 # Local dev launchers (machine-specific env)
 *.local.sh
 backend/run-local.sh
+backend/src/test/resources/fixtures/reports/
