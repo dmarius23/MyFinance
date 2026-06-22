@@ -81,6 +81,16 @@ class TrialBalanceExtractorTest {
     }
 
     @Test
+    void rendersBrandedPdf() throws Exception {
+        var report = ro.myfinance.reports.application.ReportCalculator.compute(parseFixture());
+        byte[] pdf = new ro.myfinance.reports.application.ReportPdfGenerator().generate(report);
+        assertThat(pdf).isNotEmpty();
+        assertThat(new String(pdf, 0, 5)).isEqualTo("%PDF-");
+        assertThat(pdf.length).isGreaterThan(1000);
+        java.nio.file.Files.write(java.nio.file.Path.of("target/report-sample.pdf"), pdf);
+    }
+
+    @Test
     void computesReportMatchingSituatieProfit() throws Exception {
         var r = ro.myfinance.reports.application.ReportCalculator.compute(parseFixture());
         assertThat(r.profitLoss().revenue()).isEqualByComparingTo(of("9653.78"));

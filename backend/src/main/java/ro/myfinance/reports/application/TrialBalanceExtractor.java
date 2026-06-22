@@ -61,11 +61,16 @@ public class TrialBalanceExtractor {
         List<TrialBalanceData.Line> lines = new ArrayList<>();
         BigDecimal grandDebit = null;
         BigDecimal grandCredit = null;
+        boolean afterPageBreak = false; // suppress name-stitching across page boundaries (header/footer)
 
         for (String row : rows) {
             List<BigDecimal> nums = amounts(row);
             String trimmed = row.strip();
 
+            if (trimmed.startsWith("Pagina")) {
+                afterPageBreak = true;
+                continue;
+            }
             if (trimmed.startsWith("Totaluri") && nums.size() >= 8) {
                 // Grand totals row — take the closing-balance pair (last two of the 8).
                 grandDebit = nums.get(nums.size() - 2);
@@ -78,12 +83,13 @@ public class TrialBalanceExtractor {
 
             Matcher am = ACCOUNT_LINE.matcher(row);
             if (am.matches() && nums.size() >= 8) {
+                afterPageBreak = false;
                 String account = am.group(1);
                 List<BigDecimal> v = nums.subList(nums.size() - 8, nums.size());
                 String name = accountName(am.group(2));
                 lines.add(new TrialBalanceData.Line(account, name,
                         v.get(0), v.get(1), v.get(2), v.get(3), v.get(4), v.get(5), v.get(6), v.get(7)));
-            } else if (!lines.isEmpty() && nums.isEmpty() && isNameOverflow(trimmed)) {
+            } else if (!afterPageBreak && !lines.isEmpty() && nums.isEmpty() && isNameOverflow(trimmed)) {
                 // Continuation line: account name wrapped — append to the previous account's name.
                 int last = lines.size() - 1;
                 TrialBalanceData.Line p = lines.get(last);
@@ -102,14 +108,29 @@ public class TrialBalanceExtractor {
         return name.strip().replaceAll("\\s{2,}", " ");
     }
 
+    private static final String[] FURNITURE = {
+            "c.f.", "str.", "jud.", "intocmit", "conducator", "solduri", "rulaje",
+            "sume totale", "denumirea", "saga", "balanta", "capital social", "pagina"
+    };
+
     private static boolean isNameOverflow(String trimmed) {
-        // Overflow lines are plain text (no page furniture / headers).
-        return !trimmed.isBlank()
-                && !trimmed.startsWith("Pagina")
-                && !trimmed.startsWith("Balanta")
-                && !trimmed.startsWith("Cont")
-                && !trimmed.contains("c.f.")
-                && Character.isLetter(trimmed.charAt(0));
+        if (trimmed.isBlank() || !Character.isLetter(trimmed.charAt(0))) {
+            return false;
+        }
+        String f = foldLower(trimmed);
+        for (String bad : FURNITURE) {
+            if (f.contains(bad)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String foldLower(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('ș', 's').replace('ț', 't').replace('Ș', 'S').replace('Ț', 'T')
+                .toLowerCase();
     }
 
     private static List<BigDecimal> amounts(String row) {
