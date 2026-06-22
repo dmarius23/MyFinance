@@ -61,6 +61,12 @@ public class DocumentService {
      */
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
                            String contentType, byte[] bytes, DocumentType forcedType) {
+        return upload(companyId, periodMonth, filename, contentType, bytes, forcedType, DocumentSource.EMPLOYEE);
+    }
+
+    /** As {@link #upload(UUID, LocalDate, String, String, byte[], DocumentType)}, recording who supplied it. */
+    public Document upload(UUID companyId, LocalDate periodMonth, String filename,
+                           String contentType, byte[] bytes, DocumentType forcedType, DocumentSource source) {
         validate(contentType, bytes);
         UUID tenantId = currentTenant();
         var company = companies.findById(companyId)
@@ -77,7 +83,7 @@ public class DocumentService {
 
         storage.store(key, bytes, contentType);
         UUID uploadedBy = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
-        Document doc = new Document(tenantId, companyId, period, type, DocumentSource.EMPLOYEE,
+        Document doc = new Document(tenantId, companyId, period, type, source,
                 DocumentStatus.UPLOADED, filename, contentType, bytes.length, key, uploadedBy);
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());

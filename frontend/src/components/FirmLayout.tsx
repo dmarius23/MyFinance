@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthProvider";
 import i18n from "../i18n";
 import { Icon } from "./Icon";
+import { NotificationBell } from "./NotificationBell";
 import { PeriodProvider, usePeriod } from "../lib/period";
 
 const NAV = [
@@ -42,6 +43,7 @@ function Topbar() {
       <button className="lang" onClick={() => i18n.changeLanguage(lang === "ro" ? "en" : "ro")}>
         {lang === "ro" ? <span><b>RO</b> / EN</span> : <span>RO / <b>EN</b></span>}
       </button>
+      <NotificationBell />
       <button className="logout" onClick={() => void signOut()}>{t("auth.logout")}</button>
     </header>
   );
