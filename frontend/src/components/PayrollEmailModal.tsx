@@ -50,6 +50,7 @@ export function PayrollEmailModal({ targets, period, onClose }:
 
   const sendAll = async () => {
     setSending(true);
+    let anyError = false;
     for (const x of targets) {
       const d = drafts[x.companyId];
       if (!d || d.sent || d.loading || !d.body.trim()) continue;
@@ -58,11 +59,13 @@ export function PayrollEmailModal({ targets, period, onClose }:
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["payroll-history", x.companyId, period] });
       } catch (e) {
+        anyError = true;
         patch(x.companyId, { error: e instanceof ApiError ? e.message : "Send failed" });
       }
     }
     setSending(false);
     void qc.invalidateQueries({ queryKey: ["payroll", period] });
+    if (!anyError) onClose(); // all sent → close; keep open on failure to show the error
   };
 
   const allSent = targets.every((x) => drafts[x.companyId]?.sent);

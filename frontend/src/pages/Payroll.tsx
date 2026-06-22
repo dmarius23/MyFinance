@@ -1,29 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
-import { documentsApi } from "../api/documents";
 import { payrollApi, type PayrollRow } from "../api/payroll";
-import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
 import { PayrollLogModal } from "../components/PayrollLogModal";
+import { DocumentManagerModal } from "../components/DocumentManagerModal";
 
 const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
-/** MOD-08 Payroll — monthly hub list (Console B skin): upload payroll docs per company, send the
+/** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
  *  standard email with attachments, track email status. Salary data is firm-staff only. */
 export function Payroll() {
   const { t } = useTranslation();
   const { period } = usePeriod();
   const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<PayrollTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
-  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [manageFor, setManageFor] = useState<{ id: string; name: string } | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
@@ -41,65 +38,11 @@ export function Payroll() {
   const target = (id: string): PayrollTarget =>
     ({ companyId: id, companyName: nameOf(id), documents: rowBy.get(id)?.documents ?? [] });
 
-  const upload = useMutation({
-    // Upload each file independently so one rejection (e.g. wrong organization) doesn't block the rest.
-    mutationFn: async ({ companyId, files }: { companyId: string; files: File[] }) => {
-      const rejected: { name: string; reason: string }[] = [];
-      for (const file of files) {
-        try {
-          await documentsApi.upload(companyId, period, file, "PAYROLL");
-        } catch (e) {
-          rejected.push({ name: file.name, reason: e instanceof ApiError ? e.message : t("payroll.uploadError") });
-        }
-      }
-      return rejected;
-    },
-    onSuccess: (rejected) => {
-      void qc.invalidateQueries({ queryKey: ["payroll", period] });
-      if (rejected.length) {
-        const msg = t("payroll.uploadRejected", { items: rejected.map((r) => `${r.name} — ${r.reason}`).join(" · ") });
-        setUploadNote((prev) => (prev ? `${prev} · ${msg}` : msg));
-      }
-    },
-  });
-  const removeDoc = useMutation({
-    mutationFn: ({ companyId, id }: { companyId: string; id: string }) => documentsApi.remove(companyId, id),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["payroll", period] }); },
-  });
-  const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    const cid = uploadFor;
-    e.target.value = "";
-    if (!files.length || !cid) return;
-    // Duplicate guard — filename only (case-insensitive), against what's already uploaded for the
-    // company/period and within the current selection. Duplicates are skipped, not uploaded twice.
-    const existing = new Set((rowBy.get(cid)?.documents ?? []).map((d) => d.filename.trim().toLowerCase()));
-    const seen = new Set<string>();
-    const toUpload: File[] = [];
-    const skipped: string[] = [];
-    for (const f of files) {
-      const key = f.name.trim().toLowerCase();
-      if (existing.has(key) || seen.has(key)) { skipped.push(f.name); continue; }
-      seen.add(key);
-      toUpload.push(f);
-    }
-    setUploadNote(skipped.length ? t("payroll.duplicateSkipped", { names: skipped.join(", ") }) : null);
-    if (toUpload.length) upload.mutate({ companyId: cid, files: toUpload });
-  };
-  const deleteDoc = (companyId: string, id: string, filename: string) => {
-    if (window.confirm(t("payroll.confirmDelete", { name: filename }))) {
-      removeDoc.mutate({ companyId, id });
-    }
-  };
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
-          <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
-        </div>
+      <div>
+        <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
+        <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
       </div>
 
       {selected.size > 0 && (
@@ -109,15 +52,6 @@ export function Payroll() {
             <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
             <button className="primary" onClick={() => setSendList([...selected].map(target))}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
           </div>
-        </div>
-      )}
-
-      <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
-
-      {uploadNote && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "var(--warn-bg, #fef3c7)", border: "1px solid var(--warn-bd, #fcd34d)", color: "var(--warn-fg, #92400e)", borderRadius: 10, padding: "8px 12px", fontSize: 12.5 }}>
-          <span>{uploadNote}</span>
-          <button onClick={() => setUploadNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}><Icon name="x" size={14} /></button>
         </div>
       )}
 
@@ -135,6 +69,7 @@ export function Payroll() {
             const r = rowBy.get(c.id);
             const docs = r?.documents ?? [];
             const selectable = docs.length > 0;
+            const manage = () => setManageFor({ id: c.id, name: c.legalName });
             return (
               <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
@@ -144,18 +79,12 @@ export function Payroll() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                   {docs.length === 0
-                    ? <span className="pill round danger">{t("payroll.missing")}</span>
+                    ? <button className="pill round danger" style={chipBtn} onClick={manage}>{t("payroll.missing")}</button>
                     : docs.map((d) => (
-                        <span key={d.id} style={docChip}>
-                          <button className="pill round muted" title={t("payroll.download")}
-                            onClick={() => documentsApi.download(c.id, d.id)}
-                            style={{ cursor: "pointer", font: "inherit", border: "none", background: "none", padding: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
-                          </button>
-                          <button title={t("payroll.deleteDoc")} disabled={removeDoc.isPending}
-                            onClick={() => deleteDoc(c.id, d.id, d.filename)}
-                            style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "0 2px", lineHeight: 1, fontSize: 12 }}>✕</button>
-                        </span>
+                        <button key={d.id} className="pill round muted" title={t("files.manage")} onClick={manage}
+                          style={{ ...chipBtn, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
+                        </button>
                       ))}
                 </div>
                 <div>
@@ -166,7 +95,7 @@ export function Payroll() {
                     : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
                 </div>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button style={iconBtn} title={t("payroll.upload")} disabled={upload.isPending} onClick={() => pickUpload(c.id)}><Icon name="upload" size={14} /></button>
+                  <button style={iconBtn} title={t("payroll.upload")} onClick={manage}><Icon name="folder" size={14} /></button>
                   <button style={{ ...iconBtn, opacity: selectable ? 1 : 0.4 }} title={t("payroll.sendEmail")} disabled={!selectable} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
                 </div>
               </div>
@@ -176,6 +105,10 @@ export function Payroll() {
         </div>
       </div>
 
+      {manageFor && <DocumentManagerModal companyId={manageFor.id} companyName={manageFor.name} period={period}
+        type="PAYROLL" title={t("payroll.documents")} subtitle={t("payroll.crumb")}
+        accept="application/pdf,image/png,image/jpeg,image/webp"
+        onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
@@ -191,6 +124,6 @@ const gridRow: React.CSSProperties = {
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
-const docChip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 2, background: "var(--th-bg)", border: "1px solid var(--border)", borderRadius: 999, padding: "1px 5px 1px 8px", fontSize: 11, color: "var(--text-muted)" };
+const chipBtn: React.CSSProperties = { cursor: "pointer", font: "inherit" };
 const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

@@ -42,6 +42,7 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
 
   const sendAll = async () => {
     setSending(true);
+    let anyError = false;
     for (const x of targets) {
       const d = drafts[x.companyId];
       if (!d || d.sent || !d.body.trim()) continue;
@@ -49,11 +50,13 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
         await sendOne.mutateAsync({ companyId: x.companyId, declarationIds: x.declarationIds, recipient: d.recipient, body: d.body });
         setDrafts((p) => ({ ...p, [x.companyId]: { ...p[x.companyId], sent: true } }));
       } catch (e) {
+        anyError = true;
         setDrafts((p) => ({ ...p, [x.companyId]: { ...p[x.companyId], error: e instanceof ApiError ? e.message : "Send failed" } }));
       }
     }
     setSending(false);
     onSent();
+    if (!anyError) onClose(); // all sent → close; keep open on failure to show the error
   };
 
   const allSent = targets.every((x) => drafts[x.companyId]?.sent);

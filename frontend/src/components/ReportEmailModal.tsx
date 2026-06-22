@@ -37,6 +37,7 @@ export function ReportEmailModal({ targets, period, onClose }:
 
   const sendAll = async () => {
     setSending(true);
+    let anyError = false;
     for (const x of targets) {
       const d = drafts[x.companyId];
       if (!d || d.sent || d.loading || !d.body.trim()) continue;
@@ -45,11 +46,13 @@ export function ReportEmailModal({ targets, period, onClose }:
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["report-emails", x.companyId, period] });
       } catch (e) {
+        anyError = true;
         patch(x.companyId, { error: e instanceof ApiError ? e.message : "Send failed" });
       }
     }
     setSending(false);
     void qc.invalidateQueries({ queryKey: ["reports", period] });
+    if (!anyError) onClose(); // all sent → close; on any failure keep the modal open to show the error
   };
 
   const allSent = targets.every((x) => drafts[x.companyId]?.sent);

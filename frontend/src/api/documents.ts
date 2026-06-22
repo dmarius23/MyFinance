@@ -37,7 +37,16 @@ export const documentsApi = {
     api<number>(`/api/v1/companies/${companyId}/documents/reclassify?period=${period}`, {
       method: "POST",
     }),
+  flags: (companyId: string, period: string, type: string) =>
+    api<DocumentFlags[]>(`/api/v1/companies/${companyId}/documents/flags?period=${period}&type=${type}`),
 };
+
+/** Advisory per-document flags for the upload-manager modal. */
+export interface DocumentFlags {
+  documentId: string;
+  wrongParty: boolean | null;
+  outsidePeriod: boolean | null;
+}
 
 /** Document types a user can manually assign. */
 export const DOCUMENT_TYPES = [

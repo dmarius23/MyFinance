@@ -65,7 +65,7 @@ public class DocumentService {
         UUID tenantId = currentTenant();
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
-        if (forcedType == DocumentType.PAYROLL) {
+        if (forcedType == DocumentType.PAYROLL || forcedType == DocumentType.TRIAL_BALANCE) {
             verifyBelongsToCompany(company.getCui(), contentType, bytes);
         }
 

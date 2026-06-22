@@ -34,9 +34,20 @@ import ro.myfinance.intake.application.DocumentService.DocumentContent;
 public class DocumentController {
 
     private final DocumentService service;
+    private final ro.myfinance.intake.application.DocumentFlagService flags;
 
-    public DocumentController(DocumentService service) {
+    public DocumentController(DocumentService service, ro.myfinance.intake.application.DocumentFlagService flags) {
         this.service = service;
+        this.flags = flags;
+    }
+
+    /** Advisory per-document flags (wrong company / outside period) for the upload-manager modal. */
+    @GetMapping("/flags")
+    public List<ro.myfinance.intake.application.DocumentFlagService.Flags> flags(
+            @PathVariable UUID companyId,
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("type") ro.myfinance.intake.domain.DocumentType type) {
+        return flags.flagsFor(companyId, period, type);
     }
 
     @PostMapping
