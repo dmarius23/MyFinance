@@ -36,4 +36,17 @@ class CompanyMatcherTest {
         assertThat(CompanyMatcher.present("", "49443957", "INNOVATECODE")).isNull();
         assertThat(CompanyMatcher.present(null, "49443957", "INNOVATECODE")).isNull();
     }
+
+    @Test
+    void amountDigitsDoNotFalseMatchCui() {
+        // A different company's balanță with an amount that concatenates to the target CUI must NOT match
+        // (the CUI is matched as a standalone number, not as a substring of all digits).
+        String text = "ALTA FIRMA SRL\nTotal active 49 443 957.00 RON\nc.f. 11223344";
+        assertThat(CompanyMatcher.present(text, "49443957", "INNOVATECODE IT SRL")).isFalse();
+    }
+
+    @Test
+    void matchesRealCuiAsStandaloneNumber() {
+        assertThat(CompanyMatcher.present("X SRL c.f. 49443957 r.c. ...", "RO49443957", "X")).isTrue();
+    }
 }

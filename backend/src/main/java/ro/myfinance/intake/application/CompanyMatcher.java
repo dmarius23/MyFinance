@@ -21,10 +21,11 @@ final class CompanyMatcher {
         if (text == null || text.isBlank()) {
             return null;
         }
-        String textDigits = text.replaceAll("\\D", "");
         String cuiDigits = companyCui == null ? "" : companyCui.replaceAll("\\D", "");
-        boolean haveCui = cuiDigits.length() >= 2;
-        if (haveCui && textDigits.contains(cuiDigits)) {
+        // Match the CUI as a standalone number (printed as "c.f. 49443957"), NOT as a substring of all
+        // concatenated digits — otherwise an amount like "49 443 957.00" would false-match the CUI.
+        boolean haveCui = cuiDigits.length() >= 4;
+        if (haveCui && Pattern.compile("(?<!\\d)" + Pattern.quote(cuiDigits) + "(?!\\d)").matcher(text).find()) {
             return true;
         }
         String key = significantToken(companyName);
