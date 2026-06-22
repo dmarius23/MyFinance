@@ -66,7 +66,7 @@ public class DocumentService {
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
         if (forcedType == DocumentType.PAYROLL || forcedType == DocumentType.TRIAL_BALANCE) {
-            verifyBelongsToCompany(company.getCui(), contentType, bytes);
+            verifyBelongsToCompany(company.getLegalName(), company.getCui(), contentType, bytes);
         }
 
         LocalDate period = periodMonth.withDayOfMonth(1);
@@ -188,12 +188,8 @@ public class DocumentService {
      * is rejected so one company's payroll can't be attached to another. Conservative: if the file isn't
      * a readable text PDF (e.g. a scan) or the company has no CUI, we can't verify and allow the upload.
      */
-    private void verifyBelongsToCompany(String companyCui, String contentType, byte[] bytes) {
-        if (companyCui == null || contentType == null || !contentType.toLowerCase().contains("pdf")) {
-            return;
-        }
-        String cuiDigits = companyCui.replaceAll("\\D", "");
-        if (cuiDigits.isBlank()) {
+    private void verifyBelongsToCompany(String companyName, String companyCui, String contentType, byte[] bytes) {
+        if (contentType == null || !contentType.toLowerCase().contains("pdf")) {
             return;
         }
         String text;
@@ -202,12 +198,11 @@ public class DocumentService {
         } catch (java.io.IOException | RuntimeException e) {
             return; // unreadable / not a real PDF → can't verify, allow
         }
-        if (text == null || text.isBlank()) {
-            return; // scanned PDF with no extractable text → can't verify, allow
-        }
-        if (!text.replaceAll("\\D", "").contains(cuiDigits)) {
+        // Match on CUI or company name (payslips print only the name). null = can't verify → allow.
+        if (Boolean.FALSE.equals(CompanyMatcher.present(text, companyCui, companyName))) {
             throw new ro.myfinance.common.web.ConflictException(
-                    "Documentul nu pare emis pentru această firmă (CUI " + companyCui + " negăsit în document).");
+                    "Documentul nu pare emis pentru această firmă (" + companyName + " / CUI "
+                            + companyCui + " negăsit în document).");
         }
     }
 

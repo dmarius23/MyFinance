@@ -50,16 +50,18 @@ public class DocumentFlagService {
 
     public List<Flags> flagsFor(UUID companyId, LocalDate periodMonth, DocumentType type) {
         LocalDate month = periodMonth.withDayOfMonth(1);
-        String cui = companies.findById(companyId).map(Company::getCui).orElse(null);
-        String cuiDigits = cui == null ? null : cui.replaceAll("\\D", "");
+        Company company = companies.findById(companyId).orElse(null);
+        String cui = company == null ? null : company.getCui();
+        String name = company == null ? null : company.getLegalName();
         List<Flags> out = new ArrayList<>();
         for (Document d : documents.findByCompanyIdAndPeriodMonthOrderByUploadedAtDesc(companyId, month)) {
             if (d.getType() != type) {
                 continue;
             }
             String text = pdfText(d);
-            Boolean wrongParty = (text == null || cuiDigits == null || cuiDigits.isBlank())
-                    ? null : !text.replaceAll("\\D", "").contains(cuiDigits);
+            // Belongs to the company if its CUI or name is present; null = can't verify.
+            Boolean present = CompanyMatcher.present(text, cui, name);
+            Boolean wrongParty = present == null ? null : !present;
             LocalDate docMonth = detectPeriod(text, d.getOriginalFilename());
             Boolean outsidePeriod = docMonth == null ? null : !docMonth.equals(month);
             out.add(new Flags(d.getId(), wrongParty, outsidePeriod));
