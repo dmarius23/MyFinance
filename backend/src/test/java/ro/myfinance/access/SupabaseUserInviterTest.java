@@ -15,10 +15,10 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import ro.myfinance.common.config.SupabaseProperties;
 import ro.myfinance.common.security.Role;
-import ro.myfinance.access.adapter.external.SupabaseRepresentativeInviter;
-import ro.myfinance.access.application.RepresentativeInviter.InviteClaims;
+import ro.myfinance.access.adapter.external.SupabaseUserInviter;
+import ro.myfinance.access.application.UserInviter.InviteClaims;
 
-class SupabaseRepresentativeInviterTest {
+class SupabaseUserInviterTest {
 
     @Test
     void invitesViaGoTrueAndSetsAppMetadata() {
@@ -41,7 +41,7 @@ class SupabaseRepresentativeInviterTest {
                 .andRespond(withSuccess("{\"id\":\"" + newUserId + "\"}", MediaType.APPLICATION_JSON));
 
         var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key");
-        var inviter = new SupabaseRepresentativeInviter(props, builder);
+        var inviter = new SupabaseUserInviter(props, builder);
 
         var result = inviter.invite("rep@client.ro",
                 new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));

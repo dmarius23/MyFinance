@@ -5,7 +5,7 @@ import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import ro.myfinance.common.config.SupabaseProperties;
-import ro.myfinance.access.application.RepresentativeInviter;
+import ro.myfinance.access.application.UserInviter;
 
 /**
  * Invites a representative through Supabase Auth (GoTrue) admin REST:
@@ -13,11 +13,11 @@ import ro.myfinance.access.application.RepresentativeInviter;
  *   2. PUT  /auth/v1/admin/users/{id} -> sets app_metadata {tenant_id, role, company_id}, which the
  *      custom access-token hook lifts into top-level JWT claims read by the backend.
  */
-public class SupabaseRepresentativeInviter implements RepresentativeInviter {
+public class SupabaseUserInviter implements UserInviter {
 
     private final RestClient client;
 
-    public SupabaseRepresentativeInviter(SupabaseProperties props, RestClient.Builder builder) {
+    public SupabaseUserInviter(SupabaseProperties props, RestClient.Builder builder) {
         this.client = builder
                 .baseUrl(props.url())
                 .defaultHeader("apikey", props.serviceRoleKey())
@@ -38,13 +38,17 @@ public class SupabaseRepresentativeInviter implements RepresentativeInviter {
             throw new IllegalStateException("Supabase invite returned no user id");
         }
 
+        // Staff (admin/employee) have no company; only representatives carry a company_id claim.
+        Map<String, Object> appMetadata = new java.util.HashMap<>();
+        appMetadata.put("tenant_id", claims.tenantId().toString());
+        appMetadata.put("role", claims.role().name());
+        if (claims.companyId() != null) {
+            appMetadata.put("company_id", claims.companyId().toString());
+        }
         client.put()
                 .uri("/auth/v1/admin/users/{id}", created.id())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("app_metadata", Map.of(
-                        "tenant_id", claims.tenantId().toString(),
-                        "role", claims.role().name(),
-                        "company_id", claims.companyId().toString())))
+                .body(Map.of("app_metadata", appMetadata))
                 .retrieve()
                 .toBodilessEntity();
 

@@ -24,10 +24,12 @@ public class AccessService {
 
     private final AppUserRepository users;
     private final RepresentativeLinkRepository repLinks;
+    private final UserInviter inviter;
 
-    public AccessService(AppUserRepository users, RepresentativeLinkRepository repLinks) {
+    public AccessService(AppUserRepository users, RepresentativeLinkRepository repLinks, UserInviter inviter) {
         this.users = users;
         this.repLinks = repLinks;
+        this.inviter = inviter;
     }
 
     @Transactional(readOnly = true)
@@ -35,11 +37,25 @@ public class AccessService {
         return users.findAll();
     }
 
-    /** Invite a user (placeholder — Supabase invite + email is wired in alongside Auth). */
+    /**
+     * Invite a firm-staff user (admin or accountant). Creates the Supabase auth user with tenant + role
+     * claims and triggers the invite email; the returned id becomes the {@code app_user} primary key, so
+     * the invitee is recognized on first login. Representatives are invited via {@link RepresentativeService}.
+     */
     public AppUser inviteUser(String email, String name, Role role) {
+        if (role != Role.TENANT_ADMIN && role != Role.EMPLOYEE) {
+            throw new IllegalArgumentException("Staff invites must be administrator or accountant");
+        }
         UUID tenantId = currentTenant();
-        // TODO(MOD-02): staff invites should also go through Supabase; until then mint a local id.
-        return users.save(new AppUser(UUID.randomUUID(), tenantId, email, name, role));
+        if (users.existsByEmail(email)) {
+            throw new ConflictException("A user with email " + email + " already exists in this tenant");
+        }
+        // NOTE: same caveat as representative invites — the external auth user is created before local
+        // persistence, so a failed save can orphan a Supabase user (narrowed by the existsByEmail check).
+        var invited = inviter.invite(email, new UserInviter.InviteClaims(tenantId, role, null));
+        AppUser user = users.save(new AppUser(invited.externalUserId(), tenantId, email, name, role));
+        user.setStatus(UserStatus.INVITED);
+        return user;
     }
 
     public AppUser setRole(UUID userId, Role role) {

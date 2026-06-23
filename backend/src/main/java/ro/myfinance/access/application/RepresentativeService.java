@@ -11,14 +11,14 @@ import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.access.adapter.persistence.AppUserRepository;
 import ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository;
-import ro.myfinance.access.application.RepresentativeInviter.InviteClaims;
+import ro.myfinance.access.application.UserInviter.InviteClaims;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.access.domain.RepresentativeLink;
 import ro.myfinance.access.domain.UserStatus;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 
 /**
- * MOD-02 — managing a company's representatives. Invites go through the {@link RepresentativeInviter}
+ * MOD-02 — managing a company's representatives. Invites go through the {@link UserInviter}
  * port (Supabase or logging fallback). All reads/writes are RLS-scoped to the caller's tenant.
  */
 @Service
@@ -28,11 +28,11 @@ public class RepresentativeService {
     private final CompanyRepository companies;
     private final AppUserRepository users;
     private final RepresentativeLinkRepository links;
-    private final RepresentativeInviter inviter;
+    private final UserInviter inviter;
     private final AuditRecorder audit;
 
     public RepresentativeService(CompanyRepository companies, AppUserRepository users,
-                                 RepresentativeLinkRepository links, RepresentativeInviter inviter,
+                                 RepresentativeLinkRepository links, UserInviter inviter,
                                  AuditRecorder audit) {
         this.companies = companies;
         this.users = users;

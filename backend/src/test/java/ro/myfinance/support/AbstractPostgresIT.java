@@ -36,7 +36,7 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.flyway.user", () -> "postgres");
         registry.add("spring.flyway.password", () -> "postgres");
         registry.add("spring.flyway.locations", () -> "classpath:db/migration");
-        // No Supabase creds in tests → LoggingRepresentativeInviter is active.
+        // No Supabase creds in tests → LoggingUserInviter is active.
         registry.add("myfinance.supabase.service-role-key", () -> "");
     }
 }
