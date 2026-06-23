@@ -13,6 +13,7 @@ import { TaxPayments } from "./pages/TaxPayments";
 import { Payroll } from "./pages/Payroll";
 import { Reports } from "./pages/Reports";
 import { Notifications } from "./pages/Notifications";
+import { Tasks } from "./pages/Tasks";
 
 /**
  * Routing — one route per page (no stacked sections). Guards are UX-only; the server enforces
@@ -39,7 +40,7 @@ export default function App() {
           <Route path="/payroll" element={<Payroll />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/notifications" element={<Notifications />} />
-          <Route path="/tasks" element={<PagePlaceholder title="Tasks" module="MOD-10" />} />
+          <Route path="/tasks" element={<Tasks />} />
         </Route>
       </Route>
 

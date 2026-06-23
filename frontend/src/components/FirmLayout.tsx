@@ -12,6 +12,7 @@ const NAV = [
   { to: "/taxes", key: "nav.taxes", icon: "taxes" },
   { to: "/payroll", key: "nav.payroll", icon: "payroll" },
   { to: "/reports", key: "nav.reports", icon: "reports" },
+  { to: "/tasks", key: "nav.tasks", icon: "tasks" },
 ] as const;
 
 /** Routes where the topbar month stepper is meaningful. */
@@ -53,6 +54,7 @@ function crumbFor(path: string, t: (k: string) => string): string {
   const map: Record<string, string> = {
     "/dashboard": "nav.dashboard", "/companies": "nav.companies", "/statements": "nav.statements",
     "/taxes": "nav.taxes", "/payroll": "nav.payroll", "/reports": "nav.reports", "/settings": "nav.settings",
+    "/tasks": "nav.tasks", "/notifications": "notif.title",
   };
   const key = Object.keys(map).find((p) => path.startsWith(p));
   return key ? t(map[key]) : "";

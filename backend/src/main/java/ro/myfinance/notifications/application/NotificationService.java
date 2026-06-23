@@ -96,6 +96,21 @@ public class NotificationService {
         }
     }
 
+    /** In-app nudge when a task is assigned to a staff member (no email). No-op for self-assignment. */
+    public void taskAssigned(UUID assigneeUserId, String taskTitle, UUID companyId, String companyName) {
+        UUID self = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        if (assigneeUserId == null || assigneeUserId.equals(self)) {
+            return;
+        }
+        try {
+            UUID tenantId = TenantContext.tenantId().orElseThrow();
+            notifications.save(new Notification(tenantId, assigneeUserId, "TASK_ASSIGNED",
+                    "Sarcină nouă", taskTitle, companyId, companyName, null));
+        } catch (RuntimeException e) {
+            log.warn("Failed to create task-assigned notification for {}", assigneeUserId, e);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<NotificationView> list() {
         return notifications.findTop50ByRecipientUserIdOrderByCreatedAtDesc(currentUser())
