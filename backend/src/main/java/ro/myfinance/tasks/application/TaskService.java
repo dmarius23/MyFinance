@@ -50,6 +50,30 @@ public class TaskService {
                             TaskItem.Status status) {
     }
 
+    /** Task load for one assignee (null assigneeId = unassigned). For the admin per-user view. */
+    public record UserTaskLoad(UUID assigneeId, int todo, int inProgress, int done, int overdue) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserTaskLoad> loadByUser() {
+        LocalDate today = LocalDate.now();
+        Map<UUID, int[]> acc = new java.util.LinkedHashMap<>(); // [todo, inProgress, done, overdue]
+        for (TaskItem t : tasks.findAllByOrderByCreatedAtDesc()) {
+            int[] a = acc.computeIfAbsent(t.getAssigneeId(), k -> new int[4]);
+            switch (t.getStatus()) {
+                case TODO -> a[0]++;
+                case IN_PROGRESS -> a[1]++;
+                case DONE -> a[2]++;
+            }
+            if (t.getDueDate() != null && t.getStatus() != TaskItem.Status.DONE && t.getDueDate().isBefore(today)) {
+                a[3]++;
+            }
+        }
+        return acc.entrySet().stream()
+                .map(e -> new UserTaskLoad(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<TaskView> list() {
         List<TaskItem> all = tasks.findAllByOrderByCreatedAtDesc();

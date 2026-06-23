@@ -36,6 +36,13 @@ public class TaskController {
         return tasks.list();
     }
 
+    /** Per-user task load — admin oversight of who has what. Admin only. */
+    @GetMapping("/by-user")
+    @PreAuthorize("hasRole('TENANT_ADMIN')")
+    public List<TaskService.UserTaskLoad> byUser() {
+        return tasks.loadByUser();
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TaskView create(@RequestBody TaskInput input) {

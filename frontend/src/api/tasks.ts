@@ -31,6 +31,14 @@ export interface StaffMember {
   role: string;
 }
 
+export interface UserTaskLoad {
+  assigneeId: string | null;
+  todo: number;
+  inProgress: number;
+  done: number;
+  overdue: number;
+}
+
 export const tasksApi = {
   list: () => api<Task[]>("/api/v1/tasks"),
   create: (input: TaskInput) => api<Task>("/api/v1/tasks", { method: "POST", body: JSON.stringify(input) }),
@@ -38,6 +46,7 @@ export const tasksApi = {
   changeStatus: (id: string, status: TaskStatus) =>
     api<Task>(`/api/v1/tasks/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   remove: (id: string) => api<void>(`/api/v1/tasks/${id}`, { method: "DELETE" }),
+  byUser: () => api<UserTaskLoad[]>("/api/v1/tasks/by-user"),
 };
 
 export const staffApi = {

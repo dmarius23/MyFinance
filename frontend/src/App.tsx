@@ -14,6 +14,7 @@ import { Payroll } from "./pages/Payroll";
 import { Reports } from "./pages/Reports";
 import { Notifications } from "./pages/Notifications";
 import { Tasks } from "./pages/Tasks";
+import { Team } from "./pages/Team";
 
 /**
  * Routing — one route per page (no stacked sections). Guards are UX-only; the server enforces
@@ -44,10 +45,11 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Settings — TENANT_ADMIN only */}
+      {/* Settings + Team — TENANT_ADMIN only */}
       <Route element={<RequireRole allow={["TENANT_ADMIN"]} />}>
         <Route element={<FirmLayout />}>
           <Route path="/settings" element={<Settings />} />
+          <Route path="/team" element={<Team />} />
         </Route>
       </Route>
 

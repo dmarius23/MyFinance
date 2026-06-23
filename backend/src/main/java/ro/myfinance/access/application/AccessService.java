@@ -60,6 +60,13 @@ public class AccessService {
         return user;
     }
 
+    public AppUser activate(UUID userId) {
+        AppUser user = users.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+        user.setStatus(UserStatus.ACTIVE);
+        return user;
+    }
+
     public RepresentativeLink linkRepresentative(UUID userId, UUID companyId) {
         return repLinks.save(new RepresentativeLink(currentTenant(), userId, companyId));
     }

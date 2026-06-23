@@ -52,6 +52,11 @@ public class AccessController {
         return UserResponse.from(service.deactivate(id));
     }
 
+    @PostMapping("/{id}/activate")
+    public UserResponse activate(@PathVariable UUID id) {
+        return UserResponse.from(service.activate(id));
+    }
+
     @PostMapping("/representative-links")
     @ResponseStatus(HttpStatus.CREATED)
     public void linkRepresentative(@Valid @RequestBody LinkRepRequest request) {

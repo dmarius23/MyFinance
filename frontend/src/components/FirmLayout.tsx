@@ -54,7 +54,7 @@ function crumbFor(path: string, t: (k: string) => string): string {
   const map: Record<string, string> = {
     "/dashboard": "nav.dashboard", "/companies": "nav.companies", "/statements": "nav.statements",
     "/taxes": "nav.taxes", "/payroll": "nav.payroll", "/reports": "nav.reports", "/settings": "nav.settings",
-    "/tasks": "nav.tasks", "/notifications": "notif.title",
+    "/tasks": "nav.tasks", "/notifications": "notif.title", "/team": "nav.team",
   };
   const key = Object.keys(map).find((p) => path.startsWith(p));
   return key ? t(map[key]) : "";
@@ -84,6 +84,7 @@ export function FirmLayout() {
             ))}
             <div className="nav-divider" />
             <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
+            {role === "TENANT_ADMIN" && <NavLink to="/team"><Icon name="companies" /> {t("nav.team")}</NavLink>}
             {role === "TENANT_ADMIN" && <NavLink to="/settings"><Icon name="settings" /> {t("nav.settings")}</NavLink>}
             {role === "SUPER_ADMIN" && <NavLink to="/admin/tenants"><Icon name="companies" /> {t("nav.tenants")}</NavLink>}
           </nav>
