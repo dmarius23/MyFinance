@@ -22,7 +22,8 @@ export function Login() {
       setError(signInError.message);
       return;
     }
-    navigate("/dashboard", { replace: true });
+    // Role-aware landing (reps → /portal, staff → /dashboard) is resolved at "/".
+    navigate("/", { replace: true });
   }
 
   return (

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { FirmLayout } from "./components/FirmLayout";
 import { PagePlaceholder } from "./components/PagePlaceholder";
 import { RequireRole } from "./auth/RequireRole";
+import { useAuth, type Role } from "./auth/AuthProvider";
 import { Login } from "./pages/Login";
 import { Companies } from "./pages/Companies";
 import { Dashboard } from "./pages/Dashboard";
@@ -15,6 +16,19 @@ import { Reports } from "./pages/Reports";
 import { Notifications } from "./pages/Notifications";
 import { Tasks } from "./pages/Tasks";
 import { Team } from "./pages/Team";
+
+/** Where a signed-in user belongs based on their role (reps → portal, staff → dashboard). */
+export function homeFor(role: Role | null): string {
+  return role === "REPRESENTATIVE" ? "/portal" : "/dashboard";
+}
+
+/** Role-aware landing for "/" and unknown paths — avoids bouncing reps into the staff-only dashboard. */
+function RoleHome() {
+  const { loading, session, role } = useAuth();
+  if (loading) return <div className="centered">Loading…</div>;
+  if (!session) return <Navigate to="/login" replace />;
+  return <Navigate to={homeFor(role)} replace />;
+}
 
 /**
  * Routing — one route per page (no stacked sections). Guards are UX-only; the server enforces
@@ -60,8 +74,8 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<RoleHome />} />
+      <Route path="*" element={<RoleHome />} />
     </Routes>
   );
 }
