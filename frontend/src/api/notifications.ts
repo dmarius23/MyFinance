@@ -1,5 +1,4 @@
-import { api, upload } from "../lib/apiClient";
-import type { Document } from "./documents";
+import { api } from "../lib/apiClient";
 
 export interface AppNotification {
   id: string;
@@ -18,14 +17,4 @@ export const notificationsApi = {
   unreadCount: () => api<{ count: number }>("/api/v1/notifications/unread-count"),
   markRead: (id: string) => api<void>(`/api/v1/notifications/${id}/read`, { method: "POST" }),
   markAllRead: () => api<void>("/api/v1/notifications/read-all", { method: "POST" }),
-};
-
-/** Representative PWA: upload a document for the rep's own company (triggers staff notification + email). */
-export const portalApi = {
-  uploadDocument: (file: File, periodMonth?: string) => {
-    const form = new FormData();
-    form.append("file", file);
-    if (periodMonth) form.append("periodMonth", periodMonth);
-    return upload<Document>("/api/v1/portal/documents", form);
-  },
 };
