@@ -25,6 +25,11 @@ export function RepHome() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const me = useQuery({ queryKey: ["portal-me"], queryFn: portalApi.me });
+  const notifs = useQuery({ queryKey: ["portal-notifs"], queryFn: portalApi.notifications, refetchInterval: 30000, refetchOnWindowFocus: true });
+  const markRead = useMutation({
+    mutationFn: (id: string) => portalApi.markNotificationRead(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["portal-notifs"] }),
+  });
   const missing = useQuery({ queryKey: ["portal-missing", period], queryFn: () => portalApi.missing(period) });
   const myDocs = useQuery({ queryKey: ["portal-docs", period], queryFn: () => portalApi.myDocuments(period) });
   const report = useQuery({ queryKey: ["portal-report", period], queryFn: () => portalApi.report(period) });
@@ -61,6 +66,23 @@ export function RepHome() {
         <span style={{ fontWeight: 600, fontSize: 14, textTransform: "capitalize" }}>{monthLabel(period, i18n.language)}</span>
         <button onClick={() => setPeriod((p) => shiftMonth(p, 1))} aria-label="next">›</button>
       </div>
+
+      {/* Notifications */}
+      {(notifs.data ?? []).length > 0 && (
+        <div className="card">
+          <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("notif.title")}</h2>
+          {(notifs.data ?? []).slice(0, 6).map((n, i) => (
+            <button key={n.id} onClick={() => { if (!n.readAt) markRead.mutate(n.id); }}
+              style={{ display: "block", width: "100%", textAlign: "left", border: "none", borderTop: i ? "1px solid var(--hair)" : "none", padding: "9px 0", background: "none", cursor: n.readAt ? "default" : "pointer", font: "inherit" }}>
+              <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                {!n.readAt && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--primary)", flexShrink: 0 }} />}
+                <span style={{ fontSize: 13.5, fontWeight: 600 }}>{n.title}</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{n.body}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Upload */}
       <div className="card">

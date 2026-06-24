@@ -27,6 +27,16 @@ export interface PayrollFile {
   filename: string;
 }
 
+export interface PortalNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  companyName: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -52,4 +62,6 @@ export const portalApi = {
     saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}`), `raport-${period.slice(0, 7)}.pdf`),
   downloadFile: async (id: string, filename: string) =>
     saveBlob(await download(`/api/v1/portal/files/${id}`), filename),
+  notifications: () => api<PortalNotification[]>("/api/v1/portal/notifications"),
+  markNotificationRead: (id: string) => api<void>(`/api/v1/portal/notifications/${id}/read`, { method: "POST" }),
 };

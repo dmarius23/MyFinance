@@ -118,6 +118,21 @@ public class PortalService {
                 .map(d -> new PayrollFile(d.id(), d.filename())).toList();
     }
 
+    /** The rep's in-app notifications (document requests, new reports). Scoped to the current user. */
+    @Transactional(readOnly = true)
+    public List<NotificationService.NotificationView> notifications() {
+        return notifications.list();
+    }
+
+    @Transactional(readOnly = true)
+    public long unreadNotifications() {
+        return notifications.unreadCount();
+    }
+
+    public void markNotificationRead(UUID id) {
+        notifications.markRead(id);
+    }
+
     /** Download a document — only if it belongs to the rep's own company. */
     @Transactional(readOnly = true)
     public DocumentContent download(UUID documentId) {

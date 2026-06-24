@@ -36,14 +36,31 @@ public class NotificationService {
     private final AppUserRepository users;
     private final SettingsService settings;
     private final EmailSender sender;
+    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
 
     public NotificationService(NotificationRepository notifications, CompanyRepository companies,
-                               AppUserRepository users, SettingsService settings, EmailSender sender) {
+                               AppUserRepository users, SettingsService settings, EmailSender sender,
+                               ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks) {
         this.notifications = notifications;
         this.companies = companies;
         this.users = users;
         this.settings = settings;
         this.sender = sender;
+        this.repLinks = repLinks;
+    }
+
+    /** In-app notification to every representative of a company (e.g. a document request or a new report). */
+    public void notifyCompanyReps(UUID companyId, String type, String title, String body) {
+        try {
+            UUID tenantId = TenantContext.tenantId().orElseThrow();
+            String companyName = companies.findById(companyId).map(Company::getLegalName).orElse(null);
+            for (var link : repLinks.findByCompanyId(companyId)) {
+                notifications.save(new Notification(tenantId, link.getUserId(), type, title, body,
+                        companyId, companyName, null));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to notify reps of company {}", companyId, e);
+        }
     }
 
     public record NotificationView(UUID id, String type, String title, String body, UUID companyId,

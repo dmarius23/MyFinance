@@ -87,6 +87,25 @@ public class PortalController {
         return portal.payroll(period);
     }
 
+    @GetMapping("/api/v1/portal/notifications")
+    public List<ro.myfinance.notifications.application.NotificationService.NotificationView> notifications() {
+        return portal.notifications();
+    }
+
+    @GetMapping("/api/v1/portal/notifications/unread-count")
+    public UnreadCount unread() {
+        return new UnreadCount(portal.unreadNotifications());
+    }
+
+    @PostMapping("/api/v1/portal/notifications/{id}/read")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markRead(@PathVariable UUID id) {
+        portal.markNotificationRead(id);
+    }
+
+    public record UnreadCount(long count) {
+    }
+
     @GetMapping("/api/v1/portal/files/{id}")
     public ResponseEntity<byte[]> download(@PathVariable UUID id) {
         var c = portal.download(id);

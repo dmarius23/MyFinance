@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { dashboardApi, type DashboardStatusFilter, type SectionStatus, type SectionTile } from "../api/dashboard";
@@ -113,7 +114,7 @@ export function Dashboard() {
 }
 
 function Tile({ label, icon, tile, onClick, t }:
-  { label: string; icon: string; tile?: SectionTile; onClick: () => void; t: (k: string, o?: object) => string }) {
+  { label: string; icon: string; tile?: SectionTile; onClick: () => void; t: TFunction }) {
   const total = tile ? tile.done + tile.partial + tile.nothing : 0;
   const pct = (n: number) => total ? `${(n / total) * 100}%` : "0%";
   return (
@@ -147,7 +148,7 @@ function Stat({ n, color, label }: { n?: number; color: string; label: string })
   );
 }
 
-function Cell({ s, t }: { s: SectionStatus; t: (k: string) => string }) {
+function Cell({ s, t }: { s: SectionStatus; t: TFunction }) {
   if (s === "NA") return <div style={{ textAlign: "center", color: "var(--text-faint)" }}>—</div>;
   const cls = s === "DONE" ? "ok" : s === "PARTIAL" ? "warn" : "danger";
   return <div style={{ textAlign: "center" }}><span className={`pill round ${cls}`} title={t(`dashboard.st.${s.toLowerCase()}`)}>{t(`dashboard.st.${s.toLowerCase()}`)}</span></div>;

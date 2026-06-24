@@ -30,14 +30,17 @@ public class ReportEmailService {
     private final ReportPdfGenerator pdf;
     private final EmailEnvelopeService envelopes;
     private final EmailSender sender;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public ReportEmailService(ReportService reports, ReportEmailRepository emails, ReportPdfGenerator pdf,
-                              EmailEnvelopeService envelopes, EmailSender sender) {
+                              EmailEnvelopeService envelopes, EmailSender sender,
+                              ro.myfinance.notifications.application.NotificationService notifications) {
         this.reports = reports;
         this.emails = emails;
         this.pdf = pdf;
         this.envelopes = envelopes;
         this.sender = sender;
+        this.notifications = notifications;
     }
 
     /** One report email send (notification log + resend). */
@@ -84,6 +87,10 @@ public class ReportEmailService {
             status = ReportEmail.Status.FAILED;
             error = e.getMessage();
             log.warn("Report email send failed for company {} period {}", companyId, month, e);
+        }
+        if (status == ReportEmail.Status.SENT) {
+            notifications.notifyCompanyReps(companyId, "REPORT_READY", "Raport disponibil",
+                    "Raportul financiar pe luna " + ReportEmailBuilder.monthYear(month) + " este disponibil.");
         }
         return ReportEmailView.from(emails.save(new ReportEmail(
                 tenantId, companyId, month, to, body, status, error, userId)));

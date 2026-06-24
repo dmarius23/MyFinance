@@ -30,12 +30,15 @@ public class DocumentReminderService {
     private final DocumentReminderRepository reminders;
     private final EmailSender sender;
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public DocumentReminderService(DocumentReminderRepository reminders, EmailSender sender,
-                                   ro.myfinance.access.application.EmailEnvelopeService envelopes) {
+                                   ro.myfinance.access.application.EmailEnvelopeService envelopes,
+                                   ro.myfinance.notifications.application.NotificationService notifications) {
         this.reminders = reminders;
         this.sender = sender;
         this.envelopes = envelopes;
+        this.notifications = notifications;
     }
 
     /** One reminder send, for the notification log / list. */
@@ -92,6 +95,10 @@ public class DocumentReminderService {
             status = DocumentReminder.Status.FAILED;
             error = e.getMessage();
             log.warn("Reminder send failed for company {} period {}", companyId, month, e);
+        }
+        if (status == DocumentReminder.Status.SENT) {
+            notifications.notifyCompanyReps(companyId, "DOC_REQUEST", "Documente solicitate",
+                    "Contabilul a solicitat documente pentru luna " + MONTH.format(month) + ".");
         }
         return ReminderView.from(reminders.save(new DocumentReminder(
                 tenantId, companyId, month, to, body, status, error, userId)));
