@@ -87,6 +87,16 @@ public class PortalController {
         return portal.payroll(period);
     }
 
+    @GetMapping("/api/v1/portal/balance-sheet")
+    public List<DocView> balanceSheet(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return portal.balanceSheet(period);
+    }
+
+    @GetMapping("/api/v1/portal/payments")
+    public PortalService.PaymentView payments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return portal.payments(period);
+    }
+
     @GetMapping("/api/v1/portal/notifications")
     public List<ro.myfinance.notifications.application.NotificationService.NotificationView> notifications() {
         return portal.notifications();

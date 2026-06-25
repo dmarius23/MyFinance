@@ -27,6 +27,20 @@ export interface PayrollFile {
   filename: string;
 }
 
+export interface PaymentLine {
+  amount: number;
+  explanation: string | null;
+  iban: string;
+  scadenta: string | null;
+  categories: string[];
+}
+
+export interface Payment {
+  total: number;
+  lines: PaymentLine[];
+  unconfigured: { category: string; amount: number }[];
+}
+
 export interface PortalNotification {
   id: string;
   type: string;
@@ -58,6 +72,8 @@ export const portalApi = {
   // 204 → undefined (no report for the period yet).
   report: (period: string) => api<ReportData | null>(`/api/v1/portal/report?period=${period}`),
   payroll: (period: string) => api<PayrollFile[]>(`/api/v1/portal/payroll?period=${period}`),
+  balanceSheet: (period: string) => api<PortalDoc[]>(`/api/v1/portal/balance-sheet?period=${period}`),
+  payments: (period: string) => api<Payment>(`/api/v1/portal/payments?period=${period}`),
   downloadReport: async (period: string) =>
     saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}`), `raport-${period.slice(0, 7)}.pdf`),
   downloadFile: async (id: string, filename: string) =>

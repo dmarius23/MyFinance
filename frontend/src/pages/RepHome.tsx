@@ -33,7 +33,9 @@ export function RepHome() {
   const missing = useQuery({ queryKey: ["portal-missing", period], queryFn: () => portalApi.missing(period) });
   const myDocs = useQuery({ queryKey: ["portal-docs", period], queryFn: () => portalApi.myDocuments(period) });
   const report = useQuery({ queryKey: ["portal-report", period], queryFn: () => portalApi.report(period) });
+  const balanceSheet = useQuery({ queryKey: ["portal-balance", period], queryFn: () => portalApi.balanceSheet(period) });
   const payroll = useQuery({ queryKey: ["portal-payroll", period], queryFn: () => portalApi.payroll(period) });
+  const payments = useQuery({ queryKey: ["portal-payments", period], queryFn: () => portalApi.payments(period) });
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["portal-docs", period] });
@@ -129,19 +131,58 @@ export function RepHome() {
         ))}
       </div>
 
-      {/* Report */}
+      {/* Amount to pay (state obligations) */}
       <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.report")}</h2>
-        {report.isLoading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>…</p>}
-        {!report.isLoading && !r && <p style={{ color: "var(--text-faint)", fontSize: 13 }}>{t("portal.reportNotReady")}</p>}
-        {r && (
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.toPayTitle")}</h2>
+        {payments.isLoading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>…</p>}
+        {payments.data && (payments.data.lines.length + payments.data.unconfigured.length) === 0 && (
+          <p style={{ color: "var(--text-faint)", fontSize: 13 }}>{t("portal.nothingToPay")}</p>
+        )}
+        {payments.data && payments.data.lines.length > 0 && (
           <>
-            <div style={{ display: "flex", gap: 14, margin: "6px 0 10px" }}>
-              <Kpi label={t("reports.chart.pl")} value={`${money(r.profitLoss.revenue)}`} sub="Venituri" />
-              <Kpi label="" value={`${money(r.profitLoss.netProfit)}`} sub="Profit net" />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t("portal.totalToPay")}</span>
+              <span className="mono" style={{ fontSize: 20, fontWeight: 700 }}>{money(payments.data.total)} RON</span>
             </div>
-            <button className="primary" style={{ width: "100%", padding: 11 }} onClick={() => portalApi.downloadReport(period)}>⤓ {t("portal.downloadReport")}</button>
+            {payments.data.lines.map((l, i) => (
+              <div key={i} style={{ padding: "9px 0", borderTop: "1px solid var(--hair)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{l.explanation ?? l.categories.join(" + ")}</span>
+                  <span className="mono" style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap" }}>{money(l.amount)} RON</span>
+                </div>
+                <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>
+                  {t("portal.account")}: {l.iban}
+                </div>
+                {l.scadenta && <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{t("portal.due")}: {l.scadenta}</div>}
+              </div>
+            ))}
           </>
+        )}
+        {payments.data && payments.data.unconfigured.length > 0 && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "var(--warn-fg, #92400e)" }}>
+            {t("portal.accountMissing")}: {payments.data.unconfigured.map((u) => `${u.category} (${money(u.amount)})`).join(", ")}
+          </div>
+        )}
+      </div>
+
+      {/* Balance sheet + Report */}
+      <div className="card">
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.financials")}</h2>
+        {report.isLoading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>…</p>}
+        {r && (
+          <div style={{ display: "flex", gap: 14, margin: "4px 0 10px" }}>
+            <Kpi value={`${money(r.profitLoss.revenue)}`} sub={t("portal.revenue")} />
+            <Kpi value={`${money(r.profitLoss.netProfit)}`} sub={t("portal.netProfit")} />
+          </div>
+        )}
+        <div style={{ display: "grid", gap: 8 }}>
+          <button className="primary" style={{ padding: 11, opacity: r ? 1 : 0.5 }} disabled={!r} onClick={() => portalApi.downloadReport(period)}>⤓ {t("portal.downloadReport")}</button>
+          {(balanceSheet.data ?? []).map((d) => (
+            <button key={d.id} onClick={() => portalApi.downloadFile(d.id, d.filename)} style={{ padding: 11 }}>⤓ {t("portal.downloadBalance")}</button>
+          ))}
+        </div>
+        {!report.isLoading && !r && (balanceSheet.data ?? []).length === 0 && (
+          <p style={{ color: "var(--text-faint)", fontSize: 13, marginTop: 8 }}>{t("portal.reportNotReady")}</p>
         )}
       </div>
 
@@ -162,11 +203,11 @@ export function RepHome() {
   );
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+function Kpi({ value, sub }: { value: string; sub: string }) {
   return (
     <div style={{ flex: 1 }}>
       <div className="mono" style={{ fontSize: 19, fontWeight: 700 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{sub}{label ? "" : ""}</div>
+      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{sub}</div>
     </div>
   );
 }

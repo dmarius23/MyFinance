@@ -37,10 +37,11 @@ public class PortalService {
     private final ReportService reports;
     private final ReportPdfGenerator reportPdf;
     private final PayrollService payroll;
+    private final ro.myfinance.taxpayments.application.TaxPaymentService taxes;
 
     public PortalService(CompanyRepository companies, DocumentService documents, NotificationService notifications,
                          ReconciliationService reconciliation, ReportService reports, ReportPdfGenerator reportPdf,
-                         PayrollService payroll) {
+                         PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes) {
         this.companies = companies;
         this.documents = documents;
         this.notifications = notifications;
@@ -48,6 +49,7 @@ public class PortalService {
         this.reports = reports;
         this.reportPdf = reportPdf;
         this.payroll = payroll;
+        this.taxes = taxes;
     }
 
     public record CompanyInfo(UUID companyId, String name, String cui) {
@@ -60,6 +62,17 @@ public class PortalService {
     }
 
     public record PayrollFile(UUID id, String filename) {
+    }
+
+    /** What the company owes the state for the period: per-account lines + total. */
+    public record PaymentView(BigDecimal total, List<PaymentLineView> lines, List<UnconfiguredView> unconfigured) {
+    }
+
+    public record PaymentLineView(BigDecimal amount, String explanation, String iban, LocalDate scadenta,
+                                  List<String> categories) {
+    }
+
+    public record UnconfiguredView(String category, BigDecimal amount) {
     }
 
     /** The rep's company (from the JWT). */
@@ -90,10 +103,34 @@ public class PortalService {
                 .toList();
     }
 
-    /** Documents the rep has uploaded for the period. */
+    /** Documents the rep themselves uploaded for the period (source=REP). */
     @Transactional(readOnly = true)
     public List<DocView> myDocuments(LocalDate period) {
-        return documents.list(companyId(), period.withDayOfMonth(1)).stream().map(this::view).toList();
+        return documents.list(companyId(), period.withDayOfMonth(1)).stream()
+                .filter(d -> d.getSource() == DocumentSource.REP)
+                .map(this::view).toList();
+    }
+
+    /** The uploaded balance sheet (trial balance) for the period — for download alongside the report. */
+    @Transactional(readOnly = true)
+    public List<DocView> balanceSheet(LocalDate period) {
+        return documents.listByCompanyPeriodType(companyId(), period.withDayOfMonth(1),
+                        ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE).stream()
+                .map(this::view).toList();
+    }
+
+    /** What the company owes the state this period: amounts grouped per treasury IBAN, with the total. */
+    @Transactional(readOnly = true)
+    public PaymentView payments(LocalDate period) {
+        var s = taxes.summary(companyId(), period.withDayOfMonth(1));
+        List<PaymentLineView> lines = s.paymentLines().stream()
+                .map(l -> new PaymentLineView(l.amount(), l.explanation(), l.iban(), l.scadenta(),
+                        l.categories().stream().map(Enum::name).toList()))
+                .toList();
+        List<UnconfiguredView> unconfigured = s.unconfigured().stream()
+                .map(u -> new UnconfiguredView(u.category().name(), u.amount()))
+                .toList();
+        return new PaymentView(s.totalToPay(), lines, unconfigured);
     }
 
     /** The computed monthly report for the rep's company, or null if none is available yet. */
