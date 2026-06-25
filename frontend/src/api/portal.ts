@@ -80,6 +80,9 @@ export const portalApi = {
     saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}`), `raport-${period.slice(0, 7)}.pdf`),
   downloadFile: async (id: string, filename: string) =>
     saveBlob(await download(`/api/v1/portal/files/${id}`), filename),
+  // Same content as a Blob, for in-app preview (no download).
+  fileBlob: (id: string) => download(`/api/v1/portal/files/${id}`),
+  reportBlob: (period: string) => download(`/api/v1/portal/report/pdf?period=${period}`),
   notifications: () => api<PortalNotification[]>("/api/v1/portal/notifications"),
   markNotificationRead: (id: string) => api<void>(`/api/v1/portal/notifications/${id}/read`, { method: "POST" }),
 };

@@ -5,6 +5,7 @@ import { portalApi } from "../api/portal";
 import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
+import { PortalPreviewModal } from "../components/PortalPreviewModal";
 
 const money = (n: number) => (n ?? 0).toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const monthLabel = (period: string, lang: string) =>
@@ -24,6 +25,7 @@ export function RepHome() {
   const { signOut } = useAuth();
   const qc = useQueryClient();
   const [period, setPeriod] = useState(latestMonth());
+  const [preview, setPreview] = useState<{ load: () => Promise<Blob>; filename: string } | null>(null);
   const atLatest = period >= latestMonth(); // can't go to the current/future month
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -156,13 +158,17 @@ export function RepHome() {
               </span>
             </div>
             {bank.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")} onClick={() => portalApi.downloadFile(d.id, d.filename)} />
+              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")}
+                onView={() => setPreview({ load: () => portalApi.fileBlob(d.id), filename: d.filename })}
+                onDownload={() => portalApi.downloadFile(d.id, d.filename)} />
             ))}
 
             {/* Invoices / receipts / other */}
             {others.length === 0 && !hasBank && <p style={{ color: "var(--text-faint)", fontSize: 13 }}>—</p>}
             {others.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} onClick={() => portalApi.downloadFile(d.id, d.filename)} />
+              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)}
+                onView={() => setPreview({ load: () => portalApi.fileBlob(d.id), filename: d.filename })}
+                onDownload={() => portalApi.downloadFile(d.id, d.filename)} />
             ))}
           </div>
         );
@@ -213,9 +219,15 @@ export function RepHome() {
           </div>
         )}
         <div style={{ display: "grid", gap: 8 }}>
-          <button className="primary" style={{ padding: 11, opacity: r ? 1 : 0.5 }} disabled={!r} onClick={() => portalApi.downloadReport(period)}>⤓ {t("portal.downloadReport")}</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ flex: 1, padding: 11, opacity: r ? 1 : 0.5 }} disabled={!r}
+              onClick={() => setPreview({ load: () => portalApi.reportBlob(period), filename: `raport-${period.slice(0, 7)}.pdf` })}>👁 {t("portal.view")}</button>
+            <button className="primary" style={{ flex: 1, padding: 11, opacity: r ? 1 : 0.5 }} disabled={!r} onClick={() => portalApi.downloadReport(period)}>⤓ {t("portal.downloadReport")}</button>
+          </div>
           {(balanceSheet.data ?? []).map((d) => (
-            <button key={d.id} onClick={() => portalApi.downloadFile(d.id, d.filename)} style={{ padding: 11 }}>⤓ {t("portal.downloadBalance")}</button>
+            <DocRow key={d.id} filename={d.filename} label={t("portal.docType.balance")}
+              onView={() => setPreview({ load: () => portalApi.fileBlob(d.id), filename: d.filename })}
+              onDownload={() => portalApi.downloadFile(d.id, d.filename)} />
           ))}
         </div>
         {!report.isLoading && !r && (balanceSheet.data ?? []).length === 0 && (
@@ -243,30 +255,36 @@ export function RepHome() {
         <div className="card">
           <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.payroll")}</h2>
           {(payroll.data ?? []).map((p) => (
-            <button key={p.id} onClick={() => portalApi.downloadFile(p.id, p.filename)}
-              style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-              <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.filename}</span>
-              <span style={{ fontSize: 16, color: "var(--primary)" }}>⤓</span>
-            </button>
+            <DocRow key={p.id} filename={p.filename} label={t("portal.payroll")}
+              onView={() => setPreview({ load: () => portalApi.fileBlob(p.id), filename: p.filename })}
+              onDownload={() => portalApi.downloadFile(p.id, p.filename)} />
           ))}
         </div>
       )}
+
+      {preview && <PortalPreviewModal load={preview.load} filename={preview.filename} onClose={() => setPreview(null)} />}
     </div>
   );
 }
 
-function DocRow({ filename, label, onClick }: { filename: string; label: string; onClick: () => void }) {
+function DocRow({ filename, label, onView, onDownload }:
+  { filename: string; label: string; onView: () => void; onDownload: () => void }) {
   return (
-    <button onClick={onClick}
-      style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-      <span style={{ minWidth: 0 }}>
+    <div style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)" }}>
+      <button onClick={onView} title="view"
+        style={{ minWidth: 0, flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
         <span style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filename}</span>
         <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
-      </span>
-      <span style={{ fontSize: 16, color: "var(--primary)", flexShrink: 0 }}>⤓</span>
-    </button>
+      </button>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        <button onClick={onView} title="view" style={iconBtn}>👁</button>
+        <button onClick={onDownload} title="download" style={iconBtn}>⤓</button>
+      </div>
+    </div>
   );
 }
+
+const iconBtn: React.CSSProperties = { border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 8, padding: "4px 8px", cursor: "pointer", fontSize: 15, lineHeight: 1 };
 
 function Kpi({ value, sub }: { value: string; sub: string }) {
   return (
