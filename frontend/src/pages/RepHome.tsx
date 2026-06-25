@@ -122,30 +122,13 @@ export function RepHome() {
         {upload.isError && <p style={{ color: "var(--danger-fg, #b91c1c)", fontSize: 13, marginTop: 8 }}>{upload.error instanceof ApiError ? upload.error.message : t("portal.failed")}</p>}
       </div>
 
-      {/* Missing documents */}
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.missingTitle")}</h2>
-        {missing.isLoading && <p style={{ color: "var(--text-muted)", fontSize: 13 }}>…</p>}
-        {!missing.isLoading && (missing.data ?? []).length === 0 && (
-          <p style={{ color: "#16a34a", fontSize: 13.5, margin: "4px 0 0" }}>✓ {t("portal.allGood")}</p>
-        )}
-        {(missing.data ?? []).map((m, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: i ? "1px solid var(--hair)" : "none" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.partnerName ?? m.description ?? "—"}</div>
-              <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{m.txnDate}</div>
-            </div>
-            <span className="mono" style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{money(m.amount)} RON</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Documents (bank statement, invoices, receipts — from rep or accountant) */}
+      {/* Documents (bank statement, invoices, receipts — from rep or accountant) + still-needed list */}
       {(() => {
         const all = docs.data ?? [];
         const bank = all.filter((d) => d.type === "BANK_STATEMENT");
         const others = all.filter((d) => d.type !== "BANK_STATEMENT");
         const hasBank = bank.length > 0;
+        const missingItems = missing.data ?? [];
         return (
           <div className="card">
             <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.documents")}</h2>
@@ -170,6 +153,24 @@ export function RepHome() {
                 onView={() => setPreview({ load: () => portalApi.fileBlob(d.id), filename: d.filename })}
                 onDownload={() => portalApi.downloadFile(d.id, d.filename)} />
             ))}
+
+            {/* Documents still needed (transactions requiring a supporting document) */}
+            {missingItems.length > 0 && (
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--hair)" }}>
+                <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--danger-fg, #b91c1c)", fontWeight: 700, marginBottom: 4 }}>
+                  ⚠️ {t("portal.stillNeeded")}
+                </div>
+                {missingItems.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: i ? "1px solid var(--hair)" : "none" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.partnerName ?? m.description ?? "—"}</div>
+                      <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{m.txnDate}</div>
+                    </div>
+                    <span className="mono" style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{money(m.amount)} RON</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}
