@@ -31,16 +31,21 @@ export function RepHome() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["portal-notifs"] }),
   });
   const missing = useQuery({ queryKey: ["portal-missing", period], queryFn: () => portalApi.missing(period) });
-  const myDocs = useQuery({ queryKey: ["portal-docs", period], queryFn: () => portalApi.myDocuments(period) });
+  const docs = useQuery({ queryKey: ["portal-company-docs", period], queryFn: () => portalApi.companyDocuments(period) });
   const report = useQuery({ queryKey: ["portal-report", period], queryFn: () => portalApi.report(period) });
   const balanceSheet = useQuery({ queryKey: ["portal-balance", period], queryFn: () => portalApi.balanceSheet(period) });
   const payroll = useQuery({ queryKey: ["portal-payroll", period], queryFn: () => portalApi.payroll(period) });
   const payments = useQuery({ queryKey: ["portal-payments", period], queryFn: () => portalApi.payments(period) });
 
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ["portal-docs", period] });
+    void qc.invalidateQueries({ queryKey: ["portal-company-docs", period] });
     void qc.invalidateQueries({ queryKey: ["portal-missing", period] });
   };
+  const docTypeLabel = (type: string) =>
+    type === "BANK_STATEMENT" ? t("portal.docType.bank")
+      : type === "INVOICE" ? t("portal.docType.invoice")
+      : type === "RECEIPT" ? t("portal.docType.receipt")
+      : t("portal.docType.other");
   const upload = useMutation({
     mutationFn: (files: File[]) => Promise.all(files.map((f) => portalApi.uploadDocument(f, period))),
     onSuccess: refresh,
@@ -58,6 +63,7 @@ export function RepHome() {
         <div>
           <h1 style={{ color: "var(--primary)", margin: 0, fontSize: 22 }}>MyFinance</h1>
           <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>{me.data?.name ?? "…"}</div>
+          {me.data?.cui && <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>CUI {me.data.cui}</div>}
         </div>
         <button onClick={() => void signOut()}>{t("auth.logout")}</button>
       </div>
@@ -118,18 +124,35 @@ export function RepHome() {
         ))}
       </div>
 
-      {/* My uploads */}
-      <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.myUploads")}</h2>
-        {(myDocs.data ?? []).length === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13 }}>—</p>}
-        {(myDocs.data ?? []).map((d) => (
-          <button key={d.id} onClick={() => portalApi.downloadFile(d.id, d.filename)}
-            style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
-            <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.filename}</span>
-            <span style={{ fontSize: 16, color: "var(--primary)" }}>⤓</span>
-          </button>
-        ))}
-      </div>
+      {/* Documents (bank statement, invoices, receipts — from rep or accountant) */}
+      {(() => {
+        const all = docs.data ?? [];
+        const bank = all.filter((d) => d.type === "BANK_STATEMENT");
+        const others = all.filter((d) => d.type !== "BANK_STATEMENT");
+        const hasBank = bank.length > 0;
+        return (
+          <div className="card">
+            <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("portal.documents")}</h2>
+
+            {/* Bank statement status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 8px" }}>
+              <span style={{ fontSize: 16 }}>{hasBank ? "✅" : "⚠️"}</span>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: hasBank ? "#16a34a" : "var(--danger-fg, #b91c1c)" }}>
+                {hasBank ? t("portal.bankUploaded") : t("portal.bankMissing")}
+              </span>
+            </div>
+            {bank.map((d) => (
+              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")} onClick={() => portalApi.downloadFile(d.id, d.filename)} />
+            ))}
+
+            {/* Invoices / receipts / other */}
+            {others.length === 0 && !hasBank && <p style={{ color: "var(--text-faint)", fontSize: 13 }}>—</p>}
+            {others.map((d) => (
+              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} onClick={() => portalApi.downloadFile(d.id, d.filename)} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Amount to pay (state obligations) */}
       <div className="card">
@@ -200,6 +223,19 @@ export function RepHome() {
         </div>
       )}
     </div>
+  );
+}
+
+function DocRow({ filename, label, onClick }: { filename: string; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)", background: "none", border: "none", cursor: "pointer", font: "inherit", textAlign: "left" }}>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filename}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
+      </span>
+      <span style={{ fontSize: 16, color: "var(--primary)", flexShrink: 0 }}>⤓</span>
+    </button>
   );
 }
 

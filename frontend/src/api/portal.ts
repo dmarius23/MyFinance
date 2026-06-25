@@ -69,6 +69,7 @@ export const portalApi = {
   },
   missing: (period: string) => api<MissingItem[]>(`/api/v1/portal/missing?period=${period}`),
   myDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/documents?period=${period}`),
+  companyDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/company-documents?period=${period}`),
   // 204 → undefined (no report for the period yet).
   report: (period: string) => api<ReportData | null>(`/api/v1/portal/report?period=${period}`),
   payroll: (period: string) => api<PayrollFile[]>(`/api/v1/portal/payroll?period=${period}`),

@@ -111,6 +111,19 @@ public class PortalService {
                 .map(this::view).toList();
     }
 
+    /** Bank statement, invoices and receipts for the period — uploaded by the rep OR the accountant. */
+    @Transactional(readOnly = true)
+    public List<DocView> companyDocuments(LocalDate period) {
+        java.util.Set<ro.myfinance.intake.domain.DocumentType> types = java.util.EnumSet.of(
+                ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT,
+                ro.myfinance.intake.domain.DocumentType.INVOICE,
+                ro.myfinance.intake.domain.DocumentType.RECEIPT,
+                ro.myfinance.intake.domain.DocumentType.UNCLASSIFIED);
+        return documents.list(companyId(), period.withDayOfMonth(1)).stream()
+                .filter(d -> types.contains(d.getType()))
+                .map(this::view).toList();
+    }
+
     /** The uploaded balance sheet (trial balance) for the period — for download alongside the report. */
     @Transactional(readOnly = true)
     public List<DocView> balanceSheet(LocalDate period) {

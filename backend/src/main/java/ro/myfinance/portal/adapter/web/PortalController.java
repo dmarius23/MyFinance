@@ -92,6 +92,11 @@ public class PortalController {
         return portal.balanceSheet(period);
     }
 
+    @GetMapping("/api/v1/portal/company-documents")
+    public List<DocView> companyDocuments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return portal.companyDocuments(period);
+    }
+
     @GetMapping("/api/v1/portal/payments")
     public PortalService.PaymentView payments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
         return portal.payments(period);
