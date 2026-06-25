@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { portalApi } from "../api/portal";
 import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
+import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
 
 const money = (n: number) => (n ?? 0).toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const monthLabel = (period: string, lang: string) =>
@@ -13,6 +14,8 @@ const shiftMonth = (period: string, delta: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 };
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; };
+// Reps work on closed months — the latest selectable month is the previous one (no future, no current).
+const latestMonth = () => shiftMonth(thisMonth(), -1);
 
 /** Representative PWA — mobile-first home: company + month, upload, missing-docs checklist, my uploads,
  *  read-only report and payroll. Scoped to the rep's single company. */
@@ -20,7 +23,8 @@ export function RepHome() {
   const { t, i18n } = useTranslation();
   const { signOut } = useAuth();
   const qc = useQueryClient();
-  const [period, setPeriod] = useState(thisMonth());
+  const [period, setPeriod] = useState(latestMonth());
+  const atLatest = period >= latestMonth(); // can't go to the current/future month
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +40,7 @@ export function RepHome() {
   const balanceSheet = useQuery({ queryKey: ["portal-balance", period], queryFn: () => portalApi.balanceSheet(period) });
   const payroll = useQuery({ queryKey: ["portal-payroll", period], queryFn: () => portalApi.payroll(period) });
   const payments = useQuery({ queryKey: ["portal-payments", period], queryFn: () => portalApi.payments(period) });
+  const trend = useQuery({ queryKey: ["portal-trend", period], queryFn: () => portalApi.trend(period) });
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["portal-company-docs", period] });
@@ -56,6 +61,8 @@ export function RepHome() {
   };
 
   const r = report.data;
+  const hasBank = (docs.data ?? []).some((d) => d.type === "BANK_STATEMENT");
+  const needsDocs = !hasBank || (missing.data ?? []).length > 0;
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto", padding: 16, display: "grid", gap: 14 }}>
@@ -68,11 +75,18 @@ export function RepHome() {
         <button onClick={() => void signOut()}>{t("auth.logout")}</button>
       </div>
 
-      {/* Month selector */}
+      {/* Documents-needed warning */}
+      {needsDocs && (
+        <div style={{ background: "var(--warn-bg, #fef3c7)", border: "1px solid var(--warn-bd, #fcd34d)", color: "var(--warn-fg, #92400e)", borderRadius: 10, padding: "10px 12px", fontSize: 13.5, fontWeight: 600, display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 17 }}>⚠️</span>{t("portal.needDocsWarning")}
+        </div>
+      )}
+
+      {/* Month selector — capped at the previous month (no current/future) */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, background: "var(--th-bg)", borderRadius: 10, padding: "8px 12px" }}>
         <button onClick={() => setPeriod((p) => shiftMonth(p, -1))} aria-label="prev">‹</button>
         <span style={{ fontWeight: 600, fontSize: 14, textTransform: "capitalize" }}>{monthLabel(period, i18n.language)}</span>
-        <button onClick={() => setPeriod((p) => shiftMonth(p, 1))} aria-label="next">›</button>
+        <button onClick={() => setPeriod((p) => shiftMonth(p, 1))} aria-label="next" disabled={atLatest} style={{ opacity: atLatest ? 0.35 : 1 }}>›</button>
       </div>
 
       {/* Notifications */}
@@ -208,6 +222,21 @@ export function RepHome() {
           <p style={{ color: "var(--text-faint)", fontSize: 13, marginTop: 8 }}>{t("portal.reportNotReady")}</p>
         )}
       </div>
+
+      {/* Report charts */}
+      {r && (
+        <div className="card">
+          <h2 style={{ marginTop: 0, fontSize: 16 }}>{t("reports.charts")}</h2>
+          <div style={{ display: "grid", gap: 14 }}>
+            <ChartCard title={t("reports.chart.pl")}><PlBars r={r} /></ChartCard>
+            {r.profitLoss.expenseItems.length > 0 && <ChartCard title={t("reports.chart.expenses")}><Donut items={r.profitLoss.expenseItems} /></ChartCard>}
+            <ChartCard title={t("reports.chart.trend")}>
+              <Trend points={trend.data ?? []} loading={trend.isLoading} emptyLabel={t("reports.trendEmpty")} />
+            </ChartCard>
+            <ChartCard title={t("reports.chart.kpi")}><Kpis r={r} t={t} /></ChartCard>
+          </div>
+        </div>
+      )}
 
       {/* Payroll */}
       {(payroll.data ?? []).length > 0 && (

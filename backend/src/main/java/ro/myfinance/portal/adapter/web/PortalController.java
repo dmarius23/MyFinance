@@ -73,6 +73,13 @@ public class PortalController {
         return r == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(r);
     }
 
+    @GetMapping("/api/v1/portal/report/trend")
+    public List<ro.myfinance.reports.application.ReportService.TrendPoint> trend(
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam(value = "months", defaultValue = "12") int months) {
+        return portal.trend(period, months);
+    }
+
     @GetMapping("/api/v1/portal/report/pdf")
     public ResponseEntity<byte[]> reportPdf(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
         byte[] bytes = portal.reportPdf(period);

@@ -1,5 +1,5 @@
 import { api, upload, download } from "../lib/apiClient";
-import type { ReportData } from "./reports";
+import type { ReportData, TrendPoint } from "./reports";
 
 export interface PortalCompany {
   companyId: string;
@@ -75,6 +75,7 @@ export const portalApi = {
   payroll: (period: string) => api<PayrollFile[]>(`/api/v1/portal/payroll?period=${period}`),
   balanceSheet: (period: string) => api<PortalDoc[]>(`/api/v1/portal/balance-sheet?period=${period}`),
   payments: (period: string) => api<Payment>(`/api/v1/portal/payments?period=${period}`),
+  trend: (period: string, months = 12) => api<TrendPoint[]>(`/api/v1/portal/report/trend?period=${period}&months=${months}`),
   downloadReport: async (period: string) =>
     saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}`), `raport-${period.slice(0, 7)}.pdf`),
   downloadFile: async (id: string, filename: string) =>
