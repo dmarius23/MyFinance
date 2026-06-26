@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { portalApi } from "../api/portal";
+import { portalApi, type PortalDoc } from "../api/portal";
 import { getActiveCompanyId, setActiveCompanyId } from "../lib/activeCompany";
 import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
@@ -66,6 +66,15 @@ export function RepHome() {
       : type === "INVOICE" ? t("portal.docType.invoice")
       : type === "RECEIPT" ? t("portal.docType.receipt")
       : t("portal.docType.other");
+  const docBadges = (d: PortalDoc): React.ReactNode => {
+    const out: React.ReactNode[] = [];
+    if (d.paymentStatus === "PAID") out.push(<Badge key="p" label={t("portal.paid")} tone="green" />);
+    else if (d.paymentStatus === "PARTIAL") out.push(<Badge key="p" label={t("portal.partial")} tone="amber" />);
+    else if (d.paymentStatus === "UNPAID") out.push(<Badge key="p" label={t("portal.unpaid")} tone="red" />);
+    if (d.duplicate) out.push(<Badge key="d" label={t("portal.duplicate")} tone="red" />);
+    if (d.outsidePeriod) out.push(<Badge key="o" label={t("portal.outsidePeriod")} tone="amber" />);
+    return out.length ? out : null;
+  };
   const upload = useMutation({
     mutationFn: (files: File[]) => Promise.all(files.map((f) => portalApi.uploadDocument(f, period))),
     onSuccess: refresh,
@@ -173,7 +182,8 @@ export function RepHome() {
             {/* Invoices / receipts / other */}
             {others.length === 0 && !hasBank && <p style={{ color: "var(--text-faint)", fontSize: 13 }}>—</p>}
             {others.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)}
+              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer}
+                badges={docBadges(d)}
                 onView={() => setPreview({ load: () => portalApi.fileBlob(d.id), filename: d.filename })}
                 onDownload={() => portalApi.downloadFile(d.id, d.filename)} />
             ))}
@@ -292,14 +302,16 @@ export function RepHome() {
   );
 }
 
-function DocRow({ filename, label, onView, onDownload }:
-  { filename: string; label: string; onView: () => void; onDownload: () => void }) {
+function DocRow({ filename, label, issuer, badges, onView, onDownload }:
+  { filename: string; label: string; issuer?: string | null; badges?: React.ReactNode;
+    onView: () => void; onDownload: () => void }) {
   return (
     <div style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid var(--hair)" }}>
       <button onClick={onView} title="view"
         style={{ minWidth: 0, flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
         <span style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{filename}</span>
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label}{issuer ? ` · ${issuer}` : ""}</span>
+        {badges && <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</span>}
       </button>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
         <button onClick={onView} title="view" style={iconBtn}>👁</button>
@@ -310,6 +322,19 @@ function DocRow({ filename, label, onView, onDownload }:
 }
 
 const iconBtn: React.CSSProperties = { border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 8, padding: "4px 8px", cursor: "pointer", fontSize: 15, lineHeight: 1 };
+
+function Badge({ label, tone }: { label: string; tone: "green" | "amber" | "red" | "gray" }) {
+  const c = tone === "green" ? { bg: "#dcfce7", fg: "#166534", bd: "#86efac" }
+    : tone === "amber" ? { bg: "#fef3c7", fg: "#92400e", bd: "#fcd34d" }
+    : tone === "red" ? { bg: "#fee2e2", fg: "#b91c1c", bd: "#fecaca" }
+    : { bg: "#f3f4f6", fg: "#4b5563", bd: "#e5e7eb" };
+  return (
+    <span style={{ background: c.bg, color: c.fg, border: `1px solid ${c.bd}`, borderRadius: 999,
+      padding: "1px 7px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em" }}>
+      {label}
+    </span>
+  );
+}
 
 function Kpi({ value, sub }: { value: string; sub: string }) {
   return (

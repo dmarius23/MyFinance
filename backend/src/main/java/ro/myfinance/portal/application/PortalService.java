@@ -74,7 +74,13 @@ public class PortalService {
     public record MissingItem(LocalDate txnDate, String partnerName, BigDecimal amount, String description) {
     }
 
-    public record DocView(UUID id, String filename, String type, String status, Instant uploadedAt) {
+    /**
+     * A document in the rep's view. For invoices/receipts the reconciliation-derived fields are filled:
+     * {@code issuer} (who issued it), {@code paymentStatus} (PAID/PARTIAL/UNPAID), {@code duplicate}, and
+     * {@code outsidePeriod} (its date falls outside the selected month). Null/false for other types.
+     */
+    public record DocView(UUID id, String filename, String type, String status, Instant uploadedAt,
+                          String issuer, String paymentStatus, boolean duplicate, boolean outsidePeriod) {
     }
 
     public record PayrollFile(UUID id, String filename) {
@@ -133,17 +139,37 @@ public class PortalService {
                 .map(this::view).toList();
     }
 
-    /** Bank statement, invoices and receipts for the period — uploaded by the rep OR the accountant. */
+    /**
+     * Bank statement, invoices and receipts for the period — uploaded by the rep OR the accountant. Each
+     * invoice/receipt is annotated with its issuer, payment status, and duplicate / outside-period flags.
+     */
     @Transactional(readOnly = true)
     public List<DocView> companyDocuments(LocalDate period) {
+        UUID companyId = companyId();
+        LocalDate month = period.withDayOfMonth(1);
         java.util.Set<ro.myfinance.intake.domain.DocumentType> types = java.util.EnumSet.of(
                 ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT,
                 ro.myfinance.intake.domain.DocumentType.INVOICE,
                 ro.myfinance.intake.domain.DocumentType.RECEIPT,
                 ro.myfinance.intake.domain.DocumentType.UNCLASSIFIED);
-        return documents.list(companyId(), period.withDayOfMonth(1)).stream()
+        java.util.Map<UUID, ReconciliationService.DocumentStatus> status =
+                reconciliation.documentStatuses(companyId, month).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                ReconciliationService.DocumentStatus::documentId, s -> s, (a, b) -> a));
+        return documents.list(companyId, month).stream()
                 .filter(d -> types.contains(d.getType()))
-                .map(this::view).toList();
+                .map(d -> {
+                    boolean isInvoice = d.getType() == ro.myfinance.intake.domain.DocumentType.INVOICE
+                            || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT;
+                    ReconciliationService.DocumentStatus s = isInvoice ? status.get(d.getId()) : null;
+                    return new DocView(d.getId(), d.getOriginalFilename(), d.getType().name(),
+                            d.getStatus().name(), d.getUploadedAt(),
+                            s == null ? null : s.issuer(),
+                            s == null ? null : s.paymentStatus(),
+                            s != null && s.duplicate(),
+                            s != null && "date_outside_period".equals(s.dateReason()));
+                })
+                .toList();
     }
 
     /** The uploaded balance sheet (trial balance) for the period — for download alongside the report. */
@@ -223,7 +249,7 @@ public class PortalService {
 
     private DocView view(Document d) {
         return new DocView(d.getId(), d.getOriginalFilename(), d.getType().name(),
-                d.getStatus().name(), d.getUploadedAt());
+                d.getStatus().name(), d.getUploadedAt(), null, null, false, false);
     }
 
     /**

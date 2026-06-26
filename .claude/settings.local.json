@@ -356,7 +356,10 @@
       "Bash(mvn -o -q test-compile)",
       "Bash(mvn -o -Dtest=RepresentativeServiceIT -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(mvn -o -Dtest=PortalServiceCompanyResolutionTest -Dsurefire.failIfNoSpecifiedTests=false test)",
-      "Bash(mvn -o -Dtest='AccessServiceTest,NotificationServiceTest,DashboardServiceTest,TaxPaymentServiceTest,ReportServiceTest' -Dsurefire.failIfNoSpecifiedTests=false test)"
+      "Bash(mvn -o -Dtest='AccessServiceTest,NotificationServiceTest,DashboardServiceTest,TaxPaymentServiceTest,ReportServiceTest' -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(psql postgresql://localhost:5432/myfinance -c ' *)",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"select id, email, role, status from app_user order by role;\")",
+      "Bash(mvn -o -Dtest='PortalServiceCompanyResolutionTest,ReconciliationServiceIT' -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }

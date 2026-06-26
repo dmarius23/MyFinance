@@ -27,6 +27,10 @@ export interface PortalDoc {
   type: string;
   status: string;
   uploadedAt: string;
+  issuer?: string | null;
+  paymentStatus?: "PAID" | "PARTIAL" | "UNPAID" | null;
+  duplicate?: boolean;
+  outsidePeriod?: boolean;
 }
 
 export interface PayrollFile {
