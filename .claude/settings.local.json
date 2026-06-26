@@ -327,7 +327,9 @@
       "Bash(sed -n '1,25p' src/main/java/ro/myfinance/taxpayments/domain/TaxCategory.java)",
       "Bash(echo \"relaunched detached \\(PID $!\\)\")",
       "Bash(cat)",
-      "Bash(cp /tmp/rcm.tsx components/ReportChartsModal.tsx)"
+      "Bash(cp /tmp/rcm.tsx components/ReportChartsModal.tsx)",
+      "Bash(curl -s -o /dev/null -w \"5173:%{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(curl -s -o /dev/null -w \"8080:%{http_code}\\\\n\" http://localhost:8080/actuator/health)"
     ]
   }
 }

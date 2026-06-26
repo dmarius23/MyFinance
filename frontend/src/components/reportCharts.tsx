@@ -46,7 +46,7 @@ export function Donut({ items }: { items: ReportItem[] }) {
   let offset = 0;
   return (
     <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
-      <svg width="140" height="140" viewBox="0 0 140 140">
+      <svg width="140" height="140" viewBox="0 0 140 140" style={{ flexShrink: 0 }}>
         <g transform="rotate(-90 70 70)">
           {items.map((it, i) => {
             const len = (it.amount / total) * C;
@@ -59,12 +59,12 @@ export function Donut({ items }: { items: ReportItem[] }) {
           })}
         </g>
       </svg>
-      <div style={{ display: "grid", gap: 4, minWidth: 200, flex: 1 }}>
+      <div style={{ display: "grid", gap: 4, minWidth: 0, flex: "1 1 180px" }}>
         {items.map((it, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, minWidth: 0 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: PALETTE[i % PALETTE.length], flexShrink: 0 }} />
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{it.label}</span>
-            <span className="mono" style={{ fontWeight: 600 }}>{Math.round((it.amount / total) * 100)}%</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>{it.label}</span>
+            <span className="mono" style={{ fontWeight: 600, flexShrink: 0 }}>{Math.round((it.amount / total) * 100)}%</span>
           </div>
         ))}
       </div>
@@ -93,7 +93,7 @@ export function Trend({ points, loading, emptyLabel }: { points: TrendPoint[]; l
           <text key={i} x={x(i)} y={H - 8} fontSize="9" textAnchor="middle" fill="var(--text-muted)">{p.periodMonth.slice(0, 7)}</text>
         ))}
       </svg>
-      <div style={{ display: "flex", gap: 16, fontSize: 11.5, marginTop: 4 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 11.5, marginTop: 4 }}>
         <Legend color="#0f766e" label="Venituri" />
         <Legend color="#14b8a6" label="Profit net" />
       </div>
@@ -115,7 +115,7 @@ export function Position({ r }: { r: ReportData }) {
         {seg(bs.totalLiabilities, "#dc4c4c", "Datorii")}
         {seg(bs.totalEquity, "#2d9cdb", "Capitaluri")}
       </Stacked>
-      <div style={{ display: "flex", gap: 16, fontSize: 11.5 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 11.5 }}>
         <Legend color="#14b8a6" label="Active" />
         <Legend color="#dc4c4c" label="Datorii" />
         <Legend color="#2d9cdb" label="Capitaluri proprii" />
