@@ -38,18 +38,20 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     void invitesARepresentativeAndLinksToCompany() {
         UUID companyId = asTenantWithCompany();
 
-        AppUser rep = representatives.inviteRepresentative(companyId, "rep@client.ro", "Rep One");
+        AppUser rep = representatives.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678");
 
         assertThat(rep.getRole()).isEqualTo(Role.REPRESENTATIVE);
         assertThat(rep.getStatus()).isEqualTo(UserStatus.INVITED);
-        assertThat(representatives.listRepresentatives(companyId)).extracting(AppUser::getEmail)
-                .containsExactly("rep@client.ro");
+        assertThat(rep.getPhone()).isEqualTo("0712345678");
+        assertThat(representatives.listRepresentatives(companyId))
+                .extracting(AppUser::getEmail, AppUser::getName, AppUser::getPhone)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("rep@client.ro", "Rep One", "0712345678"));
     }
 
     @Test
     void invitingToAMissingCompanyFails() {
         asTenantWithCompany();
-        assertThatThrownBy(() -> representatives.inviteRepresentative(UUID.randomUUID(), "x@y.ro", "X"))
+        assertThatThrownBy(() -> representatives.inviteRepresentative(UUID.randomUUID(), "X", "x@y.ro", null))
                 .isInstanceOf(ro.myfinance.common.web.NotFoundException.class);
     }
 
@@ -57,11 +59,11 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     void reinvitingSameEmailIsRejected() {
         UUID company1 = asTenantWithCompany();
         UUID company2 = companies.create("Second SRL", "RO-REP2-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
-        AppUser rep = representatives.inviteRepresentative(company1, "dup@client.ro", "Dup");
+        AppUser rep = representatives.inviteRepresentative(company1, "Dup", "dup@client.ro", null);
 
         // A different invite produces a different external id (new auth user) for the same email →
         // attaching a second app_user with the same email in the tenant must be rejected.
-        assertThatThrownBy(() -> representatives.inviteRepresentative(company2, "dup@client.ro", "Dup"))
+        assertThatThrownBy(() -> representatives.inviteRepresentative(company2, "Dup", "dup@client.ro", null))
                 .isInstanceOf(ConflictException.class);
         assertThat(rep.getEmail()).isEqualTo("dup@client.ro");
     }

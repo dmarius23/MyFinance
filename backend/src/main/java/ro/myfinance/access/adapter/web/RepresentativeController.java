@@ -38,6 +38,6 @@ public class RepresentativeController {
     public RepresentativeResponse invite(@PathVariable UUID companyId,
                                          @Valid @RequestBody InviteRepresentativeRequest request) {
         return RepresentativeResponse.from(
-                service.inviteRepresentative(companyId, request.email(), request.name()));
+                service.inviteRepresentative(companyId, request.name(), request.email(), request.phone()));
     }
 }

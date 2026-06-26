@@ -41,7 +41,7 @@ public class RepresentativeService {
         this.audit = audit;
     }
 
-    public AppUser inviteRepresentative(UUID companyId, String email, String name) {
+    public AppUser inviteRepresentative(UUID companyId, String name, String email, String phone) {
         UUID tenantId = currentTenant();
         companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
@@ -55,8 +55,10 @@ public class RepresentativeService {
         // TODO(MOD-02): when the real Supabase adapter is enabled, add a compensating delete (or move
         // to persist-then-invite via the outbox) so a failed persistence can't orphan an auth user.
         var invited = inviter.invite(email, new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId));
-        AppUser rep = users.save(new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE));
+        AppUser rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
+        rep.setPhone(phone);
         rep.setStatus(UserStatus.INVITED);
+        users.save(rep);
         links.save(new RepresentativeLink(tenantId, rep.getId(), companyId));
         audit.record("REPRESENTATIVE_INVITED", "company", companyId);
         return rep;

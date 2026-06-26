@@ -351,7 +351,8 @@
       "Bash(mvn -o -Dtest='ReconciliationServiceIT#manualLinkSupportsManyInvoicesPerTransaction+overrideCreatesLearnedRuleAppliedToNextStatement' -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(mvn -o -Dtest=TaxPaymentServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(mvn -o -Dtest=ReportServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
-      "Bash(mvn -o -Dtest='TaxPaymentServiceTest,ReportServiceTest,TrialBalanceExtractorTest,InvoiceExtractionServiceTest,PaymentCalculatorTest,TaxDeclarationListenerTest' -Dsurefire.failIfNoSpecifiedTests=false test)"
+      "Bash(mvn -o -Dtest='TaxPaymentServiceTest,ReportServiceTest,TrialBalanceExtractorTest,InvoiceExtractionServiceTest,PaymentCalculatorTest,TaxDeclarationListenerTest' -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest='RepresentativeServiceIT,AccessServiceTest,DashboardServiceTest,NotificationServiceTest' -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }

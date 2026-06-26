@@ -154,13 +154,13 @@ function GeneralInfoSection({ company }: { company: Company }) {
 function RepresentativesSection({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
   const reps = useQuery({ queryKey: ["reps", companyId], queryFn: () => representativesApi.list(companyId) });
-  const [form, setForm] = useState({ email: "", name: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
   const invite = useMutation({
-    mutationFn: () => representativesApi.invite(companyId, form),
+    mutationFn: () => representativesApi.invite(companyId, { name: form.name, email: form.email, phone: form.phone || undefined }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reps", companyId] });
-      setForm({ email: "", name: "" });
+      setForm({ name: "", email: "", phone: "" });
       setError(null);
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Invite failed"),
@@ -172,7 +172,7 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
       <ul>
         {(reps.data ?? []).map((r) => (
           <li key={r.id}>
-            {r.name ?? r.email} — {r.email}{" "}
+            {r.name ?? r.email} — {r.email}{r.phone ? ` — ${r.phone}` : ""}{" "}
             <span style={pill}>{r.status}</span>
           </li>
         ))}
@@ -185,10 +185,12 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
         style={{ display: "flex", gap: 8, marginTop: 8 }}
         onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}
       >
+        <input placeholder="name" required value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input type="email" placeholder="email" required value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input placeholder="name" value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <input type="tel" placeholder="phone" value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <button className="primary" type="submit" disabled={invite.isPending}>Invite</button>
       </form>
     </div>
