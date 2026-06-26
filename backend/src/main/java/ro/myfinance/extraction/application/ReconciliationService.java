@@ -278,7 +278,10 @@ public class ReconciliationService {
         }
         List<Invoice> periodInvoices = invoices.findByCompanyIdAndPeriodMonth(companyId, period).stream()
                 .filter(i -> i.getSupplierIban() != null && i.getTotalAmount() != null
-                        && !usedInvoiceIds.contains(i.getId()))
+                        && !usedInvoiceIds.contains(i.getId())
+                        // A wrong-party invoice/receipt (client CIF ≠ this company) is not ours to settle,
+                        // so it must never be auto-matched against our bank transactions.
+                        && !Boolean.TRUE.equals(i.getWrongParty()))
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
 
         UUID tenantId = TenantContext.tenantId().orElseThrow();
@@ -321,6 +324,12 @@ public class ReconciliationService {
                 .orElseThrow(() -> new NotFoundException("Invoice not found: " + invoiceId));
         if (!t.getCompanyId().equals(companyId) || !inv.getCompanyId().equals(companyId)) {
             throw new NotFoundException("Not found in company " + companyId);
+        }
+        // A wrong-party invoice/receipt (client CIF ≠ this company) belongs to someone else and must not
+        // be associated with this company's transactions — even by a manual link.
+        if (Boolean.TRUE.equals(inv.getWrongParty())) {
+            throw new IllegalArgumentException(
+                    "This document was issued to a different company (CIF mismatch) and cannot be matched here");
         }
         if (matches.existsByTransactionIdAndInvoiceId(txnId, invoiceId)) {
             return; // already linked; editing the allocation comes with the split UI (later slice)
@@ -532,7 +541,8 @@ public class ReconciliationService {
         }
         java.util.Map<String, List<OpenInvoiceView>> invsByIban = new java.util.HashMap<>();
         for (OpenInvoiceView i : openInvs) {
-            if (i.supplierIban() != null && i.remaining() != null) {
+            // Never suggest a wrong-party invoice/receipt (client CIF ≠ this company) for matching.
+            if (i.supplierIban() != null && i.remaining() != null && !Boolean.TRUE.equals(i.wrongParty())) {
                 invsByIban.computeIfAbsent(i.supplierIban(), k -> new java.util.ArrayList<>()).add(i);
             }
         }

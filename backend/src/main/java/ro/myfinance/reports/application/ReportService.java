@@ -35,13 +35,16 @@ public class ReportService {
     private final ReportEmailRepository emails;
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
+    private final ro.myfinance.company.adapter.persistence.CompanyRepository companies;
 
     public ReportService(ReportSnapshotRepository snapshots, ReportEmailRepository emails,
-                         TrialBalanceExtractor extractor, ObjectMapper json) {
+                         TrialBalanceExtractor extractor, ObjectMapper json,
+                         ro.myfinance.company.adapter.persistence.CompanyRepository companies) {
         this.snapshots = snapshots;
         this.emails = emails;
         this.extractor = extractor;
         this.json = json;
+        this.companies = companies;
     }
 
     /** Per-company report status for the monthly list. */
@@ -57,6 +60,14 @@ public class ReportService {
     /** Extract + compute + store the report for an uploaded trial balance (re-upload bumps version). */
     public void ingest(UUID companyId, LocalDate periodMonth, UUID documentId, byte[] bytes) {
         TrialBalanceData tb = extractor.extract(bytes);
+        // Defence in depth: a trial balance whose embedded CUI clearly belongs to a different company must
+        // never produce a report/charts (the rep would otherwise see another company's figures). Upload
+        // already rejects wrong-party trial balances; this guards the residual unverifiable-at-upload case.
+        if (differentCui(tb.cui(), companies.findById(companyId).map(c -> c.getCui()).orElse(null))) {
+            log.warn("Skipping report ingest for doc {} (company {}): trial-balance CUI {} != company CUI",
+                    documentId, companyId, tb.cui());
+            return;
+        }
         ReportData data = ReportCalculator.compute(tb);
         String body = write(data);
         LocalDate month = periodMonth.withDayOfMonth(1);
@@ -64,6 +75,13 @@ public class ReportService {
                 s -> s.replace(documentId, data.balanced(), body),
                 () -> snapshots.save(new ReportSnapshot(TenantContext.tenantId().orElseThrow(),
                         companyId, month, documentId, data.balanced(), body)));
+    }
+
+    /** Wrong party only when both CUIs are known and their bare digits differ. */
+    private static boolean differentCui(String tbCui, String companyCui) {
+        String a = tbCui == null ? "" : tbCui.replaceAll("\\D", "");
+        String b = companyCui == null ? "" : companyCui.replaceAll("\\D", "");
+        return !a.isEmpty() && !b.isEmpty() && !a.equals(b);
     }
 
     /** The computed report for a company/period. */

@@ -123,6 +123,29 @@ class TaxPaymentServiceTest {
     }
 
     @Test
+    void wrongPartyDeclarationIsExcludedFromTheTotal() throws IOException {
+        byte[] d112 = fixture("D112.pdf");
+        assumeTrue(d112 != null, "ANAF fixtures missing (PII, gitignored)");
+
+        UUID companyId = UUID.randomUUID();
+        Company company = company("Cluj");
+        when(companies.findById(companyId)).thenReturn(Optional.of(company));
+        UUID doc = UUID.randomUUID();
+        TaxDeclaration sd = storedDecl(doc, DeclarationType.D112);
+        when(sd.isWrongParty()).thenReturn(true); // filed for a different CUI
+        when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(eq(companyId), any()))
+                .thenReturn(List.of(sd));
+        when(emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(companyId), any())).thenReturn(List.of());
+
+        TaxPaymentSummary s = service().summary(companyId, MONTH);
+
+        assertThat(s.declarations()).hasSize(1);          // still listed so the accountant sees it
+        assertThat(s.paymentLines()).isEmpty();           // but never drives a payment
+        assertThat(s.unconfigured()).isEmpty();
+        assertThat(s.totalToPay()).isEqualByComparingTo("0");
+    }
+
+    @Test
     void flagsUnconfiguredCategoriesWhenNoTreasuryRow() throws IOException {
         byte[] d112 = fixture("D112.pdf");
         assumeTrue(d112 != null, "ANAF fixtures missing (PII, gitignored)");

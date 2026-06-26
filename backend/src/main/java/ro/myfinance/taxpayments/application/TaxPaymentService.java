@@ -153,6 +153,9 @@ public class TaxPaymentService {
             if (d.isDuplicate()) {
                 continue; // never count a duplicate declaration in the payment total / email
             }
+            if (d.isWrongParty()) {
+                continue; // a declaration filed for a different CUI is not this company's liability
+            }
             try {
                 parsed.add(extractor.extract(documents.getContent(d.getDocumentId()).bytes()));
             } catch (RuntimeException e) {

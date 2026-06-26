@@ -341,7 +341,17 @@
       "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"\\\\d audit_entry\")",
       "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"select * from audit_entry where action like 'DOCUMENT%' order by 1 desc limit 12;\")",
       "Bash(mvn -o -q -Dtest=HeuristicDocumentClassifierTest -Dsurefire.failIfNoSpecifiedTests=false test)",
-      "Bash(mvn -o -Dtest=HeuristicDocumentClassifierTest -Dsurefire.failIfNoSpecifiedTests=false test)"
+      "Bash(mvn -o -Dtest=HeuristicDocumentClassifierTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(pkill -f 'spring-boot:run')",
+      "Bash(pkill -f 'MyFinanceApplication')",
+      "Bash(echo \"restarting backend \\(pid $!\\)\")",
+      "Bash(mvn -o -q compile)",
+      "Bash(mvn -o -Dtest='ReconciliationServiceTest,TaxPaymentServiceTest,ReportServiceTest,ReportServiceIT,*Recon*,*Report*,*TaxPayment*' -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(git stash *)",
+      "Bash(mvn -o -Dtest='ReconciliationServiceIT#manualLinkSupportsManyInvoicesPerTransaction+overrideCreatesLearnedRuleAppliedToNextStatement' -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=TaxPaymentServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=ReportServiceTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest='TaxPaymentServiceTest,ReportServiceTest,TrialBalanceExtractorTest,InvoiceExtractionServiceTest,PaymentCalculatorTest,TaxDeclarationListenerTest' -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }
