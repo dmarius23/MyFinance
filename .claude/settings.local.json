@@ -329,7 +329,19 @@
       "Bash(cat)",
       "Bash(cp /tmp/rcm.tsx components/ReportChartsModal.tsx)",
       "Bash(curl -s -o /dev/null -w \"5173:%{http_code}\\\\n\" http://localhost:5173)",
-      "Bash(curl -s -o /dev/null -w \"8080:%{http_code}\\\\n\" http://localhost:8080/actuator/health)"
+      "Bash(curl -s -o /dev/null -w \"8080:%{http_code}\\\\n\" http://localhost:8080/actuator/health)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash([ -f \"$F\" ])",
+      "Bash(pdftotext -layout backend/src/test/resources/fixtures/reports/balanta_2026_03.pdf -)",
+      "Bash(python3 -c ' *)",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"\\\\dt document*\")",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"select id, type, source, original_filename, period_month, storage_key from document order by uploaded_at desc limit 25;\")",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"\\\\dt *audit*\")",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"select action, entity_type, entity_id, created_at from audit_event where action like 'DOCUMENT%' order by created_at desc limit 15;\")",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"\\\\d audit_entry\")",
+      "Bash(psql \"postgresql://localhost:5432/myfinance\" -c \"select * from audit_entry where action like 'DOCUMENT%' order by 1 desc limit 12;\")",
+      "Bash(mvn -o -q -Dtest=HeuristicDocumentClassifierTest -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest=HeuristicDocumentClassifierTest -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }

@@ -58,6 +58,15 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void trialBalanceWithStatementColumnWordsIsTrialBalanceNotStatement() throws Exception {
+        // A "balanta de verificare" has columns like "Sold final" / "Rulaje" that also appear in bank
+        // statements — the unambiguous "balanta" title must win over those markers.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("BALANTA DE VERIFICARE Solduri initiale Rulaje perioada Sold final")))
+                .isEqualTo(DocumentType.TRIAL_BALANCE);
+    }
+
+    @Test
     void unmarkedPdfIsUnclassified() throws Exception {
         assertThat(classifier.classify("x.pdf", "application/pdf", pdfWithText("Lorem ipsum dolor")))
                 .isEqualTo(DocumentType.UNCLASSIFIED);

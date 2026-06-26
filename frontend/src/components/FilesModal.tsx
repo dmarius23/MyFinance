@@ -30,8 +30,9 @@ export function FilesModal({ companyId, companyName, period, onClose }:
     queryFn: () => reconciliationApi.documentStatus(companyId, period),
   });
   const statusByDoc = new Map(statuses.map((s) => [s.documentId, s]));
-  // ANAF declarations live on the Taxes & payments screen, not here.
-  const docs = data.filter((d) => d.type !== "DECLARATION");
+  // Only intake documents belong on this screen. Declarations live on Taxes & payments, trial balances
+  // on Reports, and payroll on the Payroll screen — exclude them so they aren't lumped with invoices.
+  const docs = data.filter((d) => !["DECLARATION", "TRIAL_BALANCE", "PAYROLL"].includes(d.type));
   // Bank statements first, then a divider, then invoices/receipts (stable within each group).
   const ordered = [...docs].sort((a, b) =>
     (a.type === "BANK_STATEMENT" ? 0 : 1) - (b.type === "BANK_STATEMENT" ? 0 : 1));
@@ -211,7 +212,11 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                         💰
                       </button>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); remove.mutate(d.id); }} title="Delete"
+                    <button onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(t("files.confirmDelete", { name: d.originalFilename })))
+                          remove.mutate(d.id);
+                      }} title={t("files.delete")}
                       style={{ border: "1px solid var(--border)", background: "#fff", color: "#dc2626",
                         borderRadius: 7, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "4px 7px" }}>✕</button>
                   </div>

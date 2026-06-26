@@ -36,7 +36,12 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             if (containsAny(text, "a.n.a.f", "anaf", "declarat", "d212", "d300", "d301", "d112")) {
                 return DocumentType.DECLARATION;
             }
-            // Strong, statement-specific markers first (so a statement is never mistaken for anything else).
+            // A trial balance ("balanta de verificare") is unambiguous from its title and shares column
+            // words with statements ("sold final", "rulaj"), so it must be checked BEFORE the bank markers.
+            if (containsAny(text, "balanta")) {
+                return DocumentType.TRIAL_BALANCE;
+            }
+            // Strong, statement-specific markers next (so a statement is never mistaken for anything else).
             if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
                     "sold final", "rulaj zi", "rulaj total cont")) {
                 return DocumentType.BANK_STATEMENT;
@@ -45,9 +50,6 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             // contains "Banca Transilvania" but is NOT a statement.
             if (containsAny(text, "factur", "invoice")) {
                 return DocumentType.INVOICE;
-            }
-            if (containsAny(text, "balanta")) {
-                return DocumentType.TRIAL_BALANCE;
             }
             // Weak fallback: a bank name with none of the above signals → most likely a statement.
             if (containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
