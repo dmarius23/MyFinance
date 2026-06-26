@@ -1,10 +1,17 @@
 import { api, upload, download } from "../lib/apiClient";
 import type { ReportData, TrendPoint } from "./reports";
 
+export interface CompanyOption {
+  companyId: string;
+  name: string | null;
+  cui: string | null;
+}
+
 export interface PortalCompany {
   companyId: string;
   name: string | null;
   cui: string | null;
+  companies: CompanyOption[];
 }
 
 export interface MissingItem {

@@ -14,6 +14,12 @@ public final class RepresentativeDtos {
     public record InviteRepresentativeRequest(@NotBlank String name, @Email @NotBlank String email, String phone) {
     }
 
+    public record UpdateRepresentativeRequest(@NotBlank String name, String phone) {
+    }
+
+    public record SetActiveRequest(boolean active) {
+    }
+
     public record RepresentativeResponse(UUID id, String name, String email, String phone, UserStatus status) {
         public static RepresentativeResponse from(AppUser u) {
             return new RepresentativeResponse(u.getId(), u.getName(), u.getEmail(), u.getPhone(), u.getStatus());

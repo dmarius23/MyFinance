@@ -41,17 +41,32 @@ public class RepresentativeService {
         this.audit = audit;
     }
 
+    /**
+     * Assign a representative to a company. If a representative with this email already exists in the
+     * tenant they are simply linked to the company (so one person can represent several companies);
+     * otherwise a new representative is invited. Re-assigning an existing link is rejected.
+     */
     public AppUser inviteRepresentative(UUID companyId, String name, String email, String phone) {
         UUID tenantId = currentTenant();
         companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
-        if (users.existsByEmail(email)) {
-            throw new ConflictException("A user with email " + email + " already exists in this tenant");
+
+        AppUser existing = users.findByEmail(email).orElse(null);
+        if (existing != null) {
+            if (existing.getRole() != Role.REPRESENTATIVE) {
+                throw new ConflictException("A non-representative user with email " + email + " already exists");
+            }
+            if (links.existsByUserIdAndCompanyId(existing.getId(), companyId)) {
+                throw new ConflictException("This representative is already assigned to the company");
+            }
+            links.save(new RepresentativeLink(tenantId, existing.getId(), companyId));
+            audit.record("REPRESENTATIVE_ASSIGNED", "company", companyId);
+            return existing;
         }
 
         // NOTE: the external invite happens before the local persistence. If a save below fails or
         // the tx rolls back, the Supabase auth user + invite email are NOT rolled back, leaving an
-        // orphaned auth user. The existsByEmail pre-check narrows this but doesn't eliminate it.
+        // orphaned auth user. The findByEmail pre-check narrows this but doesn't eliminate it.
         // TODO(MOD-02): when the real Supabase adapter is enabled, add a compensating delete (or move
         // to persist-then-invite via the outbox) so a failed persistence can't orphan an auth user.
         var invited = inviter.invite(email, new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId));
@@ -64,6 +79,31 @@ public class RepresentativeService {
         return rep;
     }
 
+    /** Update a representative's contact details (must be assigned to the given company). */
+    public AppUser updateRepresentative(UUID companyId, UUID userId, String name, String phone) {
+        AppUser rep = requireRepOfCompany(companyId, userId);
+        rep.setName(name);
+        rep.setPhone(phone);
+        audit.record("REPRESENTATIVE_UPDATED", "company", companyId);
+        return rep;
+    }
+
+    /** Activate or deactivate a representative (tenant-wide; a deactivated rep can't use the portal). */
+    public AppUser setRepresentativeActive(UUID companyId, UUID userId, boolean active) {
+        AppUser rep = requireRepOfCompany(companyId, userId);
+        rep.setStatus(active ? UserStatus.ACTIVE : UserStatus.INACTIVE);
+        audit.record(active ? "REPRESENTATIVE_ACTIVATED" : "REPRESENTATIVE_DEACTIVATED", "company", companyId);
+        return rep;
+    }
+
+    /** Remove a representative's assignment to one company (the user and other assignments remain). */
+    public void unassignRepresentative(UUID companyId, UUID userId) {
+        RepresentativeLink link = links.findByUserIdAndCompanyId(userId, companyId)
+                .orElseThrow(() -> new NotFoundException("Representative is not assigned to this company"));
+        links.delete(link);
+        audit.record("REPRESENTATIVE_UNASSIGNED", "company", companyId);
+    }
+
     @Transactional(readOnly = true)
     public List<AppUser> listRepresentatives(UUID companyId) {
         companies.findById(companyId)
@@ -71,6 +111,14 @@ public class RepresentativeService {
         List<UUID> userIds = links.findByCompanyId(companyId).stream()
                 .map(RepresentativeLink::getUserId).toList();
         return userIds.isEmpty() ? List.of() : users.findAllById(userIds);
+    }
+
+    private AppUser requireRepOfCompany(UUID companyId, UUID userId) {
+        if (!links.existsByUserIdAndCompanyId(userId, companyId)) {
+            throw new NotFoundException("Representative is not assigned to this company");
+        }
+        return users.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Representative not found: " + userId));
     }
 
     private UUID currentTenant() {

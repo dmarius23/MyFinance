@@ -9,16 +9,18 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
- * MOD-02 — links a representative user to the single company they may access. A company has many
- * representatives; each representative belongs to exactly one company (FR-011), so the primary key
- * is the user id. Representative requests are additionally constrained to this company_id server-side.
+ * MOD-02 — links a representative user to a company they may access. A representative can be assigned to
+ * several companies (within their tenant); each (user, company) pair is one row, unique together. Which
+ * company a representative request operates on is resolved and validated against these links server-side.
  */
 @Entity
 @Table(name = "representative_link")
 public class RepresentativeLink {
 
     @Id
-    @Column(name = "user_id")
+    private UUID id;
+
+    @Column(name = "user_id", nullable = false)
     private UUID userId;
 
     @Column(name = "company_id", nullable = false)
@@ -35,9 +37,14 @@ public class RepresentativeLink {
     }
 
     public RepresentativeLink(UUID tenantId, UUID userId, UUID companyId) {
+        this.id = UUID.randomUUID();
         this.tenantId = tenantId;
         this.userId = userId;
         this.companyId = companyId;
+    }
+
+    public UUID getId() {
+        return id;
     }
 
     public UUID getUserId() {

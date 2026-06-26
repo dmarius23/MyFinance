@@ -1,6 +1,14 @@
 import { supabase } from "./supabase";
+import { getActiveCompanyId } from "./activeCompany";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+/** Attach the rep's active company (the backend validates it against their assignments). */
+function withCompany(headers: Headers): Headers {
+  const cid = getActiveCompanyId();
+  if (cid) headers.set("X-Company-Id", cid);
+  return headers;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -26,6 +34,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  withCompany(headers);
 
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
 
@@ -60,6 +69,7 @@ export async function upload<T>(path: string, form: FormData): Promise<T> {
   const token = await authToken();
   const headers = new Headers();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  withCompany(headers);
 
   const res = await fetch(`${BASE_URL}${path}`, { method: "POST", body: form, headers });
   if (!res.ok) {
@@ -83,6 +93,7 @@ export async function download(path: string): Promise<Blob> {
   const token = await authToken();
   const headers = new Headers();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  withCompany(headers);
 
   const res = await fetch(`${BASE_URL}${path}`, { headers });
   if (!res.ok) {

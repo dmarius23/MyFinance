@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { portalApi } from "../api/portal";
+import { getActiveCompanyId, setActiveCompanyId } from "../lib/activeCompany";
 import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
@@ -31,6 +32,18 @@ export function RepHome() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const me = useQuery({ queryKey: ["portal-me"], queryFn: portalApi.me });
+
+  // Persist the resolved active company so every subsequent request carries the X-Company-Id header.
+  useEffect(() => {
+    if (me.data?.companyId && !getActiveCompanyId()) setActiveCompanyId(me.data.companyId);
+  }, [me.data?.companyId]);
+
+  const switchCompany = (companyId: string) => {
+    if (companyId === me.data?.companyId) return;
+    setActiveCompanyId(companyId);
+    void qc.invalidateQueries(); // refetch everything for the newly-selected company
+  };
+  const companyOptions = me.data?.companies ?? [];
   const notifs = useQuery({ queryKey: ["portal-notifs"], queryFn: portalApi.notifications, refetchInterval: 30000, refetchOnWindowFocus: true });
   const markRead = useMutation({
     mutationFn: (id: string) => portalApi.markNotificationRead(id),
@@ -71,7 +84,18 @@ export function RepHome() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h1 style={{ color: "var(--primary)", margin: 0, fontSize: 22 }}>MyFinance</h1>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>{me.data?.name ?? "…"}</div>
+          {companyOptions.length > 1 ? (
+            <select value={me.data?.companyId ?? ""} onChange={(e) => switchCompany(e.target.value)}
+              aria-label={t("portal.switchCompany")}
+              style={{ marginTop: 2, maxWidth: 230, fontSize: 13, fontWeight: 600, color: "var(--text-secondary)",
+                border: "1px solid var(--border)", borderRadius: 8, padding: "3px 6px", background: "var(--surface)" }}>
+              {companyOptions.map((c) => (
+                <option key={c.companyId} value={c.companyId}>{c.name ?? c.companyId}</option>
+              ))}
+            </select>
+          ) : (
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>{me.data?.name ?? "…"}</div>
+          )}
           {me.data?.cui && <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>CUI {me.data.cui}</div>}
         </div>
         <button onClick={() => void signOut()}>{t("auth.logout")}</button>

@@ -13,5 +13,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 
     boolean existsByEmail(String email);
 
+    java.util.Optional<AppUser> findByEmail(String email);
+
     java.util.List<AppUser> findByRoleIn(java.util.Collection<Role> roles);
 }

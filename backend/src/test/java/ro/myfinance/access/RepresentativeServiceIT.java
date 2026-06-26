@@ -56,15 +56,46 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void reinvitingSameEmailIsRejected() {
+    void sameRepCanBeAssignedToMultipleCompanies() {
         UUID company1 = asTenantWithCompany();
         UUID company2 = companies.create("Second SRL", "RO-REP2-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
         AppUser rep = representatives.inviteRepresentative(company1, "Dup", "dup@client.ro", null);
 
-        // A different invite produces a different external id (new auth user) for the same email →
-        // attaching a second app_user with the same email in the tenant must be rejected.
-        assertThatThrownBy(() -> representatives.inviteRepresentative(company2, "Dup", "dup@client.ro", null))
+        // Assigning the same email to a second company links the existing user (one person, many companies).
+        AppUser again = representatives.inviteRepresentative(company2, "Dup", "dup@client.ro", null);
+        assertThat(again.getId()).isEqualTo(rep.getId());
+        assertThat(representatives.listRepresentatives(company1)).extracting(AppUser::getId).containsExactly(rep.getId());
+        assertThat(representatives.listRepresentatives(company2)).extracting(AppUser::getId).containsExactly(rep.getId());
+
+        // But assigning to a company they're already on is rejected.
+        assertThatThrownBy(() -> representatives.inviteRepresentative(company1, "Dup", "dup@client.ro", null))
                 .isInstanceOf(ConflictException.class);
-        assertThat(rep.getEmail()).isEqualTo("dup@client.ro");
+    }
+
+    @Test
+    void unassignRemovesOnlyTheCompanyLink() {
+        UUID company1 = asTenantWithCompany();
+        UUID company2 = companies.create("Second SRL", "RO-REP3-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
+        AppUser rep = representatives.inviteRepresentative(company1, "Dup", "dup@client.ro", null);
+        representatives.inviteRepresentative(company2, "Dup", "dup@client.ro", null);
+
+        representatives.unassignRepresentative(company1, rep.getId());
+
+        assertThat(representatives.listRepresentatives(company1)).isEmpty();
+        assertThat(representatives.listRepresentatives(company2)).extracting(AppUser::getId).containsExactly(rep.getId());
+    }
+
+    @Test
+    void deactivateSetsInactiveStatus() {
+        UUID companyId = asTenantWithCompany();
+        AppUser rep = representatives.inviteRepresentative(companyId, "Dep", "dep@client.ro", null);
+
+        representatives.setRepresentativeActive(companyId, rep.getId(), false);
+        assertThat(representatives.listRepresentatives(companyId)).singleElement()
+                .satisfies(u -> assertThat(u.getStatus()).isEqualTo(UserStatus.INACTIVE));
+
+        representatives.setRepresentativeActive(companyId, rep.getId(), true);
+        assertThat(representatives.listRepresentatives(companyId)).singleElement()
+                .satisfies(u -> assertThat(u.getStatus()).isEqualTo(UserStatus.ACTIVE));
     }
 }

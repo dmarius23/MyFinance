@@ -156,24 +156,40 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
   const reps = useQuery({ queryKey: ["reps", companyId], queryFn: () => representativesApi.list(companyId) });
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
+  const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["reps", companyId] }); setError(null); };
   const invite = useMutation({
     mutationFn: () => representativesApi.invite(companyId, { name: form.name, email: form.email, phone: form.phone || undefined }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["reps", companyId] });
-      setForm({ name: "", email: "", phone: "" });
-      setError(null);
-    },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Invite failed"),
+    onSuccess: () => { refresh(); setForm({ name: "", email: "", phone: "" }); },
+    onError: onErr,
+  });
+  const setActive = useMutation({
+    mutationFn: ({ userId, active }: { userId: string; active: boolean }) => representativesApi.setActive(companyId, userId, active),
+    onSuccess: refresh, onError: onErr,
+  });
+  const remove = useMutation({
+    mutationFn: (userId: string) => representativesApi.remove(companyId, userId),
+    onSuccess: refresh, onError: onErr,
   });
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Representatives</h2>
       {reps.isLoading && <p>Loading…</p>}
-      <ul>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
         {(reps.data ?? []).map((r) => (
-          <li key={r.id}>
-            {r.name ?? r.email} — {r.email}{r.phone ? ` — ${r.phone}` : ""}{" "}
-            <span style={pill}>{r.status}</span>
+          <li key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: r.status === "INACTIVE" ? 0.55 : 1 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {r.name ?? r.email} — {r.email}{r.phone ? ` — ${r.phone}` : ""}{" "}
+              <span style={pill}>{r.status}</span>
+            </span>
+            <button type="button" disabled={setActive.isPending}
+              onClick={() => setActive.mutate({ userId: r.id, active: r.status === "INACTIVE" })}>
+              {r.status === "INACTIVE" ? "Activate" : "Deactivate"}
+            </button>
+            <button type="button" style={{ color: "#dc2626" }} disabled={remove.isPending}
+              onClick={() => { if (window.confirm(`Remove ${r.name ?? r.email} from this company?`)) remove.mutate(r.id); }}>
+              Remove
+            </button>
           </li>
         ))}
         {reps.data?.length === 0 && (

@@ -30,6 +30,9 @@ import ro.myfinance.reports.domain.ReportData;
 @Transactional
 public class PortalService {
 
+    /** Header the PWA sends to pick which of the rep's companies a request operates on. */
+    public static final String COMPANY_HEADER = "X-Company-Id";
+
     private final CompanyRepository companies;
     private final DocumentService documents;
     private final NotificationService notifications;
@@ -38,10 +41,16 @@ public class PortalService {
     private final ReportPdfGenerator reportPdf;
     private final PayrollService payroll;
     private final ro.myfinance.taxpayments.application.TaxPaymentService taxes;
+    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
+    private final ro.myfinance.access.adapter.persistence.AppUserRepository users;
+    private final jakarta.servlet.http.HttpServletRequest request;
 
     public PortalService(CompanyRepository companies, DocumentService documents, NotificationService notifications,
                          ReconciliationService reconciliation, ReportService reports, ReportPdfGenerator reportPdf,
-                         PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes) {
+                         PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes,
+                         ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
+                         ro.myfinance.access.adapter.persistence.AppUserRepository users,
+                         jakarta.servlet.http.HttpServletRequest request) {
         this.companies = companies;
         this.documents = documents;
         this.notifications = notifications;
@@ -50,9 +59,16 @@ public class PortalService {
         this.reportPdf = reportPdf;
         this.payroll = payroll;
         this.taxes = taxes;
+        this.repLinks = repLinks;
+        this.users = users;
+        this.request = request;
     }
 
-    public record CompanyInfo(UUID companyId, String name, String cui) {
+    public record CompanyInfo(UUID companyId, String name, String cui, List<CompanyOption> companies) {
+    }
+
+    /** One company the representative can switch to in the PWA. */
+    public record CompanyOption(UUID companyId, String name, String cui) {
     }
 
     public record MissingItem(LocalDate txnDate, String partnerName, BigDecimal amount, String description) {
@@ -75,13 +91,19 @@ public class PortalService {
     public record UnconfiguredView(String category, BigDecimal amount) {
     }
 
-    /** The rep's company (from the JWT). */
+    /** The rep's active company plus every company they can switch to. */
     @Transactional(readOnly = true)
     public CompanyInfo me() {
         UUID companyId = companyId();
         Company c = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found"));
-        return new CompanyInfo(companyId, c.getLegalName(), c.getCui());
+        List<CompanyOption> options = linkedCompanyIds().stream()
+                .map(companies::findById).flatMap(java.util.Optional::stream)
+                .map(co -> new CompanyOption(co.getId(), co.getLegalName(), co.getCui()))
+                .sorted(java.util.Comparator.comparing(o -> o.name() == null ? "" : o.name(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        return new CompanyInfo(companyId, c.getLegalName(), c.getCui(), options);
     }
 
     /** Store a document the rep uploaded (source=REP) and notify the firm. */
@@ -204,8 +226,50 @@ public class PortalService {
                 d.getStatus().name(), d.getUploadedAt());
     }
 
-    private static UUID companyId() {
-        return TenantContext.companyId()
-                .orElseThrow(() -> new NotFoundException("No company bound to this representative"));
+    /**
+     * The company this request operates on, resolved and validated server-side. A representative may be
+     * assigned to several companies; the PWA names the active one via the {@code X-Company-Id} header.
+     * The chosen company MUST be one the current user is actually linked to — a requested id that isn't
+     * among their links is rejected (never trust the client). When no header is sent we fall back to the
+     * JWT company (if still linked) and otherwise to the first linked company.
+     */
+    private UUID companyId() {
+        List<UUID> linked = linkedCompanyIds();
+        if (linked.isEmpty()) {
+            throw new NotFoundException("No company bound to this representative");
+        }
+        UUID requested = parseUuid(request.getHeader(COMPANY_HEADER));
+        if (requested != null) {
+            if (!linked.contains(requested)) {
+                throw new NotFoundException("Company not available to this representative");
+            }
+            return requested;
+        }
+        UUID fromJwt = TenantContext.companyId().orElse(null);
+        return (fromJwt != null && linked.contains(fromJwt)) ? fromJwt : linked.get(0);
+    }
+
+    /** Every company the current representative is assigned to. Also fails closed if deactivated. */
+    private List<UUID> linkedCompanyIds() {
+        UUID userId = TenantContext.current().map(TenantContext.Identity::userId)
+                .orElseThrow(() -> new NotFoundException("No user bound to this request"));
+        users.findById(userId).ifPresent(u -> {
+            if (u.getStatus() == ro.myfinance.access.domain.UserStatus.INACTIVE) {
+                throw new NotFoundException("This representative account is deactivated");
+            }
+        });
+        return repLinks.findByUserId(userId).stream()
+                .map(ro.myfinance.access.domain.RepresentativeLink::getCompanyId).toList();
+    }
+
+    private static UUID parseUuid(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(s.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }
