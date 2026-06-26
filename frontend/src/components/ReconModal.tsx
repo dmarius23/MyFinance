@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, reconciliationApi, type MatchSuggestion } from "../api/bank";
 import { LinkInvoiceModal } from "./LinkInvoiceModal";
 import { DocumentPreviewModal } from "./DocumentPreviewModal";
+import { SendReminderModal } from "./SendReminderModal";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
@@ -31,6 +32,7 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   const [linkingTxn, setLinkingTxn] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ documentId: string; filename: string | null } | null>(null);
+  const [requesting, setRequesting] = useState(false);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const invalidateRecon = () => {
     void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
@@ -74,8 +76,9 @@ export function ReconModal({ companyId, companyName, period, onClose }:
 
   const list = txns.data ?? [];
   const missing = list.filter((tx) => tx.requiresDocument && !tx.matched);
+  const hasBankStatement = (statements.data?.length ?? 0) > 0;
 
-  const requestFromClient = () => window.alert(t("recon.requestPreview"));
+  const requestFromClient = () => setRequesting(true);
 
   const renderSuggestion = (s: MatchSuggestion) => {
     if (s.kind === "SPLIT") {
@@ -320,6 +323,13 @@ export function ReconModal({ companyId, companyName, period, onClose }:
       {previewDoc && (
         <DocumentPreviewModal companyId={companyId} documentId={previewDoc.documentId}
           filename={previewDoc.filename} onClose={() => setPreviewDoc(null)} />
+      )}
+
+      {requesting && (
+        <SendReminderModal
+          companies={[{ id: companyId, name: companyName, hasBankStatement, hasInvoiceOrReceipt: true }]}
+          period={period}
+          onClose={() => setRequesting(false)} />
       )}
     </div>
   );
