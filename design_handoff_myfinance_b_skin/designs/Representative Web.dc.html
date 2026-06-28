@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;-webkit-font-smoothing:antialiased;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#0c1413;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:30px;font-family:'Hanken Grotesk',sans-serif;">
+
+  <div style="width:100%;max-width:1240px;text-align:center;">
+    <div style="font-size:11px;letter-spacing:0.14em;font-weight:700;color:#2dd4bf;text-transform:uppercase;">Representative portal · responsive web</div>
+    <h1 style="font-size:22px;font-weight:700;color:#f3f8f7;margin:7px 0 0;letter-spacing:-0.02em;">Same PWA, opened on a laptop browser</h1>
+    <p style="font-size:13px;color:#8aa09c;margin:7px 0 0;line-height:1.5;">The phone's single column reflows into a centered max-width workspace with a persistent top bar and a two-column grid. Same B·Console skin, same data, same actions.</p>
+  </div>
+
+  <!-- BROWSER WINDOW -->
+  <div style="width:100%;max-width:1240px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.45);border:1px solid #1c2926;">
+    <!-- browser chrome -->
+    <div style="height:40px;background:#e9eceb;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid #d8dcdb;">
+      <div style="display:flex;gap:7px;"><span style="width:11px;height:11px;border-radius:50%;background:#ff5f57;"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e;"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840;"></span></div>
+      <div style="flex:1;display:flex;justify-content:center;"><div style="width:60%;max-width:440px;background:#fff;border:1px solid #d8dcdb;border-radius:7px;padding:5px 12px;font-size:11.5px;color:#6b7a77;display:flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#16a34a" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>portal.myfinance.ro/firma/innovatecode</div></div>
+      <div style="width:54px;"></div>
+    </div>
+
+    <!-- APP -->
+    <div style="background:#fafafa;">
+      <!-- top bar (dark chrome) -->
+      <div style="height:58px;background:#0c1413;display:flex;align-items:center;gap:14px;padding:0 22px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:30px;height:30px;border-radius:9px;background:#14b8a6;color:#06201d;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;">M</div>
+          <div style="font-size:15px;font-weight:700;color:#f3f8f7;">MyFinance</div>
+        </div>
+
+        <!-- company switcher dropdown -->
+        <div style="position:relative;margin-left:6px;">
+          <div onClick="{{ toggleSwitcher }}" style="display:flex;align-items:center;gap:9px;background:#16211f;border:1px solid #1c2926;border-radius:10px;padding:6px 11px;cursor:pointer;">
+            <div style="width:26px;height:26px;border-radius:8px;background:#0c1413;border:1px solid #24322f;color:#2dd4bf;display:flex;align-items:center;justify-content:center;flex:none;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ coInitials }}</div>
+            <div style="line-height:1.15;"><div style="font-size:12.5px;font-weight:600;color:#f3f8f7;">{{ coName }}</div><div class="mono" style="font-size:10px;color:#5e716e;font-family:'IBM Plex Mono',monospace;">CUI {{ coCui }} · {{ coCity }}</div></div>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8aa09c" stroke-width="1.6"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+          <sc-if value="{{ switcherOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:46px;left:0;width:330px;background:#fff;border:1px solid #e4e7e6;border-radius:13px;box-shadow:0 18px 50px rgba(0,0,0,0.25);padding:8px;z-index:20;">
+            <div style="font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9aa6a3;font-weight:700;padding:6px 8px;">{{ companyCount }} firme alocate</div>
+            <sc-for list="{{ companyList }}" as="c" hint-placeholder-count="3">
+              <div onClick="{{ c.onPick }}" style="display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px;cursor:pointer;background:{{ c.rowBg }};border:1px solid {{ c.rowBd }};margin-bottom:4px;">
+                <div style="width:30px;height:30px;border-radius:8px;background:#0c1413;color:#2dd4bf;display:flex;align-items:center;justify-content:center;flex:none;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ c.initials }}</div>
+                <div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">{{ c.name }}</div><div class="mono" style="font-size:10px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;">CUI {{ c.cui }} · {{ c.city }}</div></div>
+                <sc-if value="{{ c.hasNeed }}" hint-placeholder-val="{{ false }}"><span style="flex:none;font-size:9.5px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:999px;padding:1px 7px;">{{ c.need }} lipsă</span></sc-if>
+                <sc-if value="{{ c.current }}" hint-placeholder-val="{{ true }}"><div style="flex:none;width:20px;height:20px;border-radius:50%;background:#14b8a6;color:#06201d;display:flex;align-items:center;justify-content:center;"><svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7.3l2.5 2.5L11 4"/></svg></div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+        </div>
+
+        <div style="flex:1;"></div>
+
+        <!-- month stepper -->
+        <div style="display:flex;align-items:center;gap:6px;background:#16211f;border-radius:9px;padding:4px 5px;">
+          <div onClick="{{ prevMonth }}" style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#7d918e;cursor:pointer;font-size:15px;">‹</div>
+          <span style="font-size:12.5px;font-weight:600;color:#eef4f3;min-width:108px;text-align:center;">{{ monthLabel }}</span>
+          <div onClick="{{ nextMonth }}" style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;color:{{ nextColor }};cursor:{{ nextCursor }};">›</div>
+        </div>
+        <div style="position:relative;width:34px;height:34px;border-radius:9px;background:#16211f;display:flex;align-items:center;justify-content:center;color:#8aa09c;cursor:pointer;"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5a3.5 3.5 0 00-3.5 3.5c0 3-1.5 4-1.5 4h10s-1.5-1-1.5-4A3.5 3.5 0 008 2.5z"/><path d="M6.5 13a1.5 1.5 0 003 0"/></svg><span style="position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;border-radius:8px;background:#f43f5e;color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;">2</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding-left:6px;border-left:1px solid #1c2926;"><div style="width:30px;height:30px;border-radius:50%;background:#14b8a6;color:#06201d;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">RV</div><span style="font-size:12px;color:#cfdbd9;">RO</span></div>
+      </div>
+
+      <!-- content -->
+      <div style="padding:22px 26px 30px;max-width:1240px;margin:0 auto;">
+        <!-- page heading + docs-needed -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <div><h2 style="font-size:20px;font-weight:700;margin:0;letter-spacing:-0.01em;">{{ coName }}</h2><div class="mono" style="font-size:12px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;margin-top:2px;">CUI {{ coCui }} · {{ coCity }} · {{ monthLabel }}</div></div>
+          <sc-if value="{{ needsDocs }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:10px;align-items:center;background:#fef3c7;border:1px solid #fde68a;border-radius:11px;padding:9px 13px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:12px;font-weight:700;">!</div>
+            <span style="font-size:13px;font-weight:600;color:#92400e;">{{ needCount }} documente lipsă pentru închiderea lunii</span>
+          </div>
+          </sc-if>
+        </div>
+
+        <!-- 2-column grid -->
+        <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start;">
+
+          <!-- LEFT column -->
+          <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
+
+            <!-- upload (horizontal on desktop) -->
+            <div style="background:#0c1413;border-radius:14px;padding:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+                <div><div style="font-size:15px;font-weight:700;color:#f3f8f7;">Încarcă un document</div><div style="font-size:12px;color:#8aa09c;margin-top:1px;">Trage fișierul aici, sau alege o opțiune · extragem automat datele</div></div>
+                <div style="display:flex;gap:9px;">
+                  <div onClick="{{ startFile }}" style="background:#16211f;border:1px solid #1c2926;border-radius:10px;padding:10px 15px;display:flex;align-items:center;gap:8px;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="1.7"><path d="M14 3.5H7a2 2 0 00-2 2v13a2 2 0 002 2h10a2 2 0 002-2V8.5z"/><path d="M14 3.5V9h5"/></svg><span style="font-size:13px;font-weight:700;color:#cfdbd9;">Alege fișier</span></div>
+                  <div onClick="{{ startFile }}" style="background:#14b8a6;border-radius:10px;padding:10px 15px;display:flex;align-items:center;gap:8px;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06201d" stroke-width="1.7"><path d="M12 16V7M8.5 10.5L12 7l3.5 3.5"/><path d="M4 16v2.5a1 1 0 001 1h14a1 1 0 001-1V16"/></svg><span style="font-size:13px;font-weight:700;color:#06201d;">Încarcă</span></div>
+                </div>
+              </div>
+              <!-- dropzone -->
+              <div style="margin-top:13px;border:1.5px dashed #24322f;border-radius:11px;padding:18px;text-align:center;background:#0e1c1a;">
+                <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:11px;"><div style="width:30px;height:30px;border-radius:50%;border:3px solid #16302c;border-top-color:#2dd4bf;animation:spin 0.8s linear infinite;"></div><div style="text-align:left;"><div style="font-size:13px;font-weight:600;color:#eef4f3;">chitanta_OMV.jpg</div><div style="font-size:11.5px;color:#2dd4bf;">se extrag datele…</div></div></div>
+                </sc-if>
+                <sc-if value="{{ idleUpload }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size:12.5px;color:#6f857f;">Trage un extras de cont, factură sau bon aici · PDF, PNG, JPG</div>
+                </sc-if>
+              </div>
+            </div>
+
+            <!-- documents -->
+            <div style="background:#fff;border:1px solid #e4e7e6;border-radius:14px;padding:17px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><div style="font-size:15px;font-weight:700;">Documente</div><span style="font-size:11.5px;color:#9aa6a3;">{{ fileCount }} încărcate · {{ needCount }} încă necesare</span></div>
+              <!-- bank status -->
+              <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;"><div style="width:22px;height:22px;border-radius:50%;background:#dcfce7;color:#16a34a;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7.3l2.5 2.5L11 4"/></svg></div><span style="font-size:13.5px;font-weight:600;color:#16a34a;">Extras de cont încărcat</span></div>
+              <sc-for list="{{ files }}" as="f" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid #f1f3f2;background:{{ f.rowBg }};">
+                  <div style="width:34px;height:34px;border-radius:9px;background:{{ f.iconBg }};color:{{ f.iconFg }};display:flex;align-items:center;justify-content:center;flex:none;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2.5h6l4 4v9H4z" stroke-linejoin="round"/><path d="M10 2.5v4h4"/></svg></div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ f.name }}</span><span style="flex:none;font-size:11.5px;color:#9aa6a3;">{{ f.label }}</span></div>
+                    <div style="display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap;">
+                      <sc-if value="{{ f.payShow }}" hint-placeholder-val="{{ true }}"><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:{{ f.payFg }};background:{{ f.payBg }};border:1px solid {{ f.payBd }};border-radius:999px;padding:1px 8px;"><span style="width:5px;height:5px;border-radius:50%;background:{{ f.payFg }};"></span>{{ f.payLabel }}</span></sc-if>
+                      <sc-if value="{{ f.flagShow }}" hint-placeholder-val="{{ false }}"><span style="flex:none;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:{{ f.flagFg }};background:{{ f.flagBg }};border:1px solid {{ f.flagBd }};border-radius:999px;padding:1px 8px;">⚠ {{ f.flagLabel }}</span><span style="font-size:11px;color:{{ f.flagFg }};">{{ f.flagNote }}</span><sc-if value="{{ f.dupLink }}" hint-placeholder-val="{{ false }}"><span onClick="{{ f.onGoDup }}" style="font-size:11px;font-weight:700;color:#0f766e;text-decoration:underline;cursor:pointer;">{{ f.dupMonthLabel }} →</span></sc-if></sc-if>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:7px;flex:none;">
+                    <div onClick="{{ f.onView }}" style="width:32px;height:32px;border:1px solid #e4e7e6;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 8S3.5 3.5 8 3.5 14.5 8 14.5 8 12.5 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/></svg></div>
+                    <sc-if value="{{ f.deletable }}" hint-placeholder-val="{{ false }}"><div onClick="{{ f.onDelete }}" style="width:32px;height:32px;border:1px solid #f3dad7;background:#fef6f5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#dc2626;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M5 4.5l.5 8.5h5l.5-8.5"/></svg></div></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- RIGHT column -->
+          <div style="display:flex;flex-direction:column;gap:18px;min-width:0;">
+            <!-- to pay -->
+            <div style="background:#fff;border:1px solid #e4e7e6;border-radius:14px;padding:17px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:15px;font-weight:700;">De plată la stat</div><span style="font-size:11px;color:#9aa6a3;">scadență 25 {{ monthShort }}</span></div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin:10px 0 8px;"><span style="font-size:12.5px;color:#5e716e;">Total</span><span class="mono" style="font-size:23px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ payTotal }} <span style="font-size:13px;color:#9aa6a3;">RON</span></span></div>
+              <div style="padding:9px 0;border-top:1px solid #f1f3f2;"><div style="display:flex;justify-content:space-between;"><span style="font-size:12.5px;font-weight:600;">Contribuții salariale</span><span class="mono" style="font-size:12.5px;font-weight:700;font-family:'IBM Plex Mono',monospace;">5.200,00</span></div><div class="mono" style="font-size:10.5px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;margin-top:2px;">RO12 TREZ 2210 2A47</div></div>
+              <div style="padding:9px 0;border-top:1px solid #f1f3f2;"><div style="display:flex;justify-content:space-between;"><span style="font-size:12.5px;font-weight:600;">TVA de plată</span><span class="mono" style="font-size:12.5px;font-weight:700;font-family:'IBM Plex Mono',monospace;">9.720,00</span></div><div class="mono" style="font-size:10.5px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;margin-top:2px;">RO33 TREZ 7005 0202</div></div>
+              <div style="padding:9px 0;border-top:1px solid #f1f3f2;"><div style="display:flex;justify-content:space-between;"><span style="font-size:12.5px;font-weight:600;">Impozit pe profit</span><span class="mono" style="font-size:12.5px;font-weight:700;font-family:'IBM Plex Mono',monospace;">860,00</span></div><div class="mono" style="font-size:10.5px;color:#9aa6a3;font-family:'IBM Plex Mono',monospace;margin-top:2px;">RO49 TREZ 7005 0101</div></div>
+            </div>
+            <!-- financials -->
+            <div style="background:#fff;border:1px solid #e4e7e6;border-radius:14px;padding:17px;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:11px;">Situație financiară</div>
+              <div style="display:flex;gap:11px;margin-bottom:12px;"><div style="flex:1;background:#f7f8f8;border-radius:11px;padding:11px 12px;"><div class="mono" style="font-size:18px;font-weight:700;font-family:'IBM Plex Mono',monospace;">128.400</div><div style="font-size:11px;color:#9aa6a3;margin-top:1px;">Venituri</div></div><div style="flex:1;background:#f7f8f8;border-radius:11px;padding:11px 12px;"><div class="mono" style="font-size:18px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#0f766e;">31.250</div><div style="font-size:11px;color:#9aa6a3;margin-top:1px;">Profit net</div></div></div>
+              <div style="display:flex;gap:8px;"><div onClick="{{ viewReport }}" style="flex:1;border:1px solid #e4e7e6;border-radius:10px;padding:10px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;">Vezi raport</div><div style="flex:1;background:#14b8a6;border-radius:10px;padding:10px;text-align:center;font-size:13px;font-weight:700;color:#06201d;cursor:pointer;">Descarcă</div></div>
+            </div>
+            <!-- payroll -->
+            <div style="background:#fff;border:1px solid #e4e7e6;border-radius:14px;padding:17px;">
+              <div style="font-size:15px;font-weight:700;margin-bottom:9px;">State de plată</div>
+              <div style="display:flex;align-items:center;gap:11px;"><div style="width:34px;height:34px;border-radius:9px;background:#e6f4f2;color:#0f766e;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="11" height="8" rx="1.5"/><path d="M2.5 7h11"/></svg></div><div style="flex:1;min-width:0;"><div style="font-size:12.5px;font-weight:600;">stat_plata_{{ monthShort }}.pdf</div><div style="font-size:11px;color:#9aa6a3;">3 angajați</div></div><div onClick="{{ viewReport }}" style="width:32px;height:32px;border:1px solid #e4e7e6;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#52605d;cursor:pointer;"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 8S3.5 3.5 8 3.5 14.5 8 14.5 8 12.5 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/></svg></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- preview overlay -->
+      <sc-if value="{{ previewOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closePreview }}" style="position:absolute;inset:0;background:rgba(12,20,19,0.72);display:flex;align-items:center;justify-content:center;z-index:40;padding:40px;">
+        <div onClick="{{ stop }}" style="width:440px;max-width:90%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.4);">
+          <div style="height:46px;background:#0c1413;display:flex;align-items:center;justify-content:space-between;padding:0 16px;color:#eef4f3;"><span style="font-size:12.5px;font-family:'IBM Plex Mono',monospace;">{{ previewName }}</span><div onClick="{{ closePreview }}" style="color:#8aa09c;font-size:17px;cursor:pointer;">✕</div></div>
+          <div style="padding:30px;background:repeating-linear-gradient(135deg,#f4f4f3,#f4f4f3 12px,#efefee 12px,#efefee 24px);">
+            <div style="background:#fff;border:1px solid #e6e6e4;box-shadow:0 8px 26px rgba(0,0,0,0.12);padding:26px;"><div style="display:flex;justify-content:space-between;border-bottom:2px solid #16201f;padding-bottom:9px;margin-bottom:12px;"><div style="font-size:14px;font-weight:800;">Raport financiar</div><div style="font-size:8px;font-family:'IBM Plex Mono',monospace;color:#9aa6a3;text-align:right;">INNOVATECODE IT<br/>Martie 2026</div></div><div style="display:flex;flex-direction:column;gap:6px;"><div style="height:7px;width:62%;background:#ececeb;border-radius:2px;"></div><div style="height:7px;width:48%;background:#ececeb;border-radius:2px;"></div><div style="height:7px;width:70%;background:#f1f1f0;border-radius:2px;"></div></div><div style="margin-top:14px;border:1px solid #ececeb;border-radius:4px;padding:9px 11px;display:flex;justify-content:space-between;font-size:11px;"><span style="color:#5e716e;">Profit net</span><span class="mono" style="font-family:'IBM Plex Mono',monospace;font-weight:700;">31.250</span></div></div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1300,&quot;height&quot;:880}}">
+class Component extends DCLogic {
+  state = { monthIdx:1, coIdx:0, switcherOpen:false, removed:[], uploading:false, previewOpen:false, previewName:'raport-2026-03.pdf' };
+  months=[{label:'Februarie 2026',short:'Feb'},{label:'Martie 2026',short:'Mar'}];
+  companies=[
+    { name:'INNOVATECODE IT SRL', cui:'49443957', city:'Cluj', need:2, pay:'15.780,00', initials:'IC' },
+    { name:'Lumina Verde SRL', cui:'39112764', city:'Cluj', need:0, pay:'5.080,00', initials:'LV' },
+    { name:'Carpat Trans SRL', cui:'31209845', city:'Brașov', need:1, pay:'3.210,00', initials:'CT' },
+  ];
+  fileData=[
+    { id:'f1', name:'factura_creative_ricaccount.pdf', label:'605,00 RON', iconBg:'#e6f4f2', iconFg:'#0f766e', pay:'unpaid', flag:'none' },
+    { id:'f2', name:'factura_btleasing_feb2026.pdf', label:'3.485,18 RON', iconBg:'#e6f4f2', iconFg:'#0f766e', pay:'partial', flag:'wrongPeriod' },
+    { id:'f3', name:'chitanta_casco_2026.pdf', label:'7.318,86 RON', iconBg:'#e6f4f2', iconFg:'#0f766e', pay:'paid', flag:'none' },
+    { id:'f4', name:'factura_creative_ricaccount (1).pdf', label:'605,00 RON', iconBg:'#e6f4f2', iconFg:'#0f766e', pay:'unpaid', flag:'duplicate', dupMonthIdx:0 },
+    { id:'f5', name:'scan_5582.jpg', label:'Document', iconBg:'#e6f4f2', iconFg:'#0f766e', pay:'none', flag:'wrongParty', otherCif:'RO 11122233' },
+  ];
+  prevMonth(){ this.setState(s=>({monthIdx:Math.max(0,s.monthIdx-1)})); }
+  nextMonth(){ this.setState(s=>({monthIdx:Math.min(this.months.length-1,s.monthIdx+1)})); }
+  goToMonth(i){ this.setState({monthIdx:Math.max(0,Math.min(this.months.length-1,i))}); }
+  toggleSwitcher(){ this.setState(s=>({switcherOpen:!s.switcherOpen})); }
+  selectCompany(i){ this.setState({coIdx:i,switcherOpen:false}); }
+  startFile(){ this.setState({uploading:true}); setTimeout(()=>this.setState({uploading:false}),1900); }
+  deleteFile(id){ this.setState(s=>({removed:[...s.removed,id]})); }
+  viewReport(){ this.setState({previewOpen:true,previewName:'raport-2026-03.pdf'}); }
+  openFile(n){ this.setState({previewOpen:true,previewName:n}); }
+  closePreview(){ this.setState({previewOpen:false}); }
+  stop(e){ e.stopPropagation(); }
+  renderVals(){
+    const s=this.state; const m=this.months[s.monthIdx]; const co=this.companies[s.coIdx];
+    const atLatest=s.monthIdx>=this.months.length-1;
+    const companyList=this.companies.map((c,i)=>({ name:c.name, cui:c.cui, city:c.city, initials:c.initials, need:c.need, hasNeed:c.need>0,
+      current:i===s.coIdx, rowBg:i===s.coIdx?'#ecf7f5':'#fff', rowBd:i===s.coIdx?'#b6e7df':'#fff', onPick:()=>this.selectCompany(i) }));
+    const payMeta={ paid:{show:true,label:'Plătită',bg:'#dcfce7',bd:'#bbf7d0',fg:'#166534'}, partial:{show:true,label:'Parțial',bg:'#fef3c7',bd:'#fde68a',fg:'#92400e'}, unpaid:{show:true,label:'Neplătită',bg:'#fee2e2',bd:'#fecaca',fg:'#991b1b'}, none:{show:false} };
+    const flagMeta={ duplicate:{show:true,label:'Duplicat',bg:'#fee2e2',bd:'#fecaca',fg:'#991b1b',rowBg:'#fefafa'}, wrongParty:{show:true,label:'Altă firmă',bg:'#fee2e2',bd:'#fecaca',fg:'#991b1b',rowBg:'#fefafa'}, wrongPeriod:{show:true,label:'Altă lună',bg:'#e0e7ff',bd:'#c7d2fe',fg:'#3730a3',rowBg:'#fafbff'}, none:{show:false,rowBg:'transparent'} };
+    const files=this.fileData.filter(f=>!s.removed.includes(f.id)).map(f=>{
+      const p=payMeta[f.pay||'none']; const g=flagMeta[f.flag||'none'];
+      let flagNote='', dupLink=false, dupMonthLabel='', onGoDup=()=>{};
+      if(f.flag==='duplicate'){ const di=f.dupMonthIdx!=null?f.dupMonthIdx:s.monthIdx; if(di===s.monthIdx){flagNote='deja încărcat luna aceasta';} else {flagNote='deja încărcat în'; dupLink=true; dupMonthLabel=this.months[di].label; onGoDup=()=>this.goToMonth(di);} }
+      else if(f.flag==='wrongParty'){ flagNote='aparține CIF '+(f.otherCif||'—'); }
+      else if(f.flag==='wrongPeriod'){ flagNote='nu este pentru luna selectată'; }
+      return { id:f.id, name:f.name, label:f.label, iconBg:f.iconBg, iconFg:f.iconFg,
+        payShow:p.show&&!g.show, payLabel:p.label, payBg:p.bg, payBd:p.bd, payFg:p.fg,
+        flagShow:g.show, flagLabel:g.label, flagBg:g.bg, flagBd:g.bd, flagFg:g.fg, flagNote, dupLink, dupMonthLabel, onGoDup, rowBg:g.rowBg, deletable:g.show,
+        onView:()=>this.openFile(f.name), onDelete:()=>this.deleteFile(f.id) };
+    });
+    return {
+      monthLabel:m.label, monthShort:m.short, nextColor:atLatest?'#3a4845':'#7d918e', nextCursor:atLatest?'default':'pointer',
+      prevMonth:()=>this.prevMonth(), nextMonth:()=>this.nextMonth(),
+      coName:co.name, coCui:co.cui, coCity:co.city, coInitials:co.initials, companyCount:this.companies.length,
+      companyList, switcherOpen:s.switcherOpen, toggleSwitcher:()=>this.toggleSwitcher(),
+      needsDocs:co.need>0, needCount:co.need, payTotal:co.pay,
+      files, fileCount:files.length,
+      uploading:s.uploading, idleUpload:!s.uploading, startFile:()=>this.startFile(),
+      previewOpen:s.previewOpen, previewName:s.previewName, viewReport:()=>this.viewReport(), closePreview:()=>this.closePreview(),
+      stop:(e)=>this.stop(e),
+    };
+  }
+}
+</script>
+</body>
+</html>
