@@ -8,7 +8,7 @@ import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
 import { PortalPreviewModal } from "../components/PortalPreviewModal";
 
-const money = (n: number) => (n ?? 0).toLocaleString("ro-RO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const money = (n: number) => (n ?? 0).toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const monthLabel = (period: string, lang: string) =>
   new Date(period).toLocaleDateString(lang === "ro" ? "ro-RO" : "en-US", { month: "long", year: "numeric" });
 const shiftMonth = (period: string, delta: number) => {
