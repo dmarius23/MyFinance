@@ -247,8 +247,8 @@ export function RepHome() {
                 {payments.data.lines.map((l, i) => (
                   <div key={i} style={{ padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>{l.explanation ?? l.categories.join(" + ")}</span>
-                      <span style={{ ...mono, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: C.ink }}>{money(l.amount)}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.explanation ?? l.categories.join(" + ")}</span>
+                      <span style={{ ...mono, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: C.ink, flex: "none" }}>{money(l.amount)}</span>
                     </div>
                     <div style={{ ...mono, fontSize: 10.5, color: C.mut, marginTop: 2, wordBreak: "break-all" }}>{l.iban}</div>
                     {l.scadenta && <div style={{ fontSize: 10.5, color: C.mut }}>{t("portal.due")}: {l.scadenta}</div>}
@@ -393,9 +393,9 @@ function DocRow({ filename, label, issuer, badges, iconBg, iconFg, onView, onDow
   { filename: string; label: string; issuer?: string | null; badges?: React.ReactNode; iconBg: string; iconFg: string;
     onView: () => void; onDownload: () => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
       <div style={{ width: 32, height: 32, borderRadius: 9, background: iconBg, color: iconFg, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><FileGlyph /></div>
-      <button onClick={onView} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
+      <button onClick={onView} style={{ flex: 1, minWidth: 0, maxWidth: "100%", overflow: "hidden", display: "block", textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{filename}</div>
         <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}{issuer ? ` · ${issuer}` : ""}</div>
         {badges && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</div>}
