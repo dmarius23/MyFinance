@@ -19,7 +19,7 @@ const C = {
   green: "#16a34a", greenBg: "#dcfce7", danger: "#dc2626",
 };
 const mono: React.CSSProperties = { fontFamily: "'IBM Plex Mono', monospace" };
-const card: React.CSSProperties = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 15 };
+const card: React.CSSProperties = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 15, minWidth: 0 };
 const cardH: React.CSSProperties = { fontSize: 15, fontWeight: 700, margin: 0, color: C.ink };
 
 const money = (n: number) => (n ?? 0).toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -120,7 +120,7 @@ export function RepHome() {
 
   return (
     <div style={{ minHeight: "100dvh", background: C.chrome, display: "flex", justifyContent: "center", fontFamily: "'Hanken Grotesk', sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 480, minWidth: 0, minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", position: "relative" }}>
+      <div style={{ width: "100%", maxWidth: 480, minWidth: 0, minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
 
         {/* ===== dark app header ===== */}
         <div style={{ flex: "none", position: "sticky", top: 0, zIndex: 5, background: C.chrome, padding: "14px 16px 14px" }}>
@@ -157,10 +157,10 @@ export function RepHome() {
         </div>
 
         {/* ===== content ===== */}
-        <div style={{ flex: 1, minWidth: 0, padding: "14px 16px 24px", display: "grid", gap: 13, alignContent: "start" }}>
+        <div style={{ flex: 1, minWidth: 0, padding: "14px 16px 24px", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 13, alignContent: "start" }}>
 
           {/* month stepper */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px" }}>
             <button onClick={() => setPeriod((p) => shiftMonth(p, -1))} aria-label="prev" style={stepBtn(false)}>‹</button>
             <span style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 14.5, textTransform: "capitalize", color: C.ink }}>{monthLabel(period, i18n.language)}</span>
             <button onClick={() => !atLatest && setPeriod((p) => shiftMonth(p, 1))} aria-label="next" disabled={atLatest} style={stepBtn(atLatest)}>›</button>
@@ -175,7 +175,7 @@ export function RepHome() {
           )}
 
           {/* UPLOAD card (dark) */}
-          <div style={{ background: C.chrome, borderRadius: 16, padding: 16 }}>
+          <div style={{ background: C.chrome, borderRadius: 16, padding: 16, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: C.onChrome }}>{t("portal.uploadTitle")}</div>
             <div style={{ fontSize: 12, color: C.onChromeMut, marginTop: 1 }}>{t("portal.uploadHint")}</div>
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onPick} style={{ display: "none" }} />
