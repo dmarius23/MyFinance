@@ -119,11 +119,11 @@ export function RepHome() {
   const onDownload = (d: { id: string; filename: string }) => () => portalApi.downloadFile(d.id, d.filename);
 
   return (
-    <div style={{ minHeight: "100vh", background: C.chrome, display: "flex", justifyContent: "center", fontFamily: "'Hanken Grotesk', sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 480, minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100dvh", background: C.chrome, display: "flex", justifyContent: "center", fontFamily: "'Hanken Grotesk', sans-serif" }}>
+      <div style={{ width: "100%", maxWidth: 480, minWidth: 0, minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", position: "relative" }}>
 
         {/* ===== dark app header ===== */}
-        <div style={{ flex: "none", background: C.chrome, padding: "14px 16px 14px" }}>
+        <div style={{ flex: "none", position: "sticky", top: 0, zIndex: 5, background: C.chrome, padding: "14px 16px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: C.teal, color: C.tealInk, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16 }}>M</div>
@@ -156,8 +156,8 @@ export function RepHome() {
           </button>
         </div>
 
-        {/* ===== scrollable content ===== */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 90px", display: "grid", gap: 13, alignContent: "start" }}>
+        {/* ===== content ===== */}
+        <div style={{ flex: 1, minWidth: 0, padding: "14px 16px 24px", display: "grid", gap: 13, alignContent: "start" }}>
 
           {/* month stepper */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px" }}>
@@ -326,7 +326,7 @@ export function RepHome() {
         </div>
 
         {/* ===== bottom tab bar ===== */}
-        <div style={{ flex: "none", background: C.chrome, borderTop: `1px solid #1a2624`, padding: "9px 0 14px", display: "flex" }}>
+        <div style={{ flex: "none", position: "sticky", bottom: 0, zIndex: 5, background: C.chrome, borderTop: `1px solid #1a2624`, padding: "9px 0 14px", display: "flex" }}>
           <Tab active label={t("portal.navHome")} onClick={() => {}}><HomeIcon /></Tab>
           <Tab label={t("portal.navUpload")} onClick={() => fileRef.current?.click()}><CameraIcon stroke="currentColor" /></Tab>
           <Tab label={t("portal.navReports")} onClick={() => r && setPreview({ load: () => portalApi.reportBlob(period), filename: `raport-${period.slice(0, 7)}.pdf` })}><BarsIcon /></Tab>
@@ -386,8 +386,8 @@ export function RepHome() {
 }
 
 /* ---- pieces ---------------------------------------------------------------------------------- */
-const chromeIcon: React.CSSProperties = { width: 34, height: 34, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
-const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
+const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
+const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
 function DocRow({ filename, label, issuer, badges, iconBg, iconFg, onView, onDownload }:
   { filename: string; label: string; issuer?: string | null; badges?: React.ReactNode; iconBg: string; iconFg: string;
@@ -407,7 +407,7 @@ function DocRow({ filename, label, issuer, badges, iconBg, iconFg, onView, onDow
     </div>
   );
 }
-const iconBtn: React.CSSProperties = { width: 30, height: 30, border: `1px solid ${C.border}`, background: C.card, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#52605d", cursor: "pointer" };
+const iconBtn: React.CSSProperties = { width: 30, height: 30, padding: 0, border: `1px solid ${C.border}`, background: C.card, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#52605d", cursor: "pointer", flex: "none" };
 
 function Badge({ label, tone, dot }: { label: string; tone: "green" | "amber" | "red" | "indigo"; dot?: boolean }) {
   const c = tone === "green" ? { bg: "#dcfce7", fg: "#166534", bd: "#bbf7d0" }
@@ -423,7 +423,7 @@ function Badge({ label, tone, dot }: { label: string; tone: "green" | "amber" | 
 
 function Tab({ active, label, onClick, children }: { active?: boolean; label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: active ? C.tealLt : C.onChromeFaint }}>
+    <button onClick={onClick} style={{ flex: 1, padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: active ? C.tealLt : C.onChromeFaint }}>
       {children}<span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{label}</span>
     </button>
   );
@@ -431,8 +431,8 @@ function Tab({ active, label, onClick, children }: { active?: boolean; label: st
 
 function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(5,16,14,0.55)", display: "flex", alignItems: "flex-end", zIndex: 35 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: C.card, borderRadius: "24px 24px 0 0", padding: "8px 18px 30px", maxHeight: "80%", display: "flex", flexDirection: "column" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(5,16,14,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: C.card, borderRadius: "24px 24px 0 0", padding: "8px 18px 30px", maxHeight: "82dvh", display: "flex", flexDirection: "column", boxShadow: "0 -10px 40px rgba(0,0,0,0.25)" }}>
         <div style={{ width: 38, height: 4, borderRadius: 2, background: C.border, margin: "6px auto 14px" }} />
         {children}
       </div>
