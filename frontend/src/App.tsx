@@ -16,6 +16,7 @@ import { Reports } from "./pages/Reports";
 import { Notifications } from "./pages/Notifications";
 import { Tasks } from "./pages/Tasks";
 import { Team } from "./pages/Team";
+import { DataSources } from "./pages/DataSources";
 
 /** Where a signed-in user belongs based on their role (reps → portal, staff → dashboard). */
 export function homeFor(role: Role | null): string {
@@ -64,6 +65,7 @@ export default function App() {
         <Route element={<FirmLayout />}>
           <Route path="/settings" element={<Settings />} />
           <Route path="/team" element={<Team />} />
+          <Route path="/data-sources" element={<DataSources />} />
         </Route>
       </Route>
 

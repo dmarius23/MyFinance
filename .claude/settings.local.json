@@ -362,7 +362,9 @@
       "Bash(mvn -o -Dtest='PortalServiceCompanyResolutionTest,ReconciliationServiceIT' -Dsurefire.failIfNoSpecifiedTests=false test)",
       "Bash(psql \"postgresql://localhost:5432/myfinance\" -tA -c \"select storage_key from document where id='d1d8e1eb-887f-404a-bd29-7cfebffe93dc';\")",
       "Bash(grep -nA6 \"storage\\\\|intake\" backend/src/main/resources/application.yml)",
-      "Bash(grep -nB1 -A8 \"intake:\\\\|document:\\\\|local-base\" backend/src/main/resources/application.yml)"
+      "Bash(grep -nB1 -A8 \"intake:\\\\|document:\\\\|local-base\" backend/src/main/resources/application.yml)",
+      "Bash(mvn -o -Dtest='FolderMapperTest,IngestionServiceTest' -Dsurefire.failIfNoSpecifiedTests=false test)",
+      "Bash(mvn -o -Dtest='RepresentativeServiceIT#invitesARepresentativeAndLinksToCompany' -Dsurefire.failIfNoSpecifiedTests=false test)"
     ]
   }
 }
