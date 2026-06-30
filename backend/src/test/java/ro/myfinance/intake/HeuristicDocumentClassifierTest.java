@@ -58,6 +58,20 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void copyOrDuplicateInvoiceIsInvoice() throws Exception {
+        assertThat(classifier.classify("x.pdf", "application/pdf", pdfWithText("COPIE FACTURA fiscala nr 456")))
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("x.pdf", "application/pdf", pdfWithText("FACTURA DUPLICAT nr 789 total de plata")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void proformaInvoiceStaysUnclassified() throws Exception {
+        assertThat(classifier.classify("x.pdf", "application/pdf", pdfWithText("FACTURA PROFORMA nr 123 total")))
+                .isEqualTo(DocumentType.UNCLASSIFIED);
+    }
+
+    @Test
     void trialBalanceWithStatementColumnWordsIsTrialBalanceNotStatement() throws Exception {
         // A "balanta de verificare" has columns like "Sold final" / "Rulaje" that also appear in bank
         // statements — the unambiguous "balanta" title must win over those markers.
