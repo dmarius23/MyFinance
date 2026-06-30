@@ -32,35 +32,44 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             if (hasEmbeddedXml(pdf)) {
                 return DocumentType.DECLARATION;
             }
-            String text = normalize(extractText(pdf));
-            if (containsAny(text, "a.n.a.f", "anaf", "declarat", "d212", "d300", "d301", "d112")) {
-                return DocumentType.DECLARATION;
-            }
-            // A trial balance ("balanta de verificare") is unambiguous from its title and shares column
-            // words with statements ("sold final", "rulaj"), so it must be checked BEFORE the bank markers.
-            if (containsAny(text, "balanta")) {
-                return DocumentType.TRIAL_BALANCE;
-            }
-            // Strong, statement-specific markers next (so a statement is never mistaken for anything else).
-            if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
-                    "sold final", "rulaj zi", "rulaj total cont")) {
-                return DocumentType.BANK_STATEMENT;
-            }
-            // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
-            // (e.g. a BT Leasing invoice contains "Banca Transilvania" but is NOT a statement). A PROFORMA
-            // invoice is not a fiscal document, so it stays unclassified.
-            if (containsAny(text, "factur", "invoice") && !containsAny(text, "proforma", "pro forma")) {
-                return DocumentType.INVOICE;
-            }
-            // Weak fallback: a bank name with none of the above signals → most likely a statement.
-            if (containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
-                return DocumentType.BANK_STATEMENT;
-            }
-            return DocumentType.UNCLASSIFIED;
+            return classifyMarkers(normalize(extractText(pdf)));
         } catch (IOException | RuntimeException e) {
             log.debug("Classification failed for {}, defaulting to UNCLASSIFIED", filename, e);
             return DocumentType.UNCLASSIFIED;
         }
+    }
+
+    @Override
+    public DocumentType classifyText(String text) {
+        return classifyMarkers(normalize(text));
+    }
+
+    /** The deterministic text-marker rules, applied to already-normalised text. */
+    private DocumentType classifyMarkers(String text) {
+        if (containsAny(text, "a.n.a.f", "anaf", "declarat", "d212", "d300", "d301", "d112")) {
+            return DocumentType.DECLARATION;
+        }
+        // A trial balance ("balanta de verificare") is unambiguous from its title and shares column
+        // words with statements ("sold final", "rulaj"), so it must be checked BEFORE the bank markers.
+        if (containsAny(text, "balanta")) {
+            return DocumentType.TRIAL_BALANCE;
+        }
+        // Strong, statement-specific markers next (so a statement is never mistaken for anything else).
+        if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
+                "sold final", "rulaj zi", "rulaj total cont")) {
+            return DocumentType.BANK_STATEMENT;
+        }
+        // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
+        // (e.g. a BT Leasing invoice contains "Banca Transilvania" but is NOT a statement). A PROFORMA
+        // invoice is not a fiscal document, so it stays unclassified.
+        if (containsAny(text, "factur", "invoice") && !containsAny(text, "proforma", "pro forma")) {
+            return DocumentType.INVOICE;
+        }
+        // Weak fallback: a bank name with none of the above signals → most likely a statement.
+        if (containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
+            return DocumentType.BANK_STATEMENT;
+        }
+        return DocumentType.UNCLASSIFIED;
     }
 
     private String extractText(PDDocument pdf) throws IOException {

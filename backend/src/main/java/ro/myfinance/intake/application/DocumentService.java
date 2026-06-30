@@ -35,18 +35,29 @@ public class DocumentService {
     private final DocumentRepository documents;
     private final DocumentStorage storage;
     private final DocumentClassifier classifier;
+    private final DocumentReclassifier ocr;
     private final AuditRecorder audit;
     private final ApplicationEventPublisher events;
 
     public DocumentService(CompanyRepository companies, DocumentRepository documents,
-                           DocumentStorage storage, DocumentClassifier classifier, AuditRecorder audit,
+                           DocumentStorage storage, DocumentClassifier classifier,
+                           DocumentReclassifier ocr, AuditRecorder audit,
                            ApplicationEventPublisher events) {
         this.companies = companies;
         this.documents = documents;
         this.storage = storage;
         this.classifier = classifier;
+        this.ocr = ocr;
         this.audit = audit;
         this.events = events;
+    }
+
+    /** Classify by text, then — if unclassified — try the OCR fallback for non-extractable PDFs. */
+    private DocumentType classifyWithOcr(String filename, String contentType, byte[] bytes) {
+        DocumentType type = classifier.classify(filename, contentType, bytes);
+        return type == DocumentType.UNCLASSIFIED
+                ? ocr.tryClassify(contentType, bytes).orElse(DocumentType.UNCLASSIFIED)
+                : type;
     }
 
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
@@ -76,7 +87,7 @@ public class DocumentService {
         }
 
         LocalDate period = periodMonth.withDayOfMonth(1);
-        DocumentType type = forcedType != null ? forcedType : classifier.classify(filename, contentType, bytes);
+        DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
         String safeName = sanitize(filename);
         UUID id = UUID.randomUUID();
         String key = "%s/%s/%s/%s-%s".formatted(tenantId, companyId, period.format(MONTH), id, safeName);
@@ -171,7 +182,7 @@ public class DocumentService {
         int changed = 0;
         for (Document doc : list(companyId, periodMonth)) {
             byte[] bytes = storage.retrieve(doc.getStorageKey());
-            DocumentType newType = classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
+            DocumentType newType = classifyWithOcr(doc.getOriginalFilename(), doc.getContentType(), bytes);
             if (newType != doc.getType()) {
                 doc.setType(newType);
                 changed++;
