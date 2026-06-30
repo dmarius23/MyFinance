@@ -55,7 +55,8 @@ public class InvoiceExtractionService {
             // supplier, total and the client CIF / wrong-party verdict).
             byte[] png = receiptProps.isAnthropic() && !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes)
                     ? ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200) : null;
-            f = png != null ? fromReceiptImage(png, "page.png", ownCui) : fromPdf(bytes, ownName, ownCui);
+            f = png != null ? identifyClientParty(fromReceiptImage(png, "page.png", ownCui), ownCui, ownName)
+                    : fromPdf(bytes, ownName, ownCui);
         } else {
             f = fromReceiptImage(bytes, filename, ownCui);
         }
@@ -93,6 +94,25 @@ public class InvoiceExtractionService {
         Boolean wrongParty = r.clientMatchesCompany() == null ? null : !r.clientMatchesCompany();
         return new Fields(r.issuerName(), null, r.total(), r.issueDate(), ok ? "EXTRACTED" : "NEEDS_REVIEW",
                 r.issuerCif(), r.clientCif(), r.receiptNumber(), wrongParty);
+    }
+
+    /**
+     * Vision OCR of a purchase invoice can mislabel the buyer (our company) as the issuer. When our own
+     * CUI is printed on the document (whether the model called it client or issuer), the company is the
+     * client/buyer → it's our invoice (identified, correct party); the company is never the supplier.
+     */
+    private static Fields identifyClientParty(Fields f, String ownCui, String ownName) {
+        String own = RoFiscalCode.digits(ownCui);
+        boolean companyOnDoc = own != null
+                && (own.equals(RoFiscalCode.digits(f.clientCif())) || own.equals(RoFiscalCode.digits(f.issuerCif())));
+        if (!companyOnDoc) {
+            return f;
+        }
+        String issuerCif = own.equals(RoFiscalCode.digits(f.issuerCif())) ? null : f.issuerCif();
+        String supplier = (f.supplierName() != null && ownName != null
+                && f.supplierName().trim().equalsIgnoreCase(ownName.trim())) ? null : f.supplierName();
+        return new Fields(supplier, f.supplierIban(), f.total(), f.date(), f.status(),
+                issuerCif, ownCui, f.receiptNumber(), Boolean.FALSE);
     }
 
     /** true when both codes are present and differ, false when they match, null when undeterminable. */

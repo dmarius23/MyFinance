@@ -182,7 +182,12 @@ public class DocumentService {
         int changed = 0;
         for (Document doc : list(companyId, periodMonth)) {
             byte[] bytes = storage.retrieve(doc.getStorageKey());
-            DocumentType newType = classifyWithOcr(doc.getOriginalFilename(), doc.getContentType(), bytes);
+            // Cheap text classify first; only spend an OCR call when the document is still UNCLASSIFIED
+            // (an already-typed doc with unreadable text keeps its type — no need to re-OCR to classify).
+            DocumentType cheap = classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
+            DocumentType newType = cheap != DocumentType.UNCLASSIFIED ? cheap
+                    : doc.getType() != DocumentType.UNCLASSIFIED ? doc.getType()
+                    : ocr.tryClassify(doc.getContentType(), bytes).orElse(DocumentType.UNCLASSIFIED);
             if (newType != doc.getType()) {
                 doc.setType(newType);
                 changed++;
