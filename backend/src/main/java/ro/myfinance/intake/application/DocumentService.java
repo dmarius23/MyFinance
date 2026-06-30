@@ -183,12 +183,13 @@ public class DocumentService {
         for (Document doc : list(companyId, periodMonth)) {
             byte[] bytes = storage.retrieve(doc.getStorageKey());
             DocumentType newType = classifyWithOcr(doc.getOriginalFilename(), doc.getContentType(), bytes);
-            if (newType != doc.getType()) {
-                doc.setType(newType);
-                changed++;
+            if (newType == doc.getType()) {
+                continue; // unchanged → don't re-extract (re-extracting stable invoices risks a unique clash)
             }
+            doc.setType(newType);
+            changed++;
             events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
-                    doc.getType(), doc.getOriginalFilename(), bytes));
+                    newType, doc.getOriginalFilename(), bytes));
         }
         audit.record("DOCUMENTS_RECLASSIFIED", "company", companyId);
         return changed;

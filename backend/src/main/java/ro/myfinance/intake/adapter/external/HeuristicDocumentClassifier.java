@@ -62,11 +62,13 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
         // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
         // (e.g. a BT Leasing invoice contains "Banca Transilvania" but is NOT a statement). A PROFORMA
         // invoice is not a fiscal document, so it stays unclassified.
-        if (containsAny(text, "factur", "invoice") && !containsAny(text, "proforma", "pro forma")) {
+        boolean invoiceLike = containsAny(text, "factur", "invoice");
+        if (invoiceLike && !containsAny(text, "proforma", "pro forma")) {
             return DocumentType.INVOICE;
         }
-        // Weak fallback: a bank name with none of the above signals → most likely a statement.
-        if (containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
+        // Weak fallback: a bank name with NO invoice signal → most likely a statement. An invoice-like
+        // document (incl. a proforma) that merely prints its bank/IBAN must not be caught here.
+        if (!invoiceLike && containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
             return DocumentType.BANK_STATEMENT;
         }
         return DocumentType.UNCLASSIFIED;

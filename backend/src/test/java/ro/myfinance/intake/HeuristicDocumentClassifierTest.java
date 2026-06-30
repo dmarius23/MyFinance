@@ -72,6 +72,14 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void proformaMentioningABankIsNotABankStatement() throws Exception {
+        // A proforma that prints its IBAN at Banca Transilvania must not fall to the weak bank fallback.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("FACTURA PROFORMA nr 9 cont la Banca Transilvania total de plata")))
+                .isEqualTo(DocumentType.UNCLASSIFIED);
+    }
+
+    @Test
     void trialBalanceWithStatementColumnWordsIsTrialBalanceNotStatement() throws Exception {
         // A "balanta de verificare" has columns like "Sold final" / "Rulaje" that also appear in bank
         // statements — the unambiguous "balanta" title must win over those markers.
