@@ -56,6 +56,25 @@ class FolderMapperTest {
     }
 
     @Test
+    void parsesSeparateYearAndNumberedMonthFolders() {
+        // Real layout: <company>/<year>/<MM Monthname>/file
+        assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE IT SRL/2026/04 Aprilie")))
+                .isEqualTo(LocalDate.of(2026, 4, 1));
+    }
+
+    @Test
+    void parsesRomanianMonthName() {
+        assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE IT SRL/2026/Decembrie")))
+                .isEqualTo(LocalDate.of(2026, 12, 1));
+    }
+
+    @Test
+    void doesNotMistakeAYearFolderForAMonth() {
+        // "2026" alone must not be read as month 2 (February); with no month → fall back to modified month.
+        assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE IT SRL/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
+    }
+
+    @Test
     void fallsBackToModifiedMonthWhenNoMonthFolder() {
         assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE"))).isEqualTo(LocalDate.of(2026, 6, 1));
     }

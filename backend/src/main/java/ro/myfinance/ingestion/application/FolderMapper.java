@@ -20,7 +20,18 @@ import ro.myfinance.ingestion.application.CloudFolderConnector.RemoteFile;
  */
 public final class FolderMapper {
 
-    private static final Pattern MONTH = Pattern.compile("(20\\d{2})[-_.]?(0[1-9]|1[0-2])");
+    /** Year + month together in one segment, e.g. 2026-05, 2026_05, 202605. */
+    private static final Pattern COMBINED = Pattern.compile("(20\\d{2})[-_.]?(0[1-9]|1[0-2])(?!\\d)");
+    private static final Pattern YEAR = Pattern.compile("(?<!\\d)(20\\d{2})(?!\\d)");
+    /** A leading month number not part of a longer number, e.g. "04 Aprilie" → 04, "12" → 12. */
+    private static final Pattern LEAD_MONTH = Pattern.compile("^\\s*(0?[1-9]|1[0-2])(?!\\d)");
+    private static final java.util.Map<String, Integer> RO_MONTHS = java.util.Map.ofEntries(
+            java.util.Map.entry("IANUARIE", 1), java.util.Map.entry("FEBRUARIE", 2),
+            java.util.Map.entry("MARTIE", 3), java.util.Map.entry("APRILIE", 4),
+            java.util.Map.entry("MAI", 5), java.util.Map.entry("IUNIE", 6),
+            java.util.Map.entry("IULIE", 7), java.util.Map.entry("AUGUST", 8),
+            java.util.Map.entry("SEPTEMBRIE", 9), java.util.Map.entry("OCTOMBRIE", 10),
+            java.util.Map.entry("NOIEMBRIE", 11), java.util.Map.entry("DECEMBRIE", 12));
 
     private FolderMapper() {
     }
@@ -44,22 +55,74 @@ public final class FolderMapper {
         return Optional.empty();
     }
 
-    /** Resolve the period (first of month): a YYYY-MM path segment, else the file's modified month. */
+    /**
+     * Resolve the period (first of month) from the folder path. Handles a combined {@code YYYY-MM}
+     * segment, and a separate year segment ({@code 2026}) plus a month segment given as a leading
+     * number ({@code 04 Aprilie}) or a Romanian month name ({@code Aprilie}). Falls back to the file's
+     * modified month when the path carries no period.
+     */
     public static LocalDate resolvePeriod(RemoteFile file) {
-        for (String segment : segments(file)) {
-            Matcher m = MONTH.matcher(segment);
+        List<String> segs = segments(file);
+        // 1) Year + month in one segment.
+        for (String s : segs) {
+            Matcher m = COMBINED.matcher(s);
             if (m.find()) {
-                try {
-                    return YearMonth.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))).atDay(1);
-                } catch (DateTimeParseException | NumberFormatException ignored) {
-                    // fall through
+                return ym(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+            }
+        }
+        // 2) Separate year and month segments.
+        Integer year = null;
+        Integer month = null;
+        for (String s : segs) {
+            if (year == null) {
+                Matcher y = YEAR.matcher(s);
+                if (y.find()) {
+                    year = Integer.parseInt(y.group(1));
+                }
+            }
+            if (month == null) {
+                Integer mo = monthOf(s);
+                if (mo != null) {
+                    month = mo;
                 }
             }
         }
+        if (year != null && month != null) {
+            return ym(year, month);
+        }
+        // 3) Fallback: the file's modified month.
         LocalDate d = file.modifiedTime() != null
                 ? file.modifiedTime().atZone(ZoneOffset.UTC).toLocalDate()
                 : LocalDate.now(ZoneOffset.UTC);
         return d.withDayOfMonth(1);
+    }
+
+    private static LocalDate ym(int year, int month) {
+        try {
+            return YearMonth.of(year, month).atDay(1);
+        } catch (DateTimeParseException | NumberFormatException e) {
+            return LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1);
+        }
+    }
+
+    /** A month from a folder segment: a leading 1–12 number, else a Romanian month name (short segs only). */
+    private static Integer monthOf(String segment) {
+        if (segment == null || segment.isBlank()) {
+            return null;
+        }
+        Matcher m = LEAD_MONTH.matcher(segment);
+        if (m.find()) {
+            return Integer.parseInt(m.group(1));
+        }
+        String norm = normalize(segment); // upper, diacritics & non-alnum stripped
+        if (norm.length() <= 12) {         // guard: don't match a month name inside a long company name
+            for (java.util.Map.Entry<String, Integer> e : RO_MONTHS.entrySet()) {
+                if (norm.contains(e.getKey())) {
+                    return e.getValue();
+                }
+            }
+        }
+        return null;
     }
 
     private static List<String> segments(RemoteFile file) {
