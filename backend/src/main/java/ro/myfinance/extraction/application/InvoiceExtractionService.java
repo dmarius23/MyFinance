@@ -48,7 +48,17 @@ public class InvoiceExtractionService {
         String ownCui = company.map(c -> c.getCui()).orElse(null);
         LocalDate period = periodMonth.withDayOfMonth(1);
 
-        final Fields f = isPdf(bytes) ? fromPdf(bytes, ownName, ownCui) : fromReceiptImage(bytes, filename, ownCui);
+        final Fields f;
+        if (isPdf(bytes)) {
+            // A non-extractable PDF (e.g. FOP / Identity-H fonts) yields no fields from the text parser;
+            // when vision is configured, render it and OCR-extract like a receipt image (recovers the
+            // supplier, total and the client CIF / wrong-party verdict).
+            byte[] png = receiptProps.isAnthropic() && !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes)
+                    ? ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200) : null;
+            f = png != null ? fromReceiptImage(png, "page.png", ownCui) : fromPdf(bytes, ownName, ownCui);
+        } else {
+            f = fromReceiptImage(bytes, filename, ownCui);
+        }
 
         // Upsert by document: re-scan updates the existing row in place (preserving its id and any
         // matches) rather than delete+insert, which would break match FKs and trip the unique

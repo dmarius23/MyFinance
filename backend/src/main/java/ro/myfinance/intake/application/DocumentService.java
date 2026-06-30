@@ -183,13 +183,15 @@ public class DocumentService {
         for (Document doc : list(companyId, periodMonth)) {
             byte[] bytes = storage.retrieve(doc.getStorageKey());
             DocumentType newType = classifyWithOcr(doc.getOriginalFilename(), doc.getContentType(), bytes);
-            if (newType == doc.getType()) {
-                continue; // unchanged → don't re-extract (re-extracting stable invoices risks a unique clash)
+            if (newType != doc.getType()) {
+                doc.setType(newType);
+                changed++;
             }
-            doc.setType(newType);
-            changed++;
+            // Re-publish every document so re-extraction picks up newer parser/OCR logic (e.g. vision
+            // field recovery for non-extractable PDFs). process() upserts by document, so a single run is
+            // idempotent.
             events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
-                    newType, doc.getOriginalFilename(), bytes));
+                    doc.getType(), doc.getOriginalFilename(), bytes));
         }
         audit.record("DOCUMENTS_RECLASSIFIED", "company", companyId);
         return changed;
