@@ -52,6 +52,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       CORS_ALLOWED_ORIGINS: http://localhost:5173
+      # Document OCR fallback (Tesseract is baked into the image; Claude vision is the second tier).
+      MYFINANCE_OCR_ENABLED: "true"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}   # also used for receipt OCR; supply via host env / secret
       # SUPABASE_JWKS_URI: https://YOUR-PROJECT.supabase.co/auth/v1/.well-known/jwks.json
     ports:
       - "8080:8080"
