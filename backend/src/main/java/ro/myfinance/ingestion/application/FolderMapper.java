@@ -97,6 +97,22 @@ public final class FolderMapper {
         return d.withDayOfMonth(1);
     }
 
+    /** A YYYY-MM found anywhere in a string (e.g. a filename "...2026_04.pdf"), as the first of month. */
+    public static Optional<LocalDate> periodFromText(String text) {
+        if (text == null) {
+            return Optional.empty();
+        }
+        Matcher m = COMBINED.matcher(text);
+        if (m.find()) {
+            try {
+                return Optional.of(YearMonth.of(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))).atDay(1));
+            } catch (DateTimeParseException | NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
+    }
+
     private static LocalDate ym(int year, int month) {
         try {
             return YearMonth.of(year, month).atDay(1);

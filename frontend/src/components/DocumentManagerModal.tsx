@@ -89,7 +89,12 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
   const driveMode = driveQ.data?.driveEnabled === true;
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
-    onSuccess: (r: SyncResult) => { refresh(); setNote(t("payroll.syncDone", r as unknown as Record<string, number>)); },
+    onSuccess: (r: SyncResult) => {
+      refresh();
+      const parts = [t("payroll.syncDone", r as unknown as Record<string, number>)];
+      for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
+      setNote(parts.join(" · "));
+    },
     onError: (e) => setNote(e instanceof ApiError ? e.message : t("payroll.uploadError")),
   });
 

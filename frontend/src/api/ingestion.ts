@@ -16,6 +16,7 @@ export interface SyncResult {
   needsReview: number;
   skipped: number;
   failed: number;
+  issues?: { filename: string; reason: string }[];
 }
 
 export interface ImportRow {

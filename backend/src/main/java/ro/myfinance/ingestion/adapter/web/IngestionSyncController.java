@@ -34,7 +34,6 @@ public class IngestionSyncController {
 
     @PostMapping("/api/v1/ingestion/sync-company")
     public SyncResponse syncCompany(@Valid @RequestBody SyncCompanyRequest req) {
-        var r = ingestion.syncCompanyMonth(req.type(), req.companyId(), req.period());
-        return new SyncResponse(r.imported(), r.needsReview(), r.skipped(), r.failed());
+        return SyncResponse.from(ingestion.syncCompanyMonth(req.type(), req.companyId(), req.period()));
     }
 }

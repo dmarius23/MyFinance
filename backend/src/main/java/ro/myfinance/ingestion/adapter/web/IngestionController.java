@@ -62,8 +62,7 @@ public class IngestionController {
 
     @PostMapping("/{id}/sync")
     public SyncResponse sync(@PathVariable UUID id) {
-        var r = ingestion.sync(id);
-        return new SyncResponse(r.imported(), r.needsReview(), r.skipped(), r.failed());
+        return SyncResponse.from(ingestion.sync(id));
     }
 
     @GetMapping("/{id}/imports")

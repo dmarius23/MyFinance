@@ -27,7 +27,14 @@ public final class IngestionDtos {
         }
     }
 
-    public record SyncResponse(int imported, int needsReview, int skipped, int failed) {
+    public record SyncResponse(int imported, int needsReview, int skipped, int failed, java.util.List<IssueView> issues) {
+        public record IssueView(String filename, String reason) {
+        }
+
+        public static SyncResponse from(ro.myfinance.ingestion.application.IngestionService.SyncResult r) {
+            return new SyncResponse(r.imported(), r.needsReview(), r.skipped(), r.failed(),
+                    r.issues().stream().map(i -> new IssueView(i.filename(), i.reason())).toList());
+        }
     }
 
     /** Whether documents of a given type are sourced from a cloud folder (so manual upload is replaced). */

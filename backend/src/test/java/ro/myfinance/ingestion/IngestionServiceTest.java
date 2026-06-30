@@ -144,22 +144,52 @@ class IngestionServiceTest {
         lenient().when(b.getLegalName()).thenReturn("Lumina Verde SRL");
         when(companies.findAll()).thenReturn(List.of(a, b));
         fake.files = List.of(
-                new CloudFolderConnector.RemoteFile("a", "a.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "ea", null),
-                new CloudFolderConnector.RemoteFile("b", "b.pdf", "INNOVATECODE IT SRL/2026/05 Mai", "application/pdf", 100, "eb", null),
-                new CloudFolderConnector.RemoteFile("c", "c.pdf", "Lumina Verde SRL/2026/04 Aprilie", "application/pdf", 100, "ec", null));
+                new CloudFolderConnector.RemoteFile("a", "Stat_salarii_2026_04.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "ea", null),
+                new CloudFolderConnector.RemoteFile("b", "Stat_salarii_2026_05.pdf", "INNOVATECODE IT SRL/2026/05 Mai", "application/pdf", 100, "eb", null),
+                new CloudFolderConnector.RemoteFile("c", "Stat_salarii_2026_04.pdf", "Lumina Verde SRL/2026/04 Aprilie", "application/pdf", 100, "ec", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
         when(ledger.existsByConnectionIdAndContentSha256(eq(drive.getId()), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
-        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("a.pdf"), any(), any(),
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("Stat_salarii_2026_04.pdf"), any(), any(),
                 eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
         var r = service.syncCompanyMonth("PAYROLL", COMPANY, LocalDate.of(2026, 4, 1));
 
         assertThat(r.imported()).isEqualTo(1); // only INNOVATECODE / April
-        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("a.pdf"), any(), any(),
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("Stat_salarii_2026_04.pdf"), any(), any(),
                 eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
         verify(documents, never()).upload(eq(companyB), any(), any(), any(), any(), any(), any()); // other company not touched
+    }
+
+    @Test
+    void flagsWrongPeriodAndUnclassifiedFiles() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "D", "root", "PAYROLL");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.files = List.of(
+                new CloudFolderConnector.RemoteFile("ok", "Fluturas_2026_04.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("wp", "Pontaj_2026_05.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("uc", "some_invoice.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e3", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndContentSha256(eq(drive.getId()), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
+        lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("PAYROLL", COMPANY, LocalDate.of(2026, 4, 1));
+
+        assertThat(r.imported()).isEqualTo(1);     // Fluturas April
+        assertThat(r.needsReview()).isEqualTo(2);  // Pontaj May (wrong period) + invoice (unclassified)
+        assertThat(r.issues()).hasSize(2);
+        assertThat(r.issues()).anyMatch(i -> i.reason().startsWith("Wrong period"));
+        assertThat(r.issues()).anyMatch(i -> i.reason().startsWith("Unclassified"));
     }
 
     /** In-memory connector — feeds the pipeline a controlled file list. */

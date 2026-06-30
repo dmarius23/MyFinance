@@ -101,8 +101,12 @@ public class IngestionService {
         return ledger.findByConnectionIdOrderByCreatedAtDesc(connectionId);
     }
 
-    /** Outcome of one sync run, surfaced to the admin. */
-    public record SyncResult(int imported, int needsReview, int skipped, int failed) {
+    /** Outcome of one sync run, surfaced to the admin / payroll screen. {@code issues} names the files
+     *  that were flagged (wrong period / unclassified) rather than imported. */
+    public record SyncResult(int imported, int needsReview, int skipped, int failed, List<Issue> issues) {
+        public record Issue(String filename, String reason) {
+        }
+
         String summary() {
             return imported + " imported, " + needsReview + " to review, " + skipped + " skipped"
                     + (failed > 0 ? ", " + failed + " failed" : "");
@@ -149,7 +153,9 @@ public class IngestionService {
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
 
+        DocumentType forced = parseForcedType(conn.getForcedType());
         int imported = 0, review = 0, skipped = 0, failed = 0;
+        List<SyncResult.Issue> issues = new java.util.ArrayList<>();
         Listing listing;
         try {
             listing = connector.list(conn, conn.getCursor());
@@ -160,7 +166,7 @@ public class IngestionService {
                 conn.setLastResult("Listing failed: " + e.getMessage());
                 conn.setLastSyncedAt(java.time.Instant.now());
             }
-            return new SyncResult(0, 0, 0, 1);
+            return new SyncResult(0, 0, 0, 1, List.of());
         }
 
         for (RemoteFile f : listing.files()) {
@@ -185,9 +191,31 @@ public class IngestionService {
                     continue;
                 }
                 if (companyId.isEmpty()) {
-                    recordReview(tenantId, conn, f, null, "Could not match a company from the folder path");
+                    String reason = "Could not match a company from the folder path";
+                    recordReview(tenantId, conn, f, reason);
+                    issues.add(new SyncResult.Issue(f.name(), reason));
                     review++;
                     continue;
+                }
+
+                // For a payroll folder: the file must be one of the three payroll documents and for the
+                // folder's month, otherwise it is flagged (unclassified / wrong period), not imported.
+                if (forced == DocumentType.PAYROLL) {
+                    if (!looksLikePayroll(f.name())) {
+                        String reason = "Unclassified — not a recognised payroll document (pontaj / stat / fluturaș)";
+                        recordReview(tenantId, conn, f, reason);
+                        issues.add(new SyncResult.Issue(f.name(), reason));
+                        review++;
+                        continue;
+                    }
+                    Optional<LocalDate> filePeriod = FolderMapper.periodFromText(f.name());
+                    if (filePeriod.isPresent() && !filePeriod.get().equals(period)) {
+                        String reason = "Wrong period — file is " + ym(filePeriod.get()) + ", folder month is " + ym(period);
+                        recordReview(tenantId, conn, f, reason);
+                        issues.add(new SyncResult.Issue(f.name(), reason));
+                        review++;
+                        continue;
+                    }
                 }
 
                 byte[] bytes = connector.download(conn, f);
@@ -200,7 +228,6 @@ public class IngestionService {
                     continue;
                 }
 
-                DocumentType forced = parseForcedType(conn.getForcedType());
                 var doc = documents.upload(companyId.get(), period, f.name(),
                         mime(f), bytes, forced, DocumentSource.DRIVE);
                 ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
@@ -212,7 +239,7 @@ public class IngestionService {
             }
         }
 
-        SyncResult result = new SyncResult(imported, review, skipped, failed);
+        SyncResult result = new SyncResult(imported, review, skipped, failed, List.copyOf(issues));
         if (persistStatus) {
             conn.setCursor(listing.nextCursor());
             conn.setStatus("ACTIVE");
@@ -223,9 +250,24 @@ public class IngestionService {
         return result;
     }
 
-    private void recordReview(UUID tenantId, SourceConnection conn, RemoteFile f, UUID docId, String detail) {
+    private void recordReview(UUID tenantId, SourceConnection conn, RemoteFile f, String detail) {
         ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), null,
-                f.name(), f.path(), docId, ImportFile.Status.NEEDS_REVIEW, detail));
+                f.name(), f.path(), null, ImportFile.Status.NEEDS_REVIEW, detail));
+    }
+
+    /** A payroll folder should only hold pontaj (timesheet), stat de plată, or fluturaș (payslip). */
+    private static boolean looksLikePayroll(String name) {
+        if (name == null) {
+            return false;
+        }
+        String n = java.text.Normalizer.normalize(name, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
+        return n.contains("pontaj") || n.contains("fluturas")
+                || (n.contains("stat") && (n.contains("salar") || n.contains("plata")));
+    }
+
+    private static String ym(LocalDate d) {
+        return d.getYear() + "-" + String.format("%02d", d.getMonthValue());
     }
 
     private static boolean isSupported(RemoteFile f) {
