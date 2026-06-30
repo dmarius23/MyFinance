@@ -32,4 +32,23 @@ public class DataSourceConfig {
                 .build();
         return new RlsDataSource(hikari);
     }
+
+    /**
+     * Small admin JdbcTemplate on the migration role (bypasses RLS). Used ONLY by background jobs that
+     * must enumerate work across tenants (e.g. the ingestion scheduler) before running per-tenant under
+     * the normal RLS datasource. Never use it to read/write tenant business data.
+     */
+    @Bean(name = "adminJdbcTemplate")
+    org.springframework.jdbc.core.JdbcTemplate adminJdbcTemplate(
+            @org.springframework.beans.factory.annotation.Value("${spring.flyway.url}") String url,
+            @org.springframework.beans.factory.annotation.Value("${spring.flyway.user}") String user,
+            @org.springframework.beans.factory.annotation.Value("${spring.flyway.password}") String password) {
+        HikariDataSource ds = new HikariDataSource();
+        ds.setJdbcUrl(url);
+        ds.setUsername(user);
+        ds.setPassword(password);
+        ds.setMaximumPoolSize(2);
+        ds.setPoolName("myfinance-admin-pool");
+        return new org.springframework.jdbc.core.JdbcTemplate(ds);
+    }
 }

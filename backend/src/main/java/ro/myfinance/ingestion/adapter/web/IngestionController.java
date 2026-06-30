@@ -65,6 +65,12 @@ public class IngestionController {
         return SyncResponse.from(ingestion.sync(id));
     }
 
+    /** Run the scheduled-style sync (current + previous month) on demand — for testing the auto-poll. */
+    @PostMapping("/{id}/sync-recent")
+    public SyncResponse syncRecent(@PathVariable UUID id) {
+        return SyncResponse.from(ingestion.syncRecent(id));
+    }
+
     @GetMapping("/{id}/imports")
     public List<ImportView> imports(@PathVariable UUID id) {
         return ingestion.imports(id).stream().map(ImportView::from).toList();

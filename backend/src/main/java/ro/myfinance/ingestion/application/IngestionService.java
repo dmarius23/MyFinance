@@ -44,16 +44,24 @@ public class IngestionService {
     private final DocumentService documents;
     private final ConnectorRegistry registry;
     private final AuditRecorder audit;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
                             CompanyRepository companies, DocumentService documents,
-                            ConnectorRegistry registry, AuditRecorder audit) {
+                            ConnectorRegistry registry, AuditRecorder audit,
+                            ro.myfinance.notifications.application.NotificationService notifications) {
         this.connections = connections;
         this.ledger = ledger;
         this.companies = companies;
         this.documents = documents;
         this.registry = registry;
         this.audit = audit;
+        this.notifications = notifications;
+    }
+
+    /** The previous calendar month (first of month) — the month reps are notified about. */
+    private static LocalDate previousMonth() {
+        return java.time.YearMonth.now(java.time.ZoneOffset.UTC).minusMonths(1).atDay(1);
     }
 
     // ---- connection management (TENANT_ADMIN) ----------------------------------------------------
@@ -123,7 +131,19 @@ public class IngestionService {
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
-        return doSync(conn, null, null, true);
+        return doSync(conn, null, null, previousMonth(), true);
+    }
+
+    /**
+     * Sync ONLY the current and previous month for every company (the scheduled poll). One folder
+     * listing per run; new previous-month payroll triggers a notification to the company's reps.
+     */
+    public SyncResult syncRecent(UUID connectionId) {
+        SourceConnection conn = connections.findById(connectionId)
+                .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
+        LocalDate prev = previousMonth();
+        LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
+        return doSync(conn, null, java.util.Set.of(current, prev), prev, true);
     }
 
     /**
@@ -133,7 +153,7 @@ public class IngestionService {
     public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
         SourceConnection conn = findDriveConnection(forcedType)
                 .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
-        return doSync(conn, companyId, period.withDayOfMonth(1), false);
+        return doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), previousMonth(), false);
     }
 
     private Optional<SourceConnection> findDriveConnection(String forcedType) {
@@ -148,7 +168,8 @@ public class IngestionService {
      * files resolving to that company/month (others are passed over, not counted). {@code persistStatus}
      * controls whether the connection's cursor/status/summary are updated (only for the full sync).
      */
-    private SyncResult doSync(SourceConnection conn, UUID onlyCompany, LocalDate onlyPeriod, boolean persistStatus) {
+    private SyncResult doSync(SourceConnection conn, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
+                             LocalDate notifyMonth, boolean persistStatus) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
@@ -156,6 +177,7 @@ public class IngestionService {
         DocumentType forced = parseForcedType(conn.getForcedType());
         int imported = 0, review = 0, skipped = 0, failed = 0;
         List<SyncResult.Issue> issues = new java.util.ArrayList<>();
+        java.util.Set<UUID> newPayrollLastMonth = new java.util.HashSet<>();
         Listing listing;
         try {
             listing = connector.list(conn, conn.getCursor());
@@ -181,7 +203,7 @@ public class IngestionService {
                 if (onlyCompany != null && (companyId.isEmpty() || !companyId.get().equals(onlyCompany))) {
                     continue;
                 }
-                if (onlyPeriod != null && !period.equals(onlyPeriod)) {
+                if (onlyPeriods != null && !onlyPeriods.contains(period)) {
                     continue;
                 }
                 // Idempotency: same provider file id already seen (and unchanged) → skip.
@@ -233,10 +255,20 @@ public class IngestionService {
                 ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
                         f.name(), f.path(), doc.getId(), ImportFile.Status.IMPORTED, null));
                 imported++;
+                if (forced == DocumentType.PAYROLL && period.equals(notifyMonth)) {
+                    newPayrollLastMonth.add(companyId.get());
+                }
             } catch (RuntimeException e) {
                 log.warn("Failed to ingest file {} (conn {})", f.id(), conn.getId(), e);
                 failed++;
             }
+        }
+
+        // New payroll for the previous month → tell each affected company's representatives.
+        for (UUID companyId : newPayrollLastMonth) {
+            notifications.notifyCompanyReps(companyId, "PAYROLL_READY",
+                    "State de plată disponibile",
+                    "Au fost adăugate documentele de salariu pentru " + monthLabel(notifyMonth) + ".");
         }
 
         SyncResult result = new SyncResult(imported, review, skipped, failed, List.copyOf(issues));
@@ -268,6 +300,13 @@ public class IngestionService {
 
     private static String ym(LocalDate d) {
         return d.getYear() + "-" + String.format("%02d", d.getMonthValue());
+    }
+
+    private static final String[] RO_MONTHS = {"ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
+            "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"};
+
+    private static String monthLabel(LocalDate d) {
+        return RO_MONTHS[d.getMonthValue() - 1] + " " + d.getYear();
     }
 
     private static boolean isSupported(RemoteFile f) {
