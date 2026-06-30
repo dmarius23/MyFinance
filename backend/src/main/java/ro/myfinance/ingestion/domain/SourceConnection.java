@@ -35,7 +35,7 @@ public class SourceConnection {
     @Column(name = "forced_type")
     private String forcedType;
 
-    @Column(nullable = false, columnDefinition = "jsonb")
+    @Column(nullable = false)
     private String config = "{}";
 
     private String cursor;
