@@ -90,12 +90,19 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
     }
 
     private JsonNode listPage(String token, String folderId, String pageToken) {
-        String uri = "https://www.googleapis.com/drive/v3/files"
-                + "?q=" + enc("'" + folderId + "' in parents and trashed=false")
-                + "&fields=" + enc("nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum)")
-                + "&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true"
-                + (pageToken != null ? "&pageToken=" + enc(pageToken) : "");
-        String body = http.get().uri(uri).header("Authorization", "Bearer " + token)
+        // Build via the URI builder so each query param is encoded exactly once (passing a pre-encoded
+        // string to uri(String) would double-encode it → Google "Invalid Value" on q).
+        String body = http.get()
+                .uri(b -> b.scheme("https").host("www.googleapis.com").path("/drive/v3/files")
+                        .queryParam("q", "'" + folderId + "' in parents and trashed=false")
+                        .queryParam("fields", "nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum)")
+                        .queryParam("pageSize", "1000")
+                        .queryParam("supportsAllDrives", "true")
+                        .queryParam("includeItemsFromAllDrives", "true")
+                        .queryParamIfPresent("pageToken",
+                                java.util.Optional.ofNullable(pageToken).filter(s -> !s.isBlank()))
+                        .build())
+                .header("Authorization", "Bearer " + token)
                 .retrieve().body(String.class);
         try {
             return json.readTree(body);
@@ -149,10 +156,6 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
 
     private static String b64(byte[] b) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
-    }
-
-    private static String enc(String s) {
-        return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
     private static Instant parseTime(String s) {
