@@ -30,6 +30,15 @@ public final class IngestionDtos {
     public record SyncResponse(int imported, int needsReview, int skipped, int failed) {
     }
 
+    /** Whether documents of a given type are sourced from a cloud folder (so manual upload is replaced). */
+    public record SourceStatus(boolean driveEnabled) {
+    }
+
+    public record SyncCompanyRequest(@jakarta.validation.constraints.NotNull java.util.UUID companyId,
+                                     @jakarta.validation.constraints.NotNull java.time.LocalDate period,
+                                     @jakarta.validation.constraints.NotBlank String type) {
+    }
+
     public record ImportView(UUID id, String filename, String sourcePath, String status, String detail,
                              UUID documentId, Instant createdAt) {
         public static ImportView from(ImportFile f) {

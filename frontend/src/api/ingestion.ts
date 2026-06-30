@@ -39,4 +39,9 @@ export const ingestionApi = {
   remove: (id: string) => api<void>(`${base}/${id}`, { method: "DELETE" }),
   sync: (id: string) => api<SyncResult>(`${base}/${id}/sync`, { method: "POST" }),
   imports: (id: string) => api<ImportRow[]>(`${base}/${id}/imports`),
+
+  // Staff-facing: is this document type sourced from a cloud folder, and scoped per-company sync.
+  source: (type: string) => api<{ driveEnabled: boolean }>(`/api/v1/ingestion/source?type=${type}`),
+  syncCompany: (input: { companyId: string; period: string; type: string }) =>
+    api<SyncResult>(`/api/v1/ingestion/sync-company`, { method: "POST", body: JSON.stringify(input) }),
 };

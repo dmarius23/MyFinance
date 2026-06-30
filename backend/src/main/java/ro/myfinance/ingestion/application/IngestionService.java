@@ -109,9 +109,42 @@ public class IngestionService {
         }
     }
 
+    /** Is the tenant sourcing documents of {@code forcedType} (e.g. PAYROLL) from a Drive folder? */
+    @Transactional(readOnly = true)
+    public boolean driveEnabledFor(String forcedType) {
+        return findDriveConnection(forcedType).isPresent();
+    }
+
+    /** Full sync of a whole connection (admin "Sync now" on the Data sources screen). */
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
+        return doSync(conn, null, null, true);
+    }
+
+    /**
+     * Sync ONLY one company's documents for one month, from the tenant's Drive connection of the given
+     * type. Used by the payroll screen's per-company "Sync" button (replaces manual upload).
+     */
+    public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
+        SourceConnection conn = findDriveConnection(forcedType)
+                .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
+        return doSync(conn, companyId, period.withDayOfMonth(1), false);
+    }
+
+    private Optional<SourceConnection> findDriveConnection(String forcedType) {
+        return connections.findByOrderByCreatedAtDesc().stream()
+                .filter(c -> "GOOGLE_DRIVE".equalsIgnoreCase(c.getProvider())
+                        && forcedType != null && forcedType.equalsIgnoreCase(c.getForcedType()))
+                .findFirst();
+    }
+
+    /**
+     * Core sync loop. {@code onlyCompany}/{@code onlyPeriod} null = full sync; non-null = process only the
+     * files resolving to that company/month (others are passed over, not counted). {@code persistStatus}
+     * controls whether the connection's cursor/status/summary are updated (only for the full sync).
+     */
+    private SyncResult doSync(SourceConnection conn, UUID onlyCompany, LocalDate onlyPeriod, boolean persistStatus) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
@@ -121,17 +154,28 @@ public class IngestionService {
         try {
             listing = connector.list(conn, conn.getCursor());
         } catch (RuntimeException e) {
-            log.warn("Listing failed for connection {} ({})", connectionId, conn.getProvider(), e);
-            conn.setStatus("ERROR");
-            conn.setLastResult("Listing failed: " + e.getMessage());
-            conn.setLastSyncedAt(java.time.Instant.now());
+            log.warn("Listing failed for connection {} ({})", conn.getId(), conn.getProvider(), e);
+            if (persistStatus) {
+                conn.setStatus("ERROR");
+                conn.setLastResult("Listing failed: " + e.getMessage());
+                conn.setLastSyncedAt(java.time.Instant.now());
+            }
             return new SyncResult(0, 0, 0, 1);
         }
 
         for (RemoteFile f : listing.files()) {
             try {
                 if (!isSupported(f) || f.size() > MAX_BYTES) {
-                    skipped++;
+                    if (onlyCompany == null) skipped++;
+                    continue;
+                }
+                Optional<UUID> companyId = FolderMapper.resolveCompany(f, tenantCompanies);
+                LocalDate period = FolderMapper.resolvePeriod(f);
+                // Scoped sync: silently pass over files outside the requested company/month.
+                if (onlyCompany != null && (companyId.isEmpty() || !companyId.get().equals(onlyCompany))) {
+                    continue;
+                }
+                if (onlyPeriod != null && !period.equals(onlyPeriod)) {
                     continue;
                 }
                 // Idempotency: same provider file id already seen (and unchanged) → skip.
@@ -140,8 +184,6 @@ public class IngestionService {
                     skipped++;
                     continue;
                 }
-
-                Optional<UUID> companyId = FolderMapper.resolveCompany(f, tenantCompanies);
                 if (companyId.isEmpty()) {
                     recordReview(tenantId, conn, f, null, "Could not match a company from the folder path");
                     review++;
@@ -158,7 +200,6 @@ public class IngestionService {
                     continue;
                 }
 
-                LocalDate period = FolderMapper.resolvePeriod(f);
                 DocumentType forced = parseForcedType(conn.getForcedType());
                 var doc = documents.upload(companyId.get(), period, f.name(),
                         mime(f), bytes, forced, DocumentSource.DRIVE);
@@ -166,16 +207,18 @@ public class IngestionService {
                         f.name(), f.path(), doc.getId(), ImportFile.Status.IMPORTED, null));
                 imported++;
             } catch (RuntimeException e) {
-                log.warn("Failed to ingest file {} (conn {})", f.id(), connectionId, e);
+                log.warn("Failed to ingest file {} (conn {})", f.id(), conn.getId(), e);
                 failed++;
             }
         }
 
-        conn.setCursor(listing.nextCursor());
-        conn.setStatus("ACTIVE");
-        conn.setLastSyncedAt(java.time.Instant.now());
         SyncResult result = new SyncResult(imported, review, skipped, failed);
-        conn.setLastResult(result.summary());
+        if (persistStatus) {
+            conn.setCursor(listing.nextCursor());
+            conn.setStatus("ACTIVE");
+            conn.setLastResult(result.summary());
+        }
+        conn.setLastSyncedAt(java.time.Instant.now());
         audit.record("SOURCE_SYNCED", "source_connection", conn.getId());
         return result;
     }
