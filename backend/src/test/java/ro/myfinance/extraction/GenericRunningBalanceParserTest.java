@@ -76,6 +76,33 @@ class GenericRunningBalanceParserTest {
         assertSelfBalances(s);
     }
 
+    // A multi-line block layout (no bank-specific parser): date, description and amount+balance on
+    // separate lines. The single-line scan finds nothing; the block fallback should recover the rows.
+    private static final String BLOCK_LAYOUT = """
+            Extras de cont
+            Sold initial 1.000,00
+            05/03/2026
+            Plata furnizor ACME
+            ref 8054
+            -200,00 800,00
+            12/03/2026
+            Incasare client BETA
+            350,00 1.150,00
+            Sold final 1.150,00
+            """;
+
+    @Test
+    void parsesMultiLineBlockLayoutViaFallback() {
+        ParsedStatement s = parser.parse(BLOCK_LAYOUT);
+
+        assertThat(s.transactions()).hasSize(2);
+        assertThat(s.transactions().get(0).date()).isEqualTo(LocalDate.of(2026, 3, 5));
+        assertThat(s.transactions().get(0).amount()).isEqualByComparingTo("-200.00");
+        assertThat(s.transactions().get(1).date()).isEqualTo(LocalDate.of(2026, 3, 12));
+        assertThat(s.transactions().get(1).amount()).isEqualByComparingTo("350.00");
+        assertSelfBalances(s);
+    }
+
     private void assertSelfBalances(ParsedStatement s) {
         BigDecimal sum = s.transactions().stream()
                 .map(ParsedTransaction::amount)

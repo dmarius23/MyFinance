@@ -22,13 +22,24 @@ public class BankStatementParserRegistry {
         this.parsers = parsers;
     }
 
-    /** Extract the plain text of a statement PDF (empty string if unreadable). */
-    public String extractText(byte[] pdf) {
-        try (PDDocument doc = Loader.loadPDF(pdf)) {
+    /**
+     * The parseable text of a statement. For a PDF, the extracted text (empty if unreadable). For a
+     * non-PDF (e.g. a CAMT.053 XML or MT940 export), the raw UTF-8 content, so the structured parsers
+     * can read it directly rather than through PDFBox.
+     */
+    public String extractText(byte[] content) {
+        if (!isPdf(content)) {
+            return new String(content, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        try (PDDocument doc = Loader.loadPDF(content)) {
             return new PDFTextStripper().getText(doc);
         } catch (IOException | RuntimeException e) {
             return "";
         }
+    }
+
+    private static boolean isPdf(byte[] b) {
+        return b != null && b.length >= 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
     }
 
     /** The first parser that recognizes this text, if any. */

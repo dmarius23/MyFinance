@@ -28,6 +28,15 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
         if (contentType != null && contentType.toLowerCase().startsWith("image/")) {
             return DocumentType.RECEIPT;
         }
+        if (!isPdf(bytes)) {
+            // Non-PDF upload — e.g. a structured bank-statement export (CAMT.053 XML or MT940). Detect
+            // those directly, else fall back to text-marker classification on the decoded content.
+            String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            if (looksLikeCamt(text) || looksLikeMt940(text)) {
+                return DocumentType.BANK_STATEMENT;
+            }
+            return classifyMarkers(normalize(text));
+        }
         try (PDDocument pdf = Loader.loadPDF(bytes)) {
             if (hasEmbeddedXml(pdf)) {
                 return DocumentType.DECLARATION;
@@ -72,6 +81,20 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             return DocumentType.BANK_STATEMENT;
         }
         return DocumentType.UNCLASSIFIED;
+    }
+
+    private static boolean isPdf(byte[] b) {
+        return b != null && b.length >= 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+    }
+
+    /** ISO 20022 CAMT.053 bank statement XML. */
+    private static boolean looksLikeCamt(String text) {
+        return text.contains("camt.053") || text.contains("BkToCstmrStmt");
+    }
+
+    /** SWIFT MT940 customer statement (tag-delimited). */
+    private static boolean looksLikeMt940(String text) {
+        return text.contains(":61:") && (text.contains(":60F:") || text.contains(":60M:"));
     }
 
     private String extractText(PDDocument pdf) throws IOException {

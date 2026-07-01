@@ -28,7 +28,9 @@ public class DocumentService {
 
     static final long MAX_SIZE_BYTES = 20L * 1024 * 1024;
     static final Set<String> ALLOWED_CONTENT_TYPES =
-            Set.of("application/pdf", "image/png", "image/jpeg", "image/webp");
+            Set.of("application/pdf", "image/png", "image/jpeg", "image/webp",
+                    // Structured bank-statement exports: CAMT.053 (XML) and MT940 (text).
+                    "application/xml", "text/xml", "text/plain");
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final CompanyRepository companies;

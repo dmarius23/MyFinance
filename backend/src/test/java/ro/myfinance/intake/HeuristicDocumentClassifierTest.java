@@ -95,6 +95,22 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void camt053XmlIsBankStatement() {
+        String camt = "<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:camt.053.001.02\">"
+                + "<BkToCstmrStmt><Stmt><Id>1</Id></Stmt></BkToCstmrStmt></Document>";
+        assertThat(classifier.classify("stmt.xml", "application/xml", camt.getBytes()))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
+    void mt940TextIsBankStatement() {
+        String mt940 = ":20:REF\n:25:RO98INGB0000999905473924\n:60F:C260101RON1000,00\n"
+                + ":61:2601010101D50,00NTRFNONREF\n:86:Plata\n:62F:C260101RON950,00\n";
+        assertThat(classifier.classify("stmt.sta", "text/plain", mt940.getBytes()))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
     void garbageBytesAreUnclassified() {
         assertThat(classifier.classify("x.pdf", "application/pdf", new byte[]{9, 9, 9}))
                 .isEqualTo(DocumentType.UNCLASSIFIED);

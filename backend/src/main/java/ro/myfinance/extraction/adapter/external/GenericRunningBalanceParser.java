@@ -46,6 +46,32 @@ public class GenericRunningBalanceParser implements BankStatementParser {
         BigDecimal opening = balanceForKeyword(lines, OPEN_KW);
         BigDecimal closing = balanceForKeyword(lines, CLOSE_KW);
 
+        // Primary: single-line rows ("{date} {desc} {amount} {balance}"). If that finds nothing, the
+        // statement is likely a multi-line block layout (date, description and amount+balance on
+        // separate lines) — fall back to a block scan that carries the date forward across lines.
+        List<Row> rows = parseSingleLineRows(lines);
+        if (rows.size() < 2) {
+            List<Row> blocks = parseBlockRows(lines);
+            if (blocks.size() > rows.size()) {
+                rows = blocks;
+            }
+        }
+
+        boolean newestFirst = isNewestFirst(rows, opening, closing);
+        List<ParsedTransaction> txns = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Row r = rows.get(i);
+            BigDecimal prev = newestFirst
+                    ? (i + 1 < rows.size() ? rows.get(i + 1).balance : opening)
+                    : (i > 0 ? rows.get(i - 1).balance : opening);
+            BigDecimal signed = (prev != null) ? r.balance.subtract(prev) : null;
+            txns.add(new ParsedTransaction(r.date, signed, null, r.iban, r.desc, null, r.balance));
+        }
+        return new ParsedStatement(null, firstIban(lines), opening, closing, txns);
+    }
+
+    /** Rows where the date, amount and running balance all sit on one line (the common statement shape). */
+    private List<Row> parseSingleLineRows(String[] lines) {
         List<Row> rows = new ArrayList<>();
         for (String line : lines) {
             if (containsAny(norm(line), OPEN_KW) || containsAny(norm(line), CLOSE_KW)) {
@@ -70,18 +96,59 @@ public class GenericRunningBalanceParser implements BankStatementParser {
             String iban = ib.find() ? ib.group() : null;
             rows.add(new Row(date, balance, desc.isBlank() ? null : desc, iban));
         }
+        return rows;
+    }
 
-        boolean newestFirst = isNewestFirst(rows, opening, closing);
-        List<ParsedTransaction> txns = new ArrayList<>();
-        for (int i = 0; i < rows.size(); i++) {
-            Row r = rows.get(i);
-            BigDecimal prev = newestFirst
-                    ? (i + 1 < rows.size() ? rows.get(i + 1).balance : opening)
-                    : (i > 0 ? rows.get(i - 1).balance : opening);
-            BigDecimal signed = (prev != null) ? r.balance.subtract(prev) : null;
-            txns.add(new ParsedTransaction(r.date, signed, null, r.iban, r.desc, null, r.balance));
+    /**
+     * Rows for a multi-line block layout: the date is on its own line (carried forward), description
+     * lines accumulate, and the block closes on the line that carries the amount + running balance
+     * (exactly two money tokens, so a 4-value summary row can't be mistaken for it). Signed amounts are
+     * still derived from the balance chain downstream, so the parse self-validates against the totals.
+     */
+    private List<Row> parseBlockRows(String[] lines) {
+        List<Row> rows = new ArrayList<>();
+        LocalDate currentDate = null;
+        StringBuilder desc = new StringBuilder();
+        String iban = null;
+        for (String line : lines) {
+            String n = norm(line);
+            if (containsAny(n, OPEN_KW) || containsAny(n, CLOSE_KW)) {
+                continue;
+            }
+            String rest = line;
+            Matcher d = DATE.matcher(line);
+            if (d.find() && d.start() <= 3) {
+                LocalDate parsed = parseDate(d.group());
+                if (parsed != null) {
+                    currentDate = parsed;
+                    rest = line.substring(d.end());
+                }
+            }
+            Matcher ib = IBAN.matcher(line);
+            if (ib.find() && iban == null) {
+                iban = ib.group();
+            }
+            List<BigDecimal> nums = money(rest);
+            if (nums.size() == 2 && currentDate != null) {
+                String tail = rest.replaceAll(MONEY.pattern(), "").replaceAll("\\s+", " ").strip();
+                appendDesc(desc, tail);
+                rows.add(new Row(currentDate, nums.get(1), desc.length() == 0 ? null : desc.toString(), iban));
+                desc.setLength(0);
+                iban = null;
+            } else if (currentDate != null && nums.isEmpty()) {
+                String tail = rest.replaceAll("\\s+", " ").strip();
+                if (!tail.matches("\\d+")) { // skip a bare reference number
+                    appendDesc(desc, tail);
+                }
+            }
         }
-        return new ParsedStatement(null, firstIban(lines), opening, closing, txns);
+        return rows;
+    }
+
+    private void appendDesc(StringBuilder desc, String text) {
+        if (!text.isBlank() && desc.length() < 180) {
+            desc.append(desc.length() > 0 ? " " : "").append(text);
+        }
     }
 
     private boolean isNewestFirst(List<Row> rows, BigDecimal opening, BigDecimal closing) {
