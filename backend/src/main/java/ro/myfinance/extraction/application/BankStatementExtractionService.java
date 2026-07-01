@@ -51,6 +51,23 @@ public class BankStatementExtractionService {
         UUID tenantId = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
 
+        // Re-extraction path (a rescan, or a re-publish after a new bank parser was added). document_id
+        // is unique, so a prior statement must be cleared before re-inserting. A statement that already
+        // extracted successfully is left untouched — re-running the same parser would only risk dropping
+        // its manual reconciliation links — and we just re-run matching. A prior parse that produced
+        // nothing usable (NEEDS_REVIEW/FAILED — e.g. before this parser existed) is deleted (the DB
+        // cascades its transactions and their matches) so the new parser can populate it.
+        Optional<BankStatement> prior = statements.findByDocumentId(documentId);
+        if (prior.isPresent()) {
+            BankStatement es = prior.get();
+            if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0) {
+                reconciliation.matchPeriod(companyId, periodMonth);
+                return;
+            }
+            statements.deleteByDocumentId(documentId);
+            statements.flush(); // release the unique(document_id) before the re-insert below
+        }
+
         String text = registry.extractText(bytes);
         Optional<BankStatementParser> parser = registry.find(text);
         if (parser.isEmpty()) {

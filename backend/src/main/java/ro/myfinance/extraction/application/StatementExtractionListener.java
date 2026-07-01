@@ -42,11 +42,10 @@ public class StatementExtractionListener {
             if (e.type() == DocumentType.BANK_STATEMENT) {
                 // Cross-type cleanup only (no-op unless this doc was previously an invoice).
                 invoiceRepo.deleteByDocumentId(e.documentId());
-                // Re-scan is idempotent: a statement already parsed is left as-is so we never delete
-                // transactions that carry manual matches, nor re-insert a duplicate statement row.
-                if (!statementRepo.existsByDocumentId(e.documentId())) {
-                    statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
-                }
+                // extract() is idempotent per document: a statement already extracted successfully is
+                // left as-is (its manual matches preserved), while a prior failed/empty parse is
+                // replaced — so a re-scan can populate it once a matching bank parser exists.
+                statements.extract(e.documentId(), e.companyId(), e.periodMonth(), e.bytes());
             } else if (e.type() == DocumentType.INVOICE || e.type() == DocumentType.RECEIPT) {
                 // Cross-type cleanup only (no-op unless this doc was previously a statement).
                 statementRepo.deleteByDocumentId(e.documentId());

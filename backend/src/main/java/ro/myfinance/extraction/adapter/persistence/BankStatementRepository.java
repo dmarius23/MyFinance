@@ -16,5 +16,7 @@ public interface BankStatementRepository extends JpaRepository<BankStatement, UU
 
     boolean existsByDocumentId(UUID documentId);
 
+    java.util.Optional<BankStatement> findByDocumentId(UUID documentId);
+
     void deleteByDocumentId(UUID documentId);
 }
