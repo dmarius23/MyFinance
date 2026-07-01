@@ -57,6 +57,9 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
                     if (f.issueDate() != null) {
                         date = f.issueDate();
                     }
+                    if (f.total() != null) {
+                        total = f.total();
+                    }
                     invoiceNumber = f.invoiceNumber();
                 }
             } catch (RuntimeException e) {

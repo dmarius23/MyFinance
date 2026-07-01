@@ -119,6 +119,29 @@ class EFacturaPdfParserTest {
     }
 
     @Test
+    void payTotalIsTheWithVatGrandTotalNotTheVat() {
+        // The value sits ABOVE the "TOTAL PLATA" label; a forward-only scan would instead grab the VAT
+        // from the "TOTAL TVA" line (147.00). The grand total to pay is 847.00 (= 700 net + 147 VAT).
+        String t = String.join("\n",
+                "VANZATOR", "BREHAR PALER-GROSAN CATANA SCANume", "RO40513447Identificatorul TVA",
+                "CUMPARATOR", "MERIC SRLNume", "Nr. inregistrare 20464846",
+                "700.00 700.00 847.00 0.00 0 0",
+                "847.00",
+                "0.00",
+                "TOTAL PLATA",
+                "TOTAL NET VALOARE TOTALA  fara TVA SUMA PLATITATOTAL TAXE",
+                "147.00 RONTOTAL TVA");
+        EFacturaFields f = EFacturaPdfParser.parse(t).orElseThrow();
+        assertThat(f.total()).isEqualByComparingTo("847.00");
+    }
+
+    @Test
+    void payTotalHandlesValueGluedOnTheLabelLine() {
+        EFacturaFields f = EFacturaPdfParser.parse(LEROY).orElseThrow();
+        assertThat(f.total()).isEqualByComparingTo("46.66"); // "46.66TOTAL PLATA"
+    }
+
+    @Test
     void nonEFacturaTextYieldsEmpty() {
         assertThat(EFacturaPdfParser.parse("Just an ordinary invoice, Total de plata 100.00")).isEmpty();
     }

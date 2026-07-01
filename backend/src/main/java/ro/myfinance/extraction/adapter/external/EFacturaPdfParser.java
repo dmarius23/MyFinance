@@ -21,9 +21,9 @@ import ro.myfinance.extraction.application.RoFiscalCode;
  */
 final class EFacturaPdfParser {
 
-    /** Extracted parties + issue date + invoice number; any field may be null when not found. */
+    /** Extracted parties + issue date + invoice number + pay total; any field may be null. */
     record EFacturaFields(String sellerName, String sellerCif, String buyerName, String buyerCif,
-                          LocalDate issueDate, String invoiceNumber) {
+                          LocalDate issueDate, String invoiceNumber, java.math.BigDecimal total) {
     }
 
     // A fiscal code "RO" + 2–10 digits. No trailing \b: in this layout the next char is the glued label
@@ -33,6 +33,9 @@ final class EFacturaPdfParser {
     // postal code glued to its label ("407280Cod") and the numeric part of a J-register code.
     private static final Pattern BARE_CIF = Pattern.compile("(?<![A-Za-z0-9])(\\d{2,10})(?![A-Za-z0-9])");
     private static final Pattern ISO_DATE = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
+    // A money token (RO "1.234,56" / EN "1,234.56"); the look-behind/ahead keep it out of dates/longer ids.
+    private static final Pattern MONEY =
+            Pattern.compile("(?<![\\d./,])\\d[\\d.,]*[.,]\\d{2}(?![./]?\\d)");
     // An invoice-number token: alphanumeric with the usual separators, containing at least one digit
     // (e.g. "S1186624", "MPTS/2026/100549", "EFI2601410462"). Length ≥ 4 keeps out stray fragments.
     private static final Pattern NUMBER_TOKEN =
@@ -80,12 +83,13 @@ final class EFacturaPdfParser {
             String buyerName = firstCompanyName(lines, buyer, buyerTo);
             LocalDate issueDate = issueDate(lines);
             String invoiceNumber = invoiceNumber(lines);
+            java.math.BigDecimal total = payTotal(lines);
 
             if (buyerCif == null && sellerCif == null) {
                 return Optional.empty();
             }
             return Optional.of(new EFacturaFields(sellerName, sellerCif, buyerName, buyerCif,
-                    issueDate, invoiceNumber));
+                    issueDate, invoiceNumber, total));
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -219,6 +223,48 @@ final class EFacturaPdfParser {
             }
         }
         return null;
+    }
+
+    /**
+     * The amount to pay ("TOTAL PLATĂ" — i.e. VALOARE TOTALĂ cu TVA). In this layout the value sits just
+     * <i>above</i> its label (and the summary row lists net / without-VAT / with-VAT / rounding side by
+     * side), so a forward-only scan grabs the wrong figure (often the VAT on the "TOTAL TVA" line). We
+     * take the largest money in a small window around the "TOTAL PLATĂ" label: the with-VAT grand total
+     * is by construction the largest of the summary components, so the maximum there is the pay total.
+     */
+    private static java.math.BigDecimal payTotal(String[] lines) {
+        int label = -1;
+        for (int i = 0; i < lines.length; i++) {
+            String n = norm(lines[i]);
+            if (n.contains("total plata") || n.contains("total de plata")) {
+                label = i;
+                break;
+            }
+        }
+        if (label < 0) {
+            return null;
+        }
+        java.math.BigDecimal best = null;
+        for (int i = Math.max(0, label - 6); i < Math.min(lines.length, label + 3); i++) {
+            for (Matcher m = MONEY.matcher(lines[i]); m.find(); ) {
+                java.math.BigDecimal v = parseMoney(m.group());
+                if (best == null || v.compareTo(best) > 0) {
+                    best = v;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** Parse a money token in RO ("1.234,56") or EN ("1,234.56"): the last '.'/',' + 2 digits is decimal. */
+    private static java.math.BigDecimal parseMoney(String token) {
+        int lastSep = Math.max(token.lastIndexOf('.'), token.lastIndexOf(','));
+        if (lastSep >= 0 && token.length() - lastSep - 1 == 2) {
+            String intPart = token.substring(0, lastSep).replaceAll("[.,]", "");
+            return new java.math.BigDecimal((intPart.isEmpty() ? "0" : intPart) + "." + token.substring(lastSep + 1));
+        }
+        String digits = token.replaceAll("[.,]", "");
+        return new java.math.BigDecimal(digits.isEmpty() ? "0" : digits);
     }
 
     private static LocalDate parseIso(String line) {
