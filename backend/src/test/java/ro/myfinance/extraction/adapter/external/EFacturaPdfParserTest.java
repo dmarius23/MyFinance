@@ -56,6 +56,49 @@ class EFacturaPdfParserTest {
     }
 
     @Test
+    void extractsInvoiceNumberGluedBeforeLabel() {
+        // SAGA invoices: the series/number is glued before the label ("S1186624Nr. factura").
+        String t = String.join("\n",
+                "RO eFactura",
+                "S1186624Nr. factura",
+                "Data emitere 2026-01-09",
+                "VANZATOR",
+                "SAGA Software S.R.L.Nume",
+                "RO17602787Identificatorul TVA",
+                "CUMPARATOR",
+                "MERIC SRLNume",
+                "RO20464846Identificator");
+        EFacturaFields f = EFacturaPdfParser.parse(t).orElseThrow();
+        assertThat(f.invoiceNumber()).isEqualTo("S1186624");
+    }
+
+    @Test
+    void extractsInvoiceNumberAfterLabel() {
+        // Other generators print the number after the label ("Nr. factura MPTS/2026/100549").
+        String t = String.join("\n",
+                "VANZATOR",
+                "PYROSTOP TOTAL SECURITY GROUP SRLNume",
+                "RO34609408Identificatorul TVA",
+                "Nr. factura MPTS/2026/100549",
+                "CUMPARATOR",
+                "MERIC SRLNume",
+                "RO20464846Identificator");
+        EFacturaFields f = EFacturaPdfParser.parse(t).orElseThrow();
+        assertThat(f.invoiceNumber()).isEqualTo("MPTS/2026/100549");
+    }
+
+    @Test
+    void invoiceNumberIgnoresDueDateAndProformaLines() {
+        // "Data scadenta"/"Data facturii" and a "factura proforma" mention must not be read as the number.
+        String t = String.join("\n",
+                "VANZATOR", "ACME SRLNume", "RO34609408Identificatorul TVA",
+                "Data scadenta 2026-02-15",
+                "CUMPARATOR", "MERIC SRLNume", "RO20464846Identificator");
+        EFacturaFields f = EFacturaPdfParser.parse(t).orElseThrow();
+        assertThat(f.invoiceNumber()).isNull();
+    }
+
+    @Test
     void recoversBareBuyerCuiForNonVatBuyer() {
         // A non-VAT buyer prints its CUI bare under "Nr. inregistrare" (no "RO"); the surrounding
         // address lines ("407280Cod", postal) must not be mistaken for the fiscal code.

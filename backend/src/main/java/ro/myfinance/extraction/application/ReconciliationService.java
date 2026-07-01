@@ -442,7 +442,7 @@ public class ReconciliationService {
             if (open) {
                 String key = invoiceDupKey(i);
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
-                        .anyMatch(o -> !o.getId().equals(i.getId()) && datesClose(i.getInvoiceDate(), o.getInvoiceDate()));
+                        .anyMatch(o -> !o.getId().equals(i.getId()) && sameInvoice(i, o));
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
                         i.getPeriodMonth(), p, remaining, duplicate, i.getWrongParty()));
@@ -742,7 +742,7 @@ public class ReconciliationService {
                         && !inv.getInvoiceDate().withDayOfMonth(1).equals(period);
                 String key = invoiceDupKey(inv);
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
-                        .anyMatch(o -> !o.getId().equals(inv.getId()) && datesClose(inv.getInvoiceDate(), o.getInvoiceDate()));
+                        .anyMatch(o -> !o.getId().equals(inv.getId()) && sameInvoice(inv, o));
                 out.add(new DocumentStatus(inv.getDocumentId(),
                         dateOutside ? "RED" : null, dateOutside ? "date_outside_period" : null, duplicate,
                         paymentStatus(inv.getTotalAmount(), p),
@@ -766,6 +766,30 @@ public class ReconciliationService {
             return null;
         }
         return supplier + "|" + i.getTotalAmount().stripTrailingZeros().toPlainString();
+    }
+
+    /**
+     * Whether two invoices that share a supplier+amount key are actually the same document (a
+     * duplicate). When both carry an extracted invoice number, that is authoritative — distinct numbers
+     * are distinct invoices, even at the same amount a few days apart (e.g. two SAGA subscriptions). Only
+     * when a number is missing do we fall back to issue-date proximity (extraction noise tolerance).
+     */
+    private boolean sameInvoice(Invoice a, Invoice b) {
+        String na = normNumber(a.getReceiptNumber());
+        String nb = normNumber(b.getReceiptNumber());
+        if (na != null && nb != null) {
+            return na.equals(nb);
+        }
+        return datesClose(a.getInvoiceDate(), b.getInvoiceDate());
+    }
+
+    /** Invoice/series number reduced to a comparison key (alphanumerics, upper-cased); null if blank. */
+    private static String normNumber(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+        return t.isEmpty() ? null : t;
     }
 
     /** Same-invoice date check: within tolerance, or flagged when either date is missing (can't distinguish). */

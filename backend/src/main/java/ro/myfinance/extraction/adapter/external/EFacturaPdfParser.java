@@ -21,9 +21,9 @@ import ro.myfinance.extraction.application.RoFiscalCode;
  */
 final class EFacturaPdfParser {
 
-    /** Extracted parties + issue date; any field may be null when not found. */
+    /** Extracted parties + issue date + invoice number; any field may be null when not found. */
     record EFacturaFields(String sellerName, String sellerCif, String buyerName, String buyerCif,
-                          LocalDate issueDate) {
+                          LocalDate issueDate, String invoiceNumber) {
     }
 
     // A fiscal code "RO" + 2–10 digits. No trailing \b: in this layout the next char is the glued label
@@ -33,6 +33,10 @@ final class EFacturaPdfParser {
     // postal code glued to its label ("407280Cod") and the numeric part of a J-register code.
     private static final Pattern BARE_CIF = Pattern.compile("(?<![A-Za-z0-9])(\\d{2,10})(?![A-Za-z0-9])");
     private static final Pattern ISO_DATE = Pattern.compile("\\b(\\d{4})-(\\d{2})-(\\d{2})\\b");
+    // An invoice-number token: alphanumeric with the usual separators, containing at least one digit
+    // (e.g. "S1186624", "MPTS/2026/100549", "EFI2601410462"). Length ≥ 4 keeps out stray fragments.
+    private static final Pattern NUMBER_TOKEN =
+            Pattern.compile("[A-Za-z0-9][A-Za-z0-9/._-]*\\d[A-Za-z0-9/._-]*");
 
     private static final java.util.Set<String> COMPANY_SUFFIX = java.util.Set.of(
             "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii");
@@ -75,11 +79,13 @@ final class EFacturaPdfParser {
             String sellerName = firstCompanyName(lines, sellerFrom, sellerTo);
             String buyerName = firstCompanyName(lines, buyer, buyerTo);
             LocalDate issueDate = issueDate(lines);
+            String invoiceNumber = invoiceNumber(lines);
 
             if (buyerCif == null && sellerCif == null) {
                 return Optional.empty();
             }
-            return Optional.of(new EFacturaFields(sellerName, sellerCif, buyerName, buyerCif, issueDate));
+            return Optional.of(new EFacturaFields(sellerName, sellerCif, buyerName, buyerCif,
+                    issueDate, invoiceNumber));
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -179,6 +185,36 @@ final class EFacturaPdfParser {
                     if (d != null) {
                         return d;
                     }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The invoice series/number from the "Nr. factură" cell. The value may sit before the glued label
+     * ("S1186624Nr. factura") or after it ("Nr. factura MPTS/2026/100549"); either way we strip the
+     * label words and take the first alphanumeric token that carries a digit. This is the invoice's true
+     * unique key — used downstream so two distinct invoices (same supplier/amount, days apart) aren't
+     * mistaken for one duplicate.
+     */
+    private static String invoiceNumber(String[] lines) {
+        for (String raw : lines) {
+            String n = norm(raw);
+            boolean isNumberLine = n.contains("factura")
+                    && (n.contains("nr") || n.contains("numar") || n.contains("seria"));
+            if (!isNumberLine || n.contains("data") || n.contains("scadenta")
+                    || n.contains("moneda") || n.contains("proforma")) {
+                continue;
+            }
+            String s = raw.replaceAll("(?i)nr\\.?\\s*factura", " ")
+                    .replaceAll("(?i)numar(ul)?\\s*factura", " ")
+                    .replaceAll("(?i)seria|serie", " ")
+                    .replaceAll("(?i)factura", " ")
+                    .trim();
+            for (Matcher m = NUMBER_TOKEN.matcher(s); m.find(); ) {
+                if (m.group().length() >= 4) {
+                    return m.group();
                 }
             }
         }
