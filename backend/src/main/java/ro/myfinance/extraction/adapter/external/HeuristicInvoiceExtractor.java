@@ -28,28 +28,43 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
 
     @Override
     public ParsedInvoice extract(byte[] pdf, String ownCompanyName) {
-        String text;
         try (PDDocument doc = Loader.loadPDF(pdf)) {
-            text = new PDFTextStripper().getText(doc);
+            String text = new PDFTextStripper().getText(doc);
+            String iban = null;
+            BigDecimal total = null;
+            LocalDate date = null;
+            String supplier = null;
+            String clientCif = null;
+            try {
+                iban = firstMatch(IBAN, text);
+                total = totalAmount(text);
+                date = invoiceDate(text);
+                supplier = supplierName(text, ownCompanyName);
+                clientCif = clientCif(text);
+                // The ANAF/SPV e-Factura visualisation has a fixed two-column layout the generic
+                // line-based heuristics can't read (party codes are labelled "Identificator", and the
+                // columns interleave). Parse it positionally and let its results win where present.
+                var ef = EFacturaPdfParser.parse(text);
+                if (ef.isPresent()) {
+                    EFacturaPdfParser.EFacturaFields f = ef.get();
+                    if (f.buyerCif() != null) {
+                        clientCif = f.buyerCif();
+                    }
+                    if (f.sellerName() != null) {
+                        supplier = f.sellerName();
+                    }
+                    if (f.issueDate() != null) {
+                        date = f.issueDate();
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
+            }
+            return new ParsedInvoice(supplier, iban, total, date, clientCif);
         } catch (IOException | RuntimeException e) {
             log.debug("Invoice text extraction failed", e);
             return new ParsedInvoice(null, null, null, null, null);
         }
-        String iban = null;
-        BigDecimal total = null;
-        LocalDate date = null;
-        String supplier = null;
-        String clientCif = null;
-        try {
-            iban = firstMatch(IBAN, text);
-            total = totalAmount(text);
-            date = invoiceDate(text);
-            supplier = supplierName(text, ownCompanyName);
-            clientCif = clientCif(text);
-        } catch (RuntimeException e) {
-            log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
-        }
-        return new ParsedInvoice(supplier, iban, total, date, clientCif);
     }
 
     private static final Pattern CIF = Pattern.compile("(?i)\\bRO\\s?\\d{2,10}\\b|\\b\\d{2,10}\\b");
