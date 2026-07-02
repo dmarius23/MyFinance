@@ -56,6 +56,35 @@ class TransactionClassifierTest {
     }
 
     @Test
+    void bankCommissionIsNoDoc() {
+        assertThat(c.classify(debit(null, null, "Comision operatiune")).requiresDocument()).isFalse();
+        assertThat(c.classify(debit(null, "Comision tranzactie", null)).category()).isEqualTo(DocCategory.FEE);
+    }
+
+    @Test
+    void accountMaintenanceIsNoDoc() {
+        // Diacritics-insensitive: "Întreținere cont" → normalized "intretinere cont".
+        var r = c.classify(debit(null, null, "Întreținere cont"));
+        assertThat(r.requiresDocument()).isFalse();
+        assertThat(r.category()).isEqualTo(DocCategory.FEE);
+    }
+
+    @Test
+    void debitWithoutAnyCounterpartyIsNoDoc() {
+        // A bank fee the statement left unlabelled: no partner name, no IBAN, no description.
+        var r = c.classify(debit(null, null, null));
+        assertThat(r.requiresDocument()).isFalse();
+        assertThat(r.category()).isEqualTo(DocCategory.FEE);
+    }
+
+    @Test
+    void debitWithACounterpartyStillNeedsDoc() {
+        // A named/IBAN counterparty is a real payment even with no description → still needs a document.
+        assertThat(c.classify(debit("RO21BRDE", null, null)).requiresDocument()).isTrue();
+        assertThat(c.classify(debit(null, "KAUFLAND 4700 CLUJ", null)).requiresDocument()).isTrue();
+    }
+
+    @Test
     void leasingNeedsDoc() {
         var r = c.classify(debit("RO98BTRL", "BT Leasing", "rata leasing Martie"));
         assertThat(r.requiresDocument()).isTrue();

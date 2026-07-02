@@ -36,13 +36,36 @@ public class TransactionClassifier {
         if (desc.contains("salariu") || desc.contains("salary")) {
             return new Result(false, DocCategory.SALARY);
         }
-        if (desc.contains("comision") || desc.contains("fee") || partner.contains("netopia")) {
+        // Bank fees / charges — commission ("comision operatiune/tranzactie"), account maintenance
+        // ("intretinere cont"), or the Netopia processor. These are the bank's own lines, not supplier
+        // purchases, so they need no supporting document. Checked in both the description and partner
+        // name (the parser sometimes carries the label as the partner).
+        if (containsAny(desc, "comision", "fee", "intretinere", "administrare cont")
+                || containsAny(partner, "comision", "intretinere", "netopia")) {
             return new Result(false, DocCategory.FEE);
         }
         if (desc.contains("leasing")) {
             return new Result(true, DocCategory.LEASING);
         }
+        // A debit with no counterparty at all (no partner name and no IBAN) is a bank-internal line —
+        // typically a fee the statement didn't label — not a supplier payment, so no document is due.
+        if (partner.isBlank() && isBlank(in.partnerIban())) {
+            return new Result(false, DocCategory.FEE);
+        }
         return new Result(true, DocCategory.SUPPLIER);
+    }
+
+    private static boolean containsAny(String haystack, String... needles) {
+        for (String n : needles) {
+            if (haystack.contains(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     private boolean isOwnTransfer(Input in) {
