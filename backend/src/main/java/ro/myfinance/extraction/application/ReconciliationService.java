@@ -313,6 +313,31 @@ public class ReconciliationService {
                 autoMatch(tenantId, t, hit, matchedTxnIds, periodInvoices);
             }
         }
+        // Tier 3 — unique exact amount. After the stronger passes, when exactly one open invoice and
+        // exactly one still-unmatched supplier debit share the same exact amount in the period, they
+        // almost certainly correspond even if the payment's merchant descriptor shares no name with the
+        // supplier (a common POS case: EMBER SOFTWARE billed as "REVISALPLUS", SELGROS as "SG150").
+        // Requiring uniqueness on BOTH sides avoids ambiguous pairings (e.g. two payments at the same
+        // amount); the resulting link is a suggestion the accountant can review or unlink.
+        java.util.Map<BigDecimal, List<Invoice>> invByAmount = new java.util.HashMap<>();
+        for (Invoice inv : periodInvoices) {
+            invByAmount.computeIfAbsent(inv.getTotalAmount().stripTrailingZeros(),
+                    k -> new java.util.ArrayList<>()).add(inv);
+        }
+        java.util.Map<BigDecimal, List<BankTransaction>> txnByAmount = new java.util.HashMap<>();
+        for (BankTransaction t : txns) {
+            if (t.isRequiresDocument() && !matchedTxnIds.contains(t.getId()) && t.getAmount().signum() < 0) {
+                txnByAmount.computeIfAbsent(t.getAmount().abs().stripTrailingZeros(),
+                        k -> new java.util.ArrayList<>()).add(t);
+            }
+        }
+        for (var e : invByAmount.entrySet()) {
+            List<Invoice> is = e.getValue();
+            List<BankTransaction> ts = txnByAmount.get(e.getKey());
+            if (is.size() == 1 && ts != null && ts.size() == 1 && dateOk(is.get(0), ts.get(0))) {
+                autoMatch(tenantId, ts.get(0), is.get(0), matchedTxnIds, periodInvoices);
+            }
+        }
     }
 
     private Invoice firstInvoice(List<Invoice> invoices, java.util.function.Predicate<Invoice> p) {

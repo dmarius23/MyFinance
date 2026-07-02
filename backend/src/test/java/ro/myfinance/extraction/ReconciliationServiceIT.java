@@ -197,16 +197,31 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void doesNotAmountMatchWhenNameDiffers() throws Exception {
+    void autoMatchesUniqueAmountEvenWhenNameDiffers() throws Exception {
         UUID companyId = asTenantWithCompany(TENANT_A);
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
-        // Same -200.00 amount as the SELGROS debit, but an unrelated supplier and no IBAN → must NOT
-        // auto-match (precision: an amount coincidence alone is not a match).
-        UUID invId = seedInvoice(companyId, "TOTALLY DIFFERENT VENDOR SRL", null, "200.00", LocalDate.of(2026, 6, 1));
+        // No IBAN and a supplier name that shares nothing with the SELGROS debit's descriptor, but the
+        // -200.00 amount is unique on both sides (one invoice, one supplier debit) → Tier-3 links them
+        // (the common "EMBER SOFTWARE billed as REVISALPLUS" case).
+        UUID invId = seedInvoice(companyId, "EMBER SOFTWARE SRL", null, "200.00", LocalDate.of(2026, 6, 1));
 
         reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
 
-        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).isEmpty();
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).hasSize(1);
+    }
+
+    @Test
+    void doesNotUniqueAmountMatchWhenAmbiguous() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // Two unrelated invoices at the same -200.00 amount → the amount is no longer unique on the
+        // invoice side, so neither is auto-matched (ambiguity guard; left for manual review).
+        UUID a = seedInvoice(companyId, "VENDOR ALPHA SRL", null, "200.00", LocalDate.of(2026, 6, 1));
+        UUID b = seedInvoice(companyId, "VENDOR BETA SRL", null, "200.00", LocalDate.of(2026, 6, 1));
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(a, b))).isEmpty();
     }
 
     @Test
