@@ -166,6 +166,10 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     private UUID seedInvoice(UUID companyId, String iban, String amount, LocalDate date) {
+        return seedInvoice(companyId, "ACME", iban, amount, date);
+    }
+
+    private UUID seedInvoice(UUID companyId, String supplierName, String iban, String amount, LocalDate date) {
         UUID tenantId = TENANT_A; // bound tenant in the active test
         // a document row is required (FK). Insert a minimal INVOICE document via jdbc, then an invoice row.
         UUID docId = UUID.randomUUID();
@@ -174,9 +178,35 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                 + "values (?,?,?,?, 'INVOICE','EMPLOYEE','UPLOADED','inv.pdf','application/pdf',1,'k/"+docId+"')",
                 docId, tenantId, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
         ro.myfinance.extraction.domain.Invoice inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
-                tenantId, docId, companyId, LocalDate.of(2026, 6, 1), "ACME", iban,
+                tenantId, docId, companyId, LocalDate.of(2026, 6, 1), supplierName, iban,
                 new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED"));
         return inv.getId();
+    }
+
+    @Test
+    void autoMatchesByAmountAndNameWhenInvoiceHasNoIban() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // No supplier IBAN (e.g. a POS/card purchase), but the supplier name matches the SELGROS debit
+        // (-200.00). Tier-2 matching (exact amount + distinctive name token) should link them.
+        UUID invId = seedInvoice(companyId, "SELGROS Cash & Carry SRL", null, "200.00", LocalDate.of(2026, 6, 1));
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).hasSize(1);
+    }
+
+    @Test
+    void doesNotAmountMatchWhenNameDiffers() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // Same -200.00 amount as the SELGROS debit, but an unrelated supplier and no IBAN → must NOT
+        // auto-match (precision: an amount coincidence alone is not a match).
+        UUID invId = seedInvoice(companyId, "TOTALLY DIFFERENT VENDOR SRL", null, "200.00", LocalDate.of(2026, 6, 1));
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).isEmpty();
     }
 
     @Test

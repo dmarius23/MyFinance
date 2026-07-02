@@ -278,7 +278,7 @@ public class ReconciliationService {
             usedInvoiceIds.add(m.getInvoiceId());
         }
         List<Invoice> periodInvoices = invoices.findByCompanyIdAndPeriodMonth(companyId, period).stream()
-                .filter(i -> i.getSupplierIban() != null && i.getTotalAmount() != null
+                .filter(i -> i.getTotalAmount() != null
                         && !usedInvoiceIds.contains(i.getId())
                         // A wrong-party invoice/receipt (client CIF ≠ this company) is not ours to settle,
                         // so it must never be auto-matched against our bank transactions.
@@ -286,30 +286,94 @@ public class ReconciliationService {
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
 
         UUID tenantId = TenantContext.tenantId().orElseThrow();
+        // Tier 1 — exact supplier IBAN + amount + date. Highest confidence: settle these first so a
+        // payment that carries the supplier's account is never claimed by a weaker name match.
         for (BankTransaction t : txns) {
             if (!t.isRequiresDocument() || matchedTxnIds.contains(t.getId()) || t.getPartnerIban() == null) {
                 continue;
             }
-            Invoice hit = null;
-            for (Invoice inv : periodInvoices) {
-                boolean ibanOk = inv.getSupplierIban().equals(t.getPartnerIban());
-                boolean amtOk = inv.getTotalAmount().abs().subtract(t.getAmount().abs()).abs()
-                        .compareTo(TOLERANCE) <= 0;
-                boolean dateOk = inv.getInvoiceDate() == null
-                        || !t.getTxnDate().isBefore(inv.getInvoiceDate().minusDays(DATE_BACK_TOLERANCE_DAYS));
-                if (ibanOk && amtOk && dateOk) {
-                    hit = inv;
-                    break;
-                }
-            }
+            Invoice hit = firstInvoice(periodInvoices, inv ->
+                    inv.getSupplierIban() != null && inv.getSupplierIban().equals(t.getPartnerIban())
+                            && amountMatches(inv, t) && dateOk(inv, t));
             if (hit != null) {
-                // Exact 1:1 match: the payment fully settles the invoice, so allocate its full total.
-                matches.save(new TransactionInvoiceMatch(tenantId, t.getId(), hit.getId(), "AUTO", null,
-                        hit.getTotalAmount()));
-                matchedTxnIds.add(t.getId());
-                periodInvoices.remove(hit);
+                autoMatch(tenantId, t, hit, matchedTxnIds, periodInvoices);
             }
         }
+        // Tier 2 — exact amount + supplier-name match, for payments whose IBAN doesn't align (POS/card,
+        // or the invoice's collection account differs from the paying account). Restricted to debits (a
+        // purchase is paid out) so an incoming credit of the same amount can't be claimed. The exact
+        // amount plus a distinctive name token keeps this safe.
+        for (BankTransaction t : txns) {
+            if (!t.isRequiresDocument() || matchedTxnIds.contains(t.getId()) || t.getAmount().signum() >= 0) {
+                continue;
+            }
+            Invoice hit = firstInvoice(periodInvoices, inv ->
+                    amountMatches(inv, t) && dateOk(inv, t) && nameMatches(inv.getSupplierName(), t));
+            if (hit != null) {
+                autoMatch(tenantId, t, hit, matchedTxnIds, periodInvoices);
+            }
+        }
+    }
+
+    private Invoice firstInvoice(List<Invoice> invoices, java.util.function.Predicate<Invoice> p) {
+        for (Invoice inv : invoices) {
+            if (p.test(inv)) {
+                return inv;
+            }
+        }
+        return null;
+    }
+
+    private void autoMatch(UUID tenantId, BankTransaction t, Invoice inv,
+                           java.util.Set<UUID> matchedTxnIds, List<Invoice> periodInvoices) {
+        // Exact 1:1 match: the payment fully settles the invoice, so allocate its full total.
+        matches.save(new TransactionInvoiceMatch(tenantId, t.getId(), inv.getId(), "AUTO", null,
+                inv.getTotalAmount()));
+        matchedTxnIds.add(t.getId());
+        periodInvoices.remove(inv);
+    }
+
+    private boolean amountMatches(Invoice inv, BankTransaction t) {
+        return inv.getTotalAmount().abs().subtract(t.getAmount().abs()).abs().compareTo(TOLERANCE) <= 0;
+    }
+
+    private boolean dateOk(Invoice inv, BankTransaction t) {
+        return inv.getInvoiceDate() == null
+                || !t.getTxnDate().isBefore(inv.getInvoiceDate().minusDays(DATE_BACK_TOLERANCE_DAYS));
+    }
+
+    // Non-identifying tokens (legal forms + the ubiquitous "romania") — a name match must rest on a more
+    // distinctive word. Kept minimal on purpose: the exact-amount requirement already guards precision,
+    // so over-stoplisting (e.g. "energie") would only drop real matches like E.ON.
+    private static final java.util.Set<String> NAME_STOP = java.util.Set.of(
+            "romania", "srl", "srld", "srls", "sa", "scs", "sca", "snc", "ifn", "pfa");
+
+    /**
+     * True when the transaction's counterparty text names the invoice's supplier: a distinctive supplier
+     * token (≥ 4 letters, not a generic business word) appears in the transaction's partner name or
+     * description. Diacritics- and punctuation-insensitive (so "MAXCODE TEAM S.R.L." matches
+     * "MAXCODETEAM SRL", "SAGA Software" matches "EP*sagasoft.ro", "Kaufland Romania SCS" matches
+     * "KAUFLAND 4700 CLUJ"). Paired with an exact amount, this is a safe auto-match.
+     */
+    private boolean nameMatches(String supplierName, BankTransaction t) {
+        if (supplierName == null || supplierName.isBlank()) {
+            return false;
+        }
+        String hay = normLetters((t.getPartnerName() == null ? "" : t.getPartnerName()) + " "
+                + (t.getDescription() == null ? "" : t.getDescription())).replace(" ", "");
+        for (String tok : normLetters(supplierName).split("\\s+")) {
+            if (tok.length() >= 4 && !NAME_STOP.contains(tok) && hay.contains(tok)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Lowercase, drop diacritics, and reduce to letters/digits + single spaces. */
+    private static String normLetters(String s) {
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .toLowerCase().replaceAll("[^a-z0-9 ]", " ").replaceAll("\\s+", " ").trim();
     }
 
     /**
