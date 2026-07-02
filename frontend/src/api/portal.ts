@@ -31,6 +31,9 @@ export interface PortalDoc {
   paymentStatus?: "PAID" | "PARTIAL" | "UNPAID" | null;
   duplicate?: boolean;
   outsidePeriod?: boolean;
+  issuerCif?: string | null;
+  total?: number | null;
+  invoiceDate?: string | null;
 }
 
 export interface PayrollFile {

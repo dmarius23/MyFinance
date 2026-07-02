@@ -195,8 +195,19 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                       )}
                     </div>
                     {isInvoice && (
-                      <div style={{ fontSize: 11, marginTop: 2, color: st?.wrongParty === true ? "#b91c1c" : "var(--text-muted)" }}>
-                        {t("doc.cifClient")}: {st?.clientCif ?? "—"}
+                      <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.5,
+                        color: st?.wrongParty === true ? "#b91c1c" : "var(--text-muted)" }}>
+                        {(st?.issuer || st?.issuerCif) && (
+                          <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {t("doc.issuer")}: {st?.issuer ?? "—"}
+                            {st?.issuerCif ? ` (CUI ${st.issuerCif})` : ""}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <span>{t("doc.value")}: {st?.total != null ? st.total.toFixed(2) : "—"}</span>
+                          <span>{t("doc.issueDate")}: {st?.invoiceDate ?? "—"}</span>
+                          <span>{t("doc.cifClient")}: {st?.clientCif ?? "—"}</span>
+                        </div>
                       </div>
                     )}
                   </div>

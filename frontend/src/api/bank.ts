@@ -154,6 +154,10 @@ export interface DocumentStatus {
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID" | null;
   wrongParty: boolean | null;
   clientCif: string | null;
+  issuer: string | null;
+  issuerCif: string | null;
+  total: number | null;
+  invoiceDate: string | null;
 }
 
 export interface SuggestionLink {

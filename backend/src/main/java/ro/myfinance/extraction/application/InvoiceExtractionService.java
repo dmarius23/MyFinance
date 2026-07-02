@@ -84,7 +84,7 @@ public class InvoiceExtractionService {
         // Invoice client CIF is checksum-valid (extractor guarantees), so a direct digit compare is sound.
         Boolean wrongParty = wrongPartyFromCif(p.clientCif(), ownCui);
         return new Fields(p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), status,
-                null, p.clientCif(), p.invoiceNumber(), wrongParty);
+                p.issuerCif(), p.clientCif(), p.invoiceNumber(), wrongParty);
     }
 
     private Fields fromReceiptImage(byte[] bytes, String filename, String ownCui) {

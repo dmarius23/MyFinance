@@ -80,7 +80,8 @@ public class PortalService {
      * {@code outsidePeriod} (its date falls outside the selected month). Null/false for other types.
      */
     public record DocView(UUID id, String filename, String type, String status, Instant uploadedAt,
-                          String issuer, String paymentStatus, boolean duplicate, boolean outsidePeriod) {
+                          String issuer, String paymentStatus, boolean duplicate, boolean outsidePeriod,
+                          String issuerCif, java.math.BigDecimal total, java.time.LocalDate invoiceDate) {
     }
 
     public record PayrollFile(UUID id, String filename) {
@@ -167,7 +168,10 @@ public class PortalService {
                             s == null ? null : s.issuer(),
                             s == null ? null : s.paymentStatus(),
                             s != null && s.duplicate(),
-                            s != null && "date_outside_period".equals(s.dateReason()));
+                            s != null && "date_outside_period".equals(s.dateReason()),
+                            s == null ? null : s.issuerCif(),
+                            s == null ? null : s.total(),
+                            s == null ? null : s.invoiceDate());
                 })
                 .toList();
     }
@@ -249,7 +253,7 @@ public class PortalService {
 
     private DocView view(Document d) {
         return new DocView(d.getId(), d.getOriginalFilename(), d.getType().name(),
-                d.getStatus().name(), d.getUploadedAt(), null, null, false, false);
+                d.getStatus().name(), d.getUploadedAt(), null, null, false, false, null, null, null);
     }
 
     /**

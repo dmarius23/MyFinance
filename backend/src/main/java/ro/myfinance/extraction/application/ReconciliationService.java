@@ -63,7 +63,8 @@ public class ReconciliationService {
      * - issuer: the supplier/issuer name read off the invoice or receipt (null for statements).
      */
     public record DocumentStatus(UUID documentId, String dateFlag, String dateReason, boolean duplicate,
-                                 String paymentStatus, Boolean wrongParty, String clientCif, String issuer) {
+                                 String paymentStatus, Boolean wrongParty, String clientCif, String issuer,
+                                 String issuerCif, BigDecimal total, java.time.LocalDate invoiceDate) {
     }
 
     /** A single payment (transaction allocation) applied to an invoice. */
@@ -804,7 +805,8 @@ public class ReconciliationService {
                 dateFlag = null;
                 reason = null;
             }
-            out.add(new DocumentStatus(s.getDocumentId(), dateFlag, reason, false, null, null, null, null));
+            out.add(new DocumentStatus(s.getDocumentId(), dateFlag, reason, false, null, null, null, null,
+                    null, null, null));
         }
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
@@ -835,7 +837,8 @@ public class ReconciliationService {
                 out.add(new DocumentStatus(inv.getDocumentId(),
                         dateOutside ? "RED" : null, dateOutside ? "date_outside_period" : null, duplicate,
                         paymentStatus(inv.getTotalAmount(), p),
-                        inv.getWrongParty(), inv.getClientCif(), inv.getSupplierName()));
+                        inv.getWrongParty(), inv.getClientCif(), inv.getSupplierName(),
+                        inv.getIssuerCif(), inv.getTotalAmount(), inv.getInvoiceDate()));
             }
         }
         return out;

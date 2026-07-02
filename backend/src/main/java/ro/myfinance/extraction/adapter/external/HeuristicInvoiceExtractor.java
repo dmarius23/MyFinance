@@ -36,6 +36,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             String supplier = null;
             String clientCif = null;
             String invoiceNumber = null;
+            String issuerCif = null;
             try {
                 iban = firstMatch(IBAN, text);
                 total = totalAmount(text);
@@ -61,14 +62,15 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
                         total = f.total();
                     }
                     invoiceNumber = f.invoiceNumber();
+                    issuerCif = f.sellerCif();
                 }
             } catch (RuntimeException e) {
                 log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
             }
-            return new ParsedInvoice(supplier, iban, total, date, clientCif, invoiceNumber);
+            return new ParsedInvoice(supplier, iban, total, date, clientCif, invoiceNumber, issuerCif);
         } catch (IOException | RuntimeException e) {
             log.debug("Invoice text extraction failed", e);
-            return new ParsedInvoice(null, null, null, null, null, null);
+            return new ParsedInvoice(null, null, null, null, null, null, null);
         }
     }
 

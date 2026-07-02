@@ -208,7 +208,8 @@ export function RepHome() {
             ))}
             {others.length === 0 && !hasBank && <div style={{ color: C.mut, fontSize: 13 }}>—</div>}
             {others.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer} badges={docBadges(d)}
+              <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer}
+                issuerCif={d.issuerCif} total={d.total} invoiceDate={d.invoiceDate} badges={docBadges(d)}
                 iconBg="#e6f4f2" iconFg="#0f766e" onView={onView(d)} onDownload={onDownload(d)} />
             ))}
 
@@ -389,15 +390,18 @@ export function RepHome() {
 const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
 const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
-function DocRow({ filename, label, issuer, badges, iconBg, iconFg, onView, onDownload }:
-  { filename: string; label: string; issuer?: string | null; badges?: React.ReactNode; iconBg: string; iconFg: string;
+function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, iconBg, iconFg, onView, onDownload }:
+  { filename: string; label: string; issuer?: string | null; issuerCif?: string | null;
+    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; iconBg: string; iconFg: string;
     onView: () => void; onDownload: () => void }) {
+  const meta = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
       <div style={{ width: 32, height: 32, borderRadius: 9, background: iconBg, color: iconFg, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><FileGlyph /></div>
       <button onClick={onView} style={{ flex: 1, minWidth: 0, maxWidth: "100%", overflow: "hidden", display: "block", textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{filename}</div>
-        <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}{issuer ? ` · ${issuer}` : ""}</div>
+        <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}{issuer ? ` · ${issuer}` : ""}{issuerCif ? ` · CUI ${issuerCif}` : ""}</div>
+        {meta && <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>}
         {badges && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</div>}
       </button>
       <div style={{ display: "flex", gap: 6, flex: "none" }}>
