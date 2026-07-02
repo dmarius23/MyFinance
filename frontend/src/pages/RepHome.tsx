@@ -48,7 +48,14 @@ export function RepHome() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const me = useQuery({ queryKey: ["portal-me"], queryFn: portalApi.me });
+  // The rep's company list can change out-of-band (the accountant assigns them to another company),
+  // so keep it fresh: refetch on mount and whenever the PWA regains focus (important for an installed
+  // PWA that's reopened rather than reloaded — the default 30s staleTime + no focus-refetch would
+  // otherwise leave the switcher showing a stale set of companies).
+  const me = useQuery({
+    queryKey: ["portal-me"], queryFn: portalApi.me,
+    staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true,
+  });
 
   // Persist the resolved active company so every subsequent request carries the X-Company-Id header.
   useEffect(() => {
