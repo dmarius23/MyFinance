@@ -206,32 +206,38 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {isInvoice ? (
                       <>
-                        {/* 1) supplier name (bold, ellipsis when long) */}
-                        <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                          color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                          {st?.issuer ?? "—"}
+                        {/* 1) two columns — [supplier name / CUI] left, [amount / date] right (same line).
+                            The name ellipsizes when long; the amount + date stay fully visible. */}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                              {st?.issuer ?? "—"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {st?.issuerCif ? `CUI ${st.issuerCif}` : "—"}
+                            </div>
+                          </div>
+                          <div style={{ flex: "none", textAlign: "right" }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
+                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                              {st?.total != null ? st.total.toFixed(2) : "—"}
+                              {st?.total != null && <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text-muted)", marginLeft: 3 }}>RON</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                              📅 {st?.invoiceDate ?? "—"}
+                            </div>
+                          </div>
                         </div>
-                        {/* 2) supplier CUI (regular) */}
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {st?.issuerCif ? `CUI ${st.issuerCif}` : "—"}
-                        </div>
-                        {/* 3) amount + currency (bold) · date with calendar — left-aligned */}
-                        <div style={{ fontSize: 12, marginTop: 2 }}>
-                          <span style={{ fontWeight: 700, color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                            {st?.total != null ? st.total.toFixed(2) : "—"}
-                          </span>
-                          {st?.total != null && <span style={{ color: "var(--text-muted)" }}> RON</span>}
-                          <span style={{ color: "var(--text-muted)" }}>{"   ·   📅 "}{st?.invoiceDate ?? "—"}</span>
-                        </div>
-                        {/* 4) receiver (current company) CIF */}
-                        <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)" }}>
+                        {/* 3) receiver (current company) CIF */}
+                        <div style={{ fontSize: 11, marginTop: 3, color: "var(--text-muted)" }}>
                           {t("doc.cifClient")}: {st?.clientCif ?? "—"}
                         </div>
-                        {/* 5) file name (regular) */}
+                        {/* 4) file name (regular) */}
                         <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {d.originalFilename}
                         </div>
-                        {/* 6) type dropdown + advisory labels */}
+                        {/* 5) type dropdown + advisory labels */}
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                           {typeSelect}
                           {labels}
@@ -279,7 +285,7 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                     )}
                   </div>
                   {/* Action icons — for invoices, nudged down to sit by the CIF / filename lines. */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: isInvoice ? 40 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: isInvoice ? 30 : 0 }}>
                     {isInvoice && (
                       // Money icon doubles as payment status + opens the payments view. Red = unpaid /
                       // no transaction associated, orange = partial, green = paid.
