@@ -43,14 +43,34 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
   // Only intake documents belong on this screen. Declarations live on Taxes & payments, trial balances
   // on Reports, and payroll on the Payroll screen — exclude them so they aren't lumped with invoices.
   const docs = data.filter((d) => !["DECLARATION", "TRIAL_BALANCE", "PAYROLL"].includes(d.type));
-  // Bank statements first, then a divider, then invoices/receipts (stable within each group).
-  const ordered = [...docs].sort((a, b) =>
-    (a.type === "BANK_STATEMENT" ? 0 : 1) - (b.type === "BANK_STATEMENT" ? 0 : 1));
   const [selId, setSelId] = useState<string | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [uploadCount, setUploadCount] = useState(0);
   const [paymentsFor, setPaymentsFor] = useState<string | null>(null);
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid">("all");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "status">("date-desc");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Bank statements first, then the invoices/receipts filtered by payment status and sorted.
+  const statementDocs = docs.filter((d) => d.type === "BANK_STATEMENT");
+  const invoiceDocs = docs
+    .filter((d) => d.type !== "BANK_STATEMENT")
+    .filter((d) => {
+      if (payFilter === "all") return true;
+      if (d.type !== "INVOICE" && d.type !== "RECEIPT") return false; // unclassified only under "all"
+      const p = statusByDoc.get(d.id)?.paymentStatus;
+      return payFilter === "paid" ? p === "PAID" : p !== "PAID";
+    })
+    .sort((a, b) => {
+      const sa = statusByDoc.get(a.id), sb = statusByDoc.get(b.id);
+      if (sortBy === "status") {
+        const rank = (p?: string | null) => (p === "PAID" ? 0 : p === "PARTIAL" ? 1 : 2);
+        return rank(sa?.paymentStatus) - rank(sb?.paymentStatus);
+      }
+      const da = sa?.invoiceDate ?? "", db = sb?.invoiceDate ?? "";
+      return sortBy === "date-asc" ? da.localeCompare(db) : db.localeCompare(da);
+    });
+  const ordered = [...statementDocs, ...invoiceDocs];
 
   const selected: Document | undefined = docs.find((d) => d.id === selId) ?? docs[0];
 
@@ -119,6 +139,27 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, padding: 16, overflowY: "auto", alignItems: "start" }}>
           <div>
+            {/* Filter + sort controls for the invoices/receipts list. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("files.filter")}:</span>
+              {(["all", "paid", "unpaid"] as const).map((f) => (
+                <button key={f} onClick={() => setPayFilter(f)}
+                  style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, cursor: "pointer",
+                    border: `1px solid ${payFilter === f ? "var(--primary)" : "var(--border)"}`,
+                    background: payFilter === f ? "var(--primary-light, #eef2ff)" : "#fff",
+                    color: payFilter === f ? "var(--primary)" : "var(--text)", fontWeight: payFilter === f ? 600 : 400 }}>
+                  {t(`files.filter.${f}`)}
+                </button>
+              ))}
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("files.sort")}:</span>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                style={{ fontSize: 11, padding: "2px 5px", borderRadius: 6, border: "1px solid var(--border)", background: "#fff" }}>
+                <option value="date-desc">{t("files.sort.dateDesc")}</option>
+                <option value="date-asc">{t("files.sort.dateAsc")}</option>
+                <option value="status">{t("files.sort.status")}</option>
+              </select>
+            </div>
             <div style={{ maxHeight: 560, overflow: "auto" }}>
               {ordered.length === 0 && <div style={{ color: "var(--text-muted)" }}>{t("files.none")}</div>}
               {ordered.map((d, i) => {
@@ -317,6 +358,9 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 </Fragment>
                 );
               })}
+              {invoiceDocs.length === 0 && payFilter !== "all" && (
+                <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>{t("files.noMatch")}</div>
+              )}
             </div>
             <input
               ref={fileRef}
