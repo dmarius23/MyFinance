@@ -185,6 +185,27 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                     )}
                   </>
                 );
+                // Payment-status (invoices) + delete buttons. Placed inline on the filename line for
+                // invoices (so the amount/date can reach the far right), or in the right column otherwise.
+                const actionButtons = (
+                  <>
+                    {isInvoice && (
+                      <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }}
+                        title={`${t("recon.payments")}${pay ? " · " + t(`recon.status.${pay}`) : ""}`}
+                        style={{ background: payStyle.bg, border: `1px solid ${payStyle.bd}`, color: payStyle.bd,
+                          borderRadius: 7, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "3px 6px", width: 30, textAlign: "center", flexShrink: 0 }}>
+                        💰
+                      </button>
+                    )}
+                    <button onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm(t("files.confirmDelete", { name: d.originalFilename })))
+                          remove.mutate(d.id);
+                      }} title={t("files.delete")}
+                      style={{ border: "1px solid var(--border)", background: "#fff", color: "#dc2626",
+                        borderRadius: 7, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "4px 7px", flexShrink: 0 }}>✕</button>
+                  </>
+                );
                 return (
                 <Fragment key={d.id}>
                 {showHeader && (
@@ -233,9 +254,12 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                         <div style={{ fontSize: 11, marginTop: 3, color: "var(--text-muted)" }}>
                           {t("doc.cifClient")}: {st?.clientCif ?? "—"}
                         </div>
-                        {/* 4) file name (regular) */}
-                        <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {d.originalFilename}
+                        {/* 4) file name (regular) + action buttons on the far right */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {d.originalFilename}
+                          </div>
+                          <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 6 }}>{actionButtons}</div>
                         </div>
                         {/* 5) type dropdown + advisory labels */}
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -284,26 +308,11 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                       </>
                     )}
                   </div>
-                  {/* Action icons — for invoices, nudged down to sit by the CIF / filename lines. */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: isInvoice ? 30 : 0 }}>
-                    {isInvoice && (
-                      // Money icon doubles as payment status + opens the payments view. Red = unpaid /
-                      // no transaction associated, orange = partial, green = paid.
-                      <button onClick={(e) => { e.stopPropagation(); setPaymentsFor(d.id); }}
-                        title={`${t("recon.payments")}${pay ? " · " + t(`recon.status.${pay}`) : ""}`}
-                        style={{ background: payStyle.bg, border: `1px solid ${payStyle.bd}`, color: payStyle.bd,
-                          borderRadius: 7, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "3px 6px", width: 30, textAlign: "center" }}>
-                        💰
-                      </button>
-                    )}
-                    <button onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(t("files.confirmDelete", { name: d.originalFilename })))
-                          remove.mutate(d.id);
-                      }} title={t("files.delete")}
-                      style={{ border: "1px solid var(--border)", background: "#fff", color: "#dc2626",
-                        borderRadius: 7, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: "4px 7px" }}>✕</button>
-                  </div>
+                  {/* Non-invoice rows keep the delete button in a right-hand column. Invoice rows render
+                      their buttons inline on the filename line so the amount/date reaches the far right. */}
+                  {!isInvoice && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>{actionButtons}</div>
+                  )}
                 </div>
                 </Fragment>
                 );
