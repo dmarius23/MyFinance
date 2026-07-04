@@ -127,6 +127,54 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   background: bg, color, border: `1px solid ${bd}`, borderRadius: 999,
                   padding: "1px 7px", fontSize: 10, fontWeight: 600, textTransform: "uppercase",
                 });
+                const typeSelect = (
+                  <select
+                    value={d.type}
+                    disabled={changeType.isPending}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => changeType.mutate({ id: d.id, type: e.target.value })}
+                    style={{
+                      fontSize: 10.5, padding: "1px 4px", borderRadius: 6,
+                      border: "1px solid var(--border)",
+                      background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
+                      color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
+                    }}
+                  >
+                    {DOCUMENT_TYPES.map((dt) => (
+                      <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
+                    ))}
+                  </select>
+                );
+                // Advisory labels shown on the last line (duplicate / wrong party / outside period).
+                const labels = (
+                  <>
+                    {wrongType && (
+                      <span title={t("doc.warn.wrongType")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
+                        {t("doc.wrongTypeChip")}
+                      </span>
+                    )}
+                    {st?.duplicate && (
+                      <span title={t("doc.warn.duplicate")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
+                        {t("doc.duplicateChip")}
+                      </span>
+                    )}
+                    {isInvoice && st?.wrongParty === true && (
+                      <span title={t("doc.warn.wrongParty")} style={chip("#fee2e2", "#991b1b", "#fecaca")}>
+                        {t("doc.wrongPartyChip")}
+                      </span>
+                    )}
+                    {isInvoice && (st?.wrongParty === null || st?.wrongParty === undefined) && (
+                      <span title={t("doc.warn.unidentifiedParty")} style={chip("#f3f4f6", "#6b7280", "#e5e7eb")}>
+                        {t("doc.unidentifiedChip")}
+                      </span>
+                    )}
+                    {isInvoice && st?.dateFlag && (
+                      <span title={t("docs.outsidePeriodTip")} style={chip("#fef3c7", "#92400e", "#fcd34d")}>
+                        {t("docs.outsidePeriod")}
+                      </span>
+                    )}
+                  </>
+                );
                 return (
                 <Fragment key={d.id}>
                 {showHeader && (
@@ -146,69 +194,47 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      {st?.dateFlag && (
-                        <span title={t(`doc.warn.${st.dateReason}`, { defaultValue: "" })}
-                          style={{ background: dateStyle.bg, border: `1px solid ${dateStyle.bd}`, color: dateStyle.bd,
-                            borderRadius: 6, fontSize: 11, lineHeight: 1, padding: "2px 5px", flexShrink: 0 }}>📅</span>
-                      )}
-                      <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {d.originalFilename}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-                      <select
-                        value={d.type}
-                        disabled={changeType.isPending}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => changeType.mutate({ id: d.id, type: e.target.value })}
-                        style={{
-                          fontSize: 10.5, padding: "1px 4px", borderRadius: 6,
-                          border: "1px solid var(--border)",
-                          background: d.type === "UNCLASSIFIED" ? "#fef3c7" : "#eef2ff",
-                          color: d.type === "UNCLASSIFIED" ? "#92400e" : "#3730a3",
-                        }}
-                      >
-                        {DOCUMENT_TYPES.map((dt) => (
-                          <option key={dt} value={dt}>{t(`documentType.${dt}`, { defaultValue: dt })}</option>
-                        ))}
-                      </select>
-                      {wrongType && (
-                        <span title={t("doc.warn.wrongType")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
-                          {t("doc.wrongTypeChip")}
-                        </span>
-                      )}
-                      {st?.duplicate && (
-                        <span title={t("doc.warn.duplicate")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
-                          {t("doc.duplicateChip")}
-                        </span>
-                      )}
-                      {isInvoice && st?.wrongParty === true && (
-                        <span title={t("doc.warn.wrongParty")} style={chip("#fee2e2", "#991b1b", "#fecaca")}>
-                          {t("doc.wrongPartyChip")}
-                        </span>
-                      )}
-                      {isInvoice && (st?.wrongParty === null || st?.wrongParty === undefined) && (
-                        <span title={t("doc.warn.unidentifiedParty")} style={chip("#f3f4f6", "#6b7280", "#e5e7eb")}>
-                          {t("doc.unidentifiedChip")}
-                        </span>
-                      )}
-                    </div>
-                    {isInvoice && (
-                      <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.5,
-                        color: st?.wrongParty === true ? "#b91c1c" : "var(--text-muted)" }}>
-                        {(st?.issuer || st?.issuerCif) && (
-                          <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {t("doc.issuer")}: {st?.issuer ?? "—"}
-                            {st?.issuerCif ? ` (CUI ${st.issuerCif})` : ""}
-                          </div>
-                        )}
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                          <span>{t("doc.value")}: {st?.total != null ? st.total.toFixed(2) : "—"}</span>
-                          <span>{t("doc.issueDate")}: {st?.invoiceDate ?? "—"}</span>
-                          <span>{t("doc.cifClient")}: {st?.clientCif ?? "—"}</span>
+                    {isInvoice ? (
+                      <>
+                        {/* 1) supplier + CUI (bold) */}
+                        <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                          {st?.issuer ?? "—"}{st?.issuerCif ? ` (CUI ${st.issuerCif})` : ""}
                         </div>
-                      </div>
+                        {/* 2) sum · date (bold) · receiver (client) CIF */}
+                        <div style={{ fontSize: 11.5, marginTop: 2 }}>
+                          <span style={{ fontWeight: 700 }}>{st?.total != null ? st.total.toFixed(2) : "—"}</span>
+                          <span style={{ color: "var(--text-muted)" }}>{"  ·  "}</span>
+                          <span style={{ fontWeight: 700 }}>{st?.invoiceDate ?? "—"}</span>
+                          <span style={{ color: "var(--text-muted)" }}>{`  ·  ${t("doc.cifClient")}: ${st?.clientCif ?? "—"}`}</span>
+                        </div>
+                        {/* 3) file name (regular) */}
+                        <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {d.originalFilename}
+                        </div>
+                        {/* 4) type dropdown + advisory labels */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                          {typeSelect}
+                          {labels}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {st?.dateFlag && (
+                            <span title={t(`doc.warn.${st.dateReason}`, { defaultValue: "" })}
+                              style={{ background: dateStyle.bg, border: `1px solid ${dateStyle.bd}`, color: dateStyle.bd,
+                                borderRadius: 6, fontSize: 11, lineHeight: 1, padding: "2px 5px", flexShrink: 0 }}>📅</span>
+                          )}
+                          <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {d.originalFilename}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+                          {typeSelect}
+                          {labels}
+                        </div>
+                      </>
                     )}
                   </div>
                   {/* Aligned, compact action icons. */}

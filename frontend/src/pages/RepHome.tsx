@@ -217,6 +217,7 @@ export function RepHome() {
             {others.map((d) => (
               <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer}
                 issuerCif={d.issuerCif} total={d.total} invoiceDate={d.invoiceDate} badges={docBadges(d)}
+                invoice={d.type === "INVOICE" || d.type === "RECEIPT"}
                 iconBg="#e6f4f2" iconFg="#0f766e" onView={onView(d)} onDownload={onDownload(d)} />
             ))}
 
@@ -397,18 +398,36 @@ export function RepHome() {
 const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
 const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
-function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, iconBg, iconFg, onView, onDownload }:
+function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, iconBg, iconFg, onView, onDownload }:
   { filename: string; label: string; issuer?: string | null; issuerCif?: string | null;
-    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; iconBg: string; iconFg: string;
+    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean; iconBg: string; iconFg: string;
     onView: () => void; onDownload: () => void }) {
-  const meta = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
+  const supplier = issuer ? `${issuer}${issuerCif ? ` (CUI ${issuerCif})` : ""}` : "—";
+  const amountDate = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
+  const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
       <div style={{ width: 32, height: 32, borderRadius: 9, background: iconBg, color: iconFg, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><FileGlyph /></div>
       <button onClick={onView} style={{ flex: 1, minWidth: 0, maxWidth: "100%", overflow: "hidden", display: "block", textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{filename}</div>
-        <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}{issuer ? ` · ${issuer}` : ""}{issuerCif ? ` · CUI ${issuerCif}` : ""}</div>
-        {meta && <div style={{ fontSize: 11, color: C.mut, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meta}</div>}
+        {invoice ? (
+          <>
+            {/* 1) type (regular) + supplier (CUI) bold */}
+            <div style={{ fontSize: 12.5, color: C.ink, ...clip }}>
+              <span style={{ color: C.mut }}>{label}</span>
+              <span style={{ fontWeight: 700 }}>{`  ·  ${supplier}`}</span>
+            </div>
+            {/* 2) amount · date (bold) */}
+            {amountDate && <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginTop: 1, ...clip }}>{amountDate}</div>}
+            {/* 3) file name (regular) */}
+            <div style={{ fontSize: 11, color: C.mut, marginTop: 1, ...clip }}>{filename}</div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, ...clip }}>{filename}</div>
+            <div style={{ fontSize: 11, color: C.mut, marginTop: 1, ...clip }}>{label}{issuer ? ` · ${issuer}` : ""}</div>
+          </>
+        )}
+        {/* 4) labels */}
         {badges && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</div>}
       </button>
       <div style={{ display: "flex", gap: 6, flex: "none" }}>
