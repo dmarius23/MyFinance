@@ -196,19 +196,30 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {isInvoice ? (
                       <>
-                        {/* 1) supplier + CUI (bold, ellipsis when long) — amount · date always visible on the right */}
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                          <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                            color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                            {st?.issuer ?? "—"}{st?.issuerCif ? ` (CUI ${st.issuerCif})` : ""}
-                          </span>
-                          <span style={{ flex: "none", fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
-                            color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                            {st?.total != null ? st.total.toFixed(2) : "—"}{"  ·  "}{st?.invoiceDate ?? "—"}
-                          </span>
+                        {/* 1) two columns — [supplier name / CUI] on the left, [amount / date] on the right.
+                            The name ellipsizes when long; the amount + date stay fully visible. */}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                              {st?.issuer ?? "—"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {st?.issuerCif ? `CUI ${st.issuerCif}` : "—"}
+                            </div>
+                          </div>
+                          <div style={{ flex: "none", textAlign: "right" }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
+                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                              {st?.total != null ? st.total.toFixed(2) : "—"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                              {st?.invoiceDate ?? "—"}
+                            </div>
+                          </div>
                         </div>
                         {/* 2) receiver (current company) CIF */}
-                        <div style={{ fontSize: 11.5, marginTop: 2, color: "var(--text-muted)" }}>
+                        <div style={{ fontSize: 11, marginTop: 3, color: "var(--text-muted)" }}>
                           {t("doc.cifClient")}: {st?.clientCif ?? "—"}
                         </div>
                         {/* 3) file name (regular) */}
