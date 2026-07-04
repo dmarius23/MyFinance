@@ -17,9 +17,14 @@ const darkHeader: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", padding: "12px 16px",
 };
 
-export function FilesModal({ companyId, companyName, period, onClose }:
-  { companyId: string; companyName: string; period: string; onClose: () => void }) {
+export function FilesModal({ companyId, companyName, companyCui, period, onClose }:
+  { companyId: string; companyName: string; companyCui?: string; period: string; onClose: () => void }) {
   const { t } = useTranslation();
+  // The month the statements/invoices cover, as MM.YYYY (e.g. "01.2026").
+  const periodLabel = (() => {
+    const [y, m] = period.slice(0, 7).split("-");
+    return m && y ? `${m}.${y}` : period;
+  })();
   const qc = useQueryClient();
   const { data = [] } = useQuery({
     queryKey: ["documents", companyId, period],
@@ -212,9 +217,10 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                             <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
                               color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
                               {st?.total != null ? st.total.toFixed(2) : "—"}
+                              {st?.total != null && <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text-muted)", marginLeft: 3 }}>RON</span>}
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                              {st?.invoiceDate ?? "—"}
+                              📅 {st?.invoiceDate ?? "—"}
                             </div>
                           </div>
                         </div>
@@ -232,17 +238,39 @@ export function FilesModal({ companyId, companyName, period, onClose }:
                           {labels}
                         </div>
                       </>
+                    ) : isStmt ? (
+                      <>
+                        {/* 1) two columns — [company name / CUI] left, [statement period + calendar] right */}
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {companyName}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {companyCui ? `CUI ${companyCui}` : "—"}
+                            </div>
+                          </div>
+                          <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
+                            color: st?.dateFlag ? dateStyle.bd : "var(--text)" }}
+                            title={st?.dateFlag ? t(`doc.warn.${st.dateReason}`, { defaultValue: "" }) : undefined}>
+                            📅 {periodLabel}
+                          </div>
+                        </div>
+                        {/* 2) file name (regular) */}
+                        <div style={{ fontSize: 11, marginTop: 3, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {d.originalFilename}
+                        </div>
+                        {/* 3) type dropdown + labels */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                          {typeSelect}
+                          {labels}
+                        </div>
+                      </>
                     ) : (
                       <>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          {st?.dateFlag && (
-                            <span title={t(`doc.warn.${st.dateReason}`, { defaultValue: "" })}
-                              style={{ background: dateStyle.bg, border: `1px solid ${dateStyle.bd}`, color: dateStyle.bd,
-                                borderRadius: 6, fontSize: 11, lineHeight: 1, padding: "2px 5px", flexShrink: 0 }}>📅</span>
-                          )}
-                          <span style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {d.originalFilename}
-                          </span>
+                        {/* Unclassified / other — filename first */}
+                        <div style={{ fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {d.originalFilename}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
                           {typeSelect}

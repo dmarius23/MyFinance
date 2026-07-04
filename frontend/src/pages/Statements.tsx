@@ -42,7 +42,7 @@ export function Statements() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
-  const [filesFor, setFilesFor] = useState<{ id: string; name: string } | null>(null);
+  const [filesFor, setFilesFor] = useState<{ id: string; name: string; cui: string } | null>(null);
   const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
@@ -148,7 +148,7 @@ export function Statements() {
             const present = s?.invoiceReceiptCount ?? 0;
             const missing = missingTxnBy.get(c.id) ?? 0;
             const noMatch = unmatchedBy.get(c.id) ?? 0;
-            const openFiles = () => setFilesFor({ id: c.id, name: c.legalName });
+            const openFiles = () => setFilesFor({ id: c.id, name: c.legalName, cui: c.cui });
             return (
               <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
@@ -198,7 +198,7 @@ export function Statements() {
         </div>
       </div>
 
-      {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} period={period} onClose={() => setFilesFor(null)} />}
+      {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} companyCui={filesFor.cui} period={period} onClose={() => setFilesFor(null)} />}
       {reconFor && <ReconModal companyId={reconFor.id} companyName={reconFor.name} period={period} onClose={() => setReconFor(null)} />}
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
