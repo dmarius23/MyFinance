@@ -20,10 +20,15 @@ const darkHeader: React.CSSProperties = {
 export function FilesModal({ companyId, companyName, companyCui, period, onClose }:
   { companyId: string; companyName: string; companyCui?: string; period: string; onClose: () => void }) {
   const { t } = useTranslation();
-  // The month the statements/invoices cover, as MM.YYYY (e.g. "01.2026").
+  // The statement's covered period as a date range (a monthly statement spans the whole month),
+  // e.g. "01.01.2026 - 31.01.2026".
   const periodLabel = (() => {
-    const [y, m] = period.slice(0, 7).split("-");
-    return m && y ? `${m}.${y}` : period;
+    const [ys, ms] = period.slice(0, 7).split("-");
+    const y = Number(ys), m = Number(ms);
+    if (!y || !m) return period;
+    const p = (n: number) => String(n).padStart(2, "0");
+    const last = new Date(y, m, 0).getDate();
+    return `${p(1)}.${p(m)}.${y} - ${p(last)}.${p(m)}.${y}`;
   })();
   const qc = useQueryClient();
   const { data = [] } = useQuery({
@@ -192,7 +197,7 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 <div
                   onClick={() => setSelId(d.id)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                    display: "flex", alignItems: isInvoice ? "flex-start" : "center", gap: 8, padding: "8px 10px",
                     borderRadius: 9, cursor: "pointer", marginBottom: 4,
                     border: `1px solid ${selected?.id === d.id ? "var(--primary)" : "transparent"}`,
                     background: selected?.id === d.id ? "var(--primary-light, #eef2ff)" : "transparent",
@@ -201,38 +206,32 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {isInvoice ? (
                       <>
-                        {/* 1) two columns — [supplier name / CUI] on the left, [amount / date] on the right.
-                            The name ellipsizes when long; the amount + date stay fully visible. */}
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                              {st?.issuer ?? "—"}
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {st?.issuerCif ? `CUI ${st.issuerCif}` : "—"}
-                            </div>
-                          </div>
-                          <div style={{ flex: "none", textAlign: "right" }}>
-                            <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
-                              color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                              {st?.total != null ? st.total.toFixed(2) : "—"}
-                              {st?.total != null && <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text-muted)", marginLeft: 3 }}>RON</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                              📅 {st?.invoiceDate ?? "—"}
-                            </div>
-                          </div>
+                        {/* 1) supplier name (bold, ellipsis when long) */}
+                        <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                          color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                          {st?.issuer ?? "—"}
                         </div>
-                        {/* 2) receiver (current company) CIF */}
-                        <div style={{ fontSize: 11, marginTop: 3, color: "var(--text-muted)" }}>
+                        {/* 2) supplier CUI (regular) */}
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {st?.issuerCif ? `CUI ${st.issuerCif}` : "—"}
+                        </div>
+                        {/* 3) amount + currency (bold) · date with calendar — left-aligned */}
+                        <div style={{ fontSize: 12, marginTop: 2 }}>
+                          <span style={{ fontWeight: 700, color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
+                            {st?.total != null ? st.total.toFixed(2) : "—"}
+                          </span>
+                          {st?.total != null && <span style={{ color: "var(--text-muted)" }}> RON</span>}
+                          <span style={{ color: "var(--text-muted)" }}>{"   ·   📅 "}{st?.invoiceDate ?? "—"}</span>
+                        </div>
+                        {/* 4) receiver (current company) CIF */}
+                        <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)" }}>
                           {t("doc.cifClient")}: {st?.clientCif ?? "—"}
                         </div>
-                        {/* 3) file name (regular) */}
+                        {/* 5) file name (regular) */}
                         <div style={{ fontSize: 11, marginTop: 2, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {d.originalFilename}
                         </div>
-                        {/* 4) type dropdown + advisory labels */}
+                        {/* 6) type dropdown + advisory labels */}
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
                           {typeSelect}
                           {labels}
@@ -279,8 +278,8 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                       </>
                     )}
                   </div>
-                  {/* Aligned, compact action icons. */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {/* Action icons — for invoices, nudged down to sit by the CIF / filename lines. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: isInvoice ? 40 : 0 }}>
                     {isInvoice && (
                       // Money icon doubles as payment status + opens the payments view. Red = unpaid /
                       // no transaction associated, orange = partial, green = paid.
