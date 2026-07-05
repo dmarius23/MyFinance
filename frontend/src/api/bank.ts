@@ -140,9 +140,13 @@ export interface InvoicePayments {
 export const invoicesApi = {
   list: (companyId: string, period: string) =>
     api<Invoice[]>(`/api/v1/companies/${companyId}/invoices?period=${period}`),
-  /** Invoices still open for payment within a rolling window (default 18 months) ending at period. */
-  open: (companyId: string, period: string, months = 18) =>
-    api<OpenInvoice[]>(`/api/v1/companies/${companyId}/invoices/open?period=${period}&months=${months}`),
+  /**
+   * Invoices open for payment within a rolling window (default 18 months) ending at period. With
+   * {@code includeMapped}, fully-allocated invoices are also returned (remaining 0) — the reconcile
+   * workspace shows them dimmed under "All".
+   */
+  open: (companyId: string, period: string, months = 18, includeMapped = false) =>
+    api<OpenInvoice[]>(`/api/v1/companies/${companyId}/invoices/open?period=${period}&months=${months}&includeMapped=${includeMapped}`),
   /** Invoice-centric payments view (applied payments + remaining), keyed by the document id. */
   paymentsByDocument: (companyId: string, documentId: string) =>
     api<InvoicePayments>(`/api/v1/companies/${companyId}/invoices/by-document/${documentId}/payments`),

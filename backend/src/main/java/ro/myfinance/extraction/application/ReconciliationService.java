@@ -506,6 +506,17 @@ public class ReconciliationService {
      */
     @Transactional(readOnly = true)
     public List<OpenInvoiceView> openInvoices(UUID companyId, java.time.LocalDate periodMonth, int months) {
+        return openInvoices(companyId, periodMonth, months, false);
+    }
+
+    /**
+     * As {@link #openInvoices(UUID, java.time.LocalDate, int)}, but when {@code includeMapped} is true
+     * the fully-allocated invoices are also returned (with {@code remaining} 0) — the reconciliation
+     * workspace shows them dimmed under its "All" filter, not just the still-open ones.
+     */
+    @Transactional(readOnly = true)
+    public List<OpenInvoiceView> openInvoices(UUID companyId, java.time.LocalDate periodMonth, int months,
+                                              boolean includeMapped) {
         java.time.LocalDate to = periodMonth.withDayOfMonth(1);
         java.time.LocalDate from = to.minusMonths(months);
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonthBetween(companyId, from, to);
@@ -529,7 +540,7 @@ public class ReconciliationService {
             BigDecimal p = paid.getOrDefault(i.getId(), BigDecimal.ZERO);
             BigDecimal remaining = i.getTotalAmount() == null ? null : i.getTotalAmount().subtract(p);
             boolean open = i.getTotalAmount() != null ? remaining.compareTo(TOLERANCE) > 0 : p.signum() == 0;
-            if (open) {
+            if (open || includeMapped) {
                 String key = invoiceDupKey(i);
                 boolean duplicate = key != null && byKey.getOrDefault(key, List.of()).stream()
                         .anyMatch(o -> !o.getId().equals(i.getId()) && sameInvoice(i, o));

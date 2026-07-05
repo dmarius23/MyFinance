@@ -41,8 +41,9 @@ public class InvoiceController {
     @GetMapping("/open")
     public List<OpenInvoiceResponse> open(@PathVariable UUID companyId,
                                           @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
-                                          @RequestParam(value = "months", defaultValue = "18") int months) {
-        return reconciliation.openInvoices(companyId, period, months).stream()
+                                          @RequestParam(value = "months", defaultValue = "18") int months,
+                                          @RequestParam(value = "includeMapped", defaultValue = "false") boolean includeMapped) {
+        return reconciliation.openInvoices(companyId, period, months, includeMapped).stream()
                 .map(OpenInvoiceResponse::from).toList();
     }
 

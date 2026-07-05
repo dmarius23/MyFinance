@@ -43,7 +43,7 @@ export function ReconcileWorkspace() {
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
-  const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period) });
+  const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period, 18, true) });
   const suggestionsQ = useQuery({ queryKey: ["match-suggestions", companyId, period], queryFn: () => reconciliationApi.suggestions(companyId, period) });
 
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
@@ -340,7 +340,7 @@ export function ReconcileWorkspace() {
                             {inv.issuerCif && <span style={{ color: "var(--text-muted)" }}> · CUI {inv.issuerCif}</span>}
                             {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
                           </div>
-                          <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money(inv.remaining ?? inv.totalAmount ?? 0)}</div>
+                          <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: mapped ? "var(--text-muted)" : suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money((mapped ? inv.totalAmount : inv.remaining) ?? inv.totalAmount ?? 0)}</div>
                         </div>
                         {/* 2) buyer (current company) · buyer CIF */}
                         <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
