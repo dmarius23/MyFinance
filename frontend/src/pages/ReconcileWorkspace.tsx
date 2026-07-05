@@ -24,10 +24,19 @@ function nameMatch(supplier: string | null, txnText: string): boolean {
   const hay = txnText.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   return tokens(supplier).some((tk) => tk !== "romania" && hay.includes(tk));
 }
+/** True when the transaction plausibly names the invoice's supplier — by name token, fiscal code, or IBAN. */
+function supplierMatch(inv: OpenInvoice, txnText: string, partnerIban: string | null): boolean {
+  if (nameMatch(inv.supplierName, txnText)) return true;
+  const cui = (inv.issuerCif ?? "").replace(/\D/g, "");
+  if (cui.length >= 5 && txnText.replace(/\D/g, "").includes(cui)) return true;
+  const iban = (inv.supplierIban ?? "").replace(/\s/g, "").toUpperCase();
+  const pib = (partnerIban ?? "").replace(/\s/g, "").toUpperCase();
+  return !!iban && iban === pib;
+}
 
 type WSuggestion = {
   key: string;
-  kind: "EXACT" | "SUPPLIER" | "SPLIT" | "INSTALLMENT";
+  kind: "EXACT" | "AMOUNT" | "SUPPLIER" | "SPLIT" | "INSTALLMENT";
   invoices: { invoiceId: string; documentId: string | null; filename: string | null; supplierName: string | null; amount: number }[];
   total: number;
   apply: () => void;
@@ -122,11 +131,14 @@ export function ReconcileWorkspace() {
         apply: () => match.mutate({ txnId: selectedTxn.id, invoiceId: inv.id }),
       });
     };
-    // EXACT first (amount equals the remaining), then SUPPLIER by date proximity.
-    pool.filter((inv) => Math.abs((inv.remaining ?? 0) - R) < TOL).forEach((inv) => add(inv, "EXACT"));
-    pool.filter((inv) => nameMatch(inv.supplierName, txnText))
-      .sort((a, b) => Math.abs((a.invoiceDate ?? "").localeCompare(selectedTxn.txnDate)) - Math.abs((b.invoiceDate ?? "").localeCompare(selectedTxn.txnDate)))
-      .forEach((inv) => add(inv, "SUPPLIER"));
+    // EXACT = amount *and* supplier match; AMOUNT = amount only; SUPPLIER = supplier only (weaker).
+    const amountOk = (inv: OpenInvoice) => Math.abs((inv.remaining ?? 0) - R) < TOL;
+    const supplierOk = (inv: OpenInvoice) => supplierMatch(inv, txnText, selectedTxn.partnerIban);
+    const byDate = (a: OpenInvoice, b: OpenInvoice) =>
+      Math.abs((a.invoiceDate ?? "").localeCompare(selectedTxn.txnDate)) - Math.abs((b.invoiceDate ?? "").localeCompare(selectedTxn.txnDate));
+    pool.filter((inv) => amountOk(inv) && supplierOk(inv)).sort(byDate).forEach((inv) => add(inv, "EXACT"));
+    pool.filter((inv) => amountOk(inv) && !supplierOk(inv)).forEach((inv) => add(inv, "AMOUNT"));
+    pool.filter((inv) => !amountOk(inv) && supplierOk(inv)).sort(byDate).forEach((inv) => add(inv, "SUPPLIER"));
     // Backend combos (split/installment/cross-period exact) touching this transaction.
     for (const s of suggestionsQ.data ?? []) {
       const relevant = s.links.filter((l) => l.transactionId === selectedTxn.id && !already.has(l.invoiceId));
@@ -303,7 +315,7 @@ export function ReconcileWorkspace() {
                 </div>
                 {txnSuggestions.map((sg) => (
                   <div key={sg.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
-                    <span style={{ flex: "none", marginTop: 2, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
+                    <span style={{ flex: "none", marginTop: 2, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : sg.kind === "AMOUNT" ? "var(--warn-fg, #b45309)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
                     <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 6 }}>
                       {sg.invoices.map((si) => {
                         const full = invById.get(si.invoiceId);
