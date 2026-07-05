@@ -84,6 +84,7 @@ export function ReconcileWorkspace() {
 
   const list = txns.data ?? [];
   const openInvoices = openQ.data ?? [];
+  const invById = useMemo(() => new Map(openInvoices.map((i) => [i.id, i])), [openInvoices]);
   const selectedTxn = selectedTxnId ? list.find((x) => x.id === selectedTxnId) ?? null : null;
 
   const needsDoc = (tx: BankTransaction) => tx.requiresDocument && !tx.fullyAllocated;
@@ -298,16 +299,27 @@ export function ReconcileWorkspace() {
                   {t("recon.suggestions")}{selectedTxn.matched ? ` · ${t("recon.remaining").toLowerCase()} ${money(selectedTxn.remainingAmount)}` : ""}
                 </div>
                 {txnSuggestions.map((sg) => (
-                  <div key={sg.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
-                    <span style={{ flex: "none", fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {sg.invoices[0].filename ?? sg.invoices[0].supplierName ?? "factura"}{sg.invoices.length > 1 ? ` ＋${sg.invoices.length - 1}` : ""}
-                      </div>
-                      <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{sg.invoices.map((i) => money(i.amount)).join(" + ")}{sg.invoices.length > 1 ? ` = ${money(sg.total)}` : ""}</div>
+                  <div key={sg.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
+                    <span style={{ flex: "none", marginTop: 2, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
+                    <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 6 }}>
+                      {sg.invoices.map((si) => {
+                        const full = invById.get(si.invoiceId);
+                        const docId = full?.documentId ?? si.documentId;
+                        return full ? (
+                          <div key={si.invoiceId} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                            <InvoiceInfo inv={full} amount={si.amount} amountTone="info" buyerName={c?.legalName ?? null} buyerCui={c?.cui ?? null} t={t} />
+                            {docId && <button onClick={() => setPreview({ documentId: docId, filename: si.filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
+                          </div>
+                        ) : (
+                          <div key={si.invoiceId} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                            <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, ...clip }}>{si.filename ?? si.supplierName ?? "factura"}</span>
+                            <span className="mono" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>{money(si.amount)}</span>
+                          </div>
+                        );
+                      })}
+                      {sg.invoices.length > 1 && <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>= {money(sg.total)}</div>}
                     </div>
-                    {sg.invoices[0].documentId && <button onClick={() => setPreview({ documentId: sg.invoices[0].documentId!, filename: sg.invoices[0].filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
-                    <button className="primary" disabled={match.isPending || applySuggestion.isPending} onClick={sg.apply}>{t("recon.accept")}</button>
+                    <button className="primary" disabled={match.isPending || applySuggestion.isPending} onClick={sg.apply} style={{ flex: "none", marginTop: 2 }}>{t("recon.accept")}</button>
                   </div>
                 ))}
               </div>
@@ -332,27 +344,8 @@ export function ReconcileWorkspace() {
                         background: isChecked ? "var(--row-active, #ecf7f5)" : suggested ? "var(--info-bg, #e0e7ff)" : undefined }}>
                       {mapped ? <span className="pill round ok" style={{ flex: "none", marginTop: 2 }}>{t("recon.mapped")}</span>
                         : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none", marginTop: 3 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* 1) supplier · CIF · issue date  ·  remaining (right) */}
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                          <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            <span style={{ fontWeight: 600 }}>{inv.supplierName ?? "—"}</span>
-                            {inv.issuerCif && <span style={{ color: "var(--text-muted)" }}> · CUI {inv.issuerCif}</span>}
-                            {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
-                          </div>
-                          <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: mapped ? "var(--text-muted)" : suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money((mapped ? inv.totalAmount : inv.remaining) ?? inv.totalAmount ?? 0)}</div>
-                        </div>
-                        {/* 2) buyer (current company) · buyer CIF */}
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {c?.legalName ?? "—"}{c?.cui ? ` · CUI ${c.cui}` : ""}
-                        </div>
-                        {/* 3) file name · labels */}
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {inv.filename ?? "—"}
-                          {inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
-                          {inv.wrongParty && <span className="pill round warn" style={{ marginLeft: 6 }}>{t("doc.wrongPartyChip")}</span>}
-                        </div>
-                      </div>
+                      <InvoiceInfo inv={inv} amount={(mapped ? inv.totalAmount : inv.remaining) ?? inv.totalAmount ?? 0}
+                        amountTone={mapped ? "muted" : suggested ? "info" : "default"} buyerName={c?.legalName ?? null} buyerCui={c?.cui ?? null} t={t} />
                       <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }}
                         style={{ ...eyeBtn, marginTop: 1 }} title={t("recon.viewDoc")} aria-label={t("recon.viewDoc")}><Icon name="eye" size={15} /></button>
                     </div>
@@ -397,6 +390,42 @@ const card: React.CSSProperties = { background: "var(--surface)", border: "1px s
 const iconBtn: React.CSSProperties = { padding: 0, border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary, #55605d)", cursor: "pointer" };
 const eyeBtn: React.CSSProperties = { ...iconBtn, width: 30, height: 30, flex: "none", color: "var(--primary-dark, #0f766e)", background: "var(--primary-light, #ecf7f5)" };
 const linkBtn: React.CSSProperties = { border: "none", background: "none", color: "var(--primary-dark, #0f766e)", cursor: "pointer", font: "inherit", fontSize: 11.5, padding: 0, textDecoration: "underline" };
+
+const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+
+/**
+ * The 3-line invoice descriptor shared by the invoice pool and the suggestion cards, so a suggested
+ * invoice reads identically to the same row in the list:
+ *   1) supplier · CUI · issue date        · amount (right)
+ *   2) buyer (current company) · buyer CUI
+ *   3) file name · labels (DUP / wrong party)
+ */
+function InvoiceInfo({ inv, amount, amountTone = "default", buyerName, buyerCui, t }: {
+  inv: OpenInvoice; amount: number; amountTone?: "default" | "info" | "muted";
+  buyerName: string | null; buyerCui: string | null; t: (k: string) => string;
+}) {
+  const amtColor = amountTone === "muted" ? "var(--text-muted)" : amountTone === "info" ? "var(--info-fg, #3730a3)" : "var(--text)";
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, ...clip }}>
+          <span style={{ fontWeight: 600 }}>{inv.supplierName ?? "—"}</span>
+          {inv.issuerCif && <span style={{ color: "var(--text-muted)" }}> · CUI {inv.issuerCif}</span>}
+          {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
+        </div>
+        <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: amtColor }}>{money(amount)}</div>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", ...clip }}>
+        {buyerName ?? "—"}{buyerCui ? ` · CUI ${buyerCui}` : ""}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-muted)", ...clip }}>
+        {inv.filename ?? "—"}
+        {inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
+        {inv.wrongParty && <span className="pill round warn" style={{ marginLeft: 6 }}>{t("doc.wrongPartyChip")}</span>}
+      </div>
+    </div>
+  );
+}
 
 function ColHeader({ title, filter, setFilter, t }: { title: string; filter: "all" | "unmapped"; setFilter: (f: "all" | "unmapped") => void; t: (k: string) => string }) {
   return (
