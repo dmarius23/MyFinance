@@ -41,7 +41,7 @@ Claude Code auto-reads `CLAUDE.md` on launch — it points to the backend/fronte
 Work one step at a time; review and commit between steps.
 
 **Step 1 — Scaffold:**
-> Read CLAUDE.md and docs/MyFinance-backend-design-v1.md and docs/MyFinance-frontend-design-v1.md. Execute build-order step 1: scaffold the Spring Boot modular monolith + worker process and the React+Vite PWA, wire Supabase (DB/Auth/Storage), set up Flyway with the RLS baseline, and add CI (GitHub Actions: build, test, SAST/SCA/secret-scan). Commit at each working milestone. Skeleton only — no module business logic yet.
+> Read CLAUDE.md and backend/docs/MyFinance-backend-design-v1.md and frontend/docs/MyFinance-frontend-design-v1.md. Execute build-order step 1: scaffold the Spring Boot modular monolith + worker process and the React+Vite PWA, wire Supabase (DB/Auth/Storage), set up Flyway with the RLS baseline, and add CI (GitHub Actions: build, test, SAST/SCA/secret-scan). Commit at each working milestone. Skeleton only — no module business logic yet.
 
 **Step 2 — Foundation modules:**
 > Implement MOD-01 (Tenant Administration), MOD-02 (Users/Access with Supabase JWT validation + tenant RLS context), and MOD-03 (Company Management: tax profile, treasury accounts, HR registry). Add a cross-tenant isolation test for every data-access path.

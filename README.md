@@ -43,19 +43,23 @@ Multi-tenancy: shared database, `tenant_id` on every row, enforced by PostgreSQL
 
 ## Documentation
 
-All planning artifacts are in `docs/`.
+**Global** planning artifacts live in `docs/`. **Backend-** and **frontend-specific** build specs and
+coding standards live in `backend/docs/` and `frontend/docs/`, alongside a layer `CLAUDE.md` that Claude
+Code auto-loads only when working in that folder.
 
 | Doc | File |
 |---|---|
 | Business requirements | `docs/myfinance-accounting-portal-requirements-v1.0.docx` / `.html` |
 | Solution architecture | `docs/MyFinance-architecture-v1.md` / `.docx` / `.html` |
-| Backend build spec | `docs/MyFinance-backend-design-v1.md` |
-| Frontend / PWA build spec | `docs/MyFinance-frontend-design-v1.md` |
-| Clickable prototype (UX reference) | `docs/MyFinance-prototype.html` |
 | Enriched planning notes (+ PoC findings) | `docs/MyFinance-notes-enriched.md` |
+| Architecture review (code-validated, dated snapshot) | `docs/MyFinance-architecture-review.md` |
+| Clickable prototype (UX reference) | `docs/MyFinance-prototype.html` |
 | Cost estimation | `docs/MyFinance-estimation-v1.xlsx` |
-| Build brief for Claude Code | `CLAUDE.md` (repo root) |
+| **Backend** — design spec · clean-code · improvement plan · design-history | `backend/docs/` (+ `backend/CLAUDE.md`) |
+| **Frontend** — design spec · clean-code · improvement plan | `frontend/docs/` (+ `frontend/CLAUDE.md`) |
+| Global build brief for Claude Code | `CLAUDE.md` (repo root) |
 | Getting started in Claude Code | `GETTING-STARTED-CLAUDE-CODE.md` (repo root) |
+| Historical / pre-app artifacts (original AirTable design) | `archive/` |
 
 ## Extraction — validated on real documents (PoC)
 
@@ -71,13 +75,19 @@ Bank statement (BRD), invoice (BT Leasing), trial balance / profit situation, an
 
 ```
 MyFinance/
+├─ CLAUDE.md       global build brief (auto-loaded every session)
 ├─ backend/        Java 21 / Spring Boot 3 — modular monolith + worker (Maven)
+│  ├─ CLAUDE.md    backend layer brief (auto-loaded for backend work)
+│  ├─ docs/        backend design spec · clean-code · improvement plan · design-history/
 │  └─ src/main/java/ro/myfinance/
 │     ├─ common/{config,security,web,jobs}   security, RLS, tenancy, error handling, queue
-│     └─ mod01_tenant · mod02_access · mod03_company   (domain / application / adapter)
+│     └─ tenant · access · company · intake · extraction · … · portal   (domain / application / adapter)
 ├─ frontend/       React 18 + Vite + TS — PWA (routing, auth guards, TanStack Query, i18n)
+│  ├─ CLAUDE.md    frontend layer brief (auto-loaded for frontend work)
+│  └─ docs/        frontend design spec · clean-code · improvement plan
 ├─ infra/db/init/  Postgres role bootstrap for local RLS
-├─ docs/           planning artifacts (requirements, architecture, build specs, prototype)
+├─ docs/           GLOBAL planning artifacts (requirements, architecture, prototype, review, notes)
+├─ archive/        historical / pre-app artifacts (original AirTable design)
 ├─ docker-compose.yml   db (pgvector) + redis + backend + worker + frontend
 └─ .github/workflows/ci.yml   backend test · frontend build · secret scan
 ```
