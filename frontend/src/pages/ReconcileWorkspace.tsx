@@ -315,7 +315,7 @@ export function ReconcileWorkspace() {
                 </div>
                 {txnSuggestions.map((sg) => (
                   <div key={sg.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
-                    <span style={{ flex: "none", marginTop: 2, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : sg.kind === "AMOUNT" ? "var(--warn-fg, #b45309)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
+                    <span style={{ flex: "none", marginTop: 2, fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "EXACT" ? "#16a34a" : "#2563eb" }}>{t(`recon.kind.${sg.kind}`)}</span>
                     <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 6 }}>
                       {sg.invoices.map((si) => {
                         const full = invById.get(si.invoiceId);
