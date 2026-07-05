@@ -151,6 +151,12 @@ export function ReconcileWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTxn, openInvoices, suggestionsQ.data]);
 
+  // Every invoice referenced by a suggestion (amount, supplier, split, …) — all get highlighted in the pool.
+  const suggestedIds = useMemo(
+    () => new Set(txnSuggestions.flatMap((s) => s.invoices.map((i) => i.invoiceId))),
+    [txnSuggestions],
+  );
+
   // Invoice pool grouped by month (this month, then older), filtered by search + the Unmapped toggle.
   const groups = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -167,8 +173,7 @@ export function ReconcileWorkspace() {
     });
     const cur: OpenInvoice[] = [], other: OpenInvoice[] = [];
     for (const inv of filtered) (monthIdx(inv.periodMonth.slice(0, 7)) >= curIdx ? cur : other).push(inv);
-    const R = selectedTxn?.remainingAmount ?? 0;
-    const rank = (inv: OpenInvoice) => (selectedTxn && Math.abs((inv.remaining ?? 0) - R) < TOL ? 0 : 1);
+    const rank = (inv: OpenInvoice) => (suggestedIds.has(inv.id) ? 0 : 1);
     const sortFn = (a: OpenInvoice, b: OpenInvoice) => rank(a) - rank(b) || (b.invoiceDate ?? "").localeCompare(a.invoiceDate ?? "");
     cur.sort(sortFn); other.sort(sortFn);
     return [
@@ -176,7 +181,7 @@ export function ReconcileWorkspace() {
       { key: "other", label: t("recon.otherMonths"), items: other },
     ].filter((g) => g.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openInvoices, search, invFilter, period, selectedTxn]);
+  }, [openInvoices, search, invFilter, period, suggestedIds]);
   const poolTotal = groups.reduce((n, g) => n + g.items.length, 0);
 
   const selectTxn = (id: string) => { setSelectedTxnId((cur) => (cur === id ? null : id)); setChecked(new Set()); };
@@ -351,7 +356,7 @@ export function ReconcileWorkspace() {
                 {g.items.map((inv) => {
                   const mapped = !((inv.remaining ?? 0) > TOL);
                   const isChecked = checked.has(inv.id);
-                  const suggested = !!selectedTxn && Math.abs((inv.remaining ?? 0) - selectedTxn.remainingAmount) < TOL;
+                  const suggested = suggestedIds.has(inv.id);
                   return (
                     <div key={inv.id} onClick={() => { if (!mapped && selectedTxn) toggleCheck(inv.id); }}
                       style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--hair)", cursor: mapped || !selectedTxn ? "default" : "pointer", opacity: mapped ? 0.6 : 1,
