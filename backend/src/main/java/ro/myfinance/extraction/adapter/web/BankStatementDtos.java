@@ -41,11 +41,11 @@ public final class BankStatementDtos {
     public record OpenInvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
                                       String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
                                       LocalDate periodMonth, BigDecimal paidAmount, BigDecimal remaining,
-                                      boolean duplicate, Boolean wrongParty) {
+                                      boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif) {
         public static OpenInvoiceResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenInvoiceView v) {
             return new OpenInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
                     v.supplierIban(), v.totalAmount(), v.invoiceDate(), v.periodMonth(), v.paidAmount(),
-                    v.remaining(), v.duplicate(), v.wrongParty());
+                    v.remaining(), v.duplicate(), v.wrongParty(), v.issuerCif(), v.clientCif());
         }
     }
 

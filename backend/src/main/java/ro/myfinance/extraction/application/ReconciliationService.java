@@ -50,7 +50,7 @@ public class ReconciliationService {
                                   String supplierIban, java.math.BigDecimal totalAmount,
                                   java.time.LocalDate invoiceDate, java.time.LocalDate periodMonth,
                                   java.math.BigDecimal paidAmount, java.math.BigDecimal remaining,
-                                  boolean duplicate, Boolean wrongParty) {
+                                  boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif) {
     }
 
     /**
@@ -535,7 +535,8 @@ public class ReconciliationService {
                         .anyMatch(o -> !o.getId().equals(i.getId()) && sameInvoice(i, o));
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
-                        i.getPeriodMonth(), p, remaining, duplicate, i.getWrongParty()));
+                        i.getPeriodMonth(), p, remaining, duplicate, i.getWrongParty(),
+                        i.getIssuerCif(), i.getClientCif()));
             }
         }
         return out;

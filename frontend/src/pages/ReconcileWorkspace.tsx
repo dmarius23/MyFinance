@@ -327,22 +327,34 @@ export function ReconcileWorkspace() {
                   const suggested = !!selectedTxn && Math.abs((inv.remaining ?? 0) - selectedTxn.remainingAmount) < TOL;
                   return (
                     <div key={inv.id} onClick={() => { if (!mapped && selectedTxn) toggleCheck(inv.id); }}
-                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--hair)", cursor: mapped || !selectedTxn ? "default" : "pointer", opacity: mapped ? 0.6 : 1,
+                      style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--hair)", cursor: mapped || !selectedTxn ? "default" : "pointer", opacity: mapped ? 0.6 : 1,
                         border: isChecked ? "1px solid var(--primary)" : suggested ? "1px solid var(--info-bd, #c7d2fe)" : undefined,
                         background: isChecked ? "var(--row-active, #ecf7f5)" : suggested ? "var(--info-bg, #e0e7ff)" : undefined }}>
-                      {mapped ? <span className="pill round ok" style={{ flex: "none" }}>{t("recon.mapped")}</span>
-                        : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none" }} />}
+                      {mapped ? <span className="pill round ok" style={{ flex: "none", marginTop: 2 }}>{t("recon.mapped")}</span>
+                        : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none", marginTop: 3 }} />}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {inv.filename ?? inv.supplierName ?? "factura"}{inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
+                        {/* 1) supplier · CIF · issue date  ·  remaining (right) */}
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <span style={{ fontWeight: 600 }}>{inv.supplierName ?? "—"}</span>
+                            {inv.issuerCif && <span style={{ color: "var(--text-muted)" }}> · CUI {inv.issuerCif}</span>}
+                            {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
+                          </div>
+                          <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money(inv.remaining ?? inv.totalAmount ?? 0)}</div>
                         </div>
-                        <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{[inv.supplierName, inv.invoiceDate].filter(Boolean).join(" · ")}</div>
+                        {/* 2) buyer (current company) · buyer CIF */}
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {c?.legalName ?? "—"}{c?.cui ? ` · CUI ${c.cui}` : ""}
+                        </div>
+                        {/* 3) file name · labels */}
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {inv.filename ?? "—"}
+                          {inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
+                          {inv.wrongParty && <span className="pill round warn" style={{ marginLeft: 6 }}>{t("doc.wrongPartyChip")}</span>}
+                        </div>
                       </div>
-                      <div style={{ flex: "none", textAlign: "right" }}>
-                        <div className="mono" style={{ fontSize: 12.5, fontWeight: 600, color: suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money(inv.remaining ?? inv.totalAmount ?? 0)}</div>
-                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{mapped ? t("recon.mapped") : t("recon.remaining").toLowerCase()}</div>
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }}
+                        style={{ ...eyeBtn, marginTop: 1 }} title={t("recon.viewDoc")} aria-label={t("recon.viewDoc")}><Icon name="eye" size={15} /></button>
                     </div>
                   );
                 })}
@@ -382,8 +394,8 @@ export function ReconcileWorkspace() {
 }
 
 const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" };
-const iconBtn: React.CSSProperties = { border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary, #55605d)", cursor: "pointer" };
-const eyeBtn: React.CSSProperties = { ...iconBtn, width: 28, height: 28, flex: "none" };
+const iconBtn: React.CSSProperties = { padding: 0, border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary, #55605d)", cursor: "pointer" };
+const eyeBtn: React.CSSProperties = { ...iconBtn, width: 30, height: 30, flex: "none", color: "var(--primary-dark, #0f766e)", background: "var(--primary-light, #ecf7f5)" };
 const linkBtn: React.CSSProperties = { border: "none", background: "none", color: "var(--primary-dark, #0f766e)", cursor: "pointer", font: "inherit", fontSize: 11.5, padding: 0, textDecoration: "underline" };
 
 function ColHeader({ title, filter, setFilter, t }: { title: string; filter: "all" | "unmapped"; setFilter: (f: "all" | "unmapped") => void; t: (k: string) => string }) {

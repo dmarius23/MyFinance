@@ -102,6 +102,8 @@ export interface OpenInvoice {
   remaining: number | null;
   duplicate: boolean;
   wrongParty: boolean | null;
+  issuerCif: string | null;
+  clientCif: string | null;
 }
 
 export interface OpenTransaction {
