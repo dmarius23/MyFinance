@@ -145,7 +145,10 @@ export function ReconcileWorkspace() {
     const monthIdx = (ym: string) => { const [y, m] = ym.split("-").map(Number); return y * 12 + (m - 1); };
     const curIdx = monthIdx(period.slice(0, 7));
     const filtered = openInvoices.filter((inv) => {
-      if (invFilter === "unmapped" && !((inv.remaining ?? 0) > TOL)) return false;
+      const fullyPaid = !((inv.remaining ?? 0) > TOL);
+      // Fully-paid documents from an earlier month are resolved history — never surface them here.
+      if (fullyPaid && monthIdx(inv.periodMonth.slice(0, 7)) < curIdx) return false;
+      if (invFilter === "unmapped" && fullyPaid) return false;
       if (!needle) return true;
       return [inv.filename, inv.supplierName, inv.totalAmount?.toString(), inv.remaining?.toString(), inv.invoiceDate]
         .filter(Boolean).some((f) => String(f).toLowerCase().includes(needle));
@@ -307,7 +310,7 @@ export function ReconcileWorkspace() {
                         const docId = full?.documentId ?? si.documentId;
                         return full ? (
                           <div key={si.invoiceId} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                            <InvoiceInfo inv={full} amount={si.amount} amountTone="info" buyerName={c?.legalName ?? null} buyerCui={c?.cui ?? null} t={t} />
+                            <InvoiceInfo inv={full} amount={si.amount} amountTone="info" companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
                             {docId && <button onClick={() => setPreview({ documentId: docId, filename: si.filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
                           </div>
                         ) : (
@@ -345,7 +348,7 @@ export function ReconcileWorkspace() {
                       {mapped ? <span className="pill round ok" style={{ flex: "none", marginTop: 2 }}>{t("recon.mapped")}</span>
                         : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none", marginTop: 3 }} />}
                       <InvoiceInfo inv={inv} amount={(mapped ? inv.totalAmount : inv.remaining) ?? inv.totalAmount ?? 0}
-                        amountTone={mapped ? "muted" : suggested ? "info" : "default"} buyerName={c?.legalName ?? null} buyerCui={c?.cui ?? null} t={t} />
+                        amountTone={mapped ? "muted" : suggested ? "info" : "default"} companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
                       <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }}
                         style={{ ...eyeBtn, marginTop: 1 }} title={t("recon.viewDoc")} aria-label={t("recon.viewDoc")}><Icon name="eye" size={15} /></button>
                     </div>
@@ -400,11 +403,16 @@ const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", te
  *   2) buyer (current company) · buyer CUI
  *   3) file name · labels (DUP / wrong party)
  */
-function InvoiceInfo({ inv, amount, amountTone = "default", buyerName, buyerCui, t }: {
+function InvoiceInfo({ inv, amount, amountTone = "default", companyName, companyCui, t }: {
   inv: OpenInvoice; amount: number; amountTone?: "default" | "info" | "muted";
-  buyerName: string | null; buyerCui: string | null; t: (k: string) => string;
+  companyName: string | null; companyCui: string | null; t: (k: string) => string;
 }) {
   const amtColor = amountTone === "muted" ? "var(--text-muted)" : amountTone === "info" ? "var(--info-fg, #3730a3)" : "var(--text)";
+  // Line 2 is the *buyer* as stated on the document. When it isn't the current company the backend
+  // flags wrongParty — then show only that foreign CUI (no company name) so the mismatch is visible.
+  const isCurrent = !inv.wrongParty;
+  const buyerCif = inv.clientCif ?? (isCurrent ? companyCui : null);
+  const buyerLine = [isCurrent ? companyName : null, buyerCif ? `CUI ${buyerCif}` : null].filter(Boolean).join(" · ") || "—";
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -415,9 +423,7 @@ function InvoiceInfo({ inv, amount, amountTone = "default", buyerName, buyerCui,
         </div>
         <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: amtColor }}>{money(amount)}</div>
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-muted)", ...clip }}>
-        {buyerName ?? "—"}{buyerCui ? ` · CUI ${buyerCui}` : ""}
-      </div>
+      <div style={{ fontSize: 11, color: inv.wrongParty ? "var(--warn-fg, #b45309)" : "var(--text-muted)", ...clip }}>{buyerLine}</div>
       <div style={{ fontSize: 11, color: "var(--text-muted)", ...clip }}>
         {inv.filename ?? "—"}
         {inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
