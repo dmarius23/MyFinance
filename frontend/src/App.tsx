@@ -10,6 +10,7 @@ import { CompanyDetail } from "./pages/CompanyDetail";
 import { RepHome } from "./pages/RepHome";
 import { Settings } from "./pages/Settings";
 import { Statements } from "./pages/Statements";
+import { ReconcileWorkspace } from "./pages/ReconcileWorkspace";
 import { TaxPayments } from "./pages/TaxPayments";
 import { Payroll } from "./pages/Payroll";
 import { Reports } from "./pages/Reports";
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/companies/:id" element={<CompanyDetail />} />
           <Route path="/statements" element={<Statements />} />
+          <Route path="/statements/:companyId/reconcile" element={<ReconcileWorkspace />} />
           <Route path="/taxes" element={<TaxPayments />} />
           <Route path="/payroll" element={<Payroll />} />
           <Route path="/reports" element={<Reports />} />

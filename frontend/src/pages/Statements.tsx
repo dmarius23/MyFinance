@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
@@ -7,7 +8,6 @@ import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { FilesModal } from "../components/FilesModal";
-import { ReconModal } from "../components/ReconModal";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
 
@@ -39,11 +39,12 @@ function ClickPill({ label, kind, title, onClick }:
 export function Statements() {
   const { t } = useTranslation();
   const { period } = usePeriod();
+  const navigate = useNavigate();
+  const goReconcile = (id: string) => navigate(`/statements/${id}/reconcile`);
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
   const [filesFor, setFilesFor] = useState<{ id: string; name: string; cui: string } | null>(null);
-  const [reconFor, setReconFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
@@ -154,7 +155,10 @@ export function Statements() {
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div><span role="img" aria-label={t(st.key)} title={t(st.key)} style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: DOT_COLOR[st.kind] }} /></div>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{c.legalName}</div>
+                  <button onClick={() => goReconcile(c.id)} title={t("statements.viewTransactions")}
+                    style={{ fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", font: "inherit", textAlign: "left" }}>
+                    {c.legalName}
+                  </button>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
                 </div>
                 <div>
@@ -189,7 +193,7 @@ export function Statements() {
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                   <button style={iconBtn} title={t("statements.upload")} disabled={upload.isPending} onClick={() => pickUpload(c.id)}><Icon name="upload" size={14} /></button>
                   <button style={iconBtn} title={t("statements.files")} onClick={openFiles}><Icon name="folder" size={14} /></button>
-                  <button style={{ ...iconBtn, opacity: hasBank ? 1 : 0.4 }} title={t("statements.viewTransactions")} disabled={!hasBank} onClick={() => setReconFor({ id: c.id, name: c.legalName })}><Icon name="reconcile" size={14} /></button>
+                  <button style={iconBtn} title={t("statements.viewTransactions")} onClick={() => goReconcile(c.id)}><Icon name="reconcile" size={14} /></button>
                   <button style={{ ...iconBtn, opacity: selectable ? 1 : 0.4 }} title={t("email.send")} disabled={!selectable} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
                 </div>
               </div>
@@ -199,7 +203,6 @@ export function Statements() {
       </div>
 
       {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} companyCui={filesFor.cui} period={period} onClose={() => setFilesFor(null)} />}
-      {reconFor && <ReconModal companyId={reconFor.id} companyName={reconFor.name} period={period} onClose={() => setReconFor(null)} />}
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}

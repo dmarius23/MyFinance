@@ -1,0 +1,419 @@
+import { useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion } from "../api/bank";
+import { companiesApi } from "../api/companies";
+import { documentsApi } from "../api/documents";
+import { usePeriod } from "../lib/period";
+import { Icon } from "../components/Icon";
+import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
+import { SendReminderModal } from "../components/SendReminderModal";
+
+const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const maskIban = (iban: string | null) => (!iban || iban.length <= 4 ? (iban ?? "") : `…${iban.slice(-4)}`);
+const TOL = 0.01;
+
+/** Distinctive lowercase tokens of a name (≥4 letters, diacritics/punct stripped) for supplier matching. */
+function tokens(s: string | null): string[] {
+  if (!s) return [];
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length >= 4);
+}
+function nameMatch(supplier: string | null, txnText: string): boolean {
+  const hay = txnText.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return tokens(supplier).some((tk) => tk !== "romania" && hay.includes(tk));
+}
+
+type WSuggestion = {
+  key: string;
+  kind: "EXACT" | "SUPPLIER" | "SPLIT" | "INSTALLMENT";
+  invoices: { invoiceId: string; documentId: string | null; filename: string | null; supplierName: string | null; amount: number }[];
+  total: number;
+  apply: () => void;
+};
+
+export function ReconcileWorkspace() {
+  const { companyId = "" } = useParams();
+  const { period } = usePeriod();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+
+  const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
+  const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
+  const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
+  const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period) });
+  const suggestionsQ = useQuery({ queryKey: ["match-suggestions", companyId, period], queryFn: () => reconciliationApi.suggestions(companyId, period) });
+
+  const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [txnFilter, setTxnFilter] = useState<"all" | "unmapped">("all");
+  const [invFilter, setInvFilter] = useState<"all" | "unmapped">("all");
+  const [search, setSearch] = useState("");
+  const [preview, setPreview] = useState<{ documentId: string; filename: string | null; invoiceId?: string } | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const stmtFileRef = useRef<HTMLInputElement>(null);
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["open-invoices", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["match-suggestions", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
+    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
+  };
+  const onErr = (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`);
+
+  const match = useMutation({ mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId), onSuccess: invalidate, onError: onErr });
+  const unmatch = useMutation({ mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId), onSuccess: invalidate, onError: onErr });
+  const setReq = useMutation({ mutationFn: ({ id, requiresDocument }: { id: string; requiresDocument: boolean }) => bankApi.setRequirement(companyId, id, requiresDocument), onSuccess: invalidate });
+  const applySuggestion = useMutation({
+    mutationFn: async (s: MatchSuggestion) => { for (const l of s.links) await bankApi.match(companyId, l.transactionId, l.invoiceId, l.amount); },
+    onSuccess: invalidate, onError: onErr,
+  });
+  const upload = useMutation({
+    mutationFn: async (files: File[]) => { for (const f of files) await documentsApi.upload(companyId, period, f); },
+    onSuccess: invalidate, onError: onErr,
+  });
+  const mapChecked = useMutation({
+    mutationFn: async ({ txnId, invoiceIds }: { txnId: string; invoiceIds: string[] }) => { for (const id of invoiceIds) await bankApi.match(companyId, txnId, id); },
+    onSuccess: () => { setChecked(new Set()); invalidate(); }, onError: onErr,
+  });
+
+  const list = txns.data ?? [];
+  const openInvoices = openQ.data ?? [];
+  const selectedTxn = selectedTxnId ? list.find((x) => x.id === selectedTxnId) ?? null : null;
+
+  const needsDoc = (tx: BankTransaction) => tx.requiresDocument && !tx.fullyAllocated;
+  const counts = useMemo(() => {
+    let matched = 0, partial = 0, need = 0;
+    for (const tx of list) {
+      if (!tx.requiresDocument) continue;
+      if (tx.fullyAllocated) matched++;
+      else if (tx.matched) partial++;
+      else need++;
+    }
+    return { matched, partial, need };
+  }, [list]);
+
+  const shownTxns = list.filter((tx) => (txnFilter === "all" ? true : needsDoc(tx)));
+
+  // Per-transaction suggestions (client-side): EXACT (remaining ≈ txn remaining) + SUPPLIER (name match),
+  // plus any backend SPLIT/INSTALLMENT/cross-period suggestion that involves the selected transaction.
+  const txnSuggestions: WSuggestion[] = useMemo(() => {
+    if (!selectedTxn) return [];
+    const R = selectedTxn.remainingAmount;
+    if (R <= TOL) return [];
+    const already = new Set(selectedTxn.matchedInvoices.map((m) => m.invoiceId));
+    const pool = openInvoices.filter((inv) => (inv.remaining ?? 0) > TOL && !already.has(inv.id) && !inv.wrongParty);
+    const txnText = [selectedTxn.partnerName, selectedTxn.description].filter(Boolean).join(" ");
+    const out: WSuggestion[] = [];
+    const seen = new Set<string>();
+    const add = (inv: OpenInvoice, kind: WSuggestion["kind"]) => {
+      if (seen.has(inv.id)) return;
+      seen.add(inv.id);
+      const amount = Math.min(R, inv.remaining ?? 0);
+      out.push({
+        key: `${kind}-${inv.id}`, kind, total: amount,
+        invoices: [{ invoiceId: inv.id, documentId: inv.documentId, filename: inv.filename, supplierName: inv.supplierName, amount }],
+        apply: () => match.mutate({ txnId: selectedTxn.id, invoiceId: inv.id }),
+      });
+    };
+    // EXACT first (amount equals the remaining), then SUPPLIER by date proximity.
+    pool.filter((inv) => Math.abs((inv.remaining ?? 0) - R) < TOL).forEach((inv) => add(inv, "EXACT"));
+    pool.filter((inv) => nameMatch(inv.supplierName, txnText))
+      .sort((a, b) => Math.abs((a.invoiceDate ?? "").localeCompare(selectedTxn.txnDate)) - Math.abs((b.invoiceDate ?? "").localeCompare(selectedTxn.txnDate)))
+      .forEach((inv) => add(inv, "SUPPLIER"));
+    // Backend combos (split/installment/cross-period exact) touching this transaction.
+    for (const s of suggestionsQ.data ?? []) {
+      const relevant = s.links.filter((l) => l.transactionId === selectedTxn.id && !already.has(l.invoiceId));
+      if (relevant.length === 0) continue;
+      const invs = relevant.map((l) => ({ invoiceId: l.invoiceId, documentId: null, filename: l.invoiceFilename, supplierName: l.supplierName, amount: l.amount }));
+      if (invs.length === 1 && seen.has(invs[0].invoiceId)) continue;
+      out.push({ key: `bk-${s.kind}-${relevant[0].invoiceId}`, kind: s.kind, invoices: invs, total: invs.reduce((n, i) => n + i.amount, 0), apply: () => applySuggestion.mutate(s) });
+    }
+    return out.slice(0, 6);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTxn, openInvoices, suggestionsQ.data]);
+
+  // Invoice pool grouped by month (this month, then older), filtered by search + the Unmapped toggle.
+  const groups = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const monthIdx = (ym: string) => { const [y, m] = ym.split("-").map(Number); return y * 12 + (m - 1); };
+    const curIdx = monthIdx(period.slice(0, 7));
+    const filtered = openInvoices.filter((inv) => {
+      if (invFilter === "unmapped" && !((inv.remaining ?? 0) > TOL)) return false;
+      if (!needle) return true;
+      return [inv.filename, inv.supplierName, inv.totalAmount?.toString(), inv.remaining?.toString(), inv.invoiceDate]
+        .filter(Boolean).some((f) => String(f).toLowerCase().includes(needle));
+    });
+    const cur: OpenInvoice[] = [], other: OpenInvoice[] = [];
+    for (const inv of filtered) (monthIdx(inv.periodMonth.slice(0, 7)) >= curIdx ? cur : other).push(inv);
+    const R = selectedTxn?.remainingAmount ?? 0;
+    const rank = (inv: OpenInvoice) => (selectedTxn && Math.abs((inv.remaining ?? 0) - R) < TOL ? 0 : 1);
+    const sortFn = (a: OpenInvoice, b: OpenInvoice) => rank(a) - rank(b) || (b.invoiceDate ?? "").localeCompare(a.invoiceDate ?? "");
+    cur.sort(sortFn); other.sort(sortFn);
+    return [
+      { key: "cur", label: t("recon.thisMonth"), items: cur },
+      { key: "other", label: t("recon.otherMonths"), items: other },
+    ].filter((g) => g.items.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openInvoices, search, invFilter, period, selectedTxn]);
+  const poolTotal = groups.reduce((n, g) => n + g.items.length, 0);
+
+  const selectTxn = (id: string) => { setSelectedTxnId((cur) => (cur === id ? null : id)); setChecked(new Set()); };
+  const toggleCheck = (id: string) => setChecked((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const hasStatement = (statements.data?.length ?? 0) > 0;
+  const c = company.data;
+  const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 46px)", minHeight: 0 }}>
+      {/* ===== header ===== */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px 10px" }}>
+        <button onClick={() => navigate("/statements")} title={t("recon.back")}
+          style={{ ...iconBtn, width: 34, height: 34 }}><Icon name="chevronLeft" size={18} /></button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 21, fontWeight: 700, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c?.legalName ?? "…"}</div>
+          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{submeta}</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 12.5, fontWeight: 600 }}>
+          <span style={{ color: "var(--ok-fg, #166534)" }}>{counts.matched} {t("recon.matched").toLowerCase()}</span>
+          <span style={{ color: "var(--warn-fg, #92400e)" }}>{counts.partial} {t("recon.partialShort")}</span>
+          <span style={{ color: "var(--danger-fg, #991b1b)" }}>{counts.need} {t("recon.needDoc")}</span>
+        </div>
+        <button className="primary" disabled={counts.need + counts.partial === 0} onClick={() => setRequesting(true)}>
+          <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+          {t("recon.requestClient")} · {counts.need + counts.partial}
+        </button>
+      </div>
+
+      {/* ===== statement strip / empty upload ===== */}
+      {hasStatement ? (
+        <div style={{ margin: "0 18px 10px", ...card, padding: "4px 12px" }}>
+          {(statements.data ?? []).map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, padding: "7px 0", borderBottom: "1px solid var(--hair)" }}>
+              <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--th-bg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Icon name="statements" size={15} style={{ color: "var(--text-muted)" }} /></span>
+              <b>{s.bankCode ?? "—"}</b>
+              <span className="mono" style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
+              <span className="mono" style={{ color: "var(--text-muted)" }}>{s.openingBalance != null ? money(s.openingBalance) : "—"} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>
+              <span className={`pill round ${s.crossCheckOk ? "ok" : "danger"}`}>✓ {t("recon.txnsParsed", { n: s.txnCount })}</span>
+              <span style={{ flex: 1 }} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ margin: "0 18px 10px", border: "1px dashed var(--danger-bd, #fecaca)", background: "var(--danger-bg, #fee2e2)", borderRadius: 12, padding: 14, display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Icon name="statements" size={18} style={{ color: "var(--danger-fg, #991b1b)" }} /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: "var(--danger-fg, #991b1b)", fontSize: 14 }}>{t("recon.noStatementTitle")}</div>
+            <div style={{ fontSize: 12.5, color: "var(--text-secondary, #55605d)" }}>{t("recon.noStatementSub")}</div>
+          </div>
+          <button className="primary" disabled={upload.isPending} onClick={() => stmtFileRef.current?.click()}>
+            <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{t("recon.uploadStatement")}
+          </button>
+          <input ref={stmtFileRef} type="file" accept="application/pdf,image/*,text/xml,application/xml,text/plain" style={{ display: "none" }}
+            onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (f.length) upload.mutate(f); }} />
+        </div>
+      )}
+
+      {/* ===== two columns ===== */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14, padding: "0 18px 16px" }}>
+        {/* ----- LEFT: transactions ----- */}
+        <div style={{ flex: 1.12, minWidth: 0, display: "flex", flexDirection: "column", ...card }}>
+          <ColHeader title={t("recon.bankTransactions")} filter={txnFilter} setFilter={setTxnFilter} t={t} />
+          <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+            {shownTxns.length === 0 && <Empty text={txnFilter === "unmapped" ? t("recon.allReconciled") : t("recon.noTxns")} />}
+            {shownTxns.map((tx) => {
+              const sel = tx.id === selectedTxnId;
+              const accent = sel ? "var(--primary)" : tx.fullyAllocated ? "var(--dot-green, #16a34a)" : needsDoc(tx) ? "var(--dot-red, #dc2626)" : "transparent";
+              return (
+                <div key={tx.id} onClick={() => selectTxn(tx.id)}
+                  style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid var(--hair)", padding: "9px 12px", cursor: "pointer", background: sel ? "var(--row-active, #ecf7f5)" : undefined }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
+                    {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
+                    <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
+                  </div>
+                  <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
+                  {/* status */}
+                  {tx.matched ? (
+                    <div style={{ marginTop: 5, display: "grid", gap: 3 }}>
+                      {tx.matchedInvoices.map((mi) => (
+                        <div key={mi.invoiceId} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ok-bg, #dcfce7)", border: "1px solid var(--ok-bd, #bbf7d0)", borderRadius: 7, padding: "3px 8px", fontSize: 11.5 }}>
+                          <span style={{ color: "var(--ok-fg, #166534)" }}>✓</span>
+                          <span style={{ flex: 1, minWidth: 0, color: "var(--ok-fg, #166534)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mi.filename ?? "factura"}</span>
+                          <span className="mono" style={{ color: "var(--text-muted)" }}>{mi.allocatedAmount != null ? money(mi.allocatedAmount) : ""}</span>
+                          <button onClick={(e) => { e.stopPropagation(); unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId }); }} style={linkBtn}>{t("recon.unmap")}</button>
+                        </div>
+                      ))}
+                      {!tx.fullyAllocated && (
+                        <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
+                      )}
+                    </div>
+                  ) : tx.requiresDocument ? (
+                    <div style={{ marginTop: 4, fontSize: 11.5, color: sel ? "var(--warn-fg, #92400e)" : "var(--danger-fg, #991b1b)" }}>
+                      ● {sel ? t("recon.matchingNow") : t("recon.needsDoc")}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>{t("recon.notNeeded")} · {tx.reason}</span>
+                      <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: true }); }} style={linkBtn}>{t("recon.markNeedsDoc")}</button>
+                    </div>
+                  )}
+                  {tx.requiresDocument && !tx.matched && (
+                    <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: false }); }} style={{ ...linkBtn, marginTop: 2 }}>{t("recon.markNoDoc")}</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ----- RIGHT: invoices & receipts ----- */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", ...card }}>
+          <ColHeader title={`${t("recon.invoicesReceipts")} · ${poolTotal}`} filter={invFilter} setFilter={setInvFilter} t={t} />
+          <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--hair)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid var(--border)", borderRadius: 8, padding: "3px 8px" }}>
+              <Icon name="search" size={13} style={{ color: "var(--text-muted)" }} />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("recon.search")}
+                style={{ border: "none", outline: "none", width: "100%", fontSize: 12.5, background: "transparent" }} />
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflow: "auto", minHeight: 0, padding: "0 0 8px" }}>
+            {/* context card */}
+            {!selectedTxn ? (
+              <div style={{ margin: 12, border: "1px dashed var(--border)", borderRadius: 10, padding: "22px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 12.5 }}>{t("recon.selectTxnHint")}</div>
+            ) : selectedTxn.remainingAmount <= TOL && selectedTxn.matched ? (
+              <ContextBox tone="ok">{t("recon.fullyReconciled")}</ContextBox>
+            ) : !selectedTxn.requiresDocument ? (
+              <ContextBox tone="muted">{t("recon.noDocNeeded")}</ContextBox>
+            ) : txnSuggestions.length > 0 ? (
+              <div style={{ margin: 12, border: "1px solid var(--info-bd, #c7d2fe)", background: "var(--info-bg, #e0e7ff)", borderRadius: 10, padding: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--info-fg, #3730a3)", marginBottom: 7 }}>
+                  {t("recon.suggestions")}{selectedTxn.matched ? ` · ${t("recon.remaining").toLowerCase()} ${money(selectedTxn.remainingAmount)}` : ""}
+                </div>
+                {txnSuggestions.map((sg) => (
+                  <div key={sg.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
+                    <span style={{ flex: "none", fontSize: 9.5, fontWeight: 700, borderRadius: 999, padding: "2px 7px", color: "#fff", background: sg.kind === "SUPPLIER" ? "var(--primary, #14b8a6)" : "var(--info-fg, #3730a3)" }}>{t(`recon.kind.${sg.kind}`)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {sg.invoices[0].filename ?? sg.invoices[0].supplierName ?? "factura"}{sg.invoices.length > 1 ? ` ＋${sg.invoices.length - 1}` : ""}
+                      </div>
+                      <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{sg.invoices.map((i) => money(i.amount)).join(" + ")}{sg.invoices.length > 1 ? ` = ${money(sg.total)}` : ""}</div>
+                    </div>
+                    {sg.invoices[0].documentId && <button onClick={() => setPreview({ documentId: sg.invoices[0].documentId!, filename: sg.invoices[0].filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
+                    <button className="primary" disabled={match.isPending || applySuggestion.isPending} onClick={sg.apply}>{t("recon.accept")}</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ContextBox tone="muted">{t("recon.noConfident")}</ContextBox>
+            )}
+
+            {/* pool */}
+            {groups.map((g) => (
+              <div key={g.key}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", color: "var(--text-muted)", background: "var(--hair)" }}>
+                  <span>{g.label}</span><span>{g.items.length}</span>
+                </div>
+                {g.items.map((inv) => {
+                  const mapped = !((inv.remaining ?? 0) > TOL);
+                  const isChecked = checked.has(inv.id);
+                  const suggested = !!selectedTxn && Math.abs((inv.remaining ?? 0) - selectedTxn.remainingAmount) < TOL;
+                  return (
+                    <div key={inv.id} onClick={() => { if (!mapped && selectedTxn) toggleCheck(inv.id); }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid var(--hair)", cursor: mapped || !selectedTxn ? "default" : "pointer", opacity: mapped ? 0.6 : 1,
+                        border: isChecked ? "1px solid var(--primary)" : suggested ? "1px solid var(--info-bd, #c7d2fe)" : undefined,
+                        background: isChecked ? "var(--row-active, #ecf7f5)" : suggested ? "var(--info-bg, #e0e7ff)" : undefined }}>
+                      {mapped ? <span className="pill round ok" style={{ flex: "none" }}>{t("recon.mapped")}</span>
+                        : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none" }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {inv.filename ?? inv.supplierName ?? "factura"}{inv.duplicate && <span className="pill round danger" style={{ marginLeft: 6 }}>DUP</span>}
+                        </div>
+                        <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{[inv.supplierName, inv.invoiceDate].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <div style={{ flex: "none", textAlign: "right" }}>
+                        <div className="mono" style={{ fontSize: 12.5, fontWeight: 600, color: suggested ? "var(--info-fg, #3730a3)" : "var(--text)" }}>{money(inv.remaining ?? inv.totalAmount ?? 0)}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{mapped ? t("recon.mapped") : t("recon.remaining").toLowerCase()}</div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {poolTotal === 0 && <Empty text={t("recon.noInvoicesYet")} />}
+          </div>
+
+          {/* map bar */}
+          {checked.size > 0 && selectedTxn && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderTop: "1px solid var(--border)", background: "var(--row-active, #ecf7f5)" }}>
+              <span style={{ flex: 1, fontSize: 12.5, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {t("recon.mapSelected", { n: checked.size, target: `${selectedTxn.txnDate} · ${selectedTxn.partnerName ?? "—"}` })}
+              </span>
+              <button onClick={() => setChecked(new Set())}>{t("common.cancel")}</button>
+              <button className="primary" disabled={mapChecked.isPending} onClick={() => mapChecked.mutate({ txnId: selectedTxn.id, invoiceIds: [...checked] })}>{t("recon.mapN", { n: checked.size })}</button>
+            </div>
+          )}
+
+          {/* dropzone */}
+          <div onClick={() => fileRef.current?.click()} style={{ margin: 12, border: "1px dashed var(--primary, #14b8a6)", borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", background: "var(--primary-light, #ecf7f5)" }}>
+            <Icon name="upload" size={16} style={{ color: "var(--primary-dark, #0f766e)" }} />
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--primary-dark, #0f766e)", marginTop: 3 }}>{upload.isPending ? "…" : t("recon.dropUpload")}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("recon.uploadHint")}</div>
+            <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" style={{ display: "none" }}
+              onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (f.length) upload.mutate(f); }} />
+          </div>
+        </div>
+      </div>
+
+      {preview && <DocumentPreviewModal companyId={companyId} documentId={preview.documentId} filename={preview.filename} onClose={() => setPreview(null)} />}
+      {requesting && c && (
+        <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />
+      )}
+    </div>
+  );
+}
+
+const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" };
+const iconBtn: React.CSSProperties = { border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary, #55605d)", cursor: "pointer" };
+const eyeBtn: React.CSSProperties = { ...iconBtn, width: 28, height: 28, flex: "none" };
+const linkBtn: React.CSSProperties = { border: "none", background: "none", color: "var(--primary-dark, #0f766e)", cursor: "pointer", font: "inherit", fontSize: 11.5, padding: 0, textDecoration: "underline" };
+
+function ColHeader({ title, filter, setFilter, t }: { title: string; filter: "all" | "unmapped"; setFilter: (f: "all" | "unmapped") => void; t: (k: string) => string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: "var(--th-bg)", borderBottom: "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12.5, fontWeight: 700 }}>{title}</span>
+      <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 999, overflow: "hidden" }}>
+        {(["all", "unmapped"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            style={{ border: "none", padding: "2px 10px", fontSize: 11, cursor: "pointer", background: filter === f ? "var(--primary, #14b8a6)" : "transparent", color: filter === f ? "#fff" : "var(--text-muted)" }}>
+            {t(`recon.filter.${f}`)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContextBox({ tone, children }: { tone: "ok" | "muted"; children: React.ReactNode }) {
+  const s = tone === "ok"
+    ? { border: "1px solid var(--ok-bd, #bbf7d0)", background: "var(--ok-bg, #dcfce7)", color: "var(--ok-fg, #166534)" }
+    : { border: "1px dashed var(--border)", background: "var(--surface)", color: "var(--text-muted)" };
+  return <div style={{ margin: 12, borderRadius: 10, padding: "14px", textAlign: "center", fontSize: 12.5, ...s }}>{children}</div>;
+}
+
+function Empty({ text }: { text: string }) {
+  return <div style={{ padding: "26px 14px", textAlign: "center", color: "var(--text-muted)", fontSize: 12.5 }}>{text}</div>;
+}
+
+function monthLabel(period: string): string {
+  const [y, m] = period.slice(0, 7).split("-");
+  return `${m}.${y}`;
+}
