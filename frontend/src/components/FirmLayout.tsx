@@ -36,9 +36,9 @@ function Topbar() {
       <div className="spacer" />
       {showStepper && (
         <div className="stepper">
-          <button onClick={prev} aria-label="prev"><Icon name="chevronLeft" size={14} /></button>
+          <button onClick={prev} aria-label={t("common.prev")}><Icon name="chevronLeft" size={14} /></button>
           <span className="label">{monthLabel(period, lang)}</span>
-          <button onClick={next} aria-label="next"><Icon name="chevronRight" size={14} /></button>
+          <button onClick={next} aria-label={t("common.next")}><Icon name="chevronRight" size={14} /></button>
         </div>
       )}
       <button className="lang" onClick={() => i18n.changeLanguage(lang === "ro" ? "en" : "ro")}>

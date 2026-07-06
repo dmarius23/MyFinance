@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { setActiveCompanyId } from "../lib/activeCompany";
 
 export type Role = "SUPER_ADMIN" | "TENANT_ADMIN" | "EMPLOYEE" | "REPRESENTATIVE";
 
@@ -22,6 +24,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -44,9 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       companyId: (jwtClaims.company_id ?? claims.company_id ?? null) as string | null,
       signOut: async () => {
         await supabase.auth.signOut();
+        // Shared-device data safety: drop the cached company hint and every cached API response.
+        setActiveCompanyId(null);
+        qc.clear();
       },
     };
-  }, [session, loading]);
+  }, [session, loading, qc]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

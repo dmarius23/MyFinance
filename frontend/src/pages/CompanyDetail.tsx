@@ -201,13 +201,13 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
         style={{ display: "flex", gap: 8, marginTop: 8 }}
         onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}
       >
-        <input placeholder="name" required value={form.name}
+        <input placeholder={t("company.namePlaceholder")} required value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input type="email" placeholder="email" required value={form.email}
+        <input type="email" placeholder={t("company.emailPlaceholder")} required value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input type="tel" placeholder="phone" value={form.phone}
+        <input type="tel" placeholder={t("company.phonePlaceholder")} value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <button className="primary" type="submit" disabled={invite.isPending}>Invite</button>
+        <button className="primary" type="submit" disabled={invite.isPending}>{t("company.invite")}</button>
       </form>
     </div>
   );

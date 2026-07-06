@@ -5,8 +5,7 @@ import java.util.UUID;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
-import ro.myfinance.common.security.Role;
+import ro.myfinance.access.application.AccessService;
 
 /**
  * Firm-staff directory (id + name), readable by any staff member — used to populate assignee pickers
@@ -16,15 +15,15 @@ import ro.myfinance.common.security.Role;
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'EMPLOYEE')")
 public class StaffController {
 
-    private final AppUserRepository users;
+    private final AccessService access;
 
-    public StaffController(AppUserRepository users) {
-        this.users = users;
+    public StaffController(AccessService access) {
+        this.access = access;
     }
 
     @GetMapping("/api/v1/staff")
     public List<StaffMember> list() {
-        return users.findByRoleIn(List.of(Role.TENANT_ADMIN, Role.EMPLOYEE)).stream()
+        return access.listStaff().stream()
                 .map(u -> new StaffMember(u.getId(), u.getName(), u.getRole().name()))
                 .toList();
     }

@@ -2,6 +2,14 @@ spring:
   application:
     name: myfinance-backend
 
+  # Multipart limits sized to the app's 20 MB per-file cap (DocumentService.MAX_SIZE_BYTES), with
+  # headroom for multipart framing. Without this the servlet default (~1 MB) rejects valid uploads
+  # before the application validation runs.
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
+
   # Application datasource — connects as the RLS-subject role. Wrapped by RlsDataSource.
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/myfinance}

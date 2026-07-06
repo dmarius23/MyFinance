@@ -66,7 +66,10 @@ export function RepHome() {
     setSwitcherOpen(false);
     if (companyId === me.data?.companyId) return;
     setActiveCompanyId(companyId);
-    void qc.invalidateQueries(); // refetch everything for the newly-selected company
+    // Refetch identity + this rep's portal data for the new company (scoped, not a blanket clear):
+    // `me` re-resolves the active company, and every portal query is keyed by that company id.
+    void qc.invalidateQueries({ queryKey: ["me"] });
+    void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("portal-") });
   };
   const companyOptions = me.data?.companies ?? [];
   const multiCompany = companyOptions.length > 1;
@@ -172,9 +175,9 @@ export function RepHome() {
 
           {/* month stepper */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 12px" }}>
-            <button onClick={() => setPeriod((p) => shiftMonth(p, -1))} aria-label="prev" style={stepBtn(false)}>‹</button>
+            <button onClick={() => setPeriod((p) => shiftMonth(p, -1))} aria-label={t("common.prev")} style={stepBtn(false)}>‹</button>
             <span style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 14.5, textTransform: "capitalize", color: C.ink }}>{monthLabel(period, i18n.language)}</span>
-            <button onClick={() => !atLatest && setPeriod((p) => shiftMonth(p, 1))} aria-label="next" disabled={atLatest} style={stepBtn(atLatest)}>›</button>
+            <button onClick={() => !atLatest && setPeriod((p) => shiftMonth(p, 1))} aria-label={t("common.next")} disabled={atLatest} style={stepBtn(atLatest)}>›</button>
           </div>
 
           {/* documents-needed banner */}
@@ -409,6 +412,7 @@ function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges
     total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean;
     bank?: boolean; companyName?: string | null; companyCui?: string | null; bankPeriod?: string;
     iconBg: string; iconFg: string; onView: () => void; onDownload: () => void }) {
+  const { t } = useTranslation();
   const supplier = issuer ? `${issuer}${issuerCif ? ` (CUI ${issuerCif})` : ""}` : "—";
   const amountDate = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
   const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
@@ -465,8 +469,8 @@ function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges
         {badges && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</div>}
       </button>
       <div style={{ display: "flex", gap: 6, flex: "none" }}>
-        <button onClick={onView} title="view" style={iconBtn}><EyeIcon /></button>
-        <button onClick={onDownload} title="download" style={iconBtn}><DownloadIcon stroke="#52605d" /></button>
+        <button onClick={onView} title={t("portal.view")} aria-label={t("portal.view")} style={iconBtn}><EyeIcon /></button>
+        <button onClick={onDownload} title={t("portal.download")} aria-label={t("portal.download")} style={iconBtn}><DownloadIcon stroke="#52605d" /></button>
       </div>
     </div>
   );

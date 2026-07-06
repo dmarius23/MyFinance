@@ -266,6 +266,25 @@ public class DocumentService {
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
             throw new IllegalArgumentException("Unsupported file type: " + contentType);
         }
+        if (!contentMatchesMagic(contentType.toLowerCase(), bytes)) {
+            throw new IllegalArgumentException("File content does not match its declared type: " + contentType);
+        }
+    }
+
+    /**
+     * Defence against a spoofed content-type header: the leading magic bytes must match the declared
+     * binary type. Text/XML bank-statement exports (CAMT.053, MT940) have no reliable binary signature,
+     * so they are accepted on the content-type allowlist + size guard alone.
+     */
+    private static boolean contentMatchesMagic(String contentType, byte[] b) {
+        return switch (contentType) {
+            case "application/pdf" -> b.length >= 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+            case "image/png" -> b.length >= 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G';
+            case "image/jpeg" -> b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF;
+            case "image/webp" -> b.length >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                    && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P';
+            default -> true; // text/xml/plain — no signature to check
+        };
     }
 
     private String sanitize(String filename) {

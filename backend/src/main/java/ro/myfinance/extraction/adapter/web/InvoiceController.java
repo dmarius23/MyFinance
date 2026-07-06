@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.InvoicePaymentsResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.InvoiceResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.OpenInvoiceResponse;
@@ -22,18 +21,16 @@ import ro.myfinance.extraction.application.ReconciliationService;
 @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'EMPLOYEE')")
 public class InvoiceController {
 
-    private final InvoiceRepository invoices;
     private final ReconciliationService reconciliation;
 
-    public InvoiceController(InvoiceRepository invoices, ReconciliationService reconciliation) {
-        this.invoices = invoices;
+    public InvoiceController(ReconciliationService reconciliation) {
         this.reconciliation = reconciliation;
     }
 
     @GetMapping
     public List<InvoiceResponse> list(@PathVariable UUID companyId,
                                       @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
-        return invoices.findByCompanyIdAndPeriodMonth(companyId, period).stream()
+        return reconciliation.invoicesForPeriod(companyId, period).stream()
                 .map(InvoiceResponse::from).toList();
     }
 

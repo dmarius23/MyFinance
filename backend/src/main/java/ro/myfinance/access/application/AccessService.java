@@ -37,6 +37,12 @@ public class AccessService {
         return users.findAll();
     }
 
+    /** Firm-staff directory (admins + accountants) for assignee pickers — readable by any staff member. */
+    @Transactional(readOnly = true)
+    public List<AppUser> listStaff() {
+        return users.findByRoleIn(List.of(Role.TENANT_ADMIN, Role.EMPLOYEE));
+    }
+
     /**
      * Invite a firm-staff user (admin or accountant). Creates the Supabase auth user with tenant + role
      * claims and triggers the invite email; the returned id becomes the {@code app_user} primary key, so

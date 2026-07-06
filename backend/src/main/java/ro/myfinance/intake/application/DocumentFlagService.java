@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
@@ -26,6 +28,8 @@ import ro.myfinance.intake.domain.DocumentType;
 @Service
 @Transactional(readOnly = true)
 public class DocumentFlagService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentFlagService.class);
 
     /** Explicit period line, e.g. "01.03.2026 -- 31.03.2026" (balanță, situație). */
     private static final Pattern PERIOD_RANGE = Pattern.compile(
@@ -77,6 +81,8 @@ public class DocumentFlagService {
             String t = new PDFTextStripper().getText(pdf);
             return t == null || t.isBlank() ? null : t;
         } catch (Exception e) {
+            // Best-effort: an unreadable/scanned PDF just yields no flags. Log so it's diagnosable.
+            log.warn("Could not extract text for flags on document {} ({})", d.getId(), d.getOriginalFilename(), e);
             return null;
         }
     }

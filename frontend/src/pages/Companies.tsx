@@ -19,14 +19,14 @@ export function Companies() {
   return (
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ marginTop: 0 }}>Companies</h1>
-        <button className="primary" onClick={() => setShowAdd(true)}>Add company</button>
+        <h1 style={{ marginTop: 0 }}>{t("nav.companies")}</h1>
+        <button className="primary" onClick={() => setShowAdd(true)}>{t("companies.add")}</button>
       </div>
 
-      {isLoading && <p>Loading…</p>}
+      {isLoading && <p>{t("common.loading")}</p>}
       {error && (
         <p style={{ color: "#dc2626" }}>
-          {error instanceof ApiError ? error.message : "Failed to load companies"}
+          {error instanceof ApiError ? error.message : t("companies.loadError")}
         </p>
       )}
 
@@ -34,14 +34,14 @@ export function Companies() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
-              <th style={{ padding: 8 }}>Legal name</th>
-              <th style={{ padding: 8 }}>CUI</th>
-              <th style={{ padding: 8 }}>Type</th>
-              <th style={{ padding: 8 }}>Locality</th>
+              <th style={{ padding: 8 }}>{t("company.legalName")}</th>
+              <th style={{ padding: 8 }}>{t("company.cui")}</th>
+              <th style={{ padding: 8 }}>{t("company.entityType")}</th>
+              <th style={{ padding: 8 }}>{t("company.locality")}</th>
               <th style={{ padding: 8 }}>{t("company.vat")}</th>
               <th style={{ padding: 8 }}>{t("company.taxRegime")}</th>
               <th style={{ padding: 8 }}>{t("company.hasEmployees")}</th>
-              <th style={{ padding: 8 }}>Status</th>
+              <th style={{ padding: 8 }}>{t("company.status")}</th>
             </tr>
           </thead>
           <tbody>

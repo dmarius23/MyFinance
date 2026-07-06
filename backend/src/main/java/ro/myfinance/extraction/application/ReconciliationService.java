@@ -471,6 +471,16 @@ public class ReconciliationService {
     }
 
     @Transactional(readOnly = true)
+    /** Parsed bank statements for a company/period (read view for the statements list). */
+    public List<BankStatement> statementsForPeriod(UUID companyId, java.time.LocalDate periodMonth) {
+        return statements.findByCompanyIdAndPeriodMonth(companyId, periodMonth.withDayOfMonth(1));
+    }
+
+    /** Invoices/receipts filed under a company/period (manual-link candidate list). */
+    public List<Invoice> invoicesForPeriod(UUID companyId, java.time.LocalDate periodMonth) {
+        return invoices.findByCompanyIdAndPeriodMonth(companyId, periodMonth.withDayOfMonth(1));
+    }
+
     public List<TxnWithMatches> transactionsWithMatches(UUID companyId, java.time.LocalDate periodMonth) {
         java.time.LocalDate period = periodMonth.withDayOfMonth(1);
         List<UUID> stmtIds = statements.findByCompanyIdAndPeriodMonth(companyId, period)
