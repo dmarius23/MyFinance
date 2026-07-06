@@ -1,6 +1,6 @@
 # MyFinance — Frontend & PWA Technical Design (v1)
 
-Companion to the architecture and `MyFinance-backend-design-v1.md`. Build spec for the **web frontend + PWA**. The clickable prototype `MyFinance-prototype.html` is the visual/interaction reference — screens, flows, and behaviors below map to it.
+Companion to [the architecture](../../docs/MyFinance-architecture-v1.md) and [`MyFinance-backend-design-v1.md`](../../backend/docs/MyFinance-backend-design-v1.md). Build spec for the **web frontend + PWA**. The clickable prototype [`MyFinance-prototype.html`](../../docs/MyFinance-prototype.html) is the visual/interaction reference — screens, flows, and behaviors below map to it.
 
 ## 1. Stack & ground rules
 

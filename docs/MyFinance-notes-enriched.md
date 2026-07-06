@@ -27,7 +27,7 @@ Core capabilities described:
   GDPR deletion on request; performance/concurrency to be quantified.
 - Current situation: firm uses an existing app covering much of this. Missing: client document upload
   + missing-doc notification, and automatic determination of amounts owed to the state (today typed
-  into a form — see AirTable-IInserareSumeCareTrebuiePlatiteCatreStat.png).
+  into a form — see [`../archive/AirTable-IInserareSumeCareTrebuiePlatiteCatreStat.png`](../archive/AirTable-IInserareSumeCareTrebuiePlatiteCatreStat.png)).
 
 Supporting screenshots (Airtable): Impozite (per-company monthly taxes with Trimis/Netrimis +
 Verificat/Neverificat statuses), Situații financiare (monthly, email sent status), Task-uri

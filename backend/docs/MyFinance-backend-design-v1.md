@@ -1,6 +1,6 @@
 # MyFinance — Backend Technical Design (v1)
 
-Companion to `MyFinance-architecture-v1.md` and the requirements doc. This is the build spec Claude Code implements against for the **backend**. Frontend/PWA is in `MyFinance-frontend-design-v1.md`.
+Companion to [`MyFinance-architecture-v1.md`](../../docs/MyFinance-architecture-v1.md) and the requirements doc. This is the build spec Claude Code implements against for the **backend**. Frontend/PWA is in [`MyFinance-frontend-design-v1.md`](../../frontend/docs/MyFinance-frontend-design-v1.md).
 
 ## 1. Stack & ground rules
 
