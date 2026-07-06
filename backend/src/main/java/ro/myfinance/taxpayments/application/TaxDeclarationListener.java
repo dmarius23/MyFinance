@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
+import ro.myfinance.intake.application.DocumentDeletedEvent;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
@@ -36,23 +37,33 @@ public class TaxDeclarationListener {
     }
 
     @EventListener
+    public void onDocumentDeleted(DocumentDeletedEvent e) {
+        declarations.deleteByDocumentId(e.documentId());
+    }
+
+    @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
+            // Always purge stale declaration row first — covers type changes, re-uploads, period moves.
+            declarations.deleteByDocumentId(e.documentId());
             if (e.type() != DocumentType.DECLARATION) {
-                declarations.deleteByDocumentId(e.documentId()); // no-op unless it was a declaration before
                 return;
             }
             ParsedDeclaration pd = extractor.extract(e.bytes());
             String ownCui = companies.findById(e.companyId()).map(Company::getCui).orElse(null);
             boolean wrongParty = differentCui(pd.cui(), ownCui);
             LocalDate declPeriod = pd.period() == null ? null : pd.period().atDay(1);
+            LocalDate storedMonth = e.periodMonth().withDayOfMonth(1);
+            // A declaration whose own period (from the ANAF XML) belongs to a different month is stored
+            // flagged outside-period ({@link TaxDeclaration#isOutsidePeriod()} is derived from declPeriod
+            // vs the slot). It shows in the manager with a "Move to correct period" action and is excluded
+            // from this month's payment totals — but is kept so the accountant can see and fix it.
             // Duplicate when another (canonical) declaration of the same type already covers this period.
             boolean duplicate = declPeriod != null
                     && declarations.existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
                             e.companyId(), pd.type(), declPeriod, e.documentId());
-            TaxDeclaration row = declarations.findByDocumentId(e.documentId())
-                    .orElseGet(() -> new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
-                            e.companyId(), e.periodMonth().withDayOfMonth(1), e.documentId()));
+            TaxDeclaration row = new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
+                    e.companyId(), storedMonth, e.documentId());
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
                     declPeriod, wrongParty, duplicate);
             declarations.save(row);

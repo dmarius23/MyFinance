@@ -39,6 +39,11 @@ export const documentsApi = {
     }),
   flags: (companyId: string, period: string, type: string) =>
     api<DocumentFlags[]>(`/api/v1/companies/${companyId}/documents/flags?period=${period}&type=${type}`),
+  movePeriod: (companyId: string, id: string, period: string) =>
+    api<Document>(`/api/v1/companies/${companyId}/documents/${id}/period`, {
+      method: "PATCH",
+      body: JSON.stringify({ period }),
+    }),
 };
 
 /** Advisory per-document flags for the upload-manager modal. */
@@ -46,6 +51,8 @@ export interface DocumentFlags {
   documentId: string;
   wrongParty: boolean | null;
   outsidePeriod: boolean | null;
+  /** The period the document actually belongs to (null if it could not be detected). */
+  detectedPeriod: string | null;
 }
 
 /** Document types a user can manually assign. */

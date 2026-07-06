@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import ro.myfinance.intake.application.DocumentDeletedEvent;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
@@ -27,10 +28,17 @@ public class ReportListener {
     }
 
     @EventListener
+    public void onDocumentDeleted(DocumentDeletedEvent e) {
+        snapshots.deleteByDocumentId(e.documentId());
+    }
+
+    @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
+            // Always purge the stale snapshot for this document first — covers type changes, re-uploads,
+            // and period moves. The ingest step creates a fresh one when the period matches.
+            snapshots.deleteByDocumentId(e.documentId());
             if (e.type() != DocumentType.TRIAL_BALANCE) {
-                snapshots.deleteByDocumentId(e.documentId()); // no-op unless it was a trial balance before
                 return;
             }
             reports.ingest(e.companyId(), e.periodMonth(), e.documentId(), e.bytes());

@@ -71,23 +71,27 @@ export function RepHome() {
   const companyOptions = me.data?.companies ?? [];
   const multiCompany = companyOptions.length > 1;
 
-  const notifs = useQuery({ queryKey: ["portal-notifs"], queryFn: portalApi.notifications, refetchInterval: 30000, refetchOnWindowFocus: true });
+  // The active company id is included in every query key so that switching companies never
+  // serves a cached response that belongs to a different company.
+  const cid = me.data?.companyId ?? null;
+
+  const notifs = useQuery({ queryKey: ["portal-notifs", cid], queryFn: portalApi.notifications, refetchInterval: 30000, refetchOnWindowFocus: true });
   const unread = (notifs.data ?? []).filter((n) => !n.readAt).length;
   const markRead = useMutation({
     mutationFn: (id: string) => portalApi.markNotificationRead(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["portal-notifs"] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["portal-notifs", cid] }),
   });
-  const missing = useQuery({ queryKey: ["portal-missing", period], queryFn: () => portalApi.missing(period) });
-  const docs = useQuery({ queryKey: ["portal-company-docs", period], queryFn: () => portalApi.companyDocuments(period) });
-  const report = useQuery({ queryKey: ["portal-report", period], queryFn: () => portalApi.report(period) });
-  const balanceSheet = useQuery({ queryKey: ["portal-balance", period], queryFn: () => portalApi.balanceSheet(period) });
-  const payroll = useQuery({ queryKey: ["portal-payroll", period], queryFn: () => portalApi.payroll(period) });
-  const payments = useQuery({ queryKey: ["portal-payments", period], queryFn: () => portalApi.payments(period) });
-  const trend = useQuery({ queryKey: ["portal-trend", period], queryFn: () => portalApi.trend(period) });
+  const missing = useQuery({ queryKey: ["portal-missing", cid, period], queryFn: () => portalApi.missing(period) });
+  const docs = useQuery({ queryKey: ["portal-company-docs", cid, period], queryFn: () => portalApi.companyDocuments(period) });
+  const report = useQuery({ queryKey: ["portal-report", cid, period], queryFn: () => portalApi.report(period) });
+  const balanceSheet = useQuery({ queryKey: ["portal-balance", cid, period], queryFn: () => portalApi.balanceSheet(period) });
+  const payroll = useQuery({ queryKey: ["portal-payroll", cid, period], queryFn: () => portalApi.payroll(period) });
+  const payments = useQuery({ queryKey: ["portal-payments", cid, period], queryFn: () => portalApi.payments(period) });
+  const trend = useQuery({ queryKey: ["portal-trend", cid, period], queryFn: () => portalApi.trend(period) });
 
   const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ["portal-company-docs", period] });
-    void qc.invalidateQueries({ queryKey: ["portal-missing", period] });
+    void qc.invalidateQueries({ queryKey: ["portal-company-docs", cid, period] });
+    void qc.invalidateQueries({ queryKey: ["portal-missing", cid, period] });
   };
   const docTypeLabel = (type: string) =>
     type === "BANK_STATEMENT" ? t("portal.docType.bank")
@@ -210,7 +214,9 @@ export function RepHome() {
               <span style={{ fontSize: 13.5, fontWeight: 600, color: hasBank ? C.green : C.danger }}>{hasBank ? t("portal.bankUploaded") : t("portal.bankMissing")}</span>
             </div>
             {bank.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")} iconBg="#e0e7ff" iconFg="#3730a3"
+              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")}
+                bank companyName={me.data?.name} companyCui={me.data?.cui} bankPeriod={period}
+                iconBg="#e0e7ff" iconFg="#3730a3"
                 onView={onView(d)} onDownload={onDownload(d)} />
             ))}
             {others.length === 0 && !hasBank && <div style={{ color: C.mut, fontSize: 13 }}>—</div>}
@@ -398,18 +404,46 @@ export function RepHome() {
 const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
 const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
-function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, iconBg, iconFg, onView, onDownload }:
+function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, bank, companyName, companyCui, bankPeriod, iconBg, iconFg, onView, onDownload }:
   { filename: string; label: string; issuer?: string | null; issuerCif?: string | null;
-    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean; iconBg: string; iconFg: string;
-    onView: () => void; onDownload: () => void }) {
+    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean;
+    bank?: boolean; companyName?: string | null; companyCui?: string | null; bankPeriod?: string;
+    iconBg: string; iconFg: string; onView: () => void; onDownload: () => void }) {
   const supplier = issuer ? `${issuer}${issuerCif ? ` (CUI ${issuerCif})` : ""}` : "—";
   const amountDate = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
   const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+  const periodLabel = (() => {
+    if (!bankPeriod) return bankPeriod ?? "";
+    const [ys, ms] = bankPeriod.slice(0, 7).split("-");
+    const y = Number(ys), m = Number(ms);
+    if (!y || !m) return bankPeriod;
+    const p = (n: number) => String(n).padStart(2, "0");
+    const last = new Date(y, m, 0).getDate();
+    return `${p(1)}.${p(m)}.${y} – ${p(last)}.${p(m)}.${y}`;
+  })();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, padding: "9px 0", borderTop: `1px solid ${C.hair}` }}>
       <div style={{ width: 32, height: 32, borderRadius: 9, background: iconBg, color: iconFg, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><FileGlyph /></div>
       <button onClick={onView} style={{ flex: 1, minWidth: 0, maxWidth: "100%", overflow: "hidden", display: "block", textAlign: "left", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0 }}>
-        {invoice ? (
+        {bank ? (
+          <>
+            {/* 1) company name (left) + period (right) */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink, ...clip }}>{companyName ?? "—"}</div>
+                {companyCui && <div style={{ fontSize: 11, color: C.mut, ...clip }}>CUI {companyCui}</div>}
+              </div>
+              {periodLabel && (
+                <div style={{ flex: "none", fontSize: 11, fontWeight: 700, color: C.ink, whiteSpace: "nowrap" }}>📅 {periodLabel}</div>
+              )}
+            </div>
+            {/* 2) type label · filename */}
+            <div style={{ fontSize: 11, color: C.mut, marginTop: 2, ...clip }}>
+              <span style={{ fontWeight: 600 }}>{label}</span>
+              {filename && <span> · {filename}</span>}
+            </div>
+          </>
+        ) : invoice ? (
           <>
             {/* 1) type (regular) + supplier (CUI) bold */}
             <div style={{ fontSize: 12.5, color: C.ink, ...clip }}>
@@ -427,7 +461,7 @@ function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges
             <div style={{ fontSize: 11, color: C.mut, marginTop: 1, ...clip }}>{label}{issuer ? ` · ${issuer}` : ""}</div>
           </>
         )}
-        {/* 4) labels */}
+        {/* labels / badges */}
         {badges && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>{badges}</div>}
       </button>
       <div style={{ display: "flex", gap: 6, flex: "none" }}>

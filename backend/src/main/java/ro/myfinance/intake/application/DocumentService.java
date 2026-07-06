@@ -84,12 +84,14 @@ public class DocumentService {
         UUID tenantId = currentTenant();
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
-        if (forcedType == DocumentType.PAYROLL || forcedType == DocumentType.TRIAL_BALANCE) {
-            verifyBelongsToCompany(company.getLegalName(), company.getCui(), contentType, bytes);
-        }
-
         LocalDate period = periodMonth.withDayOfMonth(1);
         DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
+        // Company-ownership check: for PAYROLL and TRIAL_BALANCE the PDF must belong to this company.
+        // Run after classification so the check fires regardless of whether the type was forced or
+        // auto-detected by the classifier.
+        if (type == DocumentType.PAYROLL || type == DocumentType.TRIAL_BALANCE) {
+            verifyBelongsToCompany(company.getLegalName(), company.getCui(), contentType, bytes);
+        }
         String safeName = sanitize(filename);
         UUID id = UUID.randomUUID();
         String key = "%s/%s/%s/%s-%s".formatted(tenantId, companyId, period.format(MONTH), id, safeName);
@@ -158,6 +160,27 @@ public class DocumentService {
         storage.delete(doc.getStorageKey());
         documents.delete(doc);
         audit.record("DOCUMENT_DELETED", "document", id);
+        events.publishEvent(new DocumentDeletedEvent(id, doc.getCompanyId(), doc.getType()));
+    }
+
+    /**
+     * Move a document to a different period slot (e.g. a trial balance uploaded to the wrong month).
+     * Updates {@code periodMonth} in the database and re-publishes the event so the report /
+     * declaration index is rebuilt for the correct period. The old period's snapshot/declaration is
+     * cleaned up by the listeners (they always purge by documentId before re-ingesting).
+     */
+    public Document movePeriod(UUID companyId, UUID id, LocalDate newPeriod) {
+        Document doc = require(id);
+        if (!doc.getCompanyId().equals(companyId)) {
+            throw new NotFoundException("Document not found: " + id);
+        }
+        LocalDate target = newPeriod.withDayOfMonth(1);
+        doc.setPeriodMonth(target);
+        audit.record("DOCUMENT_PERIOD_MOVED", "document", id);
+        byte[] bytes = storage.retrieve(doc.getStorageKey());
+        events.publishEvent(new DocumentUploadedEvent(id, companyId, target, doc.getType(),
+                doc.getOriginalFilename(), bytes));
+        return doc;
     }
 
     /** Manually set a document's type and re-run extraction/matching for it (purge-then-reprocess). */

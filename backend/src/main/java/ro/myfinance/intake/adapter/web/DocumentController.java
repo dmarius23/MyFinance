@@ -96,6 +96,13 @@ public class DocumentController {
         return DocumentResponse.from(service.changeType(companyId, id, r.type()));
     }
 
+    /** Move a document to the correct period (e.g. a trial balance or declaration uploaded to the wrong month). */
+    @PatchMapping("/{id}/period")
+    public DocumentResponse movePeriod(@PathVariable UUID companyId, @PathVariable UUID id,
+                                       @RequestBody DocumentDtos.ChangePeriodRequest r) {
+        return DocumentResponse.from(service.movePeriod(companyId, id, r.period()));
+    }
+
     @PostMapping("/reclassify")
     public int reclassify(@PathVariable UUID companyId,
                           @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {

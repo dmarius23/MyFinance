@@ -45,7 +45,7 @@ public class DocumentFlagService {
         this.companies = companies;
     }
 
-    public record Flags(UUID documentId, Boolean wrongParty, Boolean outsidePeriod) {
+    public record Flags(UUID documentId, Boolean wrongParty, Boolean outsidePeriod, LocalDate detectedPeriod) {
     }
 
     public List<Flags> flagsFor(UUID companyId, LocalDate periodMonth, DocumentType type) {
@@ -64,7 +64,7 @@ public class DocumentFlagService {
             Boolean wrongParty = present == null ? null : !present;
             LocalDate docMonth = detectPeriod(text, d.getOriginalFilename());
             Boolean outsidePeriod = docMonth == null ? null : !docMonth.equals(month);
-            out.add(new Flags(d.getId(), wrongParty, outsidePeriod));
+            out.add(new Flags(d.getId(), wrongParty, outsidePeriod, docMonth));
         }
         return out;
     }

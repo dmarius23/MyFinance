@@ -45,6 +45,12 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
     onSuccess: () => { setSelId(null); invalidate(); },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Delete failed"),
   });
+  const movePeriod = useMutation({
+    mutationFn: ({ documentId, targetPeriod }: { documentId: string; targetPeriod: string }) =>
+      documentsApi.movePeriod(companyId, documentId, targetPeriod),
+    onSuccess: () => { setSelId(null); invalidate(); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : t("doc.movePeriod.error")),
+  });
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = "";
@@ -97,7 +103,21 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
                     ? <span className="pill ok">✓ {t("taxes.sentTimes", { n: d.sentCount })} · {dmy(d.lastSentAt)}</span>
                     : <span className="pill muted">{t("taxes.notSent")}</span>}
                   {d.mismatch && <span className="pill warn" title={t("taxes.mismatchTip", { declared: d.declaredTotal })}>MISMATCH</span>}
-                  {d.outsidePeriod && <span className="pill info" title={t("taxes.outsidePeriod")}>OUT OF PERIOD</span>}
+                  {d.outsidePeriod && (
+                    <>
+                      <span className="pill info" title={t("taxes.outsidePeriod")}>{t("docs.outsidePeriod")}</span>
+                      {d.declPeriod && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); movePeriod.mutate({ documentId: d.documentId, targetPeriod: d.declPeriod! }); }}
+                          disabled={movePeriod.isPending}
+                          title={t("doc.movePeriod.tip", { period: d.declPeriod?.slice(0, 7) })}
+                          style={{ fontSize: 10.5, padding: "2px 9px", borderRadius: 999, cursor: "pointer",
+                            border: "1px solid #d97706", background: "#fffbeb", color: "#92400e", fontWeight: 600 }}>
+                          {t("doc.movePeriod.btn", { period: d.declPeriod?.slice(0, 7) })}
+                        </button>
+                      )}
+                    </>
+                  )}
                   {d.wrongParty && <span className="pill danger" title={t("taxes.wrongPartyTip")}>{t("taxes.wrongParty")}</span>}
                   {d.duplicate && <span className="pill muted" title={t("taxes.duplicateTip")}>{t("taxes.duplicate")}</span>}
                 </div>

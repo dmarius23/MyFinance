@@ -6,6 +6,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import ro.myfinance.extraction.adapter.persistence.BankStatementRepository;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
+import ro.myfinance.intake.application.DocumentDeletedEvent;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 
@@ -34,6 +35,13 @@ public class StatementExtractionListener {
         this.invoices = invoices;
         this.statementRepo = statementRepo;
         this.invoiceRepo = invoiceRepo;
+    }
+
+    @EventListener
+    public void onDocumentDeleted(DocumentDeletedEvent e) {
+        // Clean up all extraction artifacts for the deleted document.
+        invoiceRepo.deleteByDocumentId(e.documentId());
+        statementRepo.deleteByDocumentId(e.documentId());
     }
 
     @EventListener

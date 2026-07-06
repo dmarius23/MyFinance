@@ -89,6 +89,9 @@ public class TaxPaymentService {
                 if (d.isDuplicate()) {
                     continue; // the list shows the canonical declaration per type
                 }
+                if (d.isOutsidePeriod()) {
+                    continue; // declaration belongs to a different month — omit from this period's view
+                }
                 cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
                         d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
             }
@@ -109,6 +112,9 @@ public class TaxPaymentService {
 
         List<DeclarationSummary> declViews = new ArrayList<>();
         for (TaxDeclaration d : decls) {
+            if (d.isOutsidePeriod()) {
+                continue; // exclude from the per-company payment summary — it belongs to a different month
+            }
             int count = 0;
             Instant last = null;
             for (TaxEmail e : sent) {
@@ -155,6 +161,9 @@ public class TaxPaymentService {
             }
             if (d.isWrongParty()) {
                 continue; // a declaration filed for a different CUI is not this company's liability
+            }
+            if (d.isOutsidePeriod()) {
+                continue; // declaration belongs to a different month — do not include in this period's payment
             }
             try {
                 parsed.add(extractor.extract(documents.getContent(d.getDocumentId()).bytes()));

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
+import ro.myfinance.intake.adapter.persistence.DocumentRepository;
+import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.reports.adapter.persistence.ReportEmailRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.domain.ReportData;
@@ -36,15 +38,20 @@ public class ReportService {
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
     private final ro.myfinance.company.adapter.persistence.CompanyRepository companies;
+    private final DocumentRepository documents;
+    private final DocumentStorage storage;
 
     public ReportService(ReportSnapshotRepository snapshots, ReportEmailRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
-                         ro.myfinance.company.adapter.persistence.CompanyRepository companies) {
+                         ro.myfinance.company.adapter.persistence.CompanyRepository companies,
+                         DocumentRepository documents, DocumentStorage storage) {
         this.snapshots = snapshots;
         this.emails = emails;
         this.extractor = extractor;
         this.json = json;
         this.companies = companies;
+        this.documents = documents;
+        this.storage = storage;
     }
 
     /** Per-company report status for the monthly list. */
@@ -60,21 +67,41 @@ public class ReportService {
     /** Extract + compute + store the report for an uploaded trial balance (re-upload bumps version). */
     public void ingest(UUID companyId, LocalDate periodMonth, UUID documentId, byte[] bytes) {
         TrialBalanceData tb = extractor.extract(bytes);
-        // Defence in depth: a trial balance whose embedded CUI clearly belongs to a different company must
-        // never produce a report/charts (the rep would otherwise see another company's figures). Upload
-        // already rejects wrong-party trial balances; this guards the residual unverifiable-at-upload case.
-        if (differentCui(tb.cui(), companies.findById(companyId).map(c -> c.getCui()).orElse(null))) {
-            log.warn("Skipping report ingest for doc {} (company {}): trial-balance CUI {} != company CUI",
-                    documentId, companyId, tb.cui());
+        String companyCui = companies.findById(companyId).map(c -> c.getCui()).orElse(null);
+
+        // Guard 1 — wrong company: the CUI embedded in the trial balance must match the company it is
+        // filed under. Both CUIs must be present and their digits must match. If either cannot be
+        // extracted (scanned PDF, no text) we skip this check conservatively — the upload-time
+        // verifyBelongsToCompany already rejects the hard cases.
+        if (differentCui(tb.cui(), companyCui)) {
+            log.warn("Skipping report ingest for doc {} (company {}): trial-balance CUI '{}' != company CUI '{}'",
+                    documentId, companyId, tb.cui(), companyCui);
             return;
         }
+
+        // Guard 2 — wrong period: the date range printed in the trial-balance header must fall in the
+        // same month as the accounting slot it was uploaded into. If the PDF has no parseable date range
+        // (tb.periodStart() == null) we refuse to ingest rather than silently accepting a document whose
+        // period is unknown — a trial balance without a readable period cannot be verified.
+        LocalDate storedMonth = periodMonth.withDayOfMonth(1);
+        if (tb.periodStart() == null) {
+            log.warn("Skipping report ingest for doc {} (company {}): trial-balance period not parseable",
+                    documentId, companyId);
+            return;
+        }
+        LocalDate tbMonth = tb.periodStart().withDayOfMonth(1);
+        if (!tbMonth.equals(storedMonth)) {
+            log.warn("Skipping report ingest for doc {} (company {}): TB period {} != stored period {}",
+                    documentId, companyId, tbMonth, storedMonth);
+            return;
+        }
+
         ReportData data = ReportCalculator.compute(tb);
         String body = write(data);
-        LocalDate month = periodMonth.withDayOfMonth(1);
-        snapshots.findByCompanyIdAndPeriodMonth(companyId, month).ifPresentOrElse(
-                s -> s.replace(documentId, data.balanced(), body),
+        snapshots.findByCompanyIdAndPeriodMonth(companyId, storedMonth).ifPresentOrElse(
+                s -> s.replace(documentId, data.balanced(), body, tbMonth),
                 () -> snapshots.save(new ReportSnapshot(TenantContext.tenantId().orElseThrow(),
-                        companyId, month, documentId, data.balanced(), body)));
+                        companyId, storedMonth, documentId, data.balanced(), body, tbMonth)));
     }
 
     /** Wrong party only when both CUIs are known and their bare digits differ. */
@@ -85,11 +112,45 @@ public class ReportService {
     }
 
     /** The computed report for a company/period. */
-    @Transactional(readOnly = true)
+    @Transactional
     public ReportData report(UUID companyId, LocalDate periodMonth) {
-        ReportSnapshot s = snapshots.findByCompanyIdAndPeriodMonth(companyId, periodMonth.withDayOfMonth(1))
+        LocalDate month = periodMonth.withDayOfMonth(1);
+        ReportSnapshot s = snapshots.findByCompanyIdAndPeriodMonth(companyId, month)
                 .orElseThrow(() -> new NotFoundException("No report for company " + companyId));
+
+        // Determine the period the trial-balance PDF actually covers. Snapshots created after V29
+        // have this stored directly. Legacy snapshots (content_period IS NULL) are detected lazily
+        // by re-parsing the source document once — the result is cached so it never happens again.
+        LocalDate contentPeriod = s.getContentPeriod();
+        if (contentPeriod == null && s.getDocumentId() != null) {
+            contentPeriod = detectAndCacheContentPeriod(s);
+        }
+
+        // If the PDF content belongs to a different month than the slot it was uploaded into,
+        // this snapshot is invalid for this period — return 404 instead of wrong-month data.
+        if (contentPeriod != null && !contentPeriod.equals(month)) {
+            throw new NotFoundException("No report for company " + companyId);
+        }
         return read(s.getReportJson());
+    }
+
+    /**
+     * Re-parse the source document to detect its own period and cache it on the snapshot.
+     * Called at most once per legacy row (before the content_period column existed).
+     * Returns null if the document is gone or the PDF has no parseable date range.
+     */
+    private LocalDate detectAndCacheContentPeriod(ReportSnapshot s) {
+        return documents.findById(s.getDocumentId()).map(doc -> {
+            try {
+                TrialBalanceData tb = extractor.extract(storage.retrieve(doc.getStorageKey()));
+                LocalDate cp = tb.periodStart() != null ? tb.periodStart().withDayOfMonth(1) : null;
+                s.setContentPeriod(cp); // cached — never re-parsed again
+                return cp;
+            } catch (Exception e) {
+                log.warn("Could not detect content period for snapshot {} (doc {})", s.getId(), s.getDocumentId(), e);
+                return null;
+            }
+        }).orElse(null);
     }
 
     /** Per-company rows for the period (report uploaded? + email last-sent). */
@@ -98,6 +159,12 @@ public class ReportService {
         LocalDate month = periodMonth.withDayOfMonth(1);
         Map<UUID, ReportSnapshot> byCompany = new LinkedHashMap<>();
         for (ReportSnapshot s : snapshots.findByPeriodMonth(month)) {
+            // Exclude snapshots whose content_period is known and belongs to a different month —
+            // the accountant should not see a ✓ for a report that isn't actually for this period.
+            LocalDate cp = s.getContentPeriod();
+            if (cp != null && !cp.equals(month)) {
+                continue;
+            }
             byCompany.put(s.getCompanyId(), s);
         }
         Map<UUID, List<ro.myfinance.reports.domain.ReportEmail>> emailsByCompany = new LinkedHashMap<>();

@@ -84,6 +84,8 @@ export interface DeclarationFile {
   cui: string | null;
   wrongParty: boolean;
   outsidePeriod: boolean;
+  /** The period detected from the declaration XML (null if not parseable). ISO date, first of month. */
+  declPeriod: string | null;
   duplicate: boolean;
   sentCount: number;
   lastSentAt: string | null;

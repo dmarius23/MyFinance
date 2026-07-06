@@ -14,6 +14,9 @@ public final class DocumentDtos {
     public record ChangeTypeRequest(DocumentType type) {
     }
 
+    public record ChangePeriodRequest(LocalDate period) {
+    }
+
     public record DocumentResponse(UUID id, String type, String status, String originalFilename,
                                    String contentType, long sizeBytes, LocalDate periodMonth,
                                    UUID uploadedBy, Instant uploadedAt) {

@@ -82,6 +82,12 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
     onSuccess: () => { setSelectedId(null); refresh(); },
   });
+  const movePeriod = useMutation({
+    mutationFn: ({ id, targetPeriod }: { id: string; targetPeriod: string }) =>
+      documentsApi.movePeriod(companyId, id, targetPeriod),
+    onSuccess: () => { refresh(); onChanged?.(); },
+    onError: (e) => setNote(e instanceof ApiError ? e.message : t("doc.movePeriod.error")),
+  });
 
   // When this document type is sourced from a cloud folder, manual upload/delete is replaced by a
   // per-company, per-month "Sync" button.
@@ -156,9 +162,23 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
                     <Icon name="doc" size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: active ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.originalFilename}</div>
-                      <div style={{ display: "flex", gap: 4, marginTop: 2, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 4, marginTop: 2, flexWrap: "wrap", alignItems: "center" }}>
                         {f?.wrongParty === true && <span className="pill round danger" title={t("doc.warn.wrongParty")}>{t("doc.wrongPartyChip")}</span>}
-                        {f?.outsidePeriod === true && <span className="pill round warn" title={t("docs.outsidePeriodTip")}>{t("docs.outsidePeriod")}</span>}
+                        {f?.outsidePeriod === true && (
+                          <>
+                            <span className="pill round warn" title={t("docs.outsidePeriodTip")}>{t("docs.outsidePeriod")}</span>
+                            {f.detectedPeriod && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); movePeriod.mutate({ id: d.id, targetPeriod: f.detectedPeriod! }); }}
+                                disabled={movePeriod.isPending}
+                                title={t("doc.movePeriod.tip", { period: f.detectedPeriod?.slice(0, 7) })}
+                                style={{ fontSize: 10.5, padding: "1px 8px", borderRadius: 999, cursor: "pointer",
+                                  border: "1px solid #d97706", background: "#fffbeb", color: "#92400e", fontWeight: 600 }}>
+                                {t("doc.movePeriod.btn", { period: f.detectedPeriod?.slice(0, 7) })}
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                     {!driveMode && (

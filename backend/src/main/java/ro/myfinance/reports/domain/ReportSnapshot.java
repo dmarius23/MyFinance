@@ -44,6 +44,14 @@ public class ReportSnapshot {
     @Column(name = "report_json", nullable = false)
     private String reportJson;
 
+    /**
+     * The period extracted from the trial-balance PDF itself (the printed date range).
+     * Null for snapshots created before this column existed — detected and cached lazily on first read.
+     * When non-null and different from {@link #periodMonth}, this snapshot must not be served.
+     */
+    @Column(name = "content_period")
+    private LocalDate contentPeriod;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -54,20 +62,22 @@ public class ReportSnapshot {
     }
 
     public ReportSnapshot(UUID tenantId, UUID companyId, LocalDate periodMonth, UUID documentId,
-                          boolean balanced, String reportJson) {
+                          boolean balanced, String reportJson, LocalDate contentPeriod) {
         this.tenantId = tenantId;
         this.companyId = companyId;
         this.periodMonth = periodMonth;
         this.documentId = documentId;
         this.balanced = balanced;
         this.reportJson = reportJson;
+        this.contentPeriod = contentPeriod;
     }
 
     /** Replace the report content on re-upload, bumping the version. */
-    public void replace(UUID documentId, boolean balanced, String reportJson) {
+    public void replace(UUID documentId, boolean balanced, String reportJson, LocalDate contentPeriod) {
         this.documentId = documentId;
         this.balanced = balanced;
         this.reportJson = reportJson;
+        this.contentPeriod = contentPeriod;
         this.version += 1;
         this.updatedAt = Instant.now();
     }
@@ -79,6 +89,8 @@ public class ReportSnapshot {
     public int getVersion() { return version; }
     public boolean isBalanced() { return balanced; }
     public String getReportJson() { return reportJson; }
+    public LocalDate getContentPeriod() { return contentPeriod; }
+    public void setContentPeriod(LocalDate contentPeriod) { this.contentPeriod = contentPeriod; this.updatedAt = Instant.now(); }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

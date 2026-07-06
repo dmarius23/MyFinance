@@ -86,6 +86,7 @@ public class Document {
     public LocalDate getPeriodMonth() { return periodMonth; }
     public DocumentType getType() { return type; }
     public void setType(DocumentType type) { this.type = type; }
+    public void setPeriodMonth(LocalDate periodMonth) { this.periodMonth = periodMonth; }
     public DocumentSource getSource() { return source; }
     public DocumentStatus getStatus() { return status; }
     public String getOriginalFilename() { return originalFilename; }
