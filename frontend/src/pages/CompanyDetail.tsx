@@ -152,6 +152,7 @@ function GeneralInfoSection({ company }: { company: Company }) {
 }
 
 function RepresentativesSection({ companyId }: { companyId: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const reps = useQuery({ queryKey: ["reps", companyId], queryFn: () => representativesApi.list(companyId) });
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
