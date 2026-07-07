@@ -8,6 +8,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Maps exceptions to RFC-7807 {@link ProblemDetail} responses. Never leaks stack traces or PII;
@@ -34,6 +35,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access denied");
+    }
+
+    /**
+     * Servlet-layer multipart cap (spring.servlet.multipart.max-file-size / max-request-size) tripped
+     * before the request reaches a controller. Return a clean 413 instead of a leaked stack trace; the
+     * message stays generic so we don't advertise the exact limit.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail handleTooLarge(MaxUploadSizeExceededException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file exceeds the maximum allowed size");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

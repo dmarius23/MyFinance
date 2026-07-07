@@ -61,6 +61,35 @@ class DocumentServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void rejectsOversizeFile() {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        byte[] tooBig = new byte[20 * 1024 * 1024 + 1]; // one byte over the 20 MB app cap
+        assertThatThrownBy(() ->
+                documents.upload(companyId, LocalDate.of(2026, 6, 1), "big.png", "image/png", tooBig))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("20 MB");
+    }
+
+    @Test
+    void rejectsEmptyFile() {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        assertThatThrownBy(() ->
+                documents.upload(companyId, LocalDate.of(2026, 6, 1), "empty.pdf", "application/pdf", new byte[0]))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Empty");
+    }
+
+    @Test
+    void rejectsContentNotMatchingDeclaredType() {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        // Declared as PDF but the bytes are a PNG header — magic-byte guard must reject it.
+        assertThatThrownBy(() ->
+                documents.upload(companyId, LocalDate.of(2026, 6, 1), "fake.pdf", "application/pdf", png()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not match");
+    }
+
+    @Test
     void deleteRemovesDocument() {
         UUID companyId = asTenantWithCompany(TENANT_A);
         Document doc = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
