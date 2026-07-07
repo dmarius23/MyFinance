@@ -50,13 +50,18 @@ public class InvoiceExtractionService {
 
         final Fields f;
         if (isPdf(bytes)) {
-            // A non-extractable PDF (e.g. FOP / Identity-H fonts) yields no fields from the text parser;
-            // when vision is configured, render it and OCR-extract like a receipt image (recovers the
-            // supplier, total and the client CIF / wrong-party verdict).
-            byte[] png = receiptProps.isAnthropic() && !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes)
-                    ? ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200) : null;
+            // Deterministic text parse first — this is the primary path and stays authoritative when it
+            // succeeds. Escalate to vision OCR ONLY when it could not identify the supplier (no name AND
+            // no fiscal code), or when the PDF text is unreadable (garbled / Identity-H fonts) so its
+            // output can't be trusted. Logos/images never trigger OCR on their own; a document whose
+            // supplier was read from text is never re-OCR'd, however many logos it carries.
+            Fields text = fromPdf(bytes, ownName, ownCui);
+            boolean supplierMissing = isBlank(text.supplierName()) && isBlank(text.issuerCif());
+            boolean escalate = receiptProps.isAnthropic()
+                    && (supplierMissing || !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes));
+            byte[] png = escalate ? ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200) : null;
             f = png != null ? identifyClientParty(fromReceiptImage(png, "page.png", ownCui), ownCui, ownName)
-                    : fromPdf(bytes, ownName, ownCui);
+                    : text;
         } else {
             f = fromReceiptImage(bytes, filename, ownCui);
         }
@@ -135,6 +140,10 @@ public class InvoiceExtractionService {
 
     private static boolean isPdf(byte[] b) {
         return b.length >= 4 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     /** Best-effort image media type from magic bytes, falling back to the filename extension. */
