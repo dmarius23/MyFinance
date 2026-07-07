@@ -115,8 +115,13 @@ public class BankStatementExtractionService {
         StatementStatus status = (crossOk && !hadNullAmount)
                 ? StatementStatus.EXTRACTED : StatementStatus.NEEDS_REVIEW;
 
+        // A bank statement is inherently for a specific month, printed in it. File it under that month
+        // (the transactions' own month), not the slot the accountant happened to upload it into — so a
+        // statement dropped into the wrong period still lands where its transactions belong.
+        LocalDate period = statementPeriod(unique, periodMonth);
+
         BankStatement statement = statements.save(new BankStatement(tenantId, documentId, companyId,
-                periodMonth, parsed.bankCode(), parsed.accountIban(), parsed.openingBalance(),
+                period, parsed.bankCode(), parsed.accountIban(), parsed.openingBalance(),
                 parsed.closingBalance(), status, crossOk, unique.size()));
 
         for (ParsedTransaction t : unique) {
@@ -126,8 +131,22 @@ public class BankStatementExtractionService {
                     t.description(), t.ref(), t.balanceAfter()));
         }
         reconciliation.classify(statement.getId());
-        reconciliation.matchPeriod(companyId, periodMonth);
+        reconciliation.matchPeriod(companyId, period);
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
+    }
+
+    /** The statement's own month — the most common transaction date's month; falls back to the upload slot. */
+    private static LocalDate statementPeriod(List<ParsedTransaction> txns, LocalDate uploadSlot) {
+        java.util.Map<LocalDate, Integer> byMonth = new java.util.HashMap<>();
+        for (ParsedTransaction t : txns) {
+            if (t.date() != null) {
+                byMonth.merge(t.date().withDayOfMonth(1), 1, Integer::sum);
+            }
+        }
+        return byMonth.entrySet().stream()
+                .max(java.util.Map.Entry.comparingByValue())
+                .map(java.util.Map.Entry::getKey)
+                .orElse(uploadSlot.withDayOfMonth(1));
     }
 
     private String dedupKey(String accountIban, java.time.LocalDate date, java.math.BigDecimal amount,

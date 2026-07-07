@@ -32,7 +32,12 @@ public class BankStatementParserRegistry {
             return new String(content, java.nio.charset.StandardCharsets.UTF_8);
         }
         try (PDDocument doc = Loader.loadPDF(content)) {
-            return new PDFTextStripper().getText(doc);
+            // Sort by position so multi-column layouts (e.g. Banca Transilvania's Debit/Credit columns)
+            // linearize left-to-right, top-to-bottom instead of PDF content-stream order — parsers get a
+            // clean row per line. Single-column statements are unaffected.
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            return stripper.getText(doc);
         } catch (IOException | RuntimeException e) {
             return "";
         }
