@@ -35,9 +35,9 @@ public class InvoiceExtractionService {
     }
 
     /** Extracted fields, from either the PDF parser or the receipt-image OCR/LLM. */
-    private record Fields(String supplierName, String supplierIban, BigDecimal total, LocalDate date,
-                          String status, String issuerCif, String clientCif, String receiptNumber,
-                          Boolean wrongParty) {
+    record Fields(String supplierName, String supplierIban, BigDecimal total, LocalDate date,
+                  String status, String issuerCif, String clientCif, String receiptNumber,
+                  Boolean wrongParty) {
     }
 
     public void process(UUID documentId, UUID companyId, LocalDate periodMonth, String filename, byte[] bytes) {
@@ -100,17 +100,25 @@ public class InvoiceExtractionService {
      * Vision OCR of a purchase invoice can mislabel the buyer (our company) as the issuer. When our own
      * CUI is printed on the document (whether the model called it client or issuer), the company is the
      * client/buyer → it's our invoice (identified, correct party); the company is never the supplier.
+     * If the model swapped the parties (tagged us as the issuer), recover the supplier's CIF from the
+     * value it called "client" and drop the buyer-as-supplier name.
      */
-    private static Fields identifyClientParty(Fields f, String ownCui, String ownName) {
+    static Fields identifyClientParty(Fields f, String ownCui, String ownName) {
         String own = RoFiscalCode.digits(ownCui);
-        boolean companyOnDoc = own != null
-                && (own.equals(RoFiscalCode.digits(f.clientCif())) || own.equals(RoFiscalCode.digits(f.issuerCif())));
-        if (!companyOnDoc) {
+        boolean ownIsIssuer = own != null && own.equals(RoFiscalCode.digits(f.issuerCif()));
+        boolean ownIsClient = own != null && own.equals(RoFiscalCode.digits(f.clientCif()));
+        if (!ownIsIssuer && !ownIsClient) {
             return f;
         }
-        String issuerCif = own.equals(RoFiscalCode.digits(f.issuerCif())) ? null : f.issuerCif();
-        String supplier = (f.supplierName() != null && ownName != null
-                && f.supplierName().trim().equalsIgnoreCase(ownName.trim())) ? null : f.supplierName();
+        // On a swap (own == issuer), the code the model called "client" is really the supplier's CIF.
+        String otherClient = RoFiscalCode.digits(f.clientCif());
+        String issuerCif = ownIsIssuer
+                ? (otherClient != null && !otherClient.equals(own) ? f.clientCif() : null)
+                : f.issuerCif();
+        // Drop a supplier name that is actually the buyer (matched our CUI as issuer, or matches our name).
+        boolean supplierIsUs = ownIsIssuer
+                || (f.supplierName() != null && ownName != null && f.supplierName().trim().equalsIgnoreCase(ownName.trim()));
+        String supplier = supplierIsUs ? null : f.supplierName();
         return new Fields(supplier, f.supplierIban(), f.total(), f.date(), f.status(),
                 issuerCif, ownCui, f.receiptNumber(), Boolean.FALSE);
     }

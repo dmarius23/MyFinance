@@ -22,6 +22,8 @@ import org.mockito.quality.Strictness;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
+import ro.myfinance.intake.adapter.persistence.DocumentRepository;
+import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.reports.adapter.persistence.ReportEmailRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.application.ReportService;
@@ -42,10 +44,13 @@ class ReportServiceTest {
     @Mock ReportSnapshotRepository snapshots;
     @Mock ReportEmailRepository emails;
     @Mock CompanyRepository companies;
+    @Mock DocumentRepository documents;
+    @Mock DocumentStorage storage;
 
     private ReportService service() {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); // JSR-310 for LocalDate
-        return new ReportService(snapshots, emails, new TrialBalanceExtractor(), mapper, companies);
+        return new ReportService(snapshots, emails, new TrialBalanceExtractor(), mapper, companies,
+                documents, storage);
     }
 
     private byte[] fixture() throws Exception {

@@ -26,24 +26,32 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String PROMPT = """
-            You read a photographed Romanian fiscal receipt (bon fiscal), possibly crumpled, angled or \
-            faded. Return ONLY a JSON object (no markdown, no commentary) with exactly these keys:
-            - issuerName: the merchant company name from the header (e.g. "RIUMED S.R.L.")
-            - issuerCif: the MERCHANT fiscal code from the header, labelled "C.I.F." / \
-            "Cod Identificare Fiscala" (e.g. "14571643" or "RO6719278")
-            - clientCif: the BUYER fiscal code, from a line labelled "CIF CLIENT" / "C.I.F. Client" / \
-            "CIF Client" (usually near the total or at the bottom). Read and transcribe this value \
-            whenever such a line exists; null only if there is no such line at all.
-            - total: the grand total to pay as a number (SUMA TOTALA / TOTAL / TOTAL DE PLATA), dot decimals
+            You read a Romanian fiscal document — either a photographed fiscal receipt (bon fiscal) or a \
+            supplier invoice (factură). It may be crumpled, angled, faded, or rendered from a PDF. Return \
+            ONLY a JSON object (no markdown, no commentary) with exactly these keys:
+            - issuerName: the SUPPLIER / seller company name — the party that ISSUED the document \
+            (furnizor / vânzător). On a receipt this is the merchant in the header. On an invoice it is \
+            the company shown in the logo and/or a "Furnizor" / "Date furnizor" / "Info furnizor" block, \
+            which is OFTEN IN THE FOOTER, not at the top. Example: "COMPEXIT TRADING SRL".
+            - issuerCif: the SUPPLIER fiscal code — labelled "C.I.F." / "CUI" / \
+            "Cod de inregistrare in scopuri de TVA" (e.g. "14571643" or "RO6719278"). It belongs to the \
+            SAME party as issuerName (the supplier), not to the buyer.
+            - clientCif: the BUYER / client fiscal code — the recipient of the document, usually under a \
+            "Firma" / "Client" / "Cumpărător" block near the top, or a "CIF CLIENT" line on a receipt \
+            (e.g. "49443957"). Read and transcribe this value whenever it exists; null only if there is \
+            no buyer fiscal code at all.
+            - total: the grand total to pay as a number (SUMA TOTALA / TOTAL / TOTAL DE PLATA / \
+            Val. totala), dot decimals
             - currency: e.g. "RON"
-            - issueDate (yyyy-MM-dd): the date the receipt was ISSUED — the transaction date, usually \
-            printed next to a time like "02-06-2026 12:53". IMPORTANT: ignore any year that is part of \
-            a street address (e.g. "B-dul 21 Decembrie 1989" is an ADDRESS, not the date).
-            - receiptNumber: the fiscal receipt number (BF / AMEF / RL) if present, else null
+            - issueDate (yyyy-MM-dd): the date the document was ISSUED (Data / data facturii; on a \
+            receipt the transaction date next to a time like "02-06-2026 12:53"). IMPORTANT: ignore any \
+            year that is part of a street address (e.g. "B-dul 21 Decembrie 1989" is an ADDRESS, not the date).
+            - receiptNumber: the receipt or invoice number (BF / AMEF / RL / Nr. factură) if present, else null
             - confidence: your overall confidence 0..1
-            Transcribe all digits EXACTLY as printed; never invent. Fiscal codes are validated by the \
-            system afterwards, so do transcribe the CIF CLIENT value if you can see it. Do not confuse \
-            the merchant CIF (header) with the client CIF.""";
+            Transcribe all digits EXACTLY as printed; never invent. The supplier and the buyer are \
+            DIFFERENT parties — do not confuse the supplier CIF with the client CIF. On an invoice the \
+            most prominent company block at the top is usually the BUYER; the supplier is identified by \
+            the logo and the "Furnizor" details, which may appear only in the footer.""";
 
     private final RestClient client;
     private final String model;
@@ -102,15 +110,22 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
         }
     }
 
-    /** Extra instruction so the model compares the printed CIF CLIENT to the company's own CUI. */
+    /**
+     * Anchors issuer/buyer on the company's own CUI (it is the buyer, so the supplier is the other
+     * party) and asks the model to compare the printed buyer CIF to that CUI.
+     */
     private static String matchInstruction(String ownCompanyCui) {
         if (ownCompanyCui == null || ownCompanyCui.isBlank()) {
             return "";
         }
-        return "\nAlso add a key clientMatchesCompany: true if the CIF CLIENT printed on the receipt is "
-                + "the SAME fiscal code as \"" + ownCompanyCui + "\"; false if there is a CIF CLIENT that "
-                + "is clearly a DIFFERENT code; null if there is no CIF CLIENT line or you cannot tell. "
-                + "Judge this by the overall code, tolerant of a single misread digit.";
+        return "\nThe company with fiscal code \"" + ownCompanyCui + "\" is the BUYER / client of this "
+                + "document, NOT the supplier. So the issuer/supplier (issuerName, issuerCif) is the OTHER "
+                + "party: never return \"" + ownCompanyCui + "\" or that company's name as the issuer — "
+                + "return that code as clientCif instead, and read the supplier's own name and CIF (from "
+                + "the logo or the Furnizor block, often the footer). "
+                + "Also add a key clientMatchesCompany: true if the buyer fiscal code on the document is "
+                + "the SAME as \"" + ownCompanyCui + "\"; false if the buyer code is clearly DIFFERENT; "
+                + "null if you cannot tell. Judge by the overall code, tolerant of a single misread digit.";
     }
 
     /**
