@@ -43,6 +43,14 @@ public class SecurityConfig {
                         "/actuator/health", "/actuator/health/**", "/actuator/info",
                         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                 .permitAll()
+                // Fail-safe role backstop at the filter layer, in addition to per-method @PreAuthorize:
+                // a controller that forgets its annotation still cannot expose a surface to the wrong role.
+                // Order matters (first match wins) — specific prefixes precede the generic /api/v1/**.
+                // The staff floor is coarse (TENANT_ADMIN vs EMPLOYEE stays with @PreAuthorize); SUPER_ADMIN
+                // is allowed through the filter here but is still gated by @PreAuthorize on staff methods.
+                .requestMatchers("/api/v1/portal/**").hasRole("REPRESENTATIVE")
+                .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "EMPLOYEE", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
