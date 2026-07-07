@@ -77,8 +77,14 @@ final class EFacturaPdfParser {
             int sellerTo = buyer;
             int buyerTo = Math.min(lines.length, buyer + 14);
 
-            String sellerCif = firstCif(lines, sellerFrom, sellerTo);
             String buyerCif = firstCif(lines, buyer, buyerTo);
+            String sellerCif = firstCif(lines, sellerFrom, sellerTo);
+            if (sellerCif == null) {
+                // Some SPV layouts print the seller's CUI bare (no "RO") and PDFBox emits it after the
+                // buyer block, near the footer — outside VÂNZĂTOR→CUMPĂRĂTOR. Fall back to any control-
+                // valid CUI in the whole document that isn't the buyer's.
+                sellerCif = anyValidCifExcluding(lines, buyerCif);
+            }
             String sellerName = firstCompanyName(lines, sellerFrom, sellerTo);
             String buyerName = firstCompanyName(lines, buyer, buyerTo);
             LocalDate issueDate = issueDate(lines);
@@ -129,6 +135,29 @@ final class EFacturaPdfParser {
                 if (RoFiscalCode.isValidCui(m.group(1))) {
                     return m.group(1);
                 }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Document-wide fallback for the seller CIF: the first control-valid CUI whose digits differ from the
+     * buyer's — an explicit "RO…" code first, then a bare 6–10 digit code standing alone on its line (so a
+     * quantity/amount can't be mistaken for a CIF). Only used when the block-scoped seller search failed.
+     */
+    private static String anyValidCifExcluding(String[] lines, String buyerCif) {
+        String ex = RoFiscalCode.digits(buyerCif);
+        for (String line : lines) {
+            for (Matcher m = RO_CIF.matcher(line); m.find(); ) {
+                if (RoFiscalCode.isValidCui("RO" + m.group(1)) && !m.group(1).equals(ex)) {
+                    return "RO" + m.group(1);
+                }
+            }
+        }
+        for (String line : lines) {
+            String t = line.trim();
+            if (t.matches("\\d{6,10}") && RoFiscalCode.isValidCui(t) && !t.equals(ex)) {
+                return t;
             }
         }
         return null;

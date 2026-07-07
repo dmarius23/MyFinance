@@ -159,4 +159,32 @@ class EFacturaPdfParserTest {
         assertThat(RoFiscalCode.digits(f.buyerCif())).isEqualTo("14399840");
         assertThat(RoFiscalCode.digits(f.sellerCif())).isEqualTo("34609408");
     }
+
+    // Some suppliers' SPV layouts print the seller's CUI BARE (no "RO") and PDFBox emits it after the
+    // buyer block, near the footer — outside VÂNZĂTOR→CUMPĂRĂTOR. The seller block itself carries only
+    // the name + J-register, so the block-scoped search finds no seller CIF (previously → issuer blank).
+    private static final String OXYGEN = String.join("\n",
+            "RO eFactura",
+            "VANZATOR",
+            "OXYGEN CLEANING S.R.L.",       // seller name (in block)
+            "j12/262/22.01.2021",           // seller registration — NOT a fiscal code
+            "CUMPARATOR",
+            "MERIC SRL",
+            "Nr. inregistrare",
+            "RO20464846Identificator",      // buyer CIF (RO-prefixed, in block)
+            "Strada Str. FLORILOR",
+            "OXYGEN CLEANING S.R.L.",       // seller repeated in the footer
+            "43597655",                     // seller CUI, bare and out of block
+            "Nr. factura OXY2335",
+            "Data emitere 2026-01-31",
+            "800.00TOTAL PLATA");
+
+    @Test
+    void recoversBareSellerCifPrintedOutsideItsBlock() {
+        EFacturaFields f = EFacturaPdfParser.parse(OXYGEN).orElseThrow();
+
+        assertThat(f.sellerName()).isEqualTo("OXYGEN CLEANING S.R.L.");
+        assertThat(RoFiscalCode.digits(f.sellerCif())).isEqualTo("43597655"); // recovered via fallback
+        assertThat(f.buyerCif()).isEqualTo("RO20464846");                     // buyer unaffected
+    }
 }
