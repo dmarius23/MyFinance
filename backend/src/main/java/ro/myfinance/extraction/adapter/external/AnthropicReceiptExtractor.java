@@ -40,8 +40,9 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
             "Firma" / "Client" / "Cumpărător" block near the top, or a "CIF CLIENT" line on a receipt \
             (e.g. "49443957"). Read and transcribe this value whenever it exists; null only if there is \
             no buyer fiscal code at all.
-            - total: the grand total to pay as a number (SUMA TOTALA / TOTAL / TOTAL DE PLATA / \
-            Val. totala), dot decimals
+            - total: the GRAND total to pay for the WHOLE invoice as a number (SUMA TOTALA / TOTAL / \
+            TOTAL DE PLATA / Val. totala), dot decimals. On a multi-page invoice this final total is on \
+            the LAST page — never use a per-page subtotal such as "Sold intermediar".
             - currency: e.g. "RON"
             - issueDate (yyyy-MM-dd): the date the document was ISSUED (Data / data facturii; on a \
             receipt the transaction date next to a time like "02-06-2026 12:53"). IMPORTANT: ignore any \
@@ -67,17 +68,28 @@ public class AnthropicReceiptExtractor implements ReceiptExtractor {
 
     @Override
     public ParsedReceipt extract(byte[] image, String mediaType, String ownCompanyCui) {
+        return extract(List.of(image), mediaType, ownCompanyCui);
+    }
+
+    @Override
+    public ParsedReceipt extract(List<byte[]> images, String mediaType, String ownCompanyCui) {
+        if (images.isEmpty()) {
+            return ParsedReceipt.empty();
+        }
         try {
-            String b64 = Base64.getEncoder().encodeToString(image);
             String prompt = PROMPT + matchInstruction(ownCompanyCui);
+            List<Object> content = new java.util.ArrayList<>();
+            for (byte[] image : images) {
+                content.add(Map.of("type", "image", "source", Map.of(
+                        "type", "base64", "media_type", mediaType,
+                        "data", Base64.getEncoder().encodeToString(image))));
+            }
+            content.add(Map.of("type", "text", "text", prompt));
             Map<String, Object> body = Map.of(
                     "model", model,
                     "max_tokens", 1024,
-                    "temperature", 0, // deterministic extraction — same image yields the same fields
-                    "messages", List.of(Map.of("role", "user", "content", List.of(
-                            Map.of("type", "image", "source",
-                                    Map.of("type", "base64", "media_type", mediaType, "data", b64)),
-                            Map.of("type", "text", "text", prompt)))));
+                    "temperature", 0, // deterministic extraction — same image(s) yield the same fields
+                    "messages", List.of(Map.of("role", "user", "content", content)));
             JsonNode resp = client.post().uri("/v1/messages")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)

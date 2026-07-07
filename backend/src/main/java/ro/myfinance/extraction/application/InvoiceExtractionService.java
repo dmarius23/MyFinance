@@ -16,6 +16,9 @@ import ro.myfinance.extraction.domain.Invoice;
 @Transactional
 public class InvoiceExtractionService {
 
+    /** Cap on pages rendered for vision OCR (first N + the last page) — bounds token cost. */
+    private static final int MAX_OCR_PAGES = 6;
+
     private final InvoiceExtractor extractor;
     private final ReceiptExtractor receipts;
     private final ReceiptProperties receiptProps;
@@ -59,8 +62,12 @@ public class InvoiceExtractionService {
             boolean supplierMissing = isBlank(text.supplierName()) && isBlank(text.issuerCif());
             boolean escalate = receiptProps.isAnthropic()
                     && (supplierMissing || !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes));
-            byte[] png = escalate ? ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200) : null;
-            f = png != null ? identifyClientParty(fromReceiptImage(png, "page.png", ownCui), ownCui, ownName)
+            // Render ALL pages (incl. the last, where a multi-page invoice's grand total lives — page 1
+            // often shows only a "Sold intermediar" subtotal) and OCR them together.
+            java.util.List<byte[]> pages = escalate
+                    ? ro.myfinance.common.pdf.PdfImages.renderPagesPng(bytes, 200, MAX_OCR_PAGES) : java.util.List.of();
+            f = !pages.isEmpty()
+                    ? identifyClientParty(fromReceiptImages(pages, "image/png", ownCui), ownCui, ownName)
                     : text;
         } else {
             f = fromReceiptImage(bytes, filename, ownCui);
@@ -93,7 +100,11 @@ public class InvoiceExtractionService {
     }
 
     private Fields fromReceiptImage(byte[] bytes, String filename, String ownCui) {
-        ParsedReceipt r = receipts.extract(bytes, mediaType(filename, bytes), ownCui);
+        return fromReceiptImages(java.util.List.of(bytes), mediaType(filename, bytes), ownCui);
+    }
+
+    private Fields fromReceiptImages(java.util.List<byte[]> images, String mediaType, String ownCui) {
+        ParsedReceipt r = receipts.extract(images, mediaType, ownCui);
         boolean ok = r.total() != null && r.issueDate() != null && r.confidence() >= receiptProps.confidenceThreshold();
         // Receipt CIFs are easily misread; trust the model's match verdict (tolerant of a misread digit).
         Boolean wrongParty = r.clientMatchesCompany() == null ? null : !r.clientMatchesCompany();
