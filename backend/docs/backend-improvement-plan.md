@@ -27,20 +27,25 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## Priority map
 
-| Band | Theme | Steps |
-|---|---|---|
-| **P0** | Security correctness (cheap, high-value) | S1, S2, S3 |
-| **P1** | Reliability & correctness of core flows | S4, S5, S6 |
-| **P2** | Production blockers (stubbed features) | S7, S8 |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 |
-| **P4** | Documentation & guardrails | S14 |
-| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 |
+| Band | Theme | Steps | Status |
+|---|---|---|---|
+| **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
+| **P1** | Reliability & correctness of core flows | S4, S5, S6 | ⬜ Not started |
+| **P2** | Production blockers (stubbed features) | S7, S8 | ⬜ Not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ⬜ Not started |
+| **P4** | Documentation & guardrails | S14 | ⬜ Not started |
+| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
+
+> **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
+> already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
+> JWKS URI). Deferred follow-ups discovered during P0: `DocumentServiceIT` repair → **S4**; failsafe/CI +
+> `*IT`-suite isolation → **S15/S18** (see notes on those steps).
 
 ---
 
-## P0 — Security correctness
+## P0 — Security correctness  ✅ Done (PR #3)
 
-### S1. Fail-safe URL authorization backstop
+### S1. Fail-safe URL authorization backstop  ✅ Done
 - **Goal:** gate URLs by role at the filter layer — `/api/v1/portal/**` → `REPRESENTATIVE`,
   `/api/v1/admin/**` → `SUPER_ADMIN`, other `/api/v1/**` → staff roles — *in addition to* the existing
   per-method `@PreAuthorize`.
@@ -66,7 +71,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** rep token blocked at the filter for staff routes; all existing tests green.
 - **Size:** S. **Depends-on:** none (pairs with the negative tests in S18).
 
-### S2. Multipart request limits + upload guardrails
+### S2. Multipart request limits + upload guardrails  ✅ Done (reduced scope — see status note)
 - **Goal:** reject oversized / wrong-type uploads *before* the bytes are fully buffered.
 - **Why:** there is **no** `spring.servlet.multipart.*` config, so Spring's ~128 MB default applies; the
   app's own 20 MB check runs only *after* the upload is buffered. No server-side content-type allowlist.
@@ -86,7 +91,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** >20 MB → `413` without OOM; disallowed type → `400`; existing upload tests green.
 - **Size:** S. **Depends-on:** none.
 
-### S3. JWT issuer/audience pinning + clock skew
+### S3. JWT issuer/audience pinning + clock skew  ✅ Done (issuer pinning; audience intentionally not pinned)
 - **Goal:** validate the token `iss` (and `aud` if Supabase sets it) and set an explicit clock skew —
   not signature + algorithm alone.
 - **Why:** the decoder is Spring auto-config from `jwk-set-uri` + `jws-algorithms: [ES256, RS256]` only.
@@ -139,6 +144,17 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** upload returns before extraction finishes; killing the worker mid-batch loses no email
   (redelivered on restart); a poison message lands in the DLQ after N attempts; re-running any job is a
   no-op.
+- **Also fix here (found during P0, 2026-07-07):** three `DocumentServiceIT` happy-path tests
+  (`uploadsClassifiesListsAndDownloads`, `deleteRemovesDocument`, `tenantBCannotSeeOrDeleteTenantADocuments`)
+  are currently **broken** and must be repaired as part of this step. Cause: (1) the `png()` fixture is 7
+  bytes but the magic-byte guard added in `9872c91` needs ≥8, and one test sends PNG bytes labeled
+  `image/jpeg`; (2) once the fixtures are fixed so the upload *succeeds*, it trips an
+  `ObjectOptimisticLockingFailureException` on `Invoice` because a successful upload fans out to **3
+  synchronous listeners** (extraction/reconciliation/reports) on the request thread — exactly what this
+  step makes async. **S4 acceptance additions:** repair the fixtures to valid magic bytes + a consistent
+  content-type, and prove the happy-path upload→delete flow is green once extraction runs
+  async/idempotently (no optimistic-lock conflict). Do not attempt to fix these tests before S4 — the
+  synchronous pipeline is the blocker.
 - **Size:** L. **Depends-on:** informs S5 and S7.
 
 ### S5. Fix `RepresentativeService` invite/persist atomicity
@@ -320,7 +336,16 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   gates; upgrade PDFBox to the latest 3.x; confirm XXE is disabled in every XML parser (CAMT.053,
   e-Factura, ANAF); pin dependency versions.
 - **Acceptance:** CI fails on a known-vulnerable dependency; XML parsers reject external entities.
-- **Size:** M. **Depends-on:** none.
+- **Also fix here (found during P0, 2026-07-07) — integration tests never run in CI.** CI runs
+  `mvn -B -e verify` (`.github/workflows/ci.yml`), but `backend/pom.xml` declares **no maven-failsafe
+  plugin** and surefire excludes `*IT` by default, so **none of the ~11 `*IT` Testcontainers tests
+  execute** — only `CrossTenantIsolationTest` runs (it is `*Test`-named). This is the blind spot that hid
+  the broken `DocumentServiceIT` (see S4). **Add the failsafe plugin** (bind `integration-test`/`verify`),
+  so the `*IT` suite runs in CI. Note: the `*IT` suite currently **fails wholesale when run together** —
+  30s Hikari connection-acquisition timeouts (pool exhaustion across accumulated Spring contexts) + cross-IT
+  data bleed (no per-test cleanup; e.g. `ReconciliationServiceIT` learned-rule rows). So enabling failsafe
+  must be paired with the isolation fixes in S18 (or forked JVMs / pool+context tuning) or CI will go red.
+- **Size:** M. **Depends-on:** pairs with S18 (IT isolation) before flipping failsafe on in CI.
 
 ### S16. Guardrails: pagination, targeted queries, per-tenant quota, rate limiting
 - **Why:** ~16 list endpoints are unbounded; three services do `findAll()`-then-filter-in-Java; there is
@@ -356,7 +381,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   refactors.
 - **Acceptance:** every module has at least one Testcontainers integration test; a rep token is proven
   unable to reach another company or a staff endpoint.
-- **Size:** M. **Depends-on:** pairs with S1, S9, S11.
+- **Also fix here (found during P0, 2026-07-07) — the `*IT` suite is not runnable as a suite.** When all
+  `~11` `*IT` classes run in one reactor they fail wholesale: (a) DB **connection-pool exhaustion** across
+  accumulated Spring contexts (30s Hikari timeouts) and (b) **cross-IT data bleed** — no per-test cleanup,
+  so tests see rows left by earlier ITs (e.g. `ReconciliationServiceIT.overrideCreatesLearnedRuleApplied…`
+  and `manualLinkSupportsManyInvoicesPerTransaction`). Each IT passes in isolation. Fix as part of adding
+  coverage: per-test DB cleanup/truncation (or `@Transactional`/rollback where RLS allows), a shared single
+  context (consistent `@SpringBootTest` config to maximize context-cache reuse) and/or forked JVMs +
+  pool/`spring-test` context-cache tuning. This is the prerequisite for turning on failsafe in CI (S15).
+  Note: `UrlAuthorizationBackstopIT` was already made DB-free (filter-only 403 assertions) during S1 to
+  avoid this class of flakiness — use it as the pattern for authZ slice tests.
+- **The S1 negative-authZ tests already exist** (`UrlAuthorizationBackstopIT`, added in P0/S1) — extend,
+  don't duplicate.
+- **Size:** M. **Depends-on:** pairs with S1, S9, S11; unblocks S15 (failsafe in CI).
 
 ### S19. *(Later)* GDPR endpoints + defense-in-depth rep→company RLS
 - **Why:** there are no data export/delete endpoints (review §11, MOD-12); company-level rep scoping is

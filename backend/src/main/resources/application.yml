@@ -70,6 +70,11 @@ myfinance:
   supabase:
     url: ${SUPABASE_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    # Expected token issuer (the project's .../auth/v1 URL), pinned by the JWT decoder so a
+    # validly-signed token from a *different* Supabase project is rejected. Leave blank to derive it
+    # from jwk-set-uri (issuer = JWKS URL minus /.well-known/jwks.json) — so setting only
+    # SUPABASE_JWKS_URI is enough, and it still fails closed on the YOUR-PROJECT placeholder.
+    issuer: ${SUPABASE_ISSUER:}
   # Receipt-image OCR. Blank api-key → image receipts stay NEEDS_REVIEW (no LLM calls, no cost).
   # Prod uses Claude via AWS Bedrock (EU); local/dev can use the Anthropic API directly.
   receipt:
