@@ -16,9 +16,6 @@ import ro.myfinance.extraction.domain.Invoice;
 @Transactional
 public class InvoiceExtractionService {
 
-    /** Cap on pages rendered for vision OCR (first N + the last page) — bounds token cost. */
-    private static final int MAX_OCR_PAGES = 6;
-
     private final InvoiceExtractor extractor;
     private final ReceiptExtractor receipts;
     private final ReceiptProperties receiptProps;
@@ -53,22 +50,31 @@ public class InvoiceExtractionService {
 
         final Fields f;
         if (isPdf(bytes)) {
-            // Deterministic text parse first — this is the primary path and stays authoritative when it
-            // succeeds. Escalate to vision OCR ONLY when it could not identify the supplier (no name AND
-            // no fiscal code), or when the PDF text is unreadable (garbled / Identity-H fonts) so its
-            // output can't be trusted. Logos/images never trigger OCR on their own; a document whose
-            // supplier was read from text is never re-OCR'd, however many logos it carries.
+            // Deterministic text parse first — authoritative whenever it succeeds. OCR only fills the gap:
+            //  • text unreadable / nothing usable → full OCR of the key pages (header + totals).
+            //  • text readable and carries the money fields but has no supplier (image-only logo) → OCR
+            //    page 1 alone for the supplier and merge just the name/CIF into the text fields.
+            //  • text parse complete → no OCR at all, however many logos the page carries.
             Fields text = fromPdf(bytes, ownName, ownCui);
             boolean supplierMissing = isBlank(text.supplierName()) && isBlank(text.issuerCif());
-            boolean escalate = receiptProps.isAnthropic()
-                    && (supplierMissing || !ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes));
-            // Render ALL pages (incl. the last, where a multi-page invoice's grand total lives — page 1
-            // often shows only a "Sold intermediar" subtotal) and OCR them together.
-            java.util.List<byte[]> pages = escalate
-                    ? ro.myfinance.common.pdf.PdfImages.renderPagesPng(bytes, 200, MAX_OCR_PAGES) : java.util.List.of();
-            f = !pages.isEmpty()
-                    ? identifyClientParty(fromReceiptImages(pages, "image/png", ownCui), ownCui, ownName)
-                    : text;
+            boolean textReadable = ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes);
+            boolean needOcr = receiptProps.isAnthropic() && (supplierMissing || !textReadable);
+
+            if (!needOcr) {
+                f = text;
+            } else if (textReadable && text.total() != null) {
+                // Hybrid: keep the text-derived money/date/party; OCR page 1 only for the supplier.
+                byte[] page1 = ro.myfinance.common.pdf.PdfImages.renderFirstPagePng(bytes, 200);
+                Fields ocr = page1 != null
+                        ? identifyClientParty(fromReceiptImage(page1, "page.png", ownCui), ownCui, ownName) : null;
+                f = ocr != null ? mergeSupplier(text, ocr) : text;
+            } else {
+                // Nothing trustworthy from text → full OCR of the header + totals pages (first + last).
+                java.util.List<byte[]> pages = ro.myfinance.common.pdf.PdfImages.renderFirstAndLastPng(bytes, 200);
+                f = !pages.isEmpty()
+                        ? identifyClientParty(fromReceiptImages(pages, "image/png", ownCui), ownCui, ownName)
+                        : text;
+            }
         } else {
             f = fromReceiptImage(bytes, filename, ownCui);
         }
@@ -137,6 +143,18 @@ public class InvoiceExtractionService {
         String supplier = supplierIsUs ? null : f.supplierName();
         return new Fields(supplier, f.supplierIban(), f.total(), f.date(), f.status(),
                 issuerCif, ownCui, f.receiptNumber(), Boolean.FALSE);
+    }
+
+    /**
+     * Hybrid merge: take only the supplier identity (name + fiscal code) from the page-1 OCR, keeping the
+     * total, date, buyer and status from the trustworthy text parse. Used when the PDF text is readable
+     * (so the money fields are sound) but the supplier is image-only (a logo).
+     */
+    static Fields mergeSupplier(Fields text, Fields ocr) {
+        String supplierName = isBlank(text.supplierName()) ? ocr.supplierName() : text.supplierName();
+        String issuerCif = isBlank(text.issuerCif()) ? ocr.issuerCif() : text.issuerCif();
+        return new Fields(supplierName, text.supplierIban(), text.total(), text.date(), text.status(),
+                issuerCif, text.clientCif(), text.receiptNumber(), text.wrongParty());
     }
 
     /** true when both codes are present and differ, false when they match, null when undeterminable. */

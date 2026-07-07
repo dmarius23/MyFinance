@@ -59,11 +59,12 @@ public final class PdfImages {
     }
 
     /**
-     * Render pages to PNGs at the given DPI for multi-page vision OCR: the first {@code maxPages} pages
-     * plus always the last page (a multi-page invoice's grand total — "Val. totala" — lives on the last
-     * page, while page 1 only carries a "Sold intermediar" subtotal). Empty list on failure.
+     * Render just the first and last page to PNGs for vision OCR — the only pages an invoice's fields
+     * live on: the header (supplier, buyer, CIFs, date, number — page 1) and the grand total
+     * ("Val. totala", last page). Middle pages are line items we don't extract, so they are skipped.
+     * One image for a single-page PDF, two otherwise. Empty list on failure.
      */
-    public static List<byte[]> renderPagesPng(byte[] pdf, int dpi, int maxPages) {
+    public static List<byte[]> renderFirstAndLastPng(byte[] pdf, int dpi) {
         List<byte[]> out = new ArrayList<>();
         try (PDDocument doc = Loader.loadPDF(pdf)) {
             int n = doc.getNumberOfPages();
@@ -71,10 +72,8 @@ public final class PdfImages {
                 return out;
             }
             Set<Integer> pages = new LinkedHashSet<>();
-            for (int i = 0; i < Math.min(n, maxPages); i++) {
-                pages.add(i);
-            }
-            pages.add(n - 1); // the totals page
+            pages.add(0);
+            pages.add(n - 1); // same as 0 for a single-page PDF (deduped by the set)
             PDFRenderer renderer = new PDFRenderer(doc);
             for (int i : pages) {
                 BufferedImage img = renderer.renderImageWithDPI(i, dpi, ImageType.RGB);

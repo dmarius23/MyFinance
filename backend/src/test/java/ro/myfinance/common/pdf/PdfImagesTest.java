@@ -22,26 +22,25 @@ class PdfImagesTest {
     }
 
     @Test
-    void rendersEveryPageWhenUnderTheCap() throws Exception {
-        List<byte[]> imgs = PdfImages.renderPagesPng(pdfOf(3), 40, 6);
-        assertThat(imgs).hasSize(3);
+    void rendersOnlyFirstAndLastPage() throws Exception {
+        // A 5-page invoice → header (page 1) + totals (page 5) only; the 3 middle pages are skipped.
+        List<byte[]> imgs = PdfImages.renderFirstAndLastPng(pdfOf(5), 40);
+        assertThat(imgs).hasSize(2);
         assertThat(imgs).allSatisfy(b -> assertThat(b).isNotEmpty());
     }
 
     @Test
-    void alwaysIncludesTheLastPageEvenWhenOverTheCap() throws Exception {
-        // 5-page invoice, cap 2 → first 2 pages + the last (totals) page = 3 distinct images.
-        List<byte[]> imgs = PdfImages.renderPagesPng(pdfOf(5), 40, 2);
-        assertThat(imgs).hasSize(3);
+    void twoPageYieldsBothPages() throws Exception {
+        assertThat(PdfImages.renderFirstAndLastPng(pdfOf(2), 40)).hasSize(2);
     }
 
     @Test
     void singlePageYieldsOneImage() throws Exception {
-        assertThat(PdfImages.renderPagesPng(pdfOf(1), 40, 6)).hasSize(1);
+        assertThat(PdfImages.renderFirstAndLastPng(pdfOf(1), 40)).hasSize(1);
     }
 
     @Test
     void emptyOnInvalidPdf() {
-        assertThat(PdfImages.renderPagesPng(new byte[] {1, 2, 3}, 40, 6)).isEmpty();
+        assertThat(PdfImages.renderFirstAndLastPng(new byte[] {1, 2, 3}, 40)).isEmpty();
     }
 }
