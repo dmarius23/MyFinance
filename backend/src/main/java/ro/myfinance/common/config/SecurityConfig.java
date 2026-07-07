@@ -1,6 +1,8 @@
 package ro.myfinance.common.config;
 
+import java.time.Duration;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +12,14 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -62,6 +72,48 @@ public class SecurityConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(new SupabaseJwtAuthoritiesConverter());
         return converter;
+    }
+
+    /**
+     * Replaces Boot's auto-configured decoder to add issuer pinning and an explicit clock skew on top of
+     * JWKS signature validation. Without this, any validly-signed Supabase token (regardless of which
+     * project minted it) would be accepted on signature + expiry alone.
+     */
+    @Bean
+    JwtDecoder jwtDecoder(SupabaseProperties supabase,
+            @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}") String jwkSetUri) {
+        // Supabase signs with ES256; re-declare both algorithms since withJwkSetUri defaults to RS256 only.
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
+                .jwsAlgorithms(algs -> {
+                    algs.add(SignatureAlgorithm.ES256);
+                    algs.add(SignatureAlgorithm.RS256);
+                })
+                .build();
+        decoder.setJwtValidator(jwtValidator(effectiveIssuer(supabase.issuer(), jwkSetUri)));
+        return decoder;
+    }
+
+    /**
+     * The issuer to pin. Prefer the explicit {@code myfinance.supabase.issuer}; when blank, derive it from
+     * the JWKS URI (Supabase's {@code iss} is the JWKS URL minus {@code /.well-known/jwks.json}). This keeps
+     * a single source of truth — configuring only {@code SUPABASE_JWKS_URI} is enough — while still failing
+     * closed: with the {@code YOUR-PROJECT} placeholder JWKS URI the derived issuer is a placeholder too.
+     */
+    static String effectiveIssuer(String configuredIssuer, String jwkSetUri) {
+        if (configuredIssuer != null && !configuredIssuer.isBlank()) {
+            return configuredIssuer;
+        }
+        String suffix = "/.well-known/jwks.json";
+        return jwkSetUri.endsWith(suffix)
+                ? jwkSetUri.substring(0, jwkSetUri.length() - suffix.length())
+                : jwkSetUri;
+    }
+
+    /** Issuer pinning + 30s clock skew; extracted for unit testing without a live JWKS endpoint. */
+    static OAuth2TokenValidator<Jwt> jwtValidator(String issuer) {
+        return new DelegatingOAuth2TokenValidator<>(
+                new JwtTimestampValidator(Duration.ofSeconds(30)),
+                new JwtIssuerValidator(issuer));
     }
 
     @Bean

@@ -40,7 +40,8 @@ class SupabaseUserInviterTest {
                 .andExpect(jsonPath("$.app_metadata.tenant_id").exists())
                 .andRespond(withSuccess("{\"id\":\"" + newUserId + "\"}", MediaType.APPLICATION_JSON));
 
-        var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key");
+        var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key",
+                "https://proj.supabase.co/auth/v1");
         var inviter = new SupabaseUserInviter(props, builder);
 
         var result = inviter.invite("rep@client.ro",
