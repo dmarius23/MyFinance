@@ -27,20 +27,25 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## Priority map
 
-| Band | Theme | Steps |
-|---|---|---|
-| **P0** | Security correctness (cheap, high-value) | S1, S2, S3 |
-| **P1** | Reliability & correctness of core flows | S4, S5, S6 |
-| **P2** | Production blockers (stubbed features) | S7, S8 |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 |
-| **P4** | Documentation & guardrails | S14 |
-| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 |
+| Band | Theme | Steps | Status |
+|---|---|---|---|
+| **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
+| **P1** | Reliability & correctness of core flows | S4, S5, S6 | ⬜ Not started |
+| **P2** | Production blockers (stubbed features) | S7, S8 | ⬜ Not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ⬜ Not started |
+| **P4** | Documentation & guardrails | S14 | ⬜ Not started |
+| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
+
+> **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
+> already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
+> JWKS URI). Deferred follow-ups discovered during P0: `DocumentServiceIT` repair → **S4**; failsafe/CI +
+> `*IT`-suite isolation → **S15/S18** (see notes on those steps).
 
 ---
 
-## P0 — Security correctness
+## P0 — Security correctness  ✅ Done (PR #3)
 
-### S1. Fail-safe URL authorization backstop
+### S1. Fail-safe URL authorization backstop  ✅ Done
 - **Goal:** gate URLs by role at the filter layer — `/api/v1/portal/**` → `REPRESENTATIVE`,
   `/api/v1/admin/**` → `SUPER_ADMIN`, other `/api/v1/**` → staff roles — *in addition to* the existing
   per-method `@PreAuthorize`.
@@ -66,7 +71,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** rep token blocked at the filter for staff routes; all existing tests green.
 - **Size:** S. **Depends-on:** none (pairs with the negative tests in S18).
 
-### S2. Multipart request limits + upload guardrails
+### S2. Multipart request limits + upload guardrails  ✅ Done (reduced scope — see status note)
 - **Goal:** reject oversized / wrong-type uploads *before* the bytes are fully buffered.
 - **Why:** there is **no** `spring.servlet.multipart.*` config, so Spring's ~128 MB default applies; the
   app's own 20 MB check runs only *after* the upload is buffered. No server-side content-type allowlist.
@@ -86,7 +91,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** >20 MB → `413` without OOM; disallowed type → `400`; existing upload tests green.
 - **Size:** S. **Depends-on:** none.
 
-### S3. JWT issuer/audience pinning + clock skew
+### S3. JWT issuer/audience pinning + clock skew  ✅ Done (issuer pinning; audience intentionally not pinned)
 - **Goal:** validate the token `iss` (and `aud` if Supabase sets it) and set an explicit clock skew —
   not signature + algorithm alone.
 - **Why:** the decoder is Spring auto-config from `jwk-set-uri` + `jws-algorithms: [ES256, RS256]` only.
