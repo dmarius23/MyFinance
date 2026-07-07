@@ -38,6 +38,11 @@ secrets/
 logs/
 tmp/
 
+# ---- Claude Code (personal, machine-local) ----
+.claude
+.claude/settings.local.json
+.claude/projects/
+
 # ---- Supabase ----
 .supabase/
 
