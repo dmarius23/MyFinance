@@ -187,20 +187,6 @@ export function ReconcileWorkspace() {
   const selectTxn = (id: string) => { setSelectedTxnId((cur) => (cur === id ? null : id)); setChecked(new Set()); };
   const toggleCheck = (id: string) => setChecked((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  // Open the bank-statement PDF in a separate browser tab. The tab is opened synchronously in the click
-  // handler (before the async, authenticated blob fetch) so the browser doesn't treat it as a blocked popup.
-  const openStatement = async (documentId: string) => {
-    const win = window.open("", "_blank");
-    try {
-      const blob = await documentsApi.download(companyId, documentId);
-      const url = URL.createObjectURL(blob);
-      if (win) win.location.href = url; else window.open(url, "_blank");
-    } catch {
-      win?.close();
-      window.alert(t("files.unavailable"));
-    }
-  };
-
   const hasStatement = (statements.data?.length ?? 0) > 0;
   const c = company.data;
   const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
@@ -237,8 +223,8 @@ export function ReconcileWorkspace() {
               <span className="mono" style={{ color: "var(--text-muted)" }}>{s.openingBalance != null ? money(s.openingBalance) : "—"} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>
               <span className={`pill round ${s.crossCheckOk ? "ok" : "danger"}`}>✓ {t("recon.txnsParsed", { n: s.txnCount })}</span>
               <span style={{ flex: 1 }} />
-              <button onClick={() => openStatement(s.documentId)} style={eyeBtn}
-                title={t("recon.viewStatement")} aria-label={t("recon.viewStatement")}><Icon name="eye" size={15} /></button>
+              <button onClick={() => setPreview({ documentId: s.documentId, filename: [s.bankCode, maskIban(s.accountIban)].filter(Boolean).join(" ") || null })}
+                style={eyeBtn} title={t("recon.viewStatement")} aria-label={t("recon.viewStatement")}><Icon name="eye" size={15} /></button>
             </div>
           ))}
         </div>
