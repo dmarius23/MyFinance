@@ -34,17 +34,33 @@ public class BankStatementExtractionService {
     private final BankTransactionRepository transactions;
     private final ReconciliationService reconciliation;
     private final AuditRecorder audit;
+    private final ro.myfinance.intake.adapter.persistence.DocumentRepository documents;
 
     public BankStatementExtractionService(BankStatementParserRegistry registry,
                                           BankStatementRepository statements,
                                           BankTransactionRepository transactions,
                                           ReconciliationService reconciliation,
-                                          AuditRecorder audit) {
+                                          AuditRecorder audit,
+                                          ro.myfinance.intake.adapter.persistence.DocumentRepository documents) {
         this.registry = registry;
         this.statements = statements;
         this.transactions = transactions;
         this.reconciliation = reconciliation;
         this.audit = audit;
+        this.documents = documents;
+    }
+
+    /**
+     * Keep the statement's document in the same month as the statement itself (its content month), so the
+     * files list, reconcile view and transactions all agree. A direct field update (no re-publish) — the
+     * derived data is already correct, and re-publishing would re-enter extraction.
+     */
+    private void alignDocumentPeriod(UUID documentId, LocalDate period) {
+        documents.findById(documentId).ifPresent(doc -> {
+            if (!period.equals(doc.getPeriodMonth())) {
+                doc.setPeriodMonth(period);
+            }
+        });
     }
 
     public void extract(UUID documentId, UUID companyId, LocalDate periodMonth, byte[] bytes) {
@@ -61,7 +77,8 @@ public class BankStatementExtractionService {
         if (prior.isPresent()) {
             BankStatement es = prior.get();
             if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0) {
-                reconciliation.matchPeriod(companyId, periodMonth);
+                alignDocumentPeriod(documentId, es.getPeriodMonth()); // keep the document with its statement
+                reconciliation.matchPeriod(companyId, es.getPeriodMonth());
                 return;
             }
             statements.deleteByDocumentId(documentId);
@@ -140,6 +157,7 @@ public class BankStatementExtractionService {
                     parsed.accountIban(), t.date(), t.amount(), dir, t.partnerName(), t.partnerIban(),
                     t.description(), t.ref(), t.balanceAfter()));
         }
+        alignDocumentPeriod(documentId, period); // file the document in the statement's own month too
         reconciliation.classify(statement.getId());
         reconciliation.matchPeriod(companyId, period);
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
