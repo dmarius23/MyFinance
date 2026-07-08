@@ -18,6 +18,7 @@ import ro.myfinance.extraction.adapter.persistence.TransactionRuleRepository;
 import ro.myfinance.extraction.domain.BankStatement;
 import ro.myfinance.extraction.domain.BankTransaction;
 import ro.myfinance.extraction.domain.DecisionSource;
+import ro.myfinance.extraction.domain.DocCategory;
 import ro.myfinance.extraction.domain.Invoice;
 import ro.myfinance.extraction.domain.TransactionInvoiceMatch;
 import ro.myfinance.extraction.domain.TransactionRule;
@@ -151,6 +152,38 @@ public class ReconciliationService {
             } else {
                 t.setRequiresDocument(base.requiresDocument());
                 t.setDecisionSource(DecisionSource.SYSTEM_RULE);
+            }
+        }
+        applyShareholderAccountRule(txns, companyId);
+    }
+
+    /**
+     * A counterparty account that receives dividend payments is the owner/shareholder's account; other
+     * debits to that same account (e.g. a loan repayment "restituire creditare") are owner payouts, not
+     * purchases, so they need no document. Shareholder accounts are gathered from the company's dividend
+     * transactions across all statements. Accountant and learned-rule decisions are left untouched.
+     */
+    private void applyShareholderAccountRule(List<BankTransaction> txns, UUID companyId) {
+        java.util.Set<String> shareholderIbans = new java.util.HashSet<>();
+        java.util.function.Consumer<BankTransaction> collect = t -> {
+            if (t.getCategory() == DocCategory.DIVIDEND && t.getPartnerIban() != null && !t.getPartnerIban().isBlank()) {
+                shareholderIbans.add(t.getPartnerIban());
+            }
+        };
+        transactions.findByCompanyId(companyId).forEach(collect); // persisted, across statements
+        txns.forEach(collect);                                    // this statement, just (re)classified
+        if (shareholderIbans.isEmpty()) {
+            return;
+        }
+        for (BankTransaction t : txns) {
+            if (t.getDecisionSource() == DecisionSource.ACCOUNTANT_SET
+                    || t.getDecisionSource() == DecisionSource.LEARNED_RULE) {
+                continue;
+            }
+            if (t.getAmount().signum() < 0 && t.isRequiresDocument()
+                    && t.getPartnerIban() != null && shareholderIbans.contains(t.getPartnerIban())) {
+                t.setRequiresDocument(false);
+                t.setCategory(DocCategory.DIVIDEND);
             }
         }
     }
