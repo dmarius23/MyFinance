@@ -37,12 +37,17 @@ public class TransactionClassifier {
             return new Result(false, DocCategory.SALARY);
         }
         // Bank fees / charges — commission ("comision operatiune/tranzactie"), account maintenance
-        // ("intretinere cont"), or the Netopia processor. These are the bank's own lines, not supplier
-        // purchases, so they need no supporting document. Checked in both the description and partner
-        // name (the parser sometimes carries the label as the partner).
+        // ("intretinere cont" / "administrare cont"), or the Netopia processor. These are the bank's own
+        // lines, not supplier purchases, so they need no supporting document. Checked in both the
+        // description and partner name (the parser sometimes carries the label as the partner).
         if (containsAny(desc, "comision", "fee", "intretinere", "administrare cont")
                 || containsAny(partner, "comision", "intretinere", "netopia")) {
             return new Result(false, DocCategory.FEE);
+        }
+        // Dividend distribution to shareholders (e.g. "retragere/plata dividende") — an owner payout, not
+        // a purchase, so no invoice/receipt is due.
+        if (containsAny(desc, "dividend") || containsAny(partner, "dividend")) {
+            return new Result(false, DocCategory.DIVIDEND);
         }
         if (desc.contains("leasing")) {
             return new Result(true, DocCategory.LEASING);

@@ -90,6 +90,7 @@ public final class BankStatementDtos {
                 case OWN_TRANSFER -> "Transfer between own accounts — no document";
                 case SALARY -> "Covered by payroll / D112";
                 case FEE -> "Bank/processor fee — no document";
+                case DIVIDEND -> "Dividend distribution — no document";
                 case LEASING -> "Leasing invoice / schedule required";
                 case SUPPLIER -> "Supplier purchase — invoice required";
             };

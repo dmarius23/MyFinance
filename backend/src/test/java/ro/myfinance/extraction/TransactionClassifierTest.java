@@ -97,4 +97,19 @@ class TransactionClassifierTest {
         assertThat(r.requiresDocument()).isTrue();
         assertThat(r.category()).isEqualTo(DocCategory.SUPPLIER);
     }
+
+    @Test
+    void dividendPayoutIsNoDoc() {
+        // Owner distribution to a shareholder (BT: "retragere dividende") — not a purchase, no document.
+        var r = c.classify(debit("RO37BTRL03301201E57143XX", "Rebega Adrian Ioan", "retragere dividende"));
+        assertThat(r.requiresDocument()).isFalse();
+        assertThat(r.category()).isEqualTo(DocCategory.DIVIDEND);
+    }
+
+    @Test
+    void accountManagementFeeIsNoDoc() {
+        var r = c.classify(debit(null, null, "administrare cont lunara"));
+        assertThat(r.requiresDocument()).isFalse();
+        assertThat(r.category()).isEqualTo(DocCategory.FEE);
+    }
 }

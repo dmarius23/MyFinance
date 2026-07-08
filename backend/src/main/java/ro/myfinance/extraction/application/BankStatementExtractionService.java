@@ -78,6 +78,7 @@ public class BankStatementExtractionService {
             BankStatement es = prior.get();
             if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0) {
                 alignDocumentPeriod(documentId, es.getPeriodMonth()); // keep the document with its statement
+                reconciliation.classify(es.getId()); // re-apply the latest base rules (keeps accountant overrides)
                 reconciliation.matchPeriod(companyId, es.getPeriodMonth());
                 return;
             }
