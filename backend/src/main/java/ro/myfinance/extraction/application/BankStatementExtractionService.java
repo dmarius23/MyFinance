@@ -111,6 +111,16 @@ public class BankStatementExtractionService {
             }
         }
 
+        // A re-upload of a statement we already hold: every parsed transaction was deduped away. Don't
+        // create an empty shell statement — it would show nothing in the upload period and clutter the
+        // list. The existing statement (filed under its own month) remains the record of these txns.
+        if (!parsed.transactions().isEmpty() && unique.isEmpty()) {
+            log.info("Statement document {} duplicates an existing statement ({} transactions already "
+                    + "stored) — not creating an empty statement", documentId, parsed.transactions().size());
+            reconciliation.matchPeriod(companyId, periodMonth);
+            return;
+        }
+
         boolean crossOk = crossCheck(parsed);
         StatementStatus status = (crossOk && !hadNullAmount)
                 ? StatementStatus.EXTRACTED : StatementStatus.NEEDS_REVIEW;
