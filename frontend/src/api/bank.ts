@@ -2,6 +2,7 @@ import { api } from "../lib/apiClient";
 
 export interface BankStatement {
   id: string;
+  documentId: string;
   bankCode: string | null;
   accountIban: string | null;
   openingBalance: number | null;

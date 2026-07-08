@@ -11,11 +11,11 @@ public final class BankStatementDtos {
     private BankStatementDtos() {
     }
 
-    public record StatementResponse(UUID id, String bankCode, String accountIban,
+    public record StatementResponse(UUID id, UUID documentId, String bankCode, String accountIban,
                                     BigDecimal openingBalance, BigDecimal closingBalance,
                                     String status, boolean crossCheckOk, int txnCount) {
         public static StatementResponse from(BankStatement s) {
-            return new StatementResponse(s.getId(), s.getBankCode(), s.getAccountIban(),
+            return new StatementResponse(s.getId(), s.getDocumentId(), s.getBankCode(), s.getAccountIban(),
                     s.getOpeningBalance(), s.getClosingBalance(), s.getStatus().name(),
                     s.isCrossCheckOk(), s.getTxnCount());
         }
