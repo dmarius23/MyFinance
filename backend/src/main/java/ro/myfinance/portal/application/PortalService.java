@@ -71,7 +71,8 @@ public class PortalService {
     public record CompanyOption(UUID companyId, String name, String cui) {
     }
 
-    public record MissingItem(LocalDate txnDate, String partnerName, BigDecimal amount, String description) {
+    public record MissingItem(LocalDate txnDate, String partnerName, BigDecimal amount, String description,
+                              boolean credit) {
     }
 
     /**
@@ -128,7 +129,8 @@ public class PortalService {
         return reconciliation.transactionsWithMatches(companyId(), period.withDayOfMonth(1)).stream()
                 .filter(tw -> tw.txn().isRequiresDocument() && tw.invoices().isEmpty())
                 .map(tw -> new MissingItem(tw.txn().getTxnDate(), tw.txn().getPartnerName(),
-                        tw.txn().getAmount().abs(), tw.txn().getDescription()))
+                        tw.txn().getAmount().abs(), tw.txn().getDescription(),
+                        tw.txn().getAmount().signum() > 0)) // credit = money in (income), debit = supplier
                 .toList();
     }
 

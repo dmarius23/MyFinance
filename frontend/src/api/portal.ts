@@ -19,6 +19,8 @@ export interface MissingItem {
   partnerName: string | null;
   amount: number;
   description: string | null;
+  /** true = money in (income → the company issues the invoice); false = money out (supplier invoice needed). */
+  credit: boolean;
 }
 
 export interface PortalDoc {

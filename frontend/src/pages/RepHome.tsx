@@ -126,6 +126,10 @@ export function RepHome() {
   const others = all.filter((d) => d.type !== "BANK_STATEMENT");
   const hasBank = bank.length > 0;
   const missingItems = missing.data ?? [];
+  // Split the still-needed documents by cash direction: money out needs a supplier invoice, money in
+  // (income, e.g. AROBIS SERVICES LIMITED) needs the invoice the company itself issued.
+  const missingExpense = missingItems.filter((m) => !m.credit);
+  const missingIncome = missingItems.filter((m) => m.credit);
   const needsDocs = !hasBank || missingItems.length > 0;
 
   const onView = (d: { id: string; filename: string }) =>
@@ -236,13 +240,21 @@ export function RepHome() {
                 <div style={{ fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase", color: "#b91c1c", fontWeight: 700, marginBottom: 7, display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.danger }} />{t("portal.stillNeeded")} · {missingItems.length}
                 </div>
-                {missingItems.map((m, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.partnerName ?? m.description ?? "—"}</div>
-                      <div style={{ ...mono, fontSize: 11, color: C.mut }}>{m.txnDate}</div>
-                    </div>
-                    <span style={{ ...mono, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: C.ink }}>{money(m.amount)} RON</span>
+                {([
+                  { key: "expense", label: t("portal.missing.expense"), items: missingExpense },
+                  { key: "income", label: t("portal.missing.income"), items: missingIncome },
+                ] as const).filter((g) => g.items.length > 0).map((g) => (
+                  <div key={g.key}>
+                    <div style={{ fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase", color: C.mut, fontWeight: 600, marginTop: 9, marginBottom: 1 }}>{g.label}</div>
+                    {g.items.map((m, i) => (
+                      <div key={`${g.key}-${i}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.partnerName ?? m.description ?? "—"}</div>
+                          <div style={{ ...mono, fontSize: 11, color: C.mut }}>{m.txnDate}</div>
+                        </div>
+                        <span style={{ ...mono, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: m.credit ? C.green : C.ink }}>{m.credit ? "+" : ""}{money(m.amount)} RON</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
