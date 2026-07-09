@@ -27,18 +27,23 @@ public class DocumentReminderService {
     private static final Logger log = LoggerFactory.getLogger(DocumentReminderService.class);
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM.yyyy");
 
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM");
+
     private final DocumentReminderRepository reminders;
     private final EmailSender sender;
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
     private final ro.myfinance.notifications.application.NotificationService notifications;
+    private final ReconciliationService reconciliation;
 
     public DocumentReminderService(DocumentReminderRepository reminders, EmailSender sender,
                                    ro.myfinance.access.application.EmailEnvelopeService envelopes,
-                                   ro.myfinance.notifications.application.NotificationService notifications) {
+                                   ro.myfinance.notifications.application.NotificationService notifications,
+                                   ReconciliationService reconciliation) {
         this.reminders = reminders;
         this.sender = sender;
         this.envelopes = envelopes;
         this.notifications = notifications;
+        this.reconciliation = reconciliation;
     }
 
     /** One reminder send, for the notification log / list. */
@@ -98,9 +103,39 @@ public class DocumentReminderService {
         }
         if (status == DocumentReminder.Status.SENT) {
             notifications.notifyCompanyReps(companyId, "DOC_REQUEST", "Documente solicitate",
-                    "Contabilul a solicitat documente pentru luna " + MONTH.format(month) + ".");
+                    docRequestBody(companyId, month));
         }
         return ReminderView.from(reminders.save(new DocumentReminder(
                 tenantId, companyId, month, to, body, status, error, userId)));
+    }
+
+    /**
+     * The in-app notification body: the intro line plus the concrete list of transactions still missing a
+     * document (a bank transaction that requires an invoice/receipt and has none matched), so the rep sees
+     * exactly what to upload. Falls back to the plain intro when nothing is missing (or the lookup fails).
+     */
+    private String docRequestBody(UUID companyId, LocalDate month) {
+        String intro = "Contabilul a solicitat documente pentru luna " + MONTH.format(month) + ".";
+        try {
+            List<String> lines = reconciliation.transactionsWithMatches(companyId, month).stream()
+                    .filter(tw -> tw.txn().isRequiresDocument() && tw.invoices().isEmpty())
+                    .map(tw -> {
+                        var t = tw.txn();
+                        String who = t.getPartnerName() != null && !t.getPartnerName().isBlank()
+                                ? t.getPartnerName() : t.getDescription();
+                        String kind = t.getAmount().signum() > 0 ? "încasare" : "furnizor";
+                        String amount = t.getAmount().abs().stripTrailingZeros().toPlainString();
+                        return "• " + DAY.format(t.getTxnDate()) + " · " + (who == null ? "—" : who)
+                                + " · " + amount + " lei (" + kind + ")";
+                    })
+                    .toList();
+            if (lines.isEmpty()) {
+                return intro;
+            }
+            return intro + "\nDocumente necesare:\n" + String.join("\n", lines);
+        } catch (RuntimeException e) {
+            log.warn("Could not build missing-document list for company {} period {}", companyId, month, e);
+            return intro;
+        }
     }
 }

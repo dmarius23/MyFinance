@@ -30,18 +30,23 @@ import ro.myfinance.taxpayments.application.EmailSender;
 public class PayrollService {
 
     private static final Logger log = LoggerFactory.getLogger(PayrollService.class);
+    private static final java.time.format.DateTimeFormatter MONTH_RO =
+            java.time.format.DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.forLanguageTag("ro"));
 
     private final DocumentService documents;
     private final PayrollEmailRepository emails;
     private final EmailSender sender;
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public PayrollService(DocumentService documents, PayrollEmailRepository emails, EmailSender sender,
-                          ro.myfinance.access.application.EmailEnvelopeService envelopes) {
+                          ro.myfinance.access.application.EmailEnvelopeService envelopes,
+                          ro.myfinance.notifications.application.NotificationService notifications) {
         this.documents = documents;
         this.emails = emails;
         this.sender = sender;
         this.envelopes = envelopes;
+        this.notifications = notifications;
     }
 
     /** One payroll document (for the list chips and the attach set). */
@@ -145,6 +150,11 @@ public class PayrollService {
             status = PayrollEmail.Status.FAILED;
             error = e.getMessage();
             log.warn("Payroll email send failed for company {} period {}", companyId, month, e);
+        }
+        if (status == PayrollEmail.Status.SENT) {
+            notifications.notifyCompanyReps(companyId, "PAYROLL_READY", "State de plată disponibile",
+                    "Statul de plată, fluturașul de salariu și pontajul pentru luna " + MONTH_RO.format(month)
+                            + " sunt disponibile în aplicație și un email a fost trimis.");
         }
         return PayrollEmailView.from(emails.save(new PayrollEmail(
                 tenantId, companyId, month, docIds, to, body, status, error, userId)));

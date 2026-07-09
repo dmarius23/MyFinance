@@ -82,7 +82,7 @@ export function NotificationBell() {
                   {!n.readAt && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--primary)", marginTop: 5, flexShrink: 0 }} />}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 600 }}>{n.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflowWrap: "anywhere" }}>{n.body}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", overflowWrap: "anywhere", whiteSpace: "pre-line" }}>{n.body}</div>
                     <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 2 }}>{ago(n.createdAt)}</div>
                   </div>
                 </div>

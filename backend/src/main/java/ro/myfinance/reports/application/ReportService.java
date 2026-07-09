@@ -40,11 +40,13 @@ public class ReportService {
     private final ro.myfinance.company.adapter.persistence.CompanyRepository companies;
     private final DocumentRepository documents;
     private final DocumentStorage storage;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public ReportService(ReportSnapshotRepository snapshots, ReportEmailRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
                          ro.myfinance.company.adapter.persistence.CompanyRepository companies,
-                         DocumentRepository documents, DocumentStorage storage) {
+                         DocumentRepository documents, DocumentStorage storage,
+                         ro.myfinance.notifications.application.NotificationService notifications) {
         this.snapshots = snapshots;
         this.emails = emails;
         this.extractor = extractor;
@@ -52,6 +54,7 @@ public class ReportService {
         this.companies = companies;
         this.documents = documents;
         this.storage = storage;
+        this.notifications = notifications;
     }
 
     /** Per-company report status for the monthly list. */
@@ -102,6 +105,9 @@ public class ReportService {
                 s -> s.replace(documentId, data.balanced(), body, tbMonth),
                 () -> snapshots.save(new ReportSnapshot(TenantContext.tenantId().orElseThrow(),
                         companyId, storedMonth, documentId, data.balanced(), body, tbMonth)));
+
+        notifications.notifyCompanyReps(companyId, "BALANCE_READY", "Balanță disponibilă",
+                "Balanța pentru luna " + ReportEmailBuilder.monthYear(storedMonth) + " este disponibilă în aplicație.");
     }
 
     /** Wrong party only when both CUIs are known and their bare digits differ. */

@@ -28,13 +28,16 @@ public class TaxEmailService {
     private final TaxEmailRepository emails;
     private final EmailSender sender;
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
+    private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public TaxEmailService(TaxPaymentService payments, TaxEmailRepository emails, EmailSender sender,
-                           ro.myfinance.access.application.EmailEnvelopeService envelopes) {
+                           ro.myfinance.access.application.EmailEnvelopeService envelopes,
+                           ro.myfinance.notifications.application.NotificationService notifications) {
         this.payments = payments;
         this.emails = emails;
         this.sender = sender;
         this.envelopes = envelopes;
+        this.notifications = notifications;
     }
 
     /** Default editable body + totals for the chosen declarations. */
@@ -71,6 +74,13 @@ public class TaxEmailService {
             status = TaxEmail.Status.FAILED;
             error = e.getMessage();
             log.warn("Email send failed for company {} period {}", companyId, month, e);
+        }
+        if (status == TaxEmail.Status.SENT) {
+            java.math.BigDecimal total = payments.composeFor(companyId, declarationIds).total();
+            String amount = total.stripTrailingZeros().toPlainString();
+            notifications.notifyCompanyReps(companyId, "TAX_DUE", "Sume de plată la stat",
+                    "Contabilul a trimis situația impozitelor pentru luna " + PaymentCalculator.monthYear(YearMonth.from(month))
+                            + ". Total de plată: " + amount + " lei.");
         }
         return emails.save(new TaxEmail(tenantId, companyId, month, declarationIds, to, body,
                 status, error, userId));

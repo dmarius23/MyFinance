@@ -401,7 +401,7 @@ export function RepHome() {
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: n.readAt ? "#cbd5d2" : C.teal, flex: "none", marginTop: 5 }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{n.title}</div>
-                    <div style={{ fontSize: 12.5, color: C.sub, marginTop: 1 }}>{n.body}</div>
+                    <div style={{ fontSize: 12.5, color: C.sub, marginTop: 1, whiteSpace: "pre-line" }}>{n.body}</div>
                   </div>
                 </button>
               ))}
