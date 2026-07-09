@@ -11,10 +11,9 @@ public interface TaxDeclarationRepository extends JpaRepository<TaxDeclaration, 
 
     Optional<TaxDeclaration> findByDocumentId(UUID documentId);
 
-    /** Is there already a (canonical) declaration of this type for the same company + fiscal period? */
-    boolean existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
-            UUID companyId, ro.myfinance.taxpayments.domain.DeclarationType type,
-            LocalDate declPeriod, UUID documentId);
+    /** Every stored copy of the same declaration (company + type + fiscal period), across upload slots. */
+    List<TaxDeclaration> findByCompanyIdAndTypeAndDeclPeriod(
+            UUID companyId, ro.myfinance.taxpayments.domain.DeclarationType type, LocalDate declPeriod);
 
     List<TaxDeclaration> findByCompanyIdAndPeriodMonthOrderByTypeAsc(UUID companyId, LocalDate periodMonth);
 

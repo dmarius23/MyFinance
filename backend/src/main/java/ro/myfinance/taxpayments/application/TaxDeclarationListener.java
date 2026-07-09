@@ -58,10 +58,28 @@ public class TaxDeclarationListener {
             // flagged outside-period ({@link TaxDeclaration#isOutsidePeriod()} is derived from declPeriod
             // vs the slot). It shows in the manager with a "Move to correct period" action and is excluded
             // from this month's payment totals — but is kept so the accountant can see and fix it.
-            // Duplicate when another (canonical) declaration of the same type already covers this period.
-            boolean duplicate = declPeriod != null
-                    && declarations.existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
-                            e.companyId(), pd.type(), declPeriod, e.documentId());
+            //
+            // Duplicate handling: the copy filed in its OWN month (period_month == declPeriod) is the
+            // canonical one; a copy uploaded into the wrong month is the duplicate — never the other way
+            // round. So the same declaration dropped into both the right and a wrong month still shows,
+            // and stays selectable, under its correct month.
+            boolean inPeriod = declPeriod != null && declPeriod.equals(storedMonth);
+            java.util.List<TaxDeclaration> copies = declPeriod == null ? java.util.List.of()
+                    : declarations.findByCompanyIdAndTypeAndDeclPeriod(e.companyId(), pd.type(), declPeriod).stream()
+                            .filter(s -> !e.documentId().equals(s.getDocumentId())).toList();
+            boolean duplicate;
+            if (inPeriod) {
+                // Canonical unless another copy is ALSO correctly filed in this month; a mis-filed copy is
+                // demoted to duplicate below instead of suppressing this one.
+                duplicate = copies.stream().anyMatch(s -> declPeriod.equals(s.getPeriodMonth()) && !s.isDuplicate());
+                if (!duplicate) {
+                    copies.stream().filter(s -> !declPeriod.equals(s.getPeriodMonth()) && !s.isDuplicate())
+                            .forEach(TaxDeclaration::markDuplicate);
+                }
+            } else {
+                // A copy filed in the wrong month is the duplicate whenever any other copy exists.
+                duplicate = !copies.isEmpty();
+            }
             TaxDeclaration row = new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
                     e.companyId(), storedMonth, e.documentId());
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),

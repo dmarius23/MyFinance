@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -80,13 +81,31 @@ class TaxDeclarationListenerTest {
     }
 
     @Test
-    void flagsDuplicateWhenSameTypeAndPeriodAlreadyExists() throws IOException {
+    void aMisfiledCopyIsTheDuplicateWhenAnotherCopyExists() throws IOException {
         byte[] d100 = fixture("D100.pdf");
         assumeTrue(d100 != null, "fixtures missing");
-        when(declarations.existsByCompanyIdAndTypeAndDeclPeriodAndDuplicateFalseAndDocumentIdNot(
-                any(), any(), any(), any())).thenReturn(true);
+        // The D100 is for March but filed under June (outside period) and another copy already exists.
+        when(declarations.findByCompanyIdAndTypeAndDeclPeriod(any(), any(), any()))
+                .thenReturn(List.of(mock(TaxDeclaration.class)));
         TaxDeclaration saved = onUpload(d100, "D100.pdf", LocalDate.of(2026, 6, 1), "49443957");
         assertThat(saved.isDuplicate()).isTrue();
+    }
+
+    @Test
+    void theInPeriodCopyIsCanonicalAndDemotesAMisfiledOne() throws IOException {
+        byte[] d100 = fixture("D100.pdf");
+        assumeTrue(d100 != null, "fixtures missing");
+        // A copy of the same D100 (for March) already sits in the WRONG month (June, outside period).
+        TaxDeclaration misfiled = mock(TaxDeclaration.class);
+        when(misfiled.getDocumentId()).thenReturn(UUID.randomUUID());
+        when(misfiled.getPeriodMonth()).thenReturn(LocalDate.of(2026, 6, 1));
+        when(misfiled.isDuplicate()).thenReturn(false);
+        when(declarations.findByCompanyIdAndTypeAndDeclPeriod(any(), any(), any())).thenReturn(List.of(misfiled));
+        // Upload the same D100 under MARCH (its own month): it is canonical, the June copy is demoted.
+        TaxDeclaration saved = onUpload(d100, "D100.pdf", LocalDate.of(2026, 3, 1), "49443957");
+        assertThat(saved.isOutsidePeriod()).isFalse();
+        assertThat(saved.isDuplicate()).isFalse();
+        verify(misfiled).markDuplicate();
     }
 
     @Test

@@ -87,6 +87,11 @@ public class TaxDeclaration {
         return declPeriod != null && !declPeriod.equals(periodMonth);
     }
 
+    /** Demote to a duplicate — a superseding (correctly-filed) copy of the same declaration exists. */
+    public void markDuplicate() {
+        this.duplicate = true;
+    }
+
     public UUID getId() { return id; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
