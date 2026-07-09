@@ -76,11 +76,16 @@ public class TaxEmailService {
             log.warn("Email send failed for company {} period {}", companyId, month, e);
         }
         if (status == TaxEmail.Status.SENT) {
-            java.math.BigDecimal total = payments.composeFor(companyId, declarationIds).total();
-            String amount = total.stripTrailingZeros().toPlainString();
-            notifications.notifyCompanyReps(companyId, "TAX_DUE", "Sume de plată la stat",
-                    "Contabilul a trimis situația impozitelor pentru luna " + PaymentCalculator.monthYear(YearMonth.from(month))
-                            + ". Total de plată: " + amount + " lei.");
+            // Building the client notification must never fail the recorded send.
+            try {
+                java.math.BigDecimal total = payments.composeFor(companyId, declarationIds).total();
+                String amount = total.stripTrailingZeros().toPlainString();
+                notifications.notifyCompanyReps(companyId, "TAX_DUE", "Sume de plată la stat",
+                        "Contabilul a trimis situația impozitelor pentru luna " + PaymentCalculator.monthYear(YearMonth.from(month))
+                                + ". Total de plată: " + amount + " lei.");
+            } catch (RuntimeException e) {
+                log.warn("Failed to build tax-due notification for company {} period {}", companyId, month, e);
+            }
         }
         return emails.save(new TaxEmail(tenantId, companyId, month, declarationIds, to, body,
                 status, error, userId));

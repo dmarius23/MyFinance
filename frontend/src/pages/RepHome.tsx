@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
 import { PortalPreviewModal } from "../components/PortalPreviewModal";
+import { currentPushState, enablePush, disablePush, type PushState } from "../lib/push";
 
 /* ---- B · Console skin palette ---------------------------------------------------------------- */
 const C = {
@@ -44,6 +45,8 @@ export function RepHome() {
   const [preview, setPreview] = useState<{ load: () => Promise<Blob>; filename: string } | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [pushState, setPushState] = useState<PushState>("disabled");
+  const [pushBusy, setPushBusy] = useState(false);
   const atLatest = period >= latestMonth(); // can't go to the current/future month
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -84,6 +87,20 @@ export function RepHome() {
     mutationFn: (id: string) => portalApi.markNotificationRead(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["portal-notifs", cid] }),
   });
+
+  // Web Push opt-in: reflect the current subscription state, and toggle it on user tap (permission
+  // must be requested from a gesture). Failures fall back to a re-read of the real state.
+  useEffect(() => { void currentPushState().then(setPushState); }, []);
+  const togglePush = async () => {
+    setPushBusy(true);
+    try {
+      setPushState(pushState === "enabled" ? await disablePush() : await enablePush());
+    } catch {
+      setPushState(await currentPushState());
+    } finally {
+      setPushBusy(false);
+    }
+  };
   const missing = useQuery({ queryKey: ["portal-missing", cid, period], queryFn: () => portalApi.missing(period) });
   const docs = useQuery({ queryKey: ["portal-company-docs", cid, period], queryFn: () => portalApi.companyDocuments(period) });
   const report = useQuery({ queryKey: ["portal-report", cid, period], queryFn: () => portalApi.report(period) });
@@ -393,6 +410,26 @@ export function RepHome() {
         {notifOpen && (
           <Sheet onClose={() => setNotifOpen(false)}>
             <div style={{ fontSize: 16, fontWeight: 700, color: C.ink, marginBottom: 6 }}>{t("notif.title")}</div>
+            {/* Web Push opt-in */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${C.hair}`, marginBottom: 4 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>{t("push.section")}</div>
+                <div style={{ fontSize: 11.5, color: C.mut, marginTop: 1 }}>
+                  {pushState === "enabled" ? t("push.enabled")
+                    : pushState === "denied" ? t("push.denied")
+                      : pushState === "ios-install" ? t("push.iosInstall")
+                        : pushState === "server-off" ? t("push.serverOff")
+                          : pushState === "unsupported" ? t("push.unsupported")
+                            : ""}
+                </div>
+              </div>
+              {(pushState === "enabled" || pushState === "disabled") && (
+                <button onClick={togglePush} disabled={pushBusy}
+                  style={{ flex: "none", fontSize: 12, fontWeight: 700, padding: "7px 12px", borderRadius: 9, cursor: pushBusy ? "default" : "pointer", border: "none", background: pushState === "enabled" ? C.hair : C.teal, color: pushState === "enabled" ? C.sub : C.tealInk, opacity: pushBusy ? 0.6 : 1 }}>
+                  {pushState === "enabled" ? t("push.disable") : t("push.enable")}
+                </button>
+              )}
+            </div>
             <div style={{ overflowY: "auto" }}>
               {(notifs.data ?? []).length === 0 && <div style={{ color: C.mut, fontSize: 13, padding: "10px 0" }}>—</div>}
               {(notifs.data ?? []).map((n, i) => (

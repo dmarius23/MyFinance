@@ -33,7 +33,9 @@ class PayrollServiceTest {
     private final EmailSender sender = mock(EmailSender.class);
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
             mock(ro.myfinance.access.application.EmailEnvelopeService.class);
-    private final PayrollService service = new PayrollService(documents, repo, sender, envelopes);
+    private final ro.myfinance.notifications.application.NotificationService notifications =
+            mock(ro.myfinance.notifications.application.NotificationService.class);
+    private final PayrollService service = new PayrollService(documents, repo, sender, envelopes, notifications);
 
     @BeforeEach
     void bindTenant() {

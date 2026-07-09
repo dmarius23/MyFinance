@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { setActiveCompanyId } from "../lib/activeCompany";
+import { unsubscribePushOnLogout } from "../lib/push";
 
 export type Role = "SUPER_ADMIN" | "TENANT_ADMIN" | "EMPLOYEE" | "REPRESENTATIVE";
 
@@ -46,8 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       tenantId: (jwtClaims.tenant_id ?? claims.tenant_id ?? null) as string | null,
       companyId: (jwtClaims.company_id ?? claims.company_id ?? null) as string | null,
       signOut: async () => {
+        // Shared-device safety: unsubscribe this browser from push while the token is still valid.
+        await unsubscribePushOnLogout();
         await supabase.auth.signOut();
-        // Shared-device data safety: drop the cached company hint and every cached API response.
+        // Drop the cached company hint and every cached API response.
         setActiveCompanyId(null);
         qc.clear();
       },

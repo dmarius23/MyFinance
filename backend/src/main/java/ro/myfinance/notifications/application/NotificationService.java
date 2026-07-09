@@ -37,16 +37,30 @@ public class NotificationService {
     private final SettingsService settings;
     private final EmailSender sender;
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
+    private final PushNotificationService push;
 
     public NotificationService(NotificationRepository notifications, CompanyRepository companies,
                                AppUserRepository users, SettingsService settings, EmailSender sender,
-                               ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks) {
+                               ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
+                               PushNotificationService push) {
         this.notifications = notifications;
         this.companies = companies;
         this.users = users;
         this.settings = settings;
         this.sender = sender;
         this.repLinks = repLinks;
+        this.push = push;
+    }
+
+    /**
+     * Persist one in-app notification and fire a matching Web Push to the recipient's devices. The single
+     * choke-point every trigger goes through, so adding push here covers all notification types at once.
+     * Push is best-effort (see {@link PushNotificationService#dispatchToUser}) — the in-app row is the
+     * source of truth.
+     */
+    private void persist(Notification n) {
+        notifications.save(n);
+        push.dispatchToUser(n.getRecipientUserId(), n.getTitle(), n.getBody());
     }
 
     /** In-app notification to every representative of a company (e.g. a document request or a new report). */
@@ -55,7 +69,7 @@ public class NotificationService {
             UUID tenantId = TenantContext.tenantId().orElseThrow();
             String companyName = companies.findById(companyId).map(Company::getLegalName).orElse(null);
             for (var link : repLinks.findByCompanyId(companyId)) {
-                notifications.save(new Notification(tenantId, link.getUserId(), type, title, body,
+                persist(new Notification(tenantId, link.getUserId(), type, title, body,
                         companyId, companyName, null));
             }
         } catch (RuntimeException e) {
@@ -98,7 +112,7 @@ public class NotificationService {
                 recipients.addAll(users.findByRoleIn(List.of(Role.TENANT_ADMIN)));
             }
             for (AppUser r : recipients) {
-                notifications.save(new Notification(tenantId, r.getId(), DOCUMENT_UPLOADED, title, body,
+                persist(new Notification(tenantId, r.getId(), DOCUMENT_UPLOADED, title, body,
                         companyId, companyName, documentId));
             }
 
@@ -121,7 +135,7 @@ public class NotificationService {
         }
         try {
             UUID tenantId = TenantContext.tenantId().orElseThrow();
-            notifications.save(new Notification(tenantId, assigneeUserId, "TASK_ASSIGNED",
+            persist(new Notification(tenantId, assigneeUserId, "TASK_ASSIGNED",
                     "Sarcină nouă", taskTitle, companyId, companyName, null));
         } catch (RuntimeException e) {
             log.warn("Failed to create task-assigned notification for {}", assigneeUserId, e);

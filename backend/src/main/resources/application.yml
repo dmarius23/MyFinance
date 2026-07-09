@@ -81,3 +81,11 @@ myfinance:
     provider: ${RECEIPT_PROVIDER:anthropic}
     api-key: ${RECEIPT_API_KEY:${ANTHROPIC_API_KEY:}}
     model: ${RECEIPT_MODEL:claude-sonnet-4-5-20250929}
+  # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
+  # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
+  # in-app notifications still work. The public key is served to the PWA to subscribe.
+  push:
+    vapid:
+      public-key: ${VAPID_PUBLIC_KEY:}
+      private-key: ${VAPID_PRIVATE_KEY:}
+      subject: ${VAPID_SUBJECT:mailto:noreply@myfinance.local}

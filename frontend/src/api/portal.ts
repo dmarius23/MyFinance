@@ -67,6 +67,17 @@ export interface PortalNotification {
   createdAt: string;
 }
 
+export interface PushConfig {
+  enabled: boolean;
+  publicKey: string;
+}
+
+export interface PushSubscriptionKeys {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -101,4 +112,10 @@ export const portalApi = {
   reportBlob: (period: string) => download(`/api/v1/portal/report/pdf?period=${period}`),
   notifications: () => api<PortalNotification[]>("/api/v1/portal/notifications"),
   markNotificationRead: (id: string) => api<void>(`/api/v1/portal/notifications/${id}/read`, { method: "POST" }),
+  // Web Push (VAPID) — config (public key + whether the server has push enabled) and (un)subscribe.
+  pushConfig: () => api<PushConfig>("/api/v1/portal/push/config"),
+  subscribePush: (body: PushSubscriptionKeys) =>
+    api<void>("/api/v1/portal/push/subscriptions", { method: "POST", body: JSON.stringify(body) }),
+  unsubscribePush: (endpoint: string) =>
+    api<void>("/api/v1/portal/push/subscriptions", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
 };

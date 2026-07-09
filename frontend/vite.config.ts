@@ -8,10 +8,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Enable the generated SW in dev too, so Web Push can be tested on localhost.
+      devOptions: { enabled: true, type: "module" },
       // App-shell precache; never cache sensitive API responses (handled by not matching /api).
+      // push-sw.js (in public/) adds the `push` + `notificationclick` handlers to the generated SW.
       workbox: {
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/],
+        importScripts: ["push-sw.js"],
       },
       manifest: {
         name: "MyFinance",

@@ -38,8 +38,10 @@ class NotificationServiceTest {
     private final EmailSender sender = mock(EmailSender.class);
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
             mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
+    private final ro.myfinance.notifications.application.PushNotificationService push =
+            mock(ro.myfinance.notifications.application.PushNotificationService.class);
     private final NotificationService service =
-            new NotificationService(notifications, companies, users, settings, sender, repLinks);
+            new NotificationService(notifications, companies, users, settings, sender, repLinks, push);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID repId = UUID.randomUUID();

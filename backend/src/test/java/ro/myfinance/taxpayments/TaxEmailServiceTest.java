@@ -29,7 +29,9 @@ class TaxEmailServiceTest {
     private final EmailSender sender = mock(EmailSender.class);
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
             mock(ro.myfinance.access.application.EmailEnvelopeService.class);
-    private final TaxEmailService service = new TaxEmailService(payments, repo, sender, envelopes);
+    private final ro.myfinance.notifications.application.NotificationService notifications =
+            mock(ro.myfinance.notifications.application.NotificationService.class);
+    private final TaxEmailService service = new TaxEmailService(payments, repo, sender, envelopes, notifications);
 
     @BeforeEach
     void bindTenant() {
@@ -37,6 +39,9 @@ class TaxEmailServiceTest {
         when(repo.save(any(TaxEmail.class))).thenAnswer(i -> i.getArgument(0));
         when(envelopes.resolve(any(), any())).thenAnswer(i -> new ro.myfinance.access.application
                 .EmailEnvelopeService.Envelope("Maria Pop", "firma@contabil.ro", i.getArgument(1)));
+        when(payments.composeFor(any(), any())).thenReturn(new ro.myfinance.taxpayments.application
+                .TaxPaymentService.Computation("Beneficiar", List.of(), List.of(),
+                new java.math.BigDecimal("1234.50"), "body"));
     }
 
     @AfterEach

@@ -46,11 +46,12 @@ class ReportServiceTest {
     @Mock CompanyRepository companies;
     @Mock DocumentRepository documents;
     @Mock DocumentStorage storage;
+    @Mock ro.myfinance.notifications.application.NotificationService notifications;
 
     private ReportService service() {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); // JSR-310 for LocalDate
         return new ReportService(snapshots, emails, new TrialBalanceExtractor(), mapper, companies,
-                documents, storage);
+                documents, storage, notifications);
     }
 
     private byte[] fixture() throws Exception {
