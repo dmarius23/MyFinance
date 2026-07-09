@@ -327,9 +327,15 @@ export function ReconcileWorkspace() {
                       {sg.invoices.map((si) => {
                         const full = invById.get(si.invoiceId);
                         const docId = full?.documentId ?? si.documentId;
+                        // Show the invoice's own remaining as the amount; for a single-invoice suggestion
+                        // whose amount differs from the transaction, the transaction remaining shows in grey.
+                        const single = sg.invoices.length === 1;
+                        const invAmount = full ? (full.remaining ?? full.totalAmount ?? si.amount) : si.amount;
                         return full ? (
                           <div key={si.invoiceId} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                            <InvoiceInfo inv={full} amount={si.amount} amountTone="info" companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
+                            <InvoiceInfo inv={full} amount={invAmount}
+                              secondaryAmount={single ? (selectedTxn?.remainingAmount ?? null) : null}
+                              amountTone="info" companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
                             {docId && <button onClick={() => setPreview({ documentId: docId, filename: si.filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
                           </div>
                         ) : (
@@ -422,11 +428,14 @@ const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", te
  *   2) buyer (current company) · buyer CUI
  *   3) file name · labels (DUP / wrong party)
  */
-function InvoiceInfo({ inv, amount, amountTone = "default", companyName, companyCui, t }: {
+function InvoiceInfo({ inv, amount, amountTone = "default", secondaryAmount = null, companyName, companyCui, t }: {
   inv: OpenInvoice; amount: number; amountTone?: "default" | "info" | "muted";
-  companyName: string | null; companyCui: string | null; t: (k: string) => string;
+  secondaryAmount?: number | null; companyName: string | null; companyCui: string | null; t: (k: string) => string;
 }) {
   const amtColor = amountTone === "muted" ? "var(--text-muted)" : amountTone === "info" ? "var(--info-fg, #3730a3)" : "var(--text)";
+  // On a suggestion where the invoice amount differs from the transaction's (a supplier-name match), show
+  // the invoice amount in red with the transaction amount in grey underneath, so the gap is obvious.
+  const mismatch = secondaryAmount != null && Math.abs(amount - secondaryAmount) > TOL;
   // Line 2 is the *buyer* as stated on the document. When it isn't the current company the backend
   // flags wrongParty — then show only that foreign CUI (no company name) so the mismatch is visible.
   const isCurrent = !inv.wrongParty;
@@ -440,7 +449,10 @@ function InvoiceInfo({ inv, amount, amountTone = "default", companyName, company
           {inv.issuerCif && <span style={{ color: "var(--text-muted)" }}> · CUI {inv.issuerCif}</span>}
           {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
         </div>
-        <div className="mono" style={{ flex: "none", fontSize: 12.5, fontWeight: 700, color: amtColor }}>{money(amount)}</div>
+        <div style={{ flex: "none", textAlign: "right" }}>
+          <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: mismatch ? "var(--danger-fg, #dc2626)" : amtColor }}>{money(amount)}</div>
+          {mismatch && <div className="mono" style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)" }}>{money(secondaryAmount)}</div>}
+        </div>
       </div>
       <div style={{ fontSize: 11, color: inv.wrongParty ? "var(--warn-fg, #b45309)" : "var(--text-muted)", ...clip }}>{buyerLine}</div>
       <div style={{ fontSize: 11, color: "var(--text-muted)", ...clip }}>
