@@ -62,6 +62,13 @@ public class StatementExtractionListener {
                 // they still appear in the manual link picker by filename. process() upserts, so a
                 // re-scan refreshes fields in place and preserves the row's existing matches.
                 invoices.process(e.documentId(), e.companyId(), e.periodMonth(), e.filename(), e.bytes());
+            } else {
+                // Any other type (unclassified, payroll, declaration, trial balance): the document is now
+                // neither an invoice nor a bank statement, so purge extraction artifacts left over from a
+                // previous type — e.g. a stale NEEDS_REVIEW statement created when it was mis-classified
+                // as BANK_STATEMENT before being reclassified.
+                statementRepo.deleteByDocumentId(e.documentId());
+                invoiceRepo.deleteByDocumentId(e.documentId());
             }
         } catch (RuntimeException ex) {
             log.warn("Extraction failed for document {} ({})", e.documentId(), e.type(), ex);
