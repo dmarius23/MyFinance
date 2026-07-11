@@ -20,18 +20,18 @@ export function Dashboard() {
   const { period } = usePeriod();
   const nav = useNavigate();
   const [status, setStatus] = useState<DashboardStatusFilter>("ALL");
-  const [responsible, setResponsible] = useState<string>("");
+  const [representative, setRepresentative] = useState<string>("");
 
   const q = useQuery({
-    queryKey: ["dashboard", period, status, responsible],
-    queryFn: () => dashboardApi.get(period, { status, responsible: responsible || undefined }),
+    queryKey: ["dashboard", period, status, representative],
+    queryFn: () => dashboardApi.get(period, { status, representative: representative || undefined }),
   });
   const data = q.data;
 
-  // Responsible options derived from the rows (stable when no responsible filter applied).
-  const responsibles = useMemo(() => {
+  // Representative options derived from the rows (a company may have several; a rep may serve several).
+  const representatives = useMemo(() => {
     const m = new Map<string, string>();
-    (data?.rows ?? []).forEach((r) => { if (r.responsibleUserId && r.responsibleName) m.set(r.responsibleUserId, r.responsibleName); });
+    (data?.rows ?? []).forEach((r) => r.representatives.forEach((p) => m.set(p.userId, p.name)));
     return [...m.entries()];
   }, [data]);
 
@@ -69,10 +69,10 @@ export function Dashboard() {
             </button>
           ))}
         </div>
-        <select value={responsible} onChange={(e) => setResponsible(e.target.value)}
+        <select value={representative} onChange={(e) => setRepresentative(e.target.value)}
           style={{ padding: "6px 9px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12.5, background: "var(--surface)" }}>
-          <option value="">{t("dashboard.allResponsible")}</option>
-          {responsibles.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          <option value="">{t("dashboard.allRepresentatives")}</option>
+          {representatives.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
       </div>
 
@@ -81,7 +81,7 @@ export function Dashboard() {
         <div style={{ minWidth: 880 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div>{t("documents.company")}</div>
-            <div>{t("dashboard.responsible")}</div>
+            <div>{t("dashboard.representative")}</div>
             <div style={{ textAlign: "center" }}>{t("nav.statements")}</div>
             <div style={{ textAlign: "center" }}>{t("nav.taxes")}</div>
             <div style={{ textAlign: "center" }}>{t("nav.payroll")}</div>
@@ -97,7 +97,7 @@ export function Dashboard() {
                 <div style={{ fontWeight: 600 }}>{r.legalName}</div>
                 <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{r.cui}</div>
               </div>
-              <div style={{ fontSize: 12, color: r.responsibleName ? "var(--text-secondary)" : "var(--text-faint)" }}>{r.responsibleName ?? "—"}</div>
+              <div style={{ fontSize: 12, color: r.representatives.length ? "var(--text-secondary)" : "var(--text-faint)" }}>{r.representatives.length ? r.representatives.map((p) => p.name).join(", ") : "—"}</div>
               <Cell s={r.statements} t={t} onClick={(e) => { e.stopPropagation(); nav(`/statements/${r.companyId}/reconcile`); }} />
               <Cell s={r.taxes} t={t} onClick={(e) => { e.stopPropagation(); nav(`/taxes?company=${r.companyId}`); }} />
               <Cell s={r.payroll} t={t} onClick={(e) => { e.stopPropagation(); nav(`/payroll?company=${r.companyId}`); }} />

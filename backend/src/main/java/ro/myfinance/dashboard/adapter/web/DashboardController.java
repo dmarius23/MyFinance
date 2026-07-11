@@ -25,8 +25,8 @@ public class DashboardController {
     @GetMapping("/api/v1/dashboard")
     public DashboardView get(
             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
-            @RequestParam(value = "responsible", required = false) UUID responsible,
+            @RequestParam(value = "representative", required = false) UUID representative,
             @RequestParam(value = "status", required = false) StatusFilter status) {
-        return dashboard.build(period, responsible, status);
+        return dashboard.build(period, representative, status);
     }
 }

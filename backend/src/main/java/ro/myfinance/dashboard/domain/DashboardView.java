@@ -5,8 +5,8 @@ import java.util.UUID;
 
 /**
  * MOD-11 read-model: the monthly companies overview — section summary tiles plus a per-company status
- * row (a status per section + responsible accountant + open requests + overdue). Pure aggregate, derived
- * from the per-module summaries; no persistence of its own.
+ * row (a status per section + the company's representatives + open requests + overdue). Pure aggregate,
+ * derived from the per-module summaries; no persistence of its own.
  */
 public record DashboardView(Tiles tiles, List<CompanyRow> rows) {
 
@@ -24,8 +24,12 @@ public record DashboardView(Tiles tiles, List<CompanyRow> rows) {
                         int newCompanies, int totalCompanies) {
     }
 
+    /** A company representative (client-side contact). Companies may have several. */
+    public record Person(UUID userId, String name) {
+    }
+
     public record CompanyRow(UUID companyId, String legalName, String cui,
-                             UUID responsibleUserId, String responsibleName,
+                             List<Person> representatives,
                              Status statements, Status taxes, Status payroll, Status reports,
                              int openRequests, int overdue) {
     }

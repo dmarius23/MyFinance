@@ -40,14 +40,23 @@ class DashboardServiceTest {
     private final TaxPaymentService taxes = mock(TaxPaymentService.class);
     private final PayrollService payroll = mock(PayrollService.class);
     private final ReportService reports = mock(ReportService.class);
+    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
+            mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
     private final DashboardService service =
-            new DashboardService(companies, users, reconciliation, taxes, payroll, reports);
+            new DashboardService(companies, users, reconciliation, taxes, payroll, reports, repLinks);
 
     // Period far in the past → the tax deadline (25th of the next month) is always passed → overdue is testable.
     private static final LocalDate PERIOD = LocalDate.of(2020, 1, 1);
     private final UUID a = UUID.randomUUID(); // all done, has employees, created this month
     private final UUID b = UUID.randomUUID(); // nothing done, no employees, older
     private final UUID resp = UUID.randomUUID();
+
+    private ro.myfinance.access.domain.RepresentativeLink link(UUID companyId, UUID userId) {
+        ro.myfinance.access.domain.RepresentativeLink l = mock(ro.myfinance.access.domain.RepresentativeLink.class);
+        lenient().when(l.getCompanyId()).thenReturn(companyId);
+        lenient().when(l.getUserId()).thenReturn(userId);
+        return l;
+    }
 
     private Company company(UUID id, boolean employees, UUID responsible, LocalDate created) {
         Company c = mock(Company.class);
@@ -68,6 +77,10 @@ class DashboardServiceTest {
         when(companies.findAll()).thenReturn(List.of(ca, cb));
         when(users.findAllById(any())).thenReturn(List.of(
                 new AppUser(resp, UUID.randomUUID(), "maria@firma.ro", "Maria Pop", Role.EMPLOYEE)));
+        // Company A has one representative (resp → "Maria Pop"); company B has none.
+        // Build the link mock first — creating it inside thenReturn(...) would nest stubbings.
+        var repLink = link(a, resp);
+        when(repLinks.findByCompanyIdIn(any())).thenReturn(List.of(repLink));
 
         when(reconciliation.completenessSummary(any())).thenReturn(List.of(
                 new CompanyCompleteness(a, ReconciliationService.Completeness.COMPLETE, ReconciliationService.Payment.COMPLETE, 0, 0),
@@ -94,7 +107,7 @@ class DashboardServiceTest {
         assertThat(rowA.reports()).isEqualTo(Status.DONE);
         assertThat(rowA.openRequests()).isZero();
         assertThat(rowA.overdue()).isZero();
-        assertThat(rowA.responsibleName()).isEqualTo("Maria Pop");
+        assertThat(rowA.representatives()).extracting(DashboardView.Person::name).containsExactly("Maria Pop");
 
         DashboardView.CompanyRow rowB = v.rows().stream().filter(r -> r.companyId().equals(b)).findFirst().orElseThrow();
         assertThat(rowB.statements()).isEqualTo(Status.PARTIAL);
@@ -103,7 +116,7 @@ class DashboardServiceTest {
         assertThat(rowB.reports()).isEqualTo(Status.NOTHING);
         assertThat(rowB.openRequests()).isEqualTo(3); // 2 missing txns + 1 unmatched invoice
         assertThat(rowB.overdue()).isEqualTo(1);       // tax deadline passed, taxes not done
-        assertThat(rowB.responsibleName()).isNull();
+        assertThat(rowB.representatives()).isEmpty();   // no representative assigned
     }
 
     @Test
@@ -128,7 +141,8 @@ class DashboardServiceTest {
     }
 
     @Test
-    void responsibleFilterLimitsCompanies() {
+    void representativeFilterLimitsCompanies() {
+        // Filtering by a representative keeps only companies that rep is assigned to (A, not B).
         DashboardView v = service.build(PERIOD, resp, StatusFilter.ALL);
         assertThat(v.rows()).extracting(DashboardView.CompanyRow::companyId).containsExactly(a);
         assertThat(v.tiles().totalCompanies()).isEqualTo(1);

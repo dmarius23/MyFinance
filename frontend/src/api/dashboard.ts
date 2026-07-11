@@ -18,12 +18,16 @@ export interface DashboardTiles {
   totalCompanies: number;
 }
 
+export interface DashboardPerson {
+  userId: string;
+  name: string;
+}
+
 export interface DashboardRow {
   companyId: string;
   legalName: string;
   cui: string;
-  responsibleUserId: string | null;
-  responsibleName: string | null;
+  representatives: DashboardPerson[];
   statements: SectionStatus;
   taxes: SectionStatus;
   payroll: SectionStatus;
@@ -38,9 +42,9 @@ export interface Dashboard {
 }
 
 export const dashboardApi = {
-  get: (period: string, opts?: { responsible?: string; status?: DashboardStatusFilter }) => {
+  get: (period: string, opts?: { representative?: string; status?: DashboardStatusFilter }) => {
     const p = new URLSearchParams({ period });
-    if (opts?.responsible) p.set("responsible", opts.responsible);
+    if (opts?.representative) p.set("representative", opts.representative);
     if (opts?.status && opts.status !== "ALL") p.set("status", opts.status);
     return api<Dashboard>(`/api/v1/dashboard?${p.toString()}`);
   },

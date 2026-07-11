@@ -37,22 +37,25 @@ public class DashboardService {
     private final TaxPaymentService taxes;
     private final PayrollService payroll;
     private final ReportService reports;
+    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
 
     public DashboardService(CompanyRepository companies, AppUserRepository users,
                             ReconciliationService reconciliation, TaxPaymentService taxes,
-                            PayrollService payroll, ReportService reports) {
+                            PayrollService payroll, ReportService reports,
+                            ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks) {
         this.companies = companies;
         this.users = users;
         this.reconciliation = reconciliation;
         this.taxes = taxes;
         this.payroll = payroll;
         this.reports = reports;
+        this.repLinks = repLinks;
     }
 
-    /** Filter: which companies to include in the table. Tiles always reflect the responsible filter only. */
+    /** Filter: which companies to include in the table. Tiles always reflect the representative filter only. */
     public enum StatusFilter { ALL, ATTENTION, COMPLETE }
 
-    public DashboardView build(LocalDate periodMonth, UUID responsible, StatusFilter statusFilter) {
+    public DashboardView build(LocalDate periodMonth, UUID representative, StatusFilter statusFilter) {
         LocalDate month = periodMonth.withDayOfMonth(1);
         StatusFilter sf = statusFilter == null ? StatusFilter.ALL : statusFilter;
 
@@ -68,13 +71,21 @@ public class DashboardService {
         // Tax obligations are overdue past the 25th of the following month.
         boolean taxDeadlinePassed = LocalDate.now().isAfter(month.plusMonths(1).withDayOfMonth(25));
 
-        List<Company> all = companies.findAll().stream()
-                .filter(c -> responsible == null || responsible.equals(c.getResponsibleUserId()))
-                .toList();
-
-        Map<UUID, String> userNames = users.findAllById(all.stream()
-                        .map(Company::getResponsibleUserId).filter(java.util.Objects::nonNull).distinct().toList())
+        // Representatives (client-side contacts) per company, resolved in bulk. The people column and the
+        // filter are representative-based: a company may have several, and a rep may serve several companies.
+        List<Company> companiesAll = companies.findAll();
+        Map<UUID, List<UUID>> repIdsByCompany = repLinks.findByCompanyIdIn(
+                        companiesAll.stream().map(Company::getId).toList()).stream()
+                .collect(Collectors.groupingBy(l -> l.getCompanyId(),
+                        Collectors.mapping(l -> l.getUserId(), Collectors.toList())));
+        Map<UUID, String> userNames = users.findAllById(repIdsByCompany.values().stream()
+                        .flatMap(List::stream).distinct().toList())
                 .stream().collect(Collectors.toMap(u -> u.getId(), u -> u.getName()));
+
+        List<Company> all = companiesAll.stream()
+                .filter(c -> representative == null
+                        || repIdsByCompany.getOrDefault(c.getId(), List.of()).contains(representative))
+                .toList();
 
         int[] st = new int[3];
         int[] tx = new int[3];
@@ -111,9 +122,12 @@ public class DashboardService {
             if (sf == StatusFilter.COMPLETE && attention) {
                 continue;
             }
+            List<DashboardView.Person> reps = repIdsByCompany.getOrDefault(id, List.of()).stream()
+                    .map(uid -> new DashboardView.Person(uid, userNames.get(uid)))
+                    .filter(p -> p.name() != null)
+                    .toList();
             rows.add(new DashboardView.CompanyRow(id, c.getLegalName(), c.getCui(),
-                    c.getResponsibleUserId(), userNames.get(c.getResponsibleUserId()),
-                    statements, taxStatus, payrollStatus, reportStatus, openRequests, overdue));
+                    reps, statements, taxStatus, payrollStatus, reportStatus, openRequests, overdue));
         }
 
         DashboardView.Tiles tiles = new DashboardView.Tiles(

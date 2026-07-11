@@ -9,6 +9,9 @@ public interface RepresentativeLinkRepository extends JpaRepository<Representati
 
     List<RepresentativeLink> findByCompanyId(UUID companyId);
 
+    /** Links for a set of companies in one query (dashboard: representatives per company). */
+    List<RepresentativeLink> findByCompanyIdIn(List<UUID> companyIds);
+
     /** All companies the given representative is assigned to (tenant-scoped via RLS). */
     List<RepresentativeLink> findByUserId(UUID userId);
 
