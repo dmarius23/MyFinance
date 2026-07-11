@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { reportsApi, type ReportRow } from "../api/reports";
 import { usePeriod } from "../lib/period";
+import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
@@ -16,6 +17,7 @@ const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "n
 export function Reports() {
   const { t } = useTranslation();
   const { period } = usePeriod();
+  const { focusCompany, focusRef } = useCompanyFocus();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chartsFor, setChartsFor] = useState<{ id: string; name: string } | null>(null);
@@ -74,7 +76,7 @@ export function Reports() {
             const up = !!r?.uploadedAt;
             const manage = () => setManageFor({ id: c.id, name: c.legalName });
             return (
-              <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
+              <div key={c.id} ref={c.id === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (c.id === focusCompany || selected.has(c.id)) ? "var(--row-active)" : undefined, boxShadow: c.id === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
                 <div>{up ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: dot(r) }} title={up ? (r!.balanced ? t("reports.balanced") : t("reports.unbalancedShort")) : t("reports.notUploaded")} /></div>
                 <div>

@@ -98,10 +98,10 @@ export function Dashboard() {
                 <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{r.cui}</div>
               </div>
               <div style={{ fontSize: 12, color: r.responsibleName ? "var(--text-secondary)" : "var(--text-faint)" }}>{r.responsibleName ?? "—"}</div>
-              <Cell s={r.statements} t={t} />
-              <Cell s={r.taxes} t={t} />
-              <Cell s={r.payroll} t={t} />
-              <Cell s={r.reports} t={t} />
+              <Cell s={r.statements} t={t} onClick={(e) => { e.stopPropagation(); nav(`/statements/${r.companyId}/reconcile`); }} />
+              <Cell s={r.taxes} t={t} onClick={(e) => { e.stopPropagation(); nav(`/taxes?company=${r.companyId}`); }} />
+              <Cell s={r.payroll} t={t} onClick={(e) => { e.stopPropagation(); nav(`/payroll?company=${r.companyId}`); }} />
+              <Cell s={r.reports} t={t} onClick={(e) => { e.stopPropagation(); nav(`/reports?company=${r.companyId}`); }} />
               <div style={{ textAlign: "center" }}>{r.openRequests > 0 ? <span className="pill round warn">{r.openRequests}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
               <div style={{ textAlign: "center" }}>{r.overdue > 0 ? <span className="pill round danger">{t("dashboard.overdueChip")}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
             </div>
@@ -148,10 +148,11 @@ function Stat({ n, color, label }: { n?: number; color: string; label: string })
   );
 }
 
-function Cell({ s, t }: { s: SectionStatus; t: TFunction }) {
-  if (s === "NA") return <div style={{ textAlign: "center", color: "var(--text-faint)" }}>—</div>;
+function Cell({ s, t, onClick }: { s: SectionStatus; t: TFunction; onClick?: (e: React.MouseEvent) => void }) {
+  const wrap: React.CSSProperties = { textAlign: "center", cursor: onClick ? "pointer" : undefined };
+  if (s === "NA") return <div style={{ ...wrap, color: "var(--text-faint)" }} onClick={onClick}>—</div>;
   const cls = s === "DONE" ? "ok" : s === "PARTIAL" ? "warn" : "danger";
-  return <div style={{ textAlign: "center" }}><span className={`pill round ${cls}`} title={t(`dashboard.st.${s.toLowerCase()}`)}>{t(`dashboard.st.${s.toLowerCase()}`)}</span></div>;
+  return <div style={wrap} onClick={onClick}><span className={`pill round ${cls}`} title={t(`dashboard.st.${s.toLowerCase()}`)}>{t(`dashboard.st.${s.toLowerCase()}`)}</span></div>;
 }
 
 const gridRow: React.CSSProperties = {

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow } from "../api/taxes";
 import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
+import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
 import { DeclarationsModal } from "../components/DeclarationsModal";
@@ -21,6 +22,7 @@ export function TaxPayments() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { period } = usePeriod();
+  const { focusCompany, focusRef } = useCompanyFocus();
   const [emailFor, setEmailFor] = useState<{ id: string; name: string } | null>(null);
   const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
@@ -96,7 +98,7 @@ export function TaxPayments() {
             const total = toPay(row);
             const has = row.declarations.length > 0;
             return (
-              <div key={row.companyId} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(row.companyId) ? "var(--row-active)" : undefined }}>
+              <div key={row.companyId} ref={row.companyId === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (row.companyId === focusCompany || selected.has(row.companyId)) ? "var(--row-active)" : undefined, boxShadow: row.companyId === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
                 <div>{has ? <input type="checkbox" checked={selected.has(row.companyId)} onChange={() => toggle(row.companyId)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div>
                   <div style={{ fontWeight: 600 }}>{row.companyName}</div>

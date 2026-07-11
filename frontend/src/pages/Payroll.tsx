@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { payrollApi, type PayrollRow } from "../api/payroll";
 import { usePeriod } from "../lib/period";
+import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
 import { PayrollLogModal } from "../components/PayrollLogModal";
@@ -16,6 +17,7 @@ const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "n
 export function Payroll() {
   const { t } = useTranslation();
   const { period } = usePeriod();
+  const { focusCompany, focusRef } = useCompanyFocus();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<PayrollTarget[] | null>(null);
@@ -71,7 +73,7 @@ export function Payroll() {
             const selectable = docs.length > 0;
             const manage = () => setManageFor({ id: c.id, name: c.legalName });
             return (
-              <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
+              <div key={c.id} ref={c.id === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (c.id === focusCompany || selected.has(c.id)) ? "var(--row-active)" : undefined, boxShadow: c.id === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div>
                   <div style={{ fontWeight: 600 }}>{c.legalName}</div>
