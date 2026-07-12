@@ -108,18 +108,21 @@ export function TaxPayments() {
               <div key={row.companyId} ref={row.companyId === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (row.companyId === focusCompany || selected.has(row.companyId)) ? "var(--row-active)" : undefined, boxShadow: row.companyId === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
                 <div>{has ? <input type="checkbox" checked={selected.has(row.companyId)} onChange={() => toggle(row.companyId)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div>
-                  <button className="row-open" onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })} title={t("taxes.manageDeclarations")}
-                    style={{ fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", font: "inherit", textAlign: "left" }}>
-                    {row.companyName}
-                  </button>
+                  <div style={{ fontWeight: 600 }}>{row.companyName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{row.cui}{row.residence ? ` · ${row.residence}` : ""}</div>
                 </div>
                 {DECLARATION_TYPES.map((ty) => {
                   const c = cellFor(row, ty);
+                  const openDecl = () => setDeclFor({ id: row.companyId, name: row.companyName });
                   return (
                     <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
-                      {c ? <span>{money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}</span>
-                         : <span style={{ color: "var(--text-faint)" }}>—</span>}
+                      {c
+                        ? <button type="button" className="row-open" onClick={openDecl} title={t("taxes.manageDeclarations")}
+                            style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", color: "var(--text)" }}>
+                            {money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
+                          </button>
+                        : <button type="button" className="pill round muted" onClick={openDecl} title={t("taxes.uploadDeclaration")}
+                            style={{ cursor: "pointer", font: "inherit" }}>{t("taxes.missing")}</button>}
                     </div>
                   );
                 })}
