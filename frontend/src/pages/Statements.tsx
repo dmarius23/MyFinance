@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
-import { documentsApi, documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
+import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
@@ -41,9 +41,6 @@ export function Statements() {
   const { period } = usePeriod();
   const navigate = useNavigate();
   const goReconcile = (id: string) => navigate(`/statements/${id}/reconcile`);
-  const qc = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
   const [filesFor, setFilesFor] = useState<{ id: string; name: string; cui: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
@@ -82,24 +79,6 @@ export function Statements() {
     return { id, name: nameOf(id), hasBankStatement: s?.hasBankStatement ?? false, hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false };
   };
 
-  const upload = useMutation({
-    // Sequential: each upload triggers synchronous extraction + reconciliation, so serializing
-    // avoids races on the shared matching state (same rationale as the files modal).
-    mutationFn: async ({ companyId, files }: { companyId: string; files: File[] }) => {
-      for (const file of files) await documentsApi.upload(companyId, period, file);
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
-      void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
-    },
-  });
-  const pickUpload = (id: string) => { setUploadFor(id); fileRef.current?.click(); };
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length && uploadFor) upload.mutate({ companyId: uploadFor, files });
-    e.target.value = "";
-  };
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
@@ -125,10 +104,8 @@ export function Statements() {
         </div>
       )}
 
-      <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" onChange={onFile} style={{ display: "none" }} />
-
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 1020 }}>
+        <div style={{ minWidth: 900 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
@@ -137,7 +114,6 @@ export function Statements() {
             <div>{t("statements.invoices")}</div>
             <div>{t("statements.completeness")}</div>
             <div>{t("statements.lastSent")}</div>
-            <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -155,7 +131,7 @@ export function Statements() {
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div><span role="img" aria-label={t(st.key)} title={t(st.key)} style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: DOT_COLOR[st.kind] }} /></div>
                 <div>
-                  <button onClick={() => goReconcile(c.id)} title={t("statements.viewTransactions")}
+                  <button className="row-open" onClick={() => goReconcile(c.id)} title={t("statements.viewTransactions")}
                     style={{ fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", font: "inherit", textAlign: "left" }}>
                     {c.legalName}
                   </button>
@@ -190,12 +166,6 @@ export function Statements() {
                       : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>;
                   })()}
                 </div>
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button style={iconBtn} title={t("statements.upload")} disabled={upload.isPending} onClick={() => pickUpload(c.id)}><Icon name="upload" size={14} /></button>
-                  <button style={iconBtn} title={t("statements.files")} onClick={openFiles}><Icon name="folder" size={14} /></button>
-                  <button style={iconBtn} title={t("statements.viewTransactions")} onClick={() => goReconcile(c.id)}><Icon name="reconcile" size={14} /></button>
-                  <button style={{ ...iconBtn, opacity: selectable ? 1 : 0.4 }} title={t("email.send")} disabled={!selectable} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
-                </div>
               </div>
             );
           })}
@@ -213,10 +183,9 @@ export function Statements() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 24px minmax(200px,1.4fr) 120px 160px 104px 116px 128px",
+  gridTemplateColumns: "30px 24px minmax(220px,1.6fr) 120px 160px 104px 130px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
 const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

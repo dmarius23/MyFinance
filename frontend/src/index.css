@@ -164,6 +164,8 @@ button {
 }
 button:hover { border-color: #d4d8d7; }
 button:disabled { cursor: default; opacity: 0.5; }
+/* Borderless in-row control that reads as a link (e.g. a company name that opens a workspace). */
+.row-open:hover { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 button.primary {
   background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 600;
 }
