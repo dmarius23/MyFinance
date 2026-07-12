@@ -99,9 +99,9 @@ export function Dashboard() {
               </div>
               <div style={{ fontSize: 12, color: r.representatives.length ? "var(--text-secondary)" : "var(--text-faint)" }}>{r.representatives.length ? r.representatives.map((p) => p.name).join(", ") : "—"}</div>
               <Cell s={r.statements} t={t} onClick={(e) => { e.stopPropagation(); nav(`/statements/${r.companyId}/reconcile`); }} />
-              <Cell s={r.taxes} t={t} onClick={(e) => { e.stopPropagation(); nav(`/taxes?company=${r.companyId}`); }} />
-              <Cell s={r.payroll} t={t} onClick={(e) => { e.stopPropagation(); nav(`/payroll?company=${r.companyId}`); }} />
-              <Cell s={r.reports} t={t} onClick={(e) => { e.stopPropagation(); nav(`/reports?company=${r.companyId}`); }} />
+              <Cell s={r.taxes} t={t} onClick={(e) => { e.stopPropagation(); nav(`/taxes?company=${r.companyId}&open=1`); }} />
+              <Cell s={r.payroll} t={t} onClick={(e) => { e.stopPropagation(); nav(`/payroll?company=${r.companyId}&open=1`); }} />
+              <Cell s={r.reports} t={t} onClick={(e) => { e.stopPropagation(); nav(`/reports?company=${r.companyId}&open=1`); }} />
               <div style={{ textAlign: "center" }}>{r.openRequests > 0 ? <span className="pill round warn">{r.openRequests}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
               <div style={{ textAlign: "center" }}>{r.overdue > 0 ? <span className="pill round danger">{t("dashboard.overdueChip")}</span> : <span style={{ color: "var(--text-faint)" }}>—</span>}</div>
             </div>

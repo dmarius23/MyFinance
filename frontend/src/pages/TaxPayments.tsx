@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow } from "../api/taxes";
@@ -22,7 +22,7 @@ export function TaxPayments() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { period } = usePeriod();
-  const { focusCompany, focusRef } = useCompanyFocus();
+  const { focusCompany, focusRef, openModal } = useCompanyFocus();
   const [emailFor, setEmailFor] = useState<{ id: string; name: string } | null>(null);
   const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
@@ -36,6 +36,14 @@ export function TaxPayments() {
   const rows = data ?? [];
 
   useEffect(() => { setSelected(new Set()); }, [period]);
+
+  // Deep-link from the dashboard (?company=&open=1): open that company's declarations manager once loaded.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!openModal || autoOpened.current) return;
+    const row = (data ?? []).find((r) => r.companyId === focusCompany);
+    if (row) { autoOpened.current = true; setDeclFor({ id: row.companyId, name: row.companyName }); }
+  }, [openModal, focusCompany, data]);
 
   const monthLabel = new Date(period).toLocaleDateString(i18n.language === "ro" ? "ro-RO" : "en-US", { month: "long", year: "numeric" });
   const mismatchCount = rows.filter((r) => r.declarations.some((d) => d.mismatch)).length;

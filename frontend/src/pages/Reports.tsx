@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
@@ -17,7 +17,7 @@ const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "n
 export function Reports() {
   const { t } = useTranslation();
   const { period } = usePeriod();
-  const { focusCompany, focusRef } = useCompanyFocus();
+  const { focusCompany, focusRef, openModal } = useCompanyFocus();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chartsFor, setChartsFor] = useState<{ id: string; name: string } | null>(null);
@@ -35,6 +35,14 @@ export function Reports() {
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   useEffect(() => { setSelected(new Set()); }, [period]);
+
+  // Deep-link from the dashboard (?company=&open=1): open that company's document manager once loaded.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (!openModal || autoOpened.current) return;
+    const c = (companies.data ?? []).find((x) => x.id === focusCompany);
+    if (c) { autoOpened.current = true; setManageFor({ id: c.id, name: c.legalName }); }
+  }, [openModal, focusCompany, companies.data]);
 
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
