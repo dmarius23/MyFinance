@@ -66,13 +66,12 @@ export function Payroll() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 920 }}>
+        <div style={{ minWidth: 820 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div>{t("documents.company")}</div>
             <div>{t("payroll.documents")}</div>
             <div>{t("statements.lastSent")}</div>
-            <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -104,10 +103,6 @@ export function Payroll() {
                       </button>
                     : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
                 </div>
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button style={iconBtn} title={t("payroll.upload")} onClick={manage}><Icon name="folder" size={14} /></button>
-                  <button style={{ ...iconBtn, opacity: selectable ? 1 : 0.4 }} title={t("payroll.sendEmail")} disabled={!selectable} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
-                </div>
               </div>
             );
           })}
@@ -129,11 +124,10 @@ export function Payroll() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(200px,1.4fr) minmax(220px,2fr) 116px 88px",
+  gridTemplateColumns: "30px minmax(220px,1.6fr) minmax(240px,2fr) 150px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
 const chipBtn: React.CSSProperties = { cursor: "pointer", font: "inherit" };
 const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

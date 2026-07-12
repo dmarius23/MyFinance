@@ -68,7 +68,7 @@ export function Reports() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 940 }}>
+        <div style={{ minWidth: 840 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
@@ -76,7 +76,6 @@ export function Reports() {
             <div>{t("reports.trialBalance")}</div>
             <div>{t("reports.report")}</div>
             <div>{t("statements.lastSent")}</div>
-            <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -105,10 +104,6 @@ export function Reports() {
                     ? <button className="pill teal round" style={pillBtn} onClick={() => setLogFor({ id: c.id, name: c.legalName })}><Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(r.lastSentAt)}{r.sentCount > 1 ? ` · ${r.sentCount}` : ""}</button>
                     : <button style={neverBtn} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
                 </div>
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button style={iconBtn} title={t("reports.upload")} onClick={manage}><Icon name="folder" size={14} /></button>
-                  <button style={{ ...iconBtn, opacity: up ? 1 : 0.4 }} title={t("reports.sendEmail")} disabled={!up} onClick={() => setSendList([target(c.id)])}><Icon name="mail" size={14} /></button>
-                </div>
               </div>
             );
           })}
@@ -128,7 +123,7 @@ export function Reports() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 22px minmax(200px,1.4fr) 130px 96px 116px 92px",
+  gridTemplateColumns: "30px 22px minmax(220px,1.6fr) 130px 96px 130px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
