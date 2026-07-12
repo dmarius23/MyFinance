@@ -92,14 +92,13 @@ export function TaxPayments() {
         {isLoading && <p style={{ padding: 14 }}>{t("common.loading")}</p>}
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
-        <div style={{ minWidth: 960 }}>
+        <div style={{ minWidth: 880 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>
             {DECLARATION_TYPES.map((ty) => <div key={ty} style={{ textAlign: "right" }}>{ty}</div>)}
             <div style={{ textAlign: "right" }}>{t("taxes.toPayCol")}</div>
             <div>{t("taxes.lastSent")}</div>
-            <div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
           </div>
 
           {rows.map((row) => {
@@ -109,7 +108,10 @@ export function TaxPayments() {
               <div key={row.companyId} ref={row.companyId === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (row.companyId === focusCompany || selected.has(row.companyId)) ? "var(--row-active)" : undefined, boxShadow: row.companyId === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
                 <div>{has ? <input type="checkbox" checked={selected.has(row.companyId)} onChange={() => toggle(row.companyId)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{row.companyName}</div>
+                  <button className="row-open" onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })} title={t("taxes.manageDeclarations")}
+                    style={{ fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", font: "inherit", textAlign: "left" }}>
+                    {row.companyName}
+                  </button>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{row.cui}{row.residence ? ` · ${row.residence}` : ""}</div>
                 </div>
                 {DECLARATION_TYPES.map((ty) => {
@@ -130,10 +132,6 @@ export function TaxPayments() {
                         <Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(row.lastEmailAt)}{row.emailCount > 1 ? ` · ${row.emailCount}` : ""}
                       </button>
                     : <button style={neverBtn} onClick={() => setLogFor({ id: row.companyId, name: row.companyName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
-                </div>
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button style={iconBtn} title={t("taxes.manageDeclarations")} onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })}><Icon name="folder" size={14} /></button>
-                  <button style={iconBtn} title={t("taxes.sendEmail")} disabled={!has} onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })}><Icon name="mail" size={14} /></button>
                 </div>
               </div>
             );
@@ -159,10 +157,9 @@ function Dot({ c }: { c: string }) {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(210px,1.5fr) 92px 92px 92px 104px 128px 88px",
+  gridTemplateColumns: "30px minmax(220px,1.6fr) 92px 92px 92px 104px 140px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer" };
 const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };
