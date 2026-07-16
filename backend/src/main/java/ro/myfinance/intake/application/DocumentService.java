@@ -158,9 +158,10 @@ public class DocumentService {
     public void delete(UUID id) {
         Document doc = require(id);
         storage.delete(doc.getStorageKey());
+        String driveFileId = doc.getDriveFileId();
         documents.delete(doc);
         audit.record("DOCUMENT_DELETED", "document", id);
-        events.publishEvent(new DocumentDeletedEvent(id, doc.getCompanyId(), doc.getType()));
+        events.publishEvent(new DocumentDeletedEvent(id, doc.getCompanyId(), doc.getType(), driveFileId));
     }
 
     /**

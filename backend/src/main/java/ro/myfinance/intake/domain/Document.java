@@ -58,6 +58,14 @@ public class Document {
     @Column(name = "uploaded_by")
     private UUID uploadedBy;
 
+    /** Which backend holds the canonical bytes: SUPABASE (default) or DRIVE (Phase 2 primary). */
+    @Column(name = "storage_backend", nullable = false)
+    private String storageBackend = "SUPABASE";
+
+    /** The Google Drive file id of the mirror copy (DRIVE_MIRROR), for refresh/cleanup. Null otherwise. */
+    @Column(name = "drive_file_id")
+    private String driveFileId;
+
     @CreationTimestamp
     @Column(name = "uploaded_at", nullable = false, updatable = false)
     private Instant uploadedAt;
@@ -95,4 +103,9 @@ public class Document {
     public String getStorageKey() { return storageKey; }
     public UUID getUploadedBy() { return uploadedBy; }
     public Instant getUploadedAt() { return uploadedAt; }
+    public String getStorageBackend() { return storageBackend; }
+    public void setStorageBackend(String storageBackend) { this.storageBackend = storageBackend; }
+    public String getDriveFileId() { return driveFileId; }
+    public void setDriveFileId(String driveFileId) { this.driveFileId = driveFileId; }
 }
+
