@@ -29,7 +29,8 @@ public class IngestionSyncController {
 
     @GetMapping("/api/v1/ingestion/source")
     public SourceStatus source(@RequestParam("type") String type) {
-        return new SourceStatus(ingestion.driveEnabledFor(type));
+        var s = ingestion.driveStatusFor(type);
+        return new SourceStatus(s.enabled(), s.write());
     }
 
     @PostMapping("/api/v1/ingestion/sync-company")

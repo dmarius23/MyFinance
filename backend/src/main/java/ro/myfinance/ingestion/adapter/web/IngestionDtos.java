@@ -39,8 +39,8 @@ public final class IngestionDtos {
         }
     }
 
-    /** Whether documents of a given type are sourced from a cloud folder (so manual upload is replaced). */
-    public record SourceStatus(boolean driveEnabled) {
+    /** Whether documents of a given type are covered by a Drive connection, and whether it mirrors uploads. */
+    public record SourceStatus(boolean driveEnabled, boolean driveWrite) {
     }
 
     public record SyncCompanyRequest(@jakarta.validation.constraints.NotNull java.util.UUID companyId,

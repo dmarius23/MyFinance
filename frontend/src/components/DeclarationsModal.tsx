@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { declarationsApi, type DeclarationFile } from "../api/taxes";
 import { documentsApi } from "../api/documents";
+import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
 
@@ -39,6 +40,15 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
     mutationFn: (file: File) => documentsApi.upload(companyId, period, file),
     onSuccess: () => { setError(null); invalidate(); },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Upload failed"),
+  });
+  // Sync this company's declarations for the month from the Drive connection (if one covers this type).
+  const driveQ = useQuery({ queryKey: ["ingestion-source", "DECLARATION"], queryFn: () => ingestionApi.source("DECLARATION") });
+  const driveMode = driveQ.data?.driveEnabled === true;
+  const driveWrite = driveQ.data?.driveWrite === true;
+  const sync = useMutation({
+    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "DECLARATION" }),
+    onSuccess: (r: SyncResult) => { setError(null); invalidate(); window.alert(t("payroll.syncDone", r as unknown as Record<string, number>)); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "Sync failed"),
   });
   const remove = useMutation({
     mutationFn: (declarationId: string) => declarationsApi.remove(companyId, declarationId),
@@ -80,6 +90,12 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
         <div style={{ display: "grid", gridTemplateColumns: "420px 1fr", gap: 0, flex: 1, minHeight: 0 }}>
           {/* file list */}
           <div style={{ borderRight: "1px solid var(--border)", padding: 12, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+            {driveMode && (
+              <button style={{ width: "100%" }} disabled={sync.isPending} onClick={() => sync.mutate()}>
+                <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
+              </button>
+            )}
             {isLoading && <div style={{ color: "var(--text-muted)" }}>{t("common.loading")}</div>}
             {!isLoading && data.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("taxes.noDeclarations")}</div>}
             {data.map((d) => (
@@ -129,7 +145,7 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
               <div style={{ fontWeight: 600, color: "var(--primary-dark)", fontSize: 12.5, marginTop: 4 }}>
                 {upload.isPending ? t("taxes.uploading") : t("taxes.uploadDeclaration")}
               </div>
-              <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{t("taxes.uploadHint")}</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{driveWrite ? t("files.alsoToDrive") : t("taxes.uploadHint")}</div>
             </div>
           </div>
 

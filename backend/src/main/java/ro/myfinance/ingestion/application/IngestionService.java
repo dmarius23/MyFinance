@@ -129,6 +129,17 @@ public class IngestionService {
         return findDriveConnection(forcedType).isPresent();
     }
 
+    /** Whether a Drive connection covers this type, and whether it is write-enabled (mirrors uploads). */
+    @Transactional(readOnly = true)
+    public DriveStatus driveStatusFor(String forcedType) {
+        return findDriveConnection(forcedType)
+                .map(c -> new DriveStatus(true, c.isWriteEnabled()))
+                .orElse(new DriveStatus(false, false));
+    }
+
+    public record DriveStatus(boolean enabled, boolean write) {
+    }
+
     /** Full sync of a whole connection (admin "Sync now" on the Data sources screen). */
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
@@ -159,10 +170,16 @@ public class IngestionService {
     }
 
     private Optional<SourceConnection> findDriveConnection(String forcedType) {
-        return connections.findByOrderByCreatedAtDesc().stream()
-                .filter(c -> "GOOGLE_DRIVE".equalsIgnoreCase(c.getProvider())
-                        && forcedType != null && forcedType.equalsIgnoreCase(c.getForcedType()))
-                .findFirst();
+        List<SourceConnection> drive = connections.findByOrderByCreatedAtDesc().stream()
+                .filter(c -> "GOOGLE_DRIVE".equalsIgnoreCase(c.getProvider()) && !"DISABLED".equals(c.getStatus()))
+                .toList();
+        // A type-specific connection wins; otherwise a general root connection (no forced type) covers all types.
+        return drive.stream()
+                .filter(c -> forcedType != null && forcedType.equalsIgnoreCase(c.getForcedType()))
+                .findFirst()
+                .or(() -> drive.stream()
+                        .filter(c -> c.getForcedType() == null || c.getForcedType().isBlank())
+                        .findFirst());
     }
 
     /**

@@ -92,7 +92,8 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
   // When this document type is sourced from a cloud folder, manual upload/delete is replaced by a
   // per-company, per-month "Sync" button.
   const driveQ = useQuery({ queryKey: ["ingestion-source", type], queryFn: () => ingestionApi.source(type) });
-  const driveMode = driveQ.data?.driveEnabled === true;
+  const driveMode = driveQ.data?.driveEnabled === true;   // a Drive connection covers this type → offer Sync
+  const driveWrite = driveQ.data?.driveWrite === true;    // write-enabled → uploads also land in Drive
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
     onSuccess: (r: SyncResult) => {
@@ -131,24 +132,19 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
         <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", flex: 1, minHeight: 0 }}>
           {/* Left: file list + upload */}
           <div style={{ borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
-            <div style={{ padding: 12 }}>
-              {driveMode ? (
-                <>
-                  <button className="primary" style={{ width: "100%" }} disabled={sync.isPending} onClick={() => sync.mutate()}>
-                    <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-                    {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
-                  </button>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, textAlign: "center" }}>{t("payroll.driveSourced")}</div>
-                </>
-              ) : (
-                <>
-                  <input ref={fileRef} type="file" accept={accept ?? "application/pdf"} multiple={multiple} onChange={onFile} style={{ display: "none" }} />
-                  <button className="primary" style={{ width: "100%" }} disabled={upload.isPending} onClick={() => fileRef.current?.click()}>
-                    <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-                    {upload.isPending ? t("taxes.sending") : t("files.addFiles")}
-                  </button>
-                </>
+            <div style={{ padding: 12, display: "grid", gap: 8 }}>
+              {driveMode && (
+                <button style={{ width: "100%" }} disabled={sync.isPending} onClick={() => sync.mutate()}>
+                  <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                  {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
+                </button>
               )}
+              <input ref={fileRef} type="file" accept={accept ?? "application/pdf"} multiple={multiple} onChange={onFile} style={{ display: "none" }} />
+              <button className="primary" style={{ width: "100%" }} disabled={upload.isPending} onClick={() => fileRef.current?.click()}>
+                <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                {upload.isPending ? t("taxes.sending") : t("files.addFiles")}
+              </button>
+              {driveWrite && <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>{t("files.alsoToDrive")}</div>}
             </div>
             <div style={{ overflowY: "auto", flex: 1, padding: "0 8px 12px" }}>
               {docsQ.isLoading && <div style={{ color: "var(--text-muted)", fontSize: 12.5, padding: 8 }}>{t("common.loading")}</div>}
@@ -181,10 +177,8 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
                         )}
                       </div>
                     </div>
-                    {!driveMode && (
-                      <button onClick={(e) => { e.stopPropagation(); del(d); }} title={t("payroll.deleteDoc")} disabled={remove.isPending}
-                        style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "0 2px", fontSize: 13, flexShrink: 0 }}>✕</button>
-                    )}
+                    <button onClick={(e) => { e.stopPropagation(); del(d); }} title={t("payroll.deleteDoc")} disabled={remove.isPending}
+                      style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "0 2px", fontSize: 13, flexShrink: 0 }}>✕</button>
                   </div>
                 );
               })}
