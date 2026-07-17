@@ -72,10 +72,11 @@ public class IngestionService {
     }
 
     public SourceConnection create(String provider, String displayName, String rootFolderId,
-                                   String forcedType, String config) {
+                                   String forcedType, boolean writeEnabled, String config) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         registry.forProvider(provider); // fail fast if the provider has no connector
         SourceConnection c = new SourceConnection(tenantId, provider.toUpperCase(), displayName, rootFolderId, forcedType);
+        c.setWriteEnabled(writeEnabled);
         if (config != null) {
             c.setConfig(config);
         }
@@ -85,12 +86,13 @@ public class IngestionService {
     }
 
     public SourceConnection update(UUID id, String displayName, String rootFolderId, String forcedType,
-                                   String config, String status) {
+                                   Boolean writeEnabled, String config, String status) {
         SourceConnection c = connections.findById(id)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + id));
         if (displayName != null) c.setDisplayName(displayName);
         if (rootFolderId != null) c.setRootFolderId(rootFolderId);
         c.setForcedType(forcedType);
+        if (writeEnabled != null) c.setWriteEnabled(writeEnabled);
         if (config != null) c.setConfig(config);
         if (status != null) c.setStatus(status);
         audit.record("SOURCE_CONNECTION_UPDATED", "source_connection", id);

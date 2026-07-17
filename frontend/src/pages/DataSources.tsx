@@ -13,7 +13,7 @@ export function DataSources() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const conns = useQuery({ queryKey: ["ingestion-connections"], queryFn: ingestionApi.list });
-  const [form, setForm] = useState({ displayName: "", rootFolderId: "" });
+  const [form, setForm] = useState({ displayName: "", rootFolderId: "", writeEnabled: true });
   const [error, setError] = useState<string | null>(null);
   const [openImports, setOpenImports] = useState<string | null>(null);
 
@@ -21,8 +21,9 @@ export function DataSources() {
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
 
   const create = useMutation({
-    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, forcedType: "PAYROLL" }),
-    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "" }); },
+    // Connect the Drive root for all documents (auto-classified), read + write.
+    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled }),
+    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true }); },
     onError: onErr,
   });
   const remove = useMutation({ mutationFn: (id: string) => ingestionApi.remove(id), onSuccess: refresh, onError: onErr });
@@ -57,7 +58,11 @@ export function DataSources() {
             <div style={{ ...row, borderTop: "1px solid var(--hair)" }}>
               <div>
                 <div style={{ fontWeight: 600 }}>{c.displayName}</div>
-                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.provider} · {c.forcedType ?? "auto"}</div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  {c.provider} · <span style={{ color: c.writeEnabled ? "var(--primary-dark)" : "var(--text-muted)" }}>
+                    {c.writeEnabled ? t("ingest.readWrite") : t("ingest.readOnly")}
+                  </span>
+                </div>
               </div>
               <div className="mono" style={{ fontSize: 11.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.rootFolderId}</div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
@@ -84,6 +89,11 @@ export function DataSources() {
             onChange={(e) => setForm({ ...form, displayName: e.target.value })} style={input} />
           <input placeholder={t("ingest.fieldFolder")} required value={form.rootFolderId}
             onChange={(e) => setForm({ ...form, rootFolderId: e.target.value })} style={input} />
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+            <input type="checkbox" checked={form.writeEnabled}
+              onChange={(e) => setForm({ ...form, writeEnabled: e.target.checked })} />
+            {t("ingest.writeAccess")}
+          </label>
           <button className="primary" type="submit" disabled={create.isPending} style={{ justifySelf: "start" }}>
             {create.isPending ? "…" : t("ingest.connect")}
           </button>

@@ -45,13 +45,13 @@ public class IngestionController {
     @ResponseStatus(HttpStatus.CREATED)
     public ConnectionView create(@Valid @RequestBody CreateConnectionRequest req) {
         return ConnectionView.from(ingestion.create(req.provider(), req.displayName(), req.rootFolderId(),
-                req.forcedType(), req.config()));
+                req.forcedType(), req.writeEnabled(), req.config()));
     }
 
     @PutMapping("/{id}")
     public ConnectionView update(@PathVariable UUID id, @RequestBody UpdateConnectionRequest req) {
         return ConnectionView.from(ingestion.update(id, req.displayName(), req.rootFolderId(),
-                req.forcedType(), req.config(), req.status()));
+                req.forcedType(), req.writeEnabled(), req.config(), req.status()));
     }
 
     @DeleteMapping("/{id}")

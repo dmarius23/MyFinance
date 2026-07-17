@@ -32,7 +32,7 @@ class SourceConnectionIT extends AbstractPostgresIT {
     @Test
     void createsAndPersistsAConnection() {
         asTenant();
-        SourceConnection c = ingestion.create("GOOGLE_DRIVE", "Payroll Drive", "folder-123", "PAYROLL", null);
+        SourceConnection c = ingestion.create("GOOGLE_DRIVE", "Payroll Drive", "folder-123", "PAYROLL", false, null);
         assertThat(c.getId()).isNotNull();
         assertThat(ingestion.list()).extracting(SourceConnection::getRootFolderId).contains("folder-123");
     }

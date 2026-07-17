@@ -35,6 +35,10 @@ public class SourceConnection {
     @Column(name = "forced_type")
     private String forcedType;
 
+    /** True → uploaded documents are mirrored INTO this Drive (read + write); false → read-only ingestion. */
+    @Column(name = "write_enabled", nullable = false)
+    private boolean writeEnabled = false;
+
     @Column(nullable = false)
     private String config = "{}";
 
@@ -75,6 +79,8 @@ public class SourceConnection {
     public void setRootFolderId(String v) { this.rootFolderId = v; }
     public String getForcedType() { return forcedType; }
     public void setForcedType(String v) { this.forcedType = v; }
+    public boolean isWriteEnabled() { return writeEnabled; }
+    public void setWriteEnabled(boolean v) { this.writeEnabled = v; }
     public String getConfig() { return config; }
     public void setConfig(String v) { this.config = v == null ? "{}" : v; }
     public String getCursor() { return cursor; }

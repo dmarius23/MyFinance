@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { settingsApi, type TreasuryAccount, type TreasuryIbans, type StorageMode } from "../api/settings";
+import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { Field } from "../components/Field";
@@ -31,75 +31,6 @@ export function Settings() {
       </div>
       <VatRateSection />
       <TreasurySection />
-      <StorageSection />
-    </div>
-  );
-}
-
-function StorageSection() {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["storage-config"], queryFn: settingsApi.getStorage });
-  const [form, setForm] = useState<{ mode: StorageMode; sharedDriveId: string; writeRootFolderId: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const f = form ?? {
-    mode: data?.mode ?? "SUPABASE_ONLY",
-    sharedDriveId: data?.sharedDriveId ?? "",
-    writeRootFolderId: data?.writeRootFolderId ?? "",
-  };
-  const isDrive = f.mode === "DRIVE_MIRROR";
-
-  const save = useMutation({
-    mutationFn: () => settingsApi.updateStorage({
-      mode: f.mode,
-      sharedDriveId: isDrive ? f.sharedDriveId : null,
-      writeRootFolderId: isDrive ? f.writeRootFolderId : null,
-    }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["storage-config"] }); setForm(null); setError(null); },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to save"),
-  });
-
-  return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>{t("settings.storage")}</h2>
-      <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: -4 }}>{t("settings.storageHint")}</p>
-      {isLoading ? (
-        <p>{t("common.loading")}</p>
-      ) : (
-        <form onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}
-          style={{ display: "grid", gap: 12, maxWidth: 540 }}>
-          <Field label={t("settings.storageMode")}>
-            <select value={f.mode} onChange={(e) => setForm({ ...f, mode: e.target.value as StorageMode })}
-              style={{ minWidth: 260 }}>
-              <option value="SUPABASE_ONLY">{t("settings.storageMode.supabase")}</option>
-              <option value="DRIVE_MIRROR" disabled={!data?.driveAvailable}>{t("settings.storageMode.mirror")}</option>
-            </select>
-          </Field>
-          {!data?.driveAvailable && (
-            <p style={{ color: "#92400e", fontSize: 12, margin: 0 }}>{t("settings.storageNoDrive")}</p>
-          )}
-          {isDrive && (
-            <>
-              <Field label={t("settings.sharedDriveId")}>
-                <input required value={f.sharedDriveId} placeholder="0AB…"
-                  onChange={(e) => setForm({ ...f, sharedDriveId: e.target.value })} style={{ minWidth: 340 }} />
-              </Field>
-              <Field label={t("settings.writeRootFolderId")}>
-                <input required value={f.writeRootFolderId} placeholder="1Xy…"
-                  onChange={(e) => setForm({ ...f, writeRootFolderId: e.target.value })} style={{ minWidth: 340 }} />
-              </Field>
-              <p style={{ color: "var(--text-secondary)", fontSize: 12, margin: 0 }}>{t("settings.sharedDriveHelp")}</p>
-            </>
-          )}
-          <div>
-            <button className="primary" type="submit" disabled={save.isPending}>
-              {save.isPending ? "Saving…" : t("common.save")}
-            </button>
-          </div>
-        </form>
-      )}
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }

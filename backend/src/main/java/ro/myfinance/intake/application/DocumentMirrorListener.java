@@ -11,14 +11,14 @@ import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentType;
-import ro.myfinance.intake.domain.TenantStorageConfig;
 
 /**
- * Mirrors uploaded documents to the tenant's Google Shared Drive when the tenant's storage mode writes to
- * Drive (DRIVE_MIRROR). Best-effort: any failure is logged and the document stays fully usable from
- * Supabase (the canonical store in Phase 1). Runs in the upload transaction (like the extraction
- * listeners); moving it to a post-commit worker job is a later optimisation. Cleans up the mirror copy on
- * delete. No-op for SUPABASE_ONLY tenants or when the service account is not configured.
+ * Mirrors uploaded documents into the tenant's write-enabled Google Drive source connection (MOD-15), so
+ * the firm keeps a browsable copy in its own Drive. Best-effort: any failure is logged and the document
+ * stays fully usable from Supabase (the canonical store). Runs in the upload transaction (like the
+ * extraction listeners); moving it to a post-commit worker job is a later optimisation. Cleans up the
+ * mirror copy on delete. No-op when the tenant has no write-enabled Drive connection or the service
+ * account is not configured.
  */
 @Component
 public class DocumentMirrorListener {
@@ -26,14 +26,14 @@ public class DocumentMirrorListener {
     private static final Logger log = LoggerFactory.getLogger(DocumentMirrorListener.class);
     private static final DateTimeFormatter YM = DateTimeFormatter.ofPattern("yyyy-MM");
 
-    private final StorageConfigService storageConfig;
+    private final DriveStorageTarget storageTarget;
     private final DriveDocumentWriter driveWriter;
     private final CompanyRepository companies;
     private final DocumentRepository documents;
 
-    public DocumentMirrorListener(StorageConfigService storageConfig, DriveDocumentWriter driveWriter,
+    public DocumentMirrorListener(DriveStorageTarget storageTarget, DriveDocumentWriter driveWriter,
                                   CompanyRepository companies, DocumentRepository documents) {
-        this.storageConfig = storageConfig;
+        this.storageTarget = storageTarget;
         this.driveWriter = driveWriter;
         this.companies = companies;
         this.documents = documents;
@@ -44,9 +44,9 @@ public class DocumentMirrorListener {
         if (!driveWriter.isEnabled()) {
             return;
         }
-        TenantStorageConfig target = storageConfig.currentDriveTarget().orElse(null);
+        DriveStorageTarget.Target target = storageTarget.currentWriteTarget().orElse(null);
         if (target == null) {
-            return; // SUPABASE_ONLY or Drive target not configured
+            return; // no write-enabled Drive connection for this tenant
         }
         try {
             Document doc = documents.findById(e.documentId()).orElse(null);
@@ -58,7 +58,7 @@ public class DocumentMirrorListener {
                     companyFolder(company),
                     e.periodMonth().format(YM),
                     typeFolder(doc.getType()));
-            String fileId = driveWriter.put(target.getSharedDriveId(), target.getWriteRootFolderId(),
+            String fileId = driveWriter.put(target.sharedDriveId(), target.rootFolderId(),
                     segments, doc.getOriginalFilename(), doc.getContentType(), e.bytes(), e.documentId());
             doc.setDriveFileId(fileId); // managed within this transaction → flushed on commit
         } catch (RuntimeException ex) {

@@ -8,4 +8,7 @@ import ro.myfinance.ingestion.domain.SourceConnection;
 public interface SourceConnectionRepository extends JpaRepository<SourceConnection, UUID> {
 
     List<SourceConnection> findByOrderByCreatedAtDesc();
+
+    /** The current tenant's write-enabled connections for a provider (RLS scopes to the tenant). */
+    List<SourceConnection> findByProviderAndWriteEnabledTrue(String provider);
 }

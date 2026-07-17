@@ -6,6 +6,8 @@ export interface Connection {
   displayName: string;
   rootFolderId: string;
   forcedType: string | null;
+  /** true → uploaded documents are also written back into this Drive (read + write). */
+  writeEnabled: boolean;
   status: string;
   lastSyncedAt: string | null;
   lastResult: string | null;
@@ -33,9 +35,9 @@ const base = "/api/v1/ingestion/connections";
 
 export const ingestionApi = {
   list: () => api<Connection[]>(base),
-  create: (input: { provider: string; displayName: string; rootFolderId: string; forcedType?: string | null }) =>
+  create: (input: { provider: string; displayName: string; rootFolderId: string; forcedType?: string | null; writeEnabled?: boolean }) =>
     api<Connection>(base, { method: "POST", body: JSON.stringify(input) }),
-  update: (id: string, input: Partial<{ displayName: string; rootFolderId: string; forcedType: string | null; status: string }>) =>
+  update: (id: string, input: Partial<{ displayName: string; rootFolderId: string; forcedType: string | null; writeEnabled: boolean; status: string }>) =>
     api<Connection>(`${base}/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   remove: (id: string) => api<void>(`${base}/${id}`, { method: "DELETE" }),
   sync: (id: string) => api<SyncResult>(`${base}/${id}/sync`, { method: "POST" }),

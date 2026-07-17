@@ -44,24 +44,4 @@ export const settingsApi = {
     }),
   deleteTreasury: (id: string) =>
     api<void>(`/api/v1/settings/treasury-accounts/${id}`, { method: "DELETE" }),
-  getStorage: () => api<StorageConfig>("/api/v1/settings/storage"),
-  updateStorage: (input: StorageUpdate) =>
-    api<StorageConfig>("/api/v1/settings/storage", { method: "PUT", body: JSON.stringify(input) }),
 };
-
-/** Phase 1: SUPABASE_ONLY (default) or DRIVE_MIRROR. DRIVE_PRIMARY is Phase 2. */
-export type StorageMode = "SUPABASE_ONLY" | "DRIVE_MIRROR" | "DRIVE_PRIMARY";
-
-export interface StorageConfig {
-  mode: StorageMode;
-  sharedDriveId: string | null;
-  writeRootFolderId: string | null;
-  /** Whether the Google service account is configured server-side (a Drive mode needs it). */
-  driveAvailable: boolean;
-}
-
-export interface StorageUpdate {
-  mode: StorageMode;
-  sharedDriveId?: string | null;
-  writeRootFolderId?: string | null;
-}
