@@ -144,7 +144,7 @@ public class IngestionService {
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
-        return doSync(conn, null, null, previousMonth(), true);
+        return doSync(conn, null, null, null, previousMonth(), true);
     }
 
     /**
@@ -156,7 +156,7 @@ public class IngestionService {
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), prev, true);
+        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true);
     }
 
     /**
@@ -166,7 +166,10 @@ public class IngestionService {
     public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
         SourceConnection conn = findDriveConnection(forcedType)
                 .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
-        return doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), previousMonth(), false);
+        // Synced from a type-specific screen (payroll/reports/declarations): files not filed in a type
+        // sub-folder default to that type, so a document dropped straight in the month folder is still typed.
+        return doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), parseForcedType(forcedType),
+                previousMonth(), false);
     }
 
     private Optional<SourceConnection> findDriveConnection(String forcedType) {
@@ -188,7 +191,7 @@ public class IngestionService {
      * controls whether the connection's cursor/status/summary are updated (only for the full sync).
      */
     private SyncResult doSync(SourceConnection conn, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
-                             LocalDate notifyMonth, boolean persistStatus) {
+                             DocumentType fallbackType, LocalDate notifyMonth, boolean persistStatus) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
@@ -225,30 +228,33 @@ public class IngestionService {
                 if (onlyPeriods != null && !onlyPeriods.contains(period)) {
                     continue;
                 }
-                // Idempotency: same provider file id already seen (and unchanged) → skip.
-                Optional<ImportFile> prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id());
-                if (prior.isPresent() && java.util.Objects.equals(prior.get().getSourceEtag(), f.etag())) {
+                // Idempotency: skip only files already IMPORTED and unchanged. A file previously flagged
+                // (needs-review / duplicate) is re-evaluated on each sync (the situation may have changed).
+                ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
+                if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
+                        && java.util.Objects.equals(prior.getSourceEtag(), f.etag())) {
                     skipped++;
                     continue;
                 }
                 if (companyId.isEmpty()) {
                     String reason = "Could not match a company from the folder path";
-                    recordReview(tenantId, conn, f, reason);
+                    writeLedger(prior, tenantId, conn, f, null, null, period, null, ImportFile.Status.NEEDS_REVIEW, reason);
                     issues.add(new SyncResult.Issue(f.name(), reason));
                     review++;
                     continue;
                 }
 
-                // Type: a connection-level forced type wins; otherwise resolve from the type sub-folder
-                // (payrolls / declarations / reports / …); null → let the classifier decide.
-                DocumentType fileType = forced != null ? forced : FolderMapper.resolveType(f).orElse(null);
+                // Type: a connection-level forced type wins; else the type sub-folder (payrolls /
+                // declarations / reports / …); else the screen's type (fallbackType) for a per-type sync;
+                // else null → let the classifier decide.
+                DocumentType fileType = forced != null ? forced : FolderMapper.resolveType(f).orElse(fallbackType);
 
                 // For a payroll document: it must be one of the three payroll files and for the folder's
                 // month, otherwise it is flagged (unclassified / wrong period), not imported.
                 if (fileType == DocumentType.PAYROLL) {
                     if (!looksLikePayroll(f.name())) {
                         String reason = "Unclassified — not a recognised payroll document (pontaj / stat / fluturaș)";
-                        recordReview(tenantId, conn, f, reason);
+                        writeLedger(prior, tenantId, conn, f, null, companyId.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
                         issues.add(new SyncResult.Issue(f.name(), reason));
                         review++;
                         continue;
@@ -256,7 +262,7 @@ public class IngestionService {
                     Optional<LocalDate> filePeriod = FolderMapper.periodFromText(f.name());
                     if (filePeriod.isPresent() && !filePeriod.get().equals(period)) {
                         String reason = "Wrong period — file is " + ym(filePeriod.get()) + ", folder month is " + ym(period);
-                        recordReview(tenantId, conn, f, reason);
+                        writeLedger(prior, tenantId, conn, f, null, companyId.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
                         issues.add(new SyncResult.Issue(f.name(), reason));
                         review++;
                         continue;
@@ -265,18 +271,19 @@ public class IngestionService {
 
                 byte[] bytes = connector.download(conn, f);
                 String sha = sha256(bytes);
-                // Content-hash dedupe: same bytes already imported under a different name → skip.
-                if (ledger.existsByConnectionIdAndContentSha256(conn.getId(), sha)) {
-                    ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
-                            f.name(), f.path(), null, ImportFile.Status.DUPLICATE, "Identical file already imported"));
+                // Content-hash dedupe scoped to this company + period: identical bytes already imported for
+                // the SAME company/month → skip. The same bytes in another month import as their own document.
+                if (ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                        conn.getId(), companyId.get(), period, sha, ImportFile.Status.IMPORTED.name())) {
+                    writeLedger(prior, tenantId, conn, f, sha, companyId.get(), period, null,
+                            ImportFile.Status.DUPLICATE, "Identical file already imported for this month");
                     skipped++;
                     continue;
                 }
 
                 var doc = documents.upload(companyId.get(), period, f.name(),
                         mime(f), bytes, fileType, DocumentSource.DRIVE);
-                ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
-                        f.name(), f.path(), doc.getId(), ImportFile.Status.IMPORTED, null));
+                writeLedger(prior, tenantId, conn, f, sha, companyId.get(), period, doc.getId(), ImportFile.Status.IMPORTED, null);
                 imported++;
                 if (fileType == DocumentType.PAYROLL && period.equals(notifyMonth)) {
                     newPayrollLastMonth.add(companyId.get());
@@ -305,9 +312,15 @@ public class IngestionService {
         return result;
     }
 
-    private void recordReview(UUID tenantId, SourceConnection conn, RemoteFile f, String detail) {
-        ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), null,
-                f.name(), f.path(), null, ImportFile.Status.NEEDS_REVIEW, detail));
+    /** Upsert a ledger row: re-record the existing one on re-sync (unique per connection + file), else insert. */
+    private void writeLedger(ImportFile prior, UUID tenantId, SourceConnection conn, RemoteFile f, String sha,
+                             UUID companyId, LocalDate period, UUID documentId, ImportFile.Status status, String detail) {
+        if (prior != null) {
+            prior.record(f.etag(), sha, f.name(), f.path(), companyId, period, documentId, status, detail);
+        } else {
+            ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
+                    f.name(), f.path(), companyId, period, documentId, status, detail));
+        }
     }
 
     /** A payroll folder should only hold pontaj (timesheet), stat de plată, or fluturaș (payslip). */

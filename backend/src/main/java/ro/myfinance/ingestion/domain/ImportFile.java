@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -42,6 +43,13 @@ public class ImportFile {
     @Column(name = "source_path")
     private String sourcePath;
 
+    /** Resolved company + period this file maps to (scopes the content-hash dedupe). Null for review rows. */
+    @Column(name = "company_id")
+    private UUID companyId;
+
+    @Column(name = "period_month")
+    private LocalDate periodMonth;
+
     @Column(name = "document_id")
     private UUID documentId;
 
@@ -58,8 +66,8 @@ public class ImportFile {
     }
 
     public ImportFile(UUID tenantId, UUID connectionId, String sourceRef, String sourceEtag,
-                      String contentSha256, String filename, String sourcePath, UUID documentId,
-                      Status status, String detail) {
+                      String contentSha256, String filename, String sourcePath, UUID companyId,
+                      LocalDate periodMonth, UUID documentId, Status status, String detail) {
         this.id = UUID.randomUUID();
         this.tenantId = tenantId;
         this.connectionId = connectionId;
@@ -68,6 +76,22 @@ public class ImportFile {
         this.contentSha256 = contentSha256;
         this.filename = filename;
         this.sourcePath = sourcePath;
+        this.companyId = companyId;
+        this.periodMonth = periodMonth;
+        this.documentId = documentId;
+        this.status = status.name();
+        this.detail = detail;
+    }
+
+    /** Re-record an existing ledger row on re-sync (a previously flagged file is re-evaluated). */
+    public void record(String sourceEtag, String contentSha256, String filename, String sourcePath,
+                       UUID companyId, LocalDate periodMonth, UUID documentId, Status status, String detail) {
+        this.sourceEtag = sourceEtag;
+        this.contentSha256 = contentSha256;
+        this.filename = filename;
+        this.sourcePath = sourcePath;
+        this.companyId = companyId;
+        this.periodMonth = periodMonth;
         this.documentId = documentId;
         this.status = status.name();
         this.detail = detail;

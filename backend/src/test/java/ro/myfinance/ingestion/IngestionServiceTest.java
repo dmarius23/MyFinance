@@ -76,7 +76,7 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("f1", "stat_salarii.pdf",
                 "INNOVATECODE IT SRL/2026-05", "application/pdf", 200, "e1", Instant.now()));
         when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndContentSha256(eq(c.getId()), any())).thenReturn(false);
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("stat_salarii.pdf"),
@@ -96,7 +96,8 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("f1", "stat.pdf",
                 "INNOVATECODE IT SRL/2026-05", "application/pdf", 200, "e1", Instant.now()));
         ImportFile prior = new ImportFile(TENANT, c.getId(), "f1", "e1", "sha", "stat.pdf",
-                "INNOVATECODE IT SRL/2026-05", UUID.randomUUID(), ImportFile.Status.IMPORTED, null);
+                "INNOVATECODE IT SRL/2026-05", UUID.randomUUID(), java.time.LocalDate.of(2026, 5, 1),
+                UUID.randomUUID(), ImportFile.Status.IMPORTED, null);
         when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.of(prior));
 
         var r = service.sync(c.getId());
@@ -150,7 +151,7 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("b", "Stat_salarii_2026_05.pdf", "INNOVATECODE IT SRL/2026/05 Mai", "application/pdf", 100, "eb", null),
                 new CloudFolderConnector.RemoteFile("c", "Stat_salarii_2026_04.pdf", "Lumina Verde SRL/2026/04 Aprilie", "application/pdf", 100, "ec", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndContentSha256(eq(drive.getId()), any())).thenReturn(false);
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("Stat_salarii_2026_04.pdf"), any(), any(),
@@ -180,7 +181,7 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("wp", "Pontaj_2026_05.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e2", null),
                 new CloudFolderConnector.RemoteFile("uc", "some_invoice.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e3", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndContentSha256(eq(drive.getId()), any())).thenReturn(false);
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
         lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
@@ -210,7 +211,7 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("p", "Stat_salarii_" + prev.getYear() + "_" + mm + ".pdf",
                 "INNOVATECODE IT SRL/" + prev.getYear() + "/" + mm + " luna", "application/pdf", 100, "e1", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndContentSha256(eq(drive.getId()), any())).thenReturn(false);
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
