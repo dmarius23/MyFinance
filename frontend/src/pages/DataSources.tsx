@@ -39,9 +39,16 @@ export function DataSources() {
     onSuccess: (r: SyncResult) => { refresh(); window.alert(t("ingest.syncDone", r as unknown as Record<string, number>)); },
     onError: onErr,
   });
+  // Inline write toggle straight from the row (keeps name/root; a general root connection has no forced type).
+  const toggleWrite = useMutation({
+    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, forcedType: null }),
+    onSuccess: refresh,
+    onError: onErr,
+  });
+  const hasConnection = (conns.data ?? []).length > 0;
 
   return (
-    <div style={{ display: "grid", gap: 16, maxWidth: 920 }}>
+    <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
       <div>
         <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("ingest.crumb")}</div>
         <h2 style={{ margin: "2px 0 0", fontSize: 21 }}>{t("nav.dataSources")}</h2>
@@ -65,11 +72,11 @@ export function DataSources() {
             <div style={{ ...row, borderTop: "1px solid var(--hair)" }}>
               <div>
                 <div style={{ fontWeight: 600 }}>{c.displayName}</div>
-                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                  {c.provider} · <span style={{ color: c.writeEnabled ? "var(--primary-dark)" : "var(--text-muted)" }}>
-                    {c.writeEnabled ? t("ingest.readWrite") : t("ingest.readOnly")}
-                  </span>
-                </div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>{c.provider}</div>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, cursor: toggleWrite.isPending ? "default" : "pointer", color: c.writeEnabled ? "var(--primary-dark)" : "var(--text-muted)" }}>
+                  <input type="checkbox" checked={c.writeEnabled} disabled={toggleWrite.isPending} onChange={() => toggleWrite.mutate(c)} />
+                  {t("ingest.writeShort")}
+                </label>
               </div>
               <div className="mono" style={{ fontSize: 11.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.rootFolderId}</div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
@@ -105,7 +112,8 @@ export function DataSources() {
         ))}
       </div>
 
-      {/* add connection */}
+      {/* add connection — only when none exists yet (one root connection is enough) */}
+      {!hasConnection && (
       <div className="card">
         <h3 style={{ marginTop: 0, fontSize: 15 }}>{t("ingest.addTitle")}</h3>
         <p style={{ color: "var(--text-muted)", fontSize: 12.5, marginTop: 2 }}>{t("ingest.addHint")}</p>
@@ -124,6 +132,7 @@ export function DataSources() {
           </button>
         </form>
       </div>
+      )}
     </div>
   );
 }
@@ -149,6 +158,6 @@ function ImportsPanel({ connectionId }: { connectionId: string }) {
   );
 }
 
-const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "1.3fr 1.4fr 1.2fr 160px", alignItems: "center", gap: 10, padding: "10px 16px" };
+const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(200px,1.4fr) minmax(150px,1fr) 1fr 340px", alignItems: "center", gap: 12, padding: "10px 16px" };
 const th: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const input: React.CSSProperties = { padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, maxWidth: 520 };
