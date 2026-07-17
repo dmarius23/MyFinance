@@ -10,7 +10,7 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
-import ro.myfinance.intake.domain.DocumentType;
+import ro.myfinance.intake.domain.DriveDocLayout;
 
 /**
  * Mirrors uploaded documents into the tenant's write-enabled Google Drive source connection (MOD-15), so
@@ -24,7 +24,8 @@ import ro.myfinance.intake.domain.DocumentType;
 public class DocumentMirrorListener {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentMirrorListener.class);
-    private static final DateTimeFormatter YM = DateTimeFormatter.ofPattern("yyyy-MM");
+    private static final DateTimeFormatter YEAR = DateTimeFormatter.ofPattern("yyyy");
+    private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM");
 
     private final DriveStorageTarget storageTarget;
     private final DriveDocumentWriter driveWriter;
@@ -56,8 +57,9 @@ public class DocumentMirrorListener {
             }
             List<String> segments = List.of(
                     companyFolder(company),
-                    e.periodMonth().format(YM),
-                    typeFolder(doc.getType()));
+                    e.periodMonth().format(YEAR),
+                    e.periodMonth().format(MONTH),
+                    DriveDocLayout.typeFolder(doc.getType()));
             String fileId = driveWriter.put(target.sharedDriveId(), target.rootFolderId(),
                     segments, doc.getOriginalFilename(), doc.getContentType(), e.bytes(), e.documentId());
             doc.setDriveFileId(fileId); // managed within this transaction → flushed on commit
@@ -86,17 +88,5 @@ public class DocumentMirrorListener {
         }
         String safe = (name == null ? "company" : name).replaceAll("[/\\\\]", "-").trim();
         return safe.isEmpty() ? "company" : safe;
-    }
-
-    private static String typeFolder(DocumentType type) {
-        return switch (type) {
-            case BANK_STATEMENT -> "Extrase de cont";
-            case INVOICE -> "Facturi";
-            case RECEIPT -> "Chitante";
-            case PAYROLL -> "Salarizare";
-            case DECLARATION -> "Declaratii";
-            case TRIAL_BALANCE -> "Balante";
-            case UNCLASSIFIED -> "Neclasificate";
-        };
     }
 }

@@ -16,6 +16,7 @@ export function DataSources() {
   const [form, setForm] = useState({ displayName: "", rootFolderId: "", writeEnabled: true });
   const [error, setError] = useState<string | null>(null);
   const [openImports, setOpenImports] = useState<string | null>(null);
+  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean } | null>(null);
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["ingestion-connections"] }); setError(null); };
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
@@ -24,6 +25,12 @@ export function DataSources() {
     // Connect the Drive root for all documents (auto-classified), read + write.
     mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled }),
     onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true }); },
+    onError: onErr,
+  });
+  const save = useMutation({
+    // Editing a connection clears forcedType (null) → a general root connection that resolves type per sub-folder.
+    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, forcedType: null }),
+    onSuccess: () => { refresh(); setEdit(null); },
     onError: onErr,
   });
   const remove = useMutation({ mutationFn: (id: string) => ingestionApi.remove(id), onSuccess: refresh, onError: onErr });
@@ -71,10 +78,28 @@ export function DataSources() {
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c.id)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
+                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled })}>{t("ingest.edit")}</button>
                 <button onClick={() => setOpenImports(openImports === c.id ? null : c.id)}>{t("ingest.imports")}</button>
                 <button style={{ color: "#dc2626" }} onClick={() => { if (window.confirm(t("ingest.confirmDelete", { name: c.displayName }))) remove.mutate(c.id); }}>✕</button>
               </div>
             </div>
+            {edit?.id === c.id && (
+              <form style={{ background: "var(--bg)", padding: "10px 16px 14px", borderTop: "1px solid var(--hair)", display: "grid", gap: 8, maxWidth: 560 }}
+                onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+                <input value={edit.displayName} placeholder={t("ingest.fieldName")} required
+                  onChange={(e) => setEdit({ ...edit, displayName: e.target.value })} style={input} />
+                <input value={edit.rootFolderId} placeholder={t("ingest.fieldFolder")} required
+                  onChange={(e) => setEdit({ ...edit, rootFolderId: e.target.value })} style={input} />
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                  <input type="checkbox" checked={edit.writeEnabled} onChange={(e) => setEdit({ ...edit, writeEnabled: e.target.checked })} />
+                  {t("ingest.writeAccess")}
+                </label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="primary" type="submit" disabled={save.isPending}>{save.isPending ? "…" : t("common.save")}</button>
+                  <button type="button" onClick={() => setEdit(null)}>{t("common.cancel")}</button>
+                </div>
+              </form>
+            )}
             {openImports === c.id && <ImportsPanel connectionId={c.id} />}
           </div>
         ))}

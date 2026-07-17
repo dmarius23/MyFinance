@@ -78,4 +78,29 @@ class FolderMapperTest {
     void fallsBackToModifiedMonthWhenNoMonthFolder() {
         assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE"))).isEqualTo(LocalDate.of(2026, 6, 1));
     }
+
+    @Test
+    void resolvesTypeFromSubfolder() {
+        // company / year / month / type — the type folder is deepest.
+        assertThat(FolderMapper.resolveType(file("INNOVATECODE IT SRL/2026/06/payrolls")))
+                .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
+        assertThat(FolderMapper.resolveType(file("INNOVATECODE IT SRL/2026/06/declarations")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(file("INNOVATECODE IT SRL/2026/06/reports")))
+                .contains(ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE);
+        assertThat(FolderMapper.resolveType(file("INNOVATECODE IT SRL/2026/06/invoices")))
+                .contains(ro.myfinance.intake.domain.DocumentType.INVOICE);
+    }
+
+    @Test
+    void typeResolutionIgnoresNonTypeSegmentsAndRoundTripsWithWriter() {
+        // No type folder → empty (classifier decides).
+        assertThat(FolderMapper.resolveType(file("INNOVATECODE IT SRL/2026/06"))).isEmpty();
+        // The writer's folder name reads back as the same type (round-trip) for every type.
+        for (ro.myfinance.intake.domain.DocumentType t : ro.myfinance.intake.domain.DocumentType.values()) {
+            String folder = ro.myfinance.intake.domain.DriveDocLayout.typeFolder(t);
+            assertThat(FolderMapper.resolveType(file("Firma SRL/2026/06/" + folder)))
+                    .as("round-trip for %s (folder=%s)", t, folder).contains(t);
+        }
+    }
 }

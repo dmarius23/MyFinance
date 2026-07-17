@@ -222,9 +222,13 @@ public class IngestionService {
                     continue;
                 }
 
-                // For a payroll folder: the file must be one of the three payroll documents and for the
-                // folder's month, otherwise it is flagged (unclassified / wrong period), not imported.
-                if (forced == DocumentType.PAYROLL) {
+                // Type: a connection-level forced type wins; otherwise resolve from the type sub-folder
+                // (payrolls / declarations / reports / …); null → let the classifier decide.
+                DocumentType fileType = forced != null ? forced : FolderMapper.resolveType(f).orElse(null);
+
+                // For a payroll document: it must be one of the three payroll files and for the folder's
+                // month, otherwise it is flagged (unclassified / wrong period), not imported.
+                if (fileType == DocumentType.PAYROLL) {
                     if (!looksLikePayroll(f.name())) {
                         String reason = "Unclassified — not a recognised payroll document (pontaj / stat / fluturaș)";
                         recordReview(tenantId, conn, f, reason);
@@ -253,11 +257,11 @@ public class IngestionService {
                 }
 
                 var doc = documents.upload(companyId.get(), period, f.name(),
-                        mime(f), bytes, forced, DocumentSource.DRIVE);
+                        mime(f), bytes, fileType, DocumentSource.DRIVE);
                 ledger.save(new ImportFile(tenantId, conn.getId(), f.id(), f.etag(), sha,
                         f.name(), f.path(), doc.getId(), ImportFile.Status.IMPORTED, null));
                 imported++;
-                if (forced == DocumentType.PAYROLL && period.equals(notifyMonth)) {
+                if (fileType == DocumentType.PAYROLL && period.equals(notifyMonth)) {
                     newPayrollLastMonth.add(companyId.get());
                 }
             } catch (RuntimeException e) {

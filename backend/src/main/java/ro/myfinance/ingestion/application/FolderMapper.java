@@ -97,6 +97,23 @@ public final class FolderMapper {
         return d.withDayOfMonth(1);
     }
 
+    /**
+     * Resolve the document type from a type sub-folder in the path ({@code payrolls}, {@code declarations},
+     * {@code reports}, …) — checked deepest segment first, since the type folder sits closest to the file.
+     * Empty when no segment names a known type (the classifier then decides).
+     */
+    public static Optional<ro.myfinance.intake.domain.DocumentType> resolveType(RemoteFile file) {
+        List<String> segs = segments(file);
+        for (int i = segs.size() - 1; i >= 0; i--) {
+            Optional<ro.myfinance.intake.domain.DocumentType> t =
+                    ro.myfinance.intake.domain.DriveDocLayout.typeOf(segs.get(i));
+            if (t.isPresent()) {
+                return t;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** A YYYY-MM found anywhere in a string (e.g. a filename "...2026_04.pdf"), as the first of month. */
     public static Optional<LocalDate> periodFromText(String text) {
         if (text == null) {
