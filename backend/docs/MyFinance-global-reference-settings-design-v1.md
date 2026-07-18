@@ -125,8 +125,17 @@ back to the earliest row (or return absent + let the caller warn). Implement as 
    now resolves IBANs by (residence, declaration period). Old per-tenant tables kept (dropped in Phase 3).
    Note: rates have no runtime consumer yet (tax totals come from the ANAF XML), so only the treasury read
    path was re-wired; `PlatformRatesService` is ready for the Settings display + any future rate computation.
-2. **SUPER_ADMIN CRUD API + admin screen.** ← next
-3. **Slim the tenant Settings page** (read-only rates/treasury); drop old per-tenant columns/table.
+2. ✅ **DONE** — **SUPER_ADMIN CRUD API + admin screen.**
+   Shipped: `PlatformReferenceController` at `/api/v1/admin/reference` (tax-rates + treasury-accounts
+   CRUD, SUPER_ADMIN-gated by SecurityConfig + `@PreAuthorize`), `PlatformReferenceAdminService`
+   (effective-dated add/edit/delete + history list, conflict on duplicate (key, valid_from)). Frontend
+   `AdminReference` screen at `/admin/reference` under the SUPER_ADMIN route block + sidebar link, with
+   rate/treasury history + add/delete + inline IBAN edit. `PlatformReferenceControllerIT` proves
+   SUPER_ADMIN can manage and a TENANT_ADMIN gets 403.
+3. **Slim the tenant Settings page** (read-only rates/treasury); drop old per-tenant columns/table. ← next
+   Needs a tenant-readable endpoint for the effective values (the admin API is SUPER_ADMIN-only), then
+   make `Settings.tsx` rates/treasury read-only, and a V36 that drops `general_settings` rate columns +
+   the `residence_treasury` table (and slims `SettingsService`).
 
 ## 9. Repo conventions & verification (reuse from prior sessions)
 

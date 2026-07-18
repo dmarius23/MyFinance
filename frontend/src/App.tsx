@@ -18,6 +18,7 @@ import { Notifications } from "./pages/Notifications";
 import { Tasks } from "./pages/Tasks";
 import { Team } from "./pages/Team";
 import { DataSources } from "./pages/DataSources";
+import { AdminReference } from "./pages/AdminReference";
 
 /** Where a signed-in user belongs based on their role (reps → portal, staff → dashboard). */
 export function homeFor(role: Role | null): string {
@@ -75,6 +76,7 @@ export default function App() {
       <Route element={<RequireRole allow={["SUPER_ADMIN"]} />}>
         <Route element={<FirmLayout />}>
           <Route path="/admin/tenants" element={<PagePlaceholder title="Tenant admin" module="MOD-01" />} />
+          <Route path="/admin/reference" element={<AdminReference />} />
         </Route>
       </Route>
 
