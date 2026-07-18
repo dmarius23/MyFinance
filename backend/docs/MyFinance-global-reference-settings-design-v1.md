@@ -119,8 +119,13 @@ back to the earliest row (or return absent + let the caller warn). Implement as 
 
 ## 8. Phased plan
 
-1. **Globals + resolvers + V35 migration + re-wire treasury/rate reads (period-aware).** Ship + verify.
-2. **SUPER_ADMIN CRUD API + admin screen.**
+1. ✅ **DONE** — **Globals + resolvers + V35 migration + re-wire treasury reads (period-aware).**
+   Shipped: `platform_tax_rate` + `platform_treasury_account` (no tenant_id / no RLS), effective-dated
+   resolvers `PlatformRatesService.rateFor` / `PlatformTreasuryService.accountFor`, `TaxPaymentService`
+   now resolves IBANs by (residence, declaration period). Old per-tenant tables kept (dropped in Phase 3).
+   Note: rates have no runtime consumer yet (tax totals come from the ANAF XML), so only the treasury read
+   path was re-wired; `PlatformRatesService` is ready for the Settings display + any future rate computation.
+2. **SUPER_ADMIN CRUD API + admin screen.** ← next
 3. **Slim the tenant Settings page** (read-only rates/treasury); drop old per-tenant columns/table.
 
 ## 9. Repo conventions & verification (reuse from prior sessions)

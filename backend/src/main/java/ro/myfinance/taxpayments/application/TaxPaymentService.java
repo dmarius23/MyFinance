@@ -17,8 +17,8 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.application.DocumentService;
-import ro.myfinance.settings.adapter.persistence.ResidenceTreasuryAccountRepository;
-import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
+import ro.myfinance.settings.application.PlatformTreasuryService;
+import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
@@ -44,7 +44,7 @@ public class TaxPaymentService {
 
     private final CompanyRepository companies;
     private final DocumentService documents;
-    private final ResidenceTreasuryAccountRepository treasury;
+    private final PlatformTreasuryService treasury;
     private final TaxDeclarationRepository declarations;
     private final TaxEmailRepository emails;
     private final AnafDeclarationExtractor extractor;
@@ -52,7 +52,7 @@ public class TaxPaymentService {
     private final PaymentEmailBuilder emailBuilder;
 
     public TaxPaymentService(CompanyRepository companies, DocumentService documents,
-                             ResidenceTreasuryAccountRepository treasury, TaxDeclarationRepository declarations,
+                             PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
                              TaxEmailRepository emails, AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder) {
         this.companies = companies;
@@ -171,7 +171,9 @@ public class TaxPaymentService {
                 log.warn("Failed to re-extract declaration {} (doc {})", d.getId(), d.getDocumentId(), e);
             }
         }
-        Map<TaxCategory, String> ibans = resolveIbans(company.getLocality());
+        // Resolve treasury IBANs for the declarations' period (effective-dated, global reference data).
+        LocalDate period = decls.isEmpty() ? null : decls.get(0).getPeriodMonth();
+        Map<TaxCategory, String> ibans = resolveIbans(company.getLocality(), period);
         List<PaymentLine> all = calculator.compute(parsed, ibans);
         List<PaymentLine> configured = all.stream().filter(l -> !l.iban().isBlank()).toList();
 
@@ -194,9 +196,9 @@ public class TaxPaymentService {
         }
 
         String beneficiary = beneficiary(company.getLocality());
-        YearMonth period = decls.isEmpty() ? null : YearMonth.from(decls.get(0).getPeriodMonth());
-        String body = (beneficiary != null && !configured.isEmpty() && period != null)
-                ? emailBuilder.build(company.getLegalName(), company.getCui(), period, beneficiary, configured)
+        YearMonth emailPeriod = period == null ? null : YearMonth.from(period);
+        String body = (beneficiary != null && !configured.isEmpty() && emailPeriod != null)
+                ? emailBuilder.build(company.getLegalName(), company.getCui(), emailPeriod, beneficiary, configured)
                 : null;
         return new Computation(beneficiary, configured, unconfigured, total, body);
     }
@@ -206,12 +208,9 @@ public class TaxPaymentService {
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
     }
 
-    private Map<TaxCategory, String> resolveIbans(String locality) {
+    private Map<TaxCategory, String> resolveIbans(String locality, LocalDate period) {
         Map<TaxCategory, String> map = new EnumMap<>(TaxCategory.class);
-        if (locality == null || locality.isBlank()) {
-            return map;
-        }
-        ResidenceTreasuryAccount a = treasury.findByResidence(locality).orElse(null);
+        PlatformTreasuryAccount a = treasury.accountFor(locality, period).orElse(null);
         if (a == null) {
             return map;
         }

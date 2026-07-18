@@ -23,8 +23,8 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
-import ro.myfinance.settings.adapter.persistence.ResidenceTreasuryAccountRepository;
-import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
+import ro.myfinance.settings.application.PlatformTreasuryService;
+import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
@@ -49,7 +49,7 @@ class TaxPaymentServiceTest {
 
     @Mock CompanyRepository companies;
     @Mock DocumentService documentService;
-    @Mock ResidenceTreasuryAccountRepository treasury;
+    @Mock PlatformTreasuryService treasury;
     @Mock TaxDeclarationRepository declarations;
     @Mock TaxEmailRepository emails;
 
@@ -103,12 +103,12 @@ class TaxPaymentServiceTest {
         when(documentService.getContent(doc1)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d100));
         when(documentService.getContent(doc2)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d112));
 
-        ResidenceTreasuryAccount acct = mock(ResidenceTreasuryAccount.class);
+        PlatformTreasuryAccount acct = mock(PlatformTreasuryAccount.class);
         when(acct.getIbanImpozite()).thenReturn(CONT_UNIC);
         when(acct.getIbanCas()).thenReturn(CONT_UNIC);
         when(acct.getIbanCass()).thenReturn(CONT_UNIC);
         when(acct.getIbanCam()).thenReturn(CAM_IBAN);
-        when(treasury.findByResidence("Cluj")).thenReturn(Optional.of(acct));
+        when(treasury.accountFor("Cluj", MONTH)).thenReturn(Optional.of(acct));
 
         TaxPaymentSummary s = service().summary(companyId, MONTH);
 
@@ -159,7 +159,7 @@ class TaxPaymentServiceTest {
                 .thenReturn(List.of(sd));
         when(emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(companyId), any())).thenReturn(List.of());
         when(documentService.getContent(doc)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d112));
-        when(treasury.findByResidence("Nowhere")).thenReturn(Optional.empty());
+        when(treasury.accountFor("Nowhere", MONTH)).thenReturn(Optional.empty());
 
         TaxPaymentSummary s = service().summary(companyId, MONTH);
         assertThat(s.paymentLines()).isEmpty();
