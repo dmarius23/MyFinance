@@ -103,6 +103,48 @@ class GenericRunningBalanceParserTest {
         assertSelfBalances(s);
     }
 
+    // ISO dates (yyyy-MM-dd) as produced by Revolut CSV exports, oldest-first.
+    private static final String ISO_DATES = """
+            Generic Bank Statement
+            Opening balance 1,000.00
+            2024-03-05 payment ACME 200.00 800.00
+            2024-03-12 incoming client 350.00 1,150.00
+            Closing balance 1,150.00
+            """;
+
+    // Textual dates ("5 Mar 2024" / "12 March 2024") as produced by Revolut PDF / ING EN, oldest-first.
+    private static final String TEXTUAL_DATES = """
+            Generic Bank Statement
+            Opening balance 1,000.00
+            5 Mar 2024 payment ACME 200.00 800.00
+            12 March 2024 incoming client 350.00 1,150.00
+            Closing balance 1,150.00
+            """;
+
+    @Test
+    void parsesIsoDates() {
+        ParsedStatement s = parser.parse(ISO_DATES);
+
+        assertThat(s.transactions()).hasSize(2);
+        assertThat(s.transactions().get(0).date()).isEqualTo(LocalDate.of(2024, 3, 5));
+        assertThat(s.transactions().get(0).amount()).isEqualByComparingTo("-200.00");
+        assertThat(s.transactions().get(1).date()).isEqualTo(LocalDate.of(2024, 3, 12));
+        assertThat(s.transactions().get(1).amount()).isEqualByComparingTo("350.00");
+        assertSelfBalances(s);
+    }
+
+    @Test
+    void parsesTextualDates() {
+        ParsedStatement s = parser.parse(TEXTUAL_DATES);
+
+        assertThat(s.transactions()).hasSize(2);
+        assertThat(s.transactions().get(0).date()).isEqualTo(LocalDate.of(2024, 3, 5));
+        assertThat(s.transactions().get(0).amount()).isEqualByComparingTo("-200.00");
+        assertThat(s.transactions().get(1).date()).isEqualTo(LocalDate.of(2024, 3, 12));
+        assertThat(s.transactions().get(1).amount()).isEqualByComparingTo("350.00");
+        assertSelfBalances(s);
+    }
+
     private void assertSelfBalances(ParsedStatement s) {
         BigDecimal sum = s.transactions().stream()
                 .map(ParsedTransaction::amount)

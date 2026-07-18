@@ -28,7 +28,14 @@ public class GenericRunningBalanceParser implements BankStatementParser {
 
     // Monetary token: ends with a decimal separator + exactly 2 digits (excludes IBANs/account nos).
     private static final Pattern MONEY = Pattern.compile("\\d[\\d.,]*[.,]\\d{2}");
-    private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{2,4})");
+    // Numeric date: dd/MM/yyyy, dd.MM.yyyy (RO/EU) or yyyy-MM-dd (ISO, used by Revolut CSV exports).
+    private static final Pattern DATE = Pattern.compile(
+            "(\\d{4})-(\\d{2})-(\\d{2})|(\\d{2})[/.](\\d{2})[/.](\\d{2,4})");
+    // Textual date: "15 Dec 2024" or "15 December 2024" (Revolut PDF, ING EN statements).
+    private static final Pattern DATE_TEXT = Pattern.compile(
+            "(\\d{1,2})\\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|" +
+            "Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+(\\d{4})",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
     private static final String[] OPEN_KW =
             {"sold initial", "sold anterior", "sold precedent", "opening balance", "start balance"};
@@ -77,15 +84,12 @@ public class GenericRunningBalanceParser implements BankStatementParser {
             if (containsAny(norm(line), OPEN_KW) || containsAny(norm(line), CLOSE_KW)) {
                 continue; // balance summary lines, not transactions
             }
-            Matcher d = DATE.matcher(line);
-            if (!d.find() || d.start() > 3) {
-                continue; // a transaction row starts (near) the line with a date
-            }
-            LocalDate date = parseDate(d.group());
-            if (date == null) {
+            var dateResult = findDate(line);
+            if (dateResult == null || dateResult.getKey() == null) {
                 continue;
             }
-            String rest = line.substring(d.end());
+            LocalDate date = dateResult.getKey();
+            String rest = line.substring(dateResult.getValue());
             List<BigDecimal> nums = money(rest);
             if (nums.size() < 2) {
                 continue; // need at least an amount + a running balance
@@ -116,13 +120,10 @@ public class GenericRunningBalanceParser implements BankStatementParser {
                 continue;
             }
             String rest = line;
-            Matcher d = DATE.matcher(line);
-            if (d.find() && d.start() <= 3) {
-                LocalDate parsed = parseDate(d.group());
-                if (parsed != null) {
-                    currentDate = parsed;
-                    rest = line.substring(d.end());
-                }
+            var dateResult = findDate(line);
+            if (dateResult != null && dateResult.getKey() != null) {
+                currentDate = dateResult.getKey();
+                rest = line.substring(dateResult.getValue());
             }
             Matcher ib = IBAN.matcher(line);
             if (ib.find() && iban == null) {
@@ -198,12 +199,37 @@ public class GenericRunningBalanceParser implements BankStatementParser {
     }
 
     private LocalDate parseDate(String token) {
-        for (String pat : new String[] {"dd/MM/uuuu", "dd/MM/uu", "dd.MM.uuuu", "dd.MM.uu"}) {
+        for (String pat : new String[] {
+                "dd/MM/uuuu", "dd/MM/uu", "dd.MM.uuuu", "dd.MM.uu",
+                "uuuu-MM-dd",                                         // ISO — Revolut CSV
+                "d MMM uuuu", "d MMMM uuuu",                          // "15 Dec 2024" — Revolut PDF
+                "dd MMM uuuu", "dd MMMM uuuu" }) {
             try {
-                return LocalDate.parse(token, DateTimeFormatter.ofPattern(pat));
+                return LocalDate.parse(token, DateTimeFormatter.ofPattern(pat, java.util.Locale.ENGLISH));
             } catch (RuntimeException ignored) {
                 // try next pattern
             }
+        }
+        return null;
+    }
+
+    /** Try to find and parse a date from a line using both numeric and textual date patterns. */
+    private java.util.Map.Entry<LocalDate, Integer> findDate(String line) {
+        // Try textual date first ("15 Dec 2024") — it's longer and more specific.
+        Matcher mt = DATE_TEXT.matcher(line);
+        if (mt.find()) {
+            LocalDate d = parseDate(mt.group().trim());
+            if (d != null) return java.util.Map.entry(d, mt.end());
+        }
+        // Numeric date ("15/12/2024", "2024-12-15").
+        Matcher mn = DATE.matcher(line);
+        if (mn.find()) {
+            // ISO group (yyyy-MM-dd): groups 1,2,3; EU group (dd/MM/yyyy): groups 4,5,6.
+            String token = mn.group(1) != null
+                    ? mn.group(1) + "-" + mn.group(2) + "-" + mn.group(3)
+                    : mn.group(4) + "/" + mn.group(5) + "/" + mn.group(6);
+            LocalDate d = parseDate(token);
+            if (d != null) return java.util.Map.entry(d, mn.end());
         }
         return null;
     }

@@ -131,4 +131,13 @@ class HeuristicDocumentClassifierTest {
                 pdfWithText("BRD Transactions List Settlement date Debit Credit Balance")))
                 .isEqualTo(DocumentType.BANK_STATEMENT);
     }
+
+    @Test
+    void revolutStatementIsBankStatement() throws Exception {
+        // "revolut" is unambiguous — a Revolut-branded PDF classifies as a statement even without
+        // the Romanian ("extras de cont") or English ("Transactions List") markers.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Revolut Bank UAB Monthly statement Money out Money in Balance")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
 }

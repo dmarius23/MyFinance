@@ -64,8 +64,9 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             return DocumentType.TRIAL_BALANCE;
         }
         // Strong, statement-specific markers next (so a statement is never mistaken for anything else).
+        // "revolut" is unambiguous — only appears in Revolut-branded PDFs and exports.
         if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
-                "sold final", "rulaj zi", "rulaj total cont")) {
+                "sold final", "rulaj zi", "rulaj total cont", "revolut")) {
             return DocumentType.BANK_STATEMENT;
         }
         // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
