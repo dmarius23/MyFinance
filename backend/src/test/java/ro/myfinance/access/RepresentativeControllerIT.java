@@ -94,4 +94,27 @@ class RepresentativeControllerIT extends AbstractPostgresIT {
         mvc.perform(get("/api/v1/companies/{id}/representatives", companyId).with(otherTenantJwt))
                 .andExpect(status().isNotFound()); // RLS hides the company → NotFound
     }
+
+    @Test
+    void listsAllRepresentativesAcrossTheTenantInOneCall() throws Exception {
+        UUID companyId = seedCompany();
+        mvc.perform(post("/api/v1/companies/{id}/representatives", companyId)
+                        .with(staff())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"agg@client.ro\",\"name\":\"Agg Rep\"}"))
+                .andExpect(status().isCreated());
+
+        // The aggregate endpoint returns the rep tagged with its companyId (filter-based so it is
+        // robust to reps seeded by sibling tests under the same tenant).
+        mvc.perform(get("/api/v1/representatives").with(staff()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.email=='agg@client.ro')].companyId")
+                        .value(companyId.toString()));
+    }
+
+    @Test
+    void allRepresentativesRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/v1/representatives"))
+                .andExpect(status().isUnauthorized());
+    }
 }

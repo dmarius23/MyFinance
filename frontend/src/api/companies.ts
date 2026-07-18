@@ -30,6 +30,19 @@ export interface CreateCompanyInput {
 export const TAX_REGIMES = ["PROFIT", "MICRO"] as const;
 export const taxRegimeKey = (code: string) => `taxRegime.${code}`;
 
+export interface CompanyRepEntry {
+  companyId: string;
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+}
+
+export const representativesApi = {
+  /** All reps for every company in one call — used by the Companies list page. */
+  listAll: () => api<CompanyRepEntry[]>("/api/v1/representatives"),
+};
+
 export const companiesApi = {
   list: () => api<Company[]>("/api/v1/companies"),
   get: (id: string) => api<Company>(`/api/v1/companies/${id}`),

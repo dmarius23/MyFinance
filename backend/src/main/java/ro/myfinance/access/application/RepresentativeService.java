@@ -104,6 +104,24 @@ public class RepresentativeService {
         audit.record("REPRESENTATIVE_UNASSIGNED", "company", companyId);
     }
 
+    /** All representatives for every company in the tenant — one query pair, no N+1. */
+    @Transactional(readOnly = true)
+    public List<ro.myfinance.access.adapter.web.AllRepresentativesController.CompanyRepEntry> listAllRepresentatives() {
+        List<RepresentativeLink> allLinks = links.findAll();
+        if (allLinks.isEmpty()) return List.of();
+        List<java.util.UUID> userIds = allLinks.stream().map(RepresentativeLink::getUserId).distinct().toList();
+        java.util.Map<java.util.UUID, AppUser> byId = users.findAllById(userIds).stream()
+                .collect(java.util.stream.Collectors.toMap(AppUser::getId, u -> u));
+        return allLinks.stream()
+                .filter(l -> byId.containsKey(l.getUserId()))
+                .map(l -> {
+                    AppUser u = byId.get(l.getUserId());
+                    return new ro.myfinance.access.adapter.web.AllRepresentativesController.CompanyRepEntry(
+                            l.getCompanyId(), u.getId(), u.getName(), u.getEmail(), u.getStatus().name());
+                })
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<AppUser> listRepresentatives(UUID companyId) {
         companies.findById(companyId)
