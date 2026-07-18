@@ -13,6 +13,9 @@ repeat the root — read that too.
   cloud-folder (Google Drive) ingestion design.
 - [`MyFinance-tenant-storage-strategy-design-v1.md`](docs/MyFinance-tenant-storage-strategy-design-v1.md) —
   per-tenant document storage strategy (Supabase-only / Drive-mirror / Drive-primary).
+- [`MyFinance-global-reference-settings-design-v1.md`](docs/MyFinance-global-reference-settings-design-v1.md) —
+  **ready-to-implement brief**: move tax rates + treasury IBANs to global, super-admin-managed,
+  effective-dated reference tables (tenants read-only); `sender_email` stays per-tenant.
 - [`backend-clean-code-guidelines.md`](docs/backend-clean-code-guidelines.md) — **conventions to follow
   for all new or changed backend code.**
 - [`backend-improvement-plan.md`](docs/backend-improvement-plan.md) — prioritized hardening/refactor
