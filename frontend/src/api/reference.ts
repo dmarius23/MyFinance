@@ -26,13 +26,11 @@ export interface PlatformTreasuryAccount {
 
 export const referenceApi = {
   listRates: () => api<PlatformTaxRate[]>("/api/v1/admin/reference/tax-rates"),
-  addRate: (input: { category: TaxRateCategory; rate: number; validFrom: string }) =>
-    api<PlatformTaxRate>("/api/v1/admin/reference/tax-rates", {
-      method: "POST",
-      body: JSON.stringify(input),
+  updateRate: (id: string, rate: number) =>
+    api<PlatformTaxRate>(`/api/v1/admin/reference/tax-rates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ rate }),
     }),
-  deleteRate: (id: string) =>
-    api<void>(`/api/v1/admin/reference/tax-rates/${id}`, { method: "DELETE" }),
 
   listTreasury: () => api<PlatformTreasuryAccount[]>("/api/v1/admin/reference/treasury-accounts"),
   addTreasury: (input: { residence: string; validFrom: string } & TreasuryIbans) =>

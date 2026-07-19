@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,6 +70,25 @@ class PlatformReferenceControllerIT extends AbstractPostgresIT {
         mvc.perform(get("/api/v1/admin/reference/tax-rates").with(superAdmin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.validFrom=='2099-01-01' && @.category=='VAT')]").exists());
+    }
+
+    @Test
+    void superAdminEditsAnExistingTaxRateInPlace() throws Exception {
+        String created = mvc.perform(post("/api/v1/admin/reference/tax-rates")
+                        .with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"PROFIT\",\"rate\":16.00,\"validFrom\":\"2099-01-01\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+
+        mvc.perform(put("/api/v1/admin/reference/tax-rates/{id}", id)
+                        .with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rate\":18.50}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rate").value(18.50))
+                .andExpect(jsonPath("$.category").value("PROFIT"));
     }
 
     @Test

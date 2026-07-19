@@ -51,6 +51,9 @@ public class PlatformTaxRate {
         this.validFrom = validFrom;
     }
 
+    /** The rate value is editable in place (category + effective date are immutable). */
+    public void setRate(BigDecimal rate) { this.rate = rate; }
+
     public UUID getId() { return id; }
     public TaxRateCategory getCategory() { return category; }
     public BigDecimal getRate() { return rate; }

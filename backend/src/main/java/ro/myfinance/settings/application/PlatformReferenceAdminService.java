@@ -56,6 +56,15 @@ public class PlatformReferenceAdminService {
         return rates.save(new PlatformTaxRate(category, rate, validFrom));
     }
 
+    /** Edit the value of an existing rate (category + effective date stay fixed). */
+    public PlatformTaxRate updateTaxRate(UUID id, BigDecimal rate) {
+        requirePercent(rate);
+        PlatformTaxRate r = rates.findById(id)
+                .orElseThrow(() -> new NotFoundException("Tax rate not found: " + id));
+        r.setRate(rate);
+        return r;
+    }
+
     public void deleteTaxRate(UUID id) {
         PlatformTaxRate r = rates.findById(id)
                 .orElseThrow(() -> new NotFoundException("Tax rate not found: " + id));

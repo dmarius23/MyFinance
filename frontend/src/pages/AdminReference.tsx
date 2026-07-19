@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   referenceApi,
   TAX_RATE_CATEGORIES,
+  type PlatformTaxRate,
   type PlatformTreasuryAccount,
   type TaxRateCategory,
 } from "../api/reference";
@@ -45,35 +46,40 @@ export function AdminReference() {
   );
 }
 
+/**
+ * The three national tax rates (VAT / micro / profit) are a fixed set — this section only edits
+ * their current values (no add/delete). Editing updates the value in place so every tenant and every
+ * period sees the new rate.
+ */
 function TaxRatesSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: rates = [], isLoading } = useQuery({ queryKey: ["ref-rates"], queryFn: referenceApi.listRates });
-  const empty = { category: "VAT" as TaxRateCategory, rate: "", validFrom: "" };
-  const [form, setForm] = useState(empty);
+
+  // The current row per category (latest effective date, if more than one ever exists).
+  const current = new Map<TaxRateCategory, PlatformTaxRate>();
+  for (const r of rates) {
+    const existing = current.get(r.category);
+    if (!existing || r.validFrom > existing.validFrom) current.set(r.category, r);
+  }
+
+  const [edits, setEdits] = useState<Partial<Record<TaxRateCategory, string>>>({});
   const [error, setError] = useState<string | null>(null);
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ["ref-rates"] });
+  const valueFor = (cat: TaxRateCategory) => edits[cat] ?? current.get(cat)?.rate?.toString() ?? "";
 
-  const add = useMutation({
-    mutationFn: () => referenceApi.addRate({
-      category: form.category, rate: parseFloat(form.rate), validFrom: form.validFrom,
-    }),
-    onSuccess: () => { invalidate(); setForm(empty); setError(null); },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to add rate"),
+  const save = useMutation({
+    mutationFn: async () => {
+      for (const cat of TAX_RATE_CATEGORIES) {
+        const row = current.get(cat);
+        const raw = edits[cat];
+        if (row && raw !== undefined && raw.trim() !== "" && parseFloat(raw) !== row.rate) {
+          await referenceApi.updateRate(row.id, parseFloat(raw));
+        }
+      }
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["ref-rates"] }); setEdits({}); setError(null); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to save"),
   });
-  const remove = useMutation({
-    mutationFn: (id: string) => referenceApi.deleteRate(id),
-    onSuccess: invalidate,
-  });
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.rate.trim() || !form.validFrom) {
-      setError(t("adminRef.rateAndDateRequired"));
-      return;
-    }
-    add.mutate();
-  };
 
   return (
     <div className="card">
@@ -81,57 +87,24 @@ function TaxRatesSection() {
       {isLoading ? (
         <p>{t("common.loading")}</p>
       ) : (
-        <>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
-            <thead>
-              <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
-                <th style={{ padding: 8 }}>{t("adminRef.category")}</th>
-                <th style={{ padding: 8 }}>{t("adminRef.rate")}</th>
-                <th style={{ padding: 8 }}>{t("adminRef.validFrom")}</th>
-                <th style={{ padding: 8 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {rates.map((r) => (
-                <tr key={r.id} style={{ borderTop: "1px solid var(--border)" }}>
-                  <td style={{ padding: 8 }}>{t(`taxRate.${r.category}`, { defaultValue: r.category })}</td>
-                  <td style={{ padding: 8 }}>{r.rate}%</td>
-                  <td style={{ padding: 8 }}>{r.validFrom}</td>
-                  <td style={{ padding: 8 }}>
-                    <button onClick={() => remove.mutate(r.id)} disabled={remove.isPending}
-                      title={t("common.delete")}
-                      style={{ color: "#dc2626", border: "none", background: "none", cursor: "pointer" }}>✕</button>
-                  </td>
-                </tr>
-              ))}
-              {rates.length === 0 && (
-                <tr><td colSpan={4} style={{ padding: 8, color: "var(--text-muted)" }}>{t("adminRef.noRates")}</td></tr>
-              )}
-            </tbody>
-          </table>
-          {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-          <form onSubmit={submit} style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
-            <Field label={t("adminRef.category")}>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as TaxRateCategory })}>
-                {TAX_RATE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{t(`taxRate.${c}`, { defaultValue: c })}</option>
-                ))}
-              </select>
+        <form
+          onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}
+          style={{ display: "flex", alignItems: "flex-end", gap: 24, flexWrap: "wrap" }}
+        >
+          {TAX_RATE_CATEGORIES.map((cat) => (
+            <Field key={cat} label={`${t(`taxRate.${cat}`, { defaultValue: cat })} (%)`}>
+              <input type="number" min="0" max="100" step="0.01"
+                value={valueFor(cat)} disabled={!current.get(cat)}
+                onChange={(e) => setEdits({ ...edits, [cat]: e.target.value })}
+                style={{ maxWidth: 110 }} />
             </Field>
-            <Field label={t("adminRef.rate")}>
-              <input type="number" min="0" max="100" step="0.01" required value={form.rate}
-                onChange={(e) => setForm({ ...form, rate: e.target.value })} style={{ maxWidth: 100 }} />
-            </Field>
-            <Field label={t("adminRef.validFrom")}>
-              <input type="date" required value={form.validFrom}
-                onChange={(e) => setForm({ ...form, validFrom: e.target.value })} />
-            </Field>
-            <button className="primary" type="submit" disabled={add.isPending} style={{ marginBottom: 10 }}>
-              {add.isPending ? "…" : t("common.add")}
-            </button>
-          </form>
-        </>
+          ))}
+          <button className="primary" type="submit" disabled={save.isPending} style={{ marginBottom: 10 }}>
+            {save.isPending ? "Saving…" : t("common.save")}
+          </button>
+        </form>
       )}
+      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }

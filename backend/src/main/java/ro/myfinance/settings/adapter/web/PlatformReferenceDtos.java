@@ -25,6 +25,9 @@ public final class PlatformReferenceDtos {
                                        @NotNull LocalDate validFrom) {
     }
 
+    public record UpdateTaxRateRequest(@NotNull BigDecimal rate) {
+    }
+
     public record TreasuryResponse(UUID id, String residence, LocalDate validFrom, String ibanCam,
                                    String ibanImpozite, String ibanCass, String ibanCas, String ibanTva) {
         public static TreasuryResponse from(PlatformTreasuryAccount a) {

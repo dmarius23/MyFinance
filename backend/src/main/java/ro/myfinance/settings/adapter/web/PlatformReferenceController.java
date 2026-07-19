@@ -18,6 +18,7 @@ import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxRateRequ
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTreasuryRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxRateResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TreasuryResponse;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTreasuryRequest;
 import ro.myfinance.settings.application.PlatformReferenceAdminService;
 
@@ -48,6 +49,11 @@ public class PlatformReferenceController {
     @ResponseStatus(HttpStatus.CREATED)
     public TaxRateResponse addTaxRate(@Valid @RequestBody CreateTaxRateRequest r) {
         return TaxRateResponse.from(service.addTaxRate(r.category(), r.rate(), r.validFrom()));
+    }
+
+    @PutMapping("/tax-rates/{id}")
+    public TaxRateResponse updateTaxRate(@PathVariable UUID id, @Valid @RequestBody UpdateTaxRateRequest r) {
+        return TaxRateResponse.from(service.updateTaxRate(id, r.rate()));
     }
 
     @DeleteMapping("/tax-rates/{id}")
