@@ -1,9 +1,7 @@
 package ro.myfinance.settings;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -11,12 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.common.web.ConflictException;
-import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.settings.application.SettingsService;
-import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
 import ro.myfinance.support.AbstractPostgresIT;
 
+/**
+ * Tenant-level settings now hold only the outbound sender email (tax rates + treasury moved to the
+ * global reference tables in V35/V36). general_settings is a tenant table with RLS, so the mandatory
+ * cross-tenant isolation test lives here.
+ */
 class SettingsServiceIT extends AbstractPostgresIT {
 
     private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000011");
@@ -37,9 +37,10 @@ class SettingsServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void returnsDefaultVatRateWhenNoRowExists() {
+    void senderEmailIsNullUntilConfigured() {
         asTenant(TENANT_A);
-        assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("21.00");
+        assertThat(service.getSettings().getSenderEmail()).isNull();
+        assertThat(service.senderEmail()).isNull();
     }
 
     @Test
@@ -47,94 +48,26 @@ class SettingsServiceIT extends AbstractPostgresIT {
         asTenant(TENANT_A);
         service.getSettings();
         service.getSettings();
-        assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("21.00");
+        assertThat(service.getSettings().getSenderEmail()).isNull();
     }
 
     @Test
-    void updatesVatRate() {
+    void updatesAndClearsSenderEmail() {
         asTenant(TENANT_A);
-        service.updateRates(new BigDecimal("19.00"), new BigDecimal("3.00"), new BigDecimal("16.00"), null);
-        assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("19.00");
+        service.updateSenderEmail("  contact@firma.ro  ");
+        assertThat(service.senderEmail()).isEqualTo("contact@firma.ro"); // trimmed
+
+        service.updateSenderEmail("   ");
+        assertThat(service.senderEmail()).isNull(); // blank clears
     }
 
     @Test
-    void rejectsVatRateAbove100() {
+    void tenantBCannotSeeTenantASenderEmail() {
         asTenant(TENANT_A);
-        assertThatThrownBy(() -> service.updateRates(new BigDecimal("101"), new BigDecimal("3.00"), new BigDecimal("16.00"), null))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void rejectsNegativeVatRate() {
-        asTenant(TENANT_A);
-        assertThatThrownBy(() -> service.updateRates(new BigDecimal("-1"), new BigDecimal("3.00"), new BigDecimal("16.00"), null))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void addsAndListsTreasuryAccounts() {
-        asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj-Napoca", "RO-CAM", "RO-IMP", "RO-CASS", "RO-CAS", "RO-TVA");
-        service.addTreasuryAccount("Brașov", null, "RO-IMP-BV", null, null, null);
-        assertThat(service.listTreasuryAccounts()).hasSize(2);
-        var cluj = service.listTreasuryAccounts().stream()
-                .filter(a -> a.getResidence().equals("Cluj-Napoca")).findFirst().orElseThrow();
-        assertThat(cluj.getIbanTva()).isEqualTo("RO-TVA");
-        assertThat(cluj.getIbanImpozite()).isEqualTo("RO-IMP");
-    }
-
-    @Test
-    void rejectsDuplicateResidence() {
-        asTenant(TENANT_A);
-        service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
-        assertThatThrownBy(() -> service.addTreasuryAccount("Cluj-Napoca", null, "RO-OTHER", null, null, null))
-                .isInstanceOf(ConflictException.class);
-    }
-
-    @Test
-    void updatesTreasuryIbans() {
-        asTenant(TENANT_A);
-        ResidenceTreasuryAccount a = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
-        service.updateTreasuryAccount(a.getId(), "RO-CAM2", "RO-IMP2", null, null, "RO-TVA2");
-        ResidenceTreasuryAccount updated = service.listTreasuryAccounts().get(0);
-        assertThat(updated.getIbanCam()).isEqualTo("RO-CAM2");
-        assertThat(updated.getIbanTva()).isEqualTo("RO-TVA2");
-        assertThat(updated.getIbanCass()).isNull();
-    }
-
-    @Test
-    void deletesTreasuryAccount() {
-        asTenant(TENANT_A);
-        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
-        service.deleteTreasuryAccount(account.getId());
-        assertThat(service.listTreasuryAccounts()).isEmpty();
-    }
-
-    @Test
-    void deleteNonExistentThrowsNotFound() {
-        asTenant(TENANT_A);
-        assertThatThrownBy(() -> service.deleteTreasuryAccount(UUID.randomUUID()))
-                .isInstanceOf(NotFoundException.class);
-    }
-
-    @Test
-    void tenantBCannotSeeTenantASettings() {
-        asTenant(TENANT_A);
-        service.updateRates(new BigDecimal("5.00"), new BigDecimal("3.00"), new BigDecimal("16.00"), null);
-        service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP-A", null, null, null);
+        service.updateSenderEmail("a@firma.ro");
 
         asTenant(TENANT_B);
-        assertThat(service.getSettings().getVatRate()).isEqualByComparingTo("21.00");
-        assertThat(service.listTreasuryAccounts()).isEmpty();
-    }
-
-    @Test
-    void tenantBCannotDeleteTenantAAccount() {
-        asTenant(TENANT_A);
-        ResidenceTreasuryAccount account = service.addTreasuryAccount("Cluj-Napoca", null, "RO-IMP", null, null, null);
-
-        asTenant(TENANT_B);
-        assertThatThrownBy(() -> service.deleteTreasuryAccount(account.getId()))
-                .isInstanceOf(NotFoundException.class);
+        assertThat(service.senderEmail()).isNull();
+        assertThat(service.getSettings().getSenderEmail()).isNull();
     }
 }

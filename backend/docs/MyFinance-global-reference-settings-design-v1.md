@@ -132,10 +132,18 @@ back to the earliest row (or return absent + let the caller warn). Implement as 
    `AdminReference` screen at `/admin/reference` under the SUPER_ADMIN route block + sidebar link, with
    rate/treasury history + add/delete + inline IBAN edit. `PlatformReferenceControllerIT` proves
    SUPER_ADMIN can manage and a TENANT_ADMIN gets 403.
-3. **Slim the tenant Settings page** (read-only rates/treasury); drop old per-tenant columns/table. ← next
-   Needs a tenant-readable endpoint for the effective values (the admin API is SUPER_ADMIN-only), then
-   make `Settings.tsx` rates/treasury read-only, and a V36 that drops `general_settings` rate columns +
-   the `residence_treasury` table (and slims `SettingsService`).
+3. ✅ **DONE** — **Slim the tenant Settings page (read-only) + drop the old per-tenant tables.**
+   Shipped: `SettingsController` now serves rates + treasury read-only, resolved for today from the global
+   services (`GET /api/v1/settings`, `GET /api/v1/settings/treasury-accounts`); `PUT /api/v1/settings`
+   updates `sender_email` only. `SettingsService` slimmed to sender-email; `GeneralSettings` lost its rate
+   columns; `ResidenceTreasuryAccount` entity + repo deleted. `PlatformTreasuryService.listEffective(period)`
+   added for the one-row-per-residence read. `Settings.tsx` shows rates + treasury read-only (managed-centrally
+   hint), keeps the sender-email editor. **V36** drops the `general_settings` rate columns and the
+   `residence_treasury` table. Tests: `SettingsServiceIT` rewritten (sender-email + isolation), new
+   `SettingsControllerIT` (read-only rates/treasury + sender-email update).
+
+**All three phases shipped.** The reference data is now global, effective-dated, SUPER_ADMIN-managed, and the
+per-tenant copies are gone.
 
 ## 9. Repo conventions & verification (reuse from prior sessions)
 

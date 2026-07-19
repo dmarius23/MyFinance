@@ -1,16 +1,20 @@
 import { api } from "../lib/apiClient";
 
+/**
+ * Tenant settings. Tax rates + treasury accounts are GLOBAL, SUPER_ADMIN-managed reference data,
+ * surfaced here read-only (resolved for today); only the sender email is editable per-tenant.
+ */
 export interface GeneralSettings {
-  vatRate: number;
-  microRate: number;
-  profitRate: number;
+  vatRate: number | null;
+  microRate: number | null;
+  profitRate: number | null;
   senderEmail: string | null;
 }
 
-/** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. */
+/** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. Read-only. */
 export interface TreasuryAccount {
-  id: string;
   residence: string;
+  validFrom: string; // ISO date
   ibanCam: string | null;
   ibanImpozite: string | null;
   ibanCass: string | null;
@@ -26,22 +30,10 @@ export type TreasuryIbans = Pick<
 
 export const settingsApi = {
   get: () => api<GeneralSettings>("/api/v1/settings"),
-  updateRates: (rates: { vatRate: number; microRate: number; profitRate: number; senderEmail?: string | null }) =>
+  updateSenderEmail: (senderEmail: string | null) =>
     api<GeneralSettings>("/api/v1/settings", {
       method: "PUT",
-      body: JSON.stringify(rates),
+      body: JSON.stringify({ senderEmail }),
     }),
   listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
-  addTreasury: (input: { residence: string } & TreasuryIbans) =>
-    api<TreasuryAccount>("/api/v1/settings/treasury-accounts", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  updateTreasury: (id: string, ibans: TreasuryIbans) =>
-    api<TreasuryAccount>(`/api/v1/settings/treasury-accounts/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(ibans),
-    }),
-  deleteTreasury: (id: string) =>
-    api<void>(`/api/v1/settings/treasury-accounts/${id}`, { method: "DELETE" }),
 };

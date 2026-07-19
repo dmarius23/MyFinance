@@ -1,40 +1,31 @@
 package ro.myfinance.settings.adapter.web;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
-import java.util.UUID;
-import ro.myfinance.settings.domain.GeneralSettings;
-import ro.myfinance.settings.domain.ResidenceTreasuryAccount;
+import java.time.LocalDate;
+import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 
 public final class SettingsDtos {
 
     private SettingsDtos() {
     }
 
+    /**
+     * The tenant Settings view. Tax rates come from the global effective-dated reference tables
+     * (read-only for the tenant, resolved for today) and may be null if not yet configured; only
+     * {@code senderEmail} is per-tenant and editable.
+     */
     public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate,
                                    String senderEmail) {
-        public static SettingsResponse from(GeneralSettings s) {
-            return new SettingsResponse(s.getVatRate(), s.getMicroRate(), s.getProfitRate(), s.getSenderEmail());
-        }
     }
 
-    public record UpdateRatesRequest(@NotNull BigDecimal vatRate, @NotNull BigDecimal microRate,
-                                     @NotNull BigDecimal profitRate, String senderEmail) {
+    public record UpdateSenderEmailRequest(String senderEmail) {
     }
 
-    public record CreateTreasuryRequest(@NotBlank String residence, String ibanCam, String ibanImpozite,
-                                        String ibanCass, String ibanCas, String ibanTva) {
-    }
-
-    public record UpdateTreasuryRequest(String ibanCam, String ibanImpozite, String ibanCass,
-                                        String ibanCas, String ibanTva) {
-    }
-
-    public record TreasuryResponse(UUID id, String residence, String ibanCam, String ibanImpozite,
+    /** Read-only treasury row shown on the tenant Settings page (the account in force today). */
+    public record TreasuryResponse(String residence, LocalDate validFrom, String ibanCam, String ibanImpozite,
                                    String ibanCass, String ibanCas, String ibanTva) {
-        public static TreasuryResponse from(ResidenceTreasuryAccount a) {
-            return new TreasuryResponse(a.getId(), a.getResidence(), a.getIbanCam(), a.getIbanImpozite(),
+        public static TreasuryResponse from(PlatformTreasuryAccount a) {
+            return new TreasuryResponse(a.getResidence(), a.getValidFrom(), a.getIbanCam(), a.getIbanImpozite(),
                     a.getIbanCass(), a.getIbanCas(), a.getIbanTva());
         }
     }
