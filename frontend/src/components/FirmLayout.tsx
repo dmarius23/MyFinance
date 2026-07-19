@@ -74,22 +74,30 @@ export function FirmLayout() {
             <div className="mark">M</div>
             <div>
               <div className="brand-name">MyFinance</div>
-              <div className="brand-sub">ContaZone SRL</div>
+              <div className="brand-sub">{role === "SUPER_ADMIN" ? t("nav.platformAdmin") : "ContaZone SRL"}</div>
             </div>
           </div>
           <nav>
-            {NAV.map((item) => (
-              <NavLink key={item.to} to={item.to}>
-                <Icon name={item.icon} /> {t(item.key)}
-              </NavLink>
-            ))}
-            <div className="nav-divider" />
-            <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
-            {role === "TENANT_ADMIN" && <NavLink to="/team"><Icon name="companies" /> {t("nav.team")}</NavLink>}
-            {role === "TENANT_ADMIN" && <NavLink to="/data-sources"><Icon name="folder" /> {t("nav.dataSources")}</NavLink>}
-            {role === "TENANT_ADMIN" && <NavLink to="/settings"><Icon name="settings" /> {t("nav.settings")}</NavLink>}
-            {role === "SUPER_ADMIN" && <NavLink to="/admin/tenants"><Icon name="companies" /> {t("nav.tenants")}</NavLink>}
-            {role === "SUPER_ADMIN" && <NavLink to="/admin/reference"><Icon name="settings" /> {t("nav.reference")}</NavLink>}
+            {role === "SUPER_ADMIN" ? (
+              // A super admin has no tenant — show only the cross-tenant platform screens.
+              <>
+                <NavLink to="/admin/tenants"><Icon name="companies" /> {t("nav.tenants")}</NavLink>
+                <NavLink to="/admin/reference"><Icon name="settings" /> {t("nav.reference")}</NavLink>
+              </>
+            ) : (
+              <>
+                {NAV.map((item) => (
+                  <NavLink key={item.to} to={item.to}>
+                    <Icon name={item.icon} /> {t(item.key)}
+                  </NavLink>
+                ))}
+                <div className="nav-divider" />
+                <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
+                {role === "TENANT_ADMIN" && <NavLink to="/team"><Icon name="companies" /> {t("nav.team")}</NavLink>}
+                {role === "TENANT_ADMIN" && <NavLink to="/data-sources"><Icon name="folder" /> {t("nav.dataSources")}</NavLink>}
+                {role === "TENANT_ADMIN" && <NavLink to="/settings"><Icon name="settings" /> {t("nav.settings")}</NavLink>}
+              </>
+            )}
           </nav>
           <div className="spacer" />
           <div className="who">

@@ -20,9 +20,13 @@ import { DataSources } from "./pages/DataSources";
 import { AdminReference } from "./pages/AdminReference";
 import { AdminTenants } from "./pages/AdminTenants";
 
-/** Where a signed-in user belongs based on their role (reps → portal, staff → dashboard). */
+/** Where a signed-in user belongs based on their role (reps → portal, super admin → platform
+ *  admin, tenant staff → dashboard). A super admin has no tenant, so it never lands on a
+ *  tenant-scoped view. */
 export function homeFor(role: Role | null): string {
-  return role === "REPRESENTATIVE" ? "/portal" : "/dashboard";
+  if (role === "REPRESENTATIVE") return "/portal";
+  if (role === "SUPER_ADMIN") return "/admin/tenants";
+  return "/dashboard";
 }
 
 /** Role-aware landing for "/" and unknown paths — avoids bouncing reps into the staff-only dashboard. */
@@ -48,7 +52,7 @@ export default function App() {
       </Route>
 
       {/* Firm app — staff */}
-      <Route element={<RequireRole allow={["TENANT_ADMIN", "EMPLOYEE", "SUPER_ADMIN"]} />}>
+      <Route element={<RequireRole allow={["TENANT_ADMIN", "EMPLOYEE"]} />}>
         <Route element={<FirmLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/companies" element={<Companies />} />
