@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { FirmLayout } from "./components/FirmLayout";
-import { PagePlaceholder } from "./components/PagePlaceholder";
 import { RequireRole } from "./auth/RequireRole";
 import { useAuth, type Role } from "./auth/AuthProvider";
 import { Login } from "./pages/Login";
@@ -19,6 +18,7 @@ import { Tasks } from "./pages/Tasks";
 import { Team } from "./pages/Team";
 import { DataSources } from "./pages/DataSources";
 import { AdminReference } from "./pages/AdminReference";
+import { AdminTenants } from "./pages/AdminTenants";
 
 /** Where a signed-in user belongs based on their role (reps → portal, staff → dashboard). */
 export function homeFor(role: Role | null): string {
@@ -75,7 +75,7 @@ export default function App() {
       {/* Super-admin */}
       <Route element={<RequireRole allow={["SUPER_ADMIN"]} />}>
         <Route element={<FirmLayout />}>
-          <Route path="/admin/tenants" element={<PagePlaceholder title="Tenant admin" module="MOD-01" />} />
+          <Route path="/admin/tenants" element={<AdminTenants />} />
           <Route path="/admin/reference" element={<AdminReference />} />
         </Route>
       </Route>
