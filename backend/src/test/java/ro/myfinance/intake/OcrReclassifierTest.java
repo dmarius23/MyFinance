@@ -19,7 +19,7 @@ class OcrReclassifierTest {
 
     private OcrReclassifier reclassifier(boolean enabled) {
         var props = new OcrProperties(enabled, "tesseract", "ron+eng", 150, 1);
-        var receipt = new ReceiptProperties("anthropic", "", "", "", 0.6); // blank key → no vision calls
+        var receipt = new ReceiptProperties("anthropic", "", "", "", "", 0.6); // blank key → no vision calls
         return new OcrReclassifier(new HeuristicDocumentClassifier(), props, receipt, RestClient.builder());
     }
 

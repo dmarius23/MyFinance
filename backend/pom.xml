@@ -91,6 +91,13 @@
             <version>1.78.1</version>
         </dependency>
 
+        <!-- AWS Bedrock Runtime (Claude vision in an EU region) — the EU-resident OCR path (see
+             docs/MyFinance-data-privacy-residency-v1.md). Version managed by the AWS SDK BOM. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>bedrockruntime</artifactId>
+        </dependency>
+
         <!-- Scheduling lives in starter; actuator for health -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -140,6 +147,13 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>1.20.6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>2.31.6</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

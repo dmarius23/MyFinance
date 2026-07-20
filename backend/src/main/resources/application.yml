@@ -78,9 +78,17 @@ myfinance:
   # Receipt-image OCR. Blank api-key → image receipts stay NEEDS_REVIEW (no LLM calls, no cost).
   # Prod uses Claude via AWS Bedrock (EU); local/dev can use the Anthropic API directly.
   receipt:
+    # provider=bedrock → AWS Bedrock Claude in an EU region (EU-resident OCR, the production path);
+    # provider=anthropic → Anthropic Messages API (US-hosted). See docs/MyFinance-data-privacy-residency-v1.md.
     provider: ${RECEIPT_PROVIDER:anthropic}
     api-key: ${RECEIPT_API_KEY:${ANTHROPIC_API_KEY:}}
+    # anthropic: a model id (claude-sonnet-4-5-20250929). bedrock: the model / EU inference-profile id
+    # (e.g. eu.anthropic.claude-sonnet-4-5-20250929-v1:0).
     model: ${RECEIPT_MODEL:claude-sonnet-4-5-20250929}
+    # anthropic only: override the API base URL (blank → api.anthropic.com).
+    base-url: ${RECEIPT_BASE_URL:}
+    # bedrock only: AWS region, e.g. eu-central-1 (blank → AWS default region provider chain).
+    region: ${RECEIPT_REGION:}
   # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
   # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
   # in-app notifications still work. The public key is served to the PWA to subscribe.

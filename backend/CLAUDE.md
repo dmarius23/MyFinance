@@ -13,6 +13,9 @@ repeat the root — read that too.
   cloud-folder (Google Drive) ingestion design.
 - [`MyFinance-tenant-storage-strategy-design-v1.md`](docs/MyFinance-tenant-storage-strategy-design-v1.md) —
   per-tenant document storage strategy (Supabase-only / Drive-mirror / Drive-primary).
+- [`MyFinance-data-privacy-residency-v1.md`](docs/MyFinance-data-privacy-residency-v1.md) — **EU data
+  residency map**: where every datum lives, the two EU-egress paths (LLM OCR, Google Drive), and the
+  production checklist (incl. `provider=bedrock` EU OCR).
 - [`MyFinance-global-reference-settings-design-v1.md`](docs/MyFinance-global-reference-settings-design-v1.md) —
   **ready-to-implement brief**: move tax rates + treasury IBANs to global, super-admin-managed,
   effective-dated reference tables (tenants read-only); `sender_email` stays per-tenant.

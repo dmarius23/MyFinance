@@ -58,7 +58,7 @@ public class InvoiceExtractionService {
             Fields text = fromPdf(bytes, ownName, ownCui);
             boolean supplierMissing = isBlank(text.supplierName()) && isBlank(text.issuerCif());
             boolean textReadable = ro.myfinance.common.pdf.PdfImages.isTextReadable(bytes);
-            boolean needOcr = receiptProps.isAnthropic() && (supplierMissing || !textReadable);
+            boolean needOcr = receiptProps.isEnabled() && (supplierMissing || !textReadable);
 
             if (!needOcr) {
                 f = text;

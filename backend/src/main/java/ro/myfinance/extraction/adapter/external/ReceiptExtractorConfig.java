@@ -9,8 +9,9 @@ import org.springframework.web.client.RestClient;
 import ro.myfinance.extraction.application.ReceiptExtractor;
 
 /**
- * Selects the receipt extractor from config. provider=anthropic with a key → Claude vision; otherwise
- * a no-op (image receipts stay NEEDS_REVIEW). Explicit factory so a blank key falls back cleanly.
+ * Selects the receipt extractor from config: {@code provider=bedrock} → AWS Bedrock Claude (EU-resident,
+ * the production path); {@code provider=anthropic} with a key → Anthropic vision API (US); otherwise a
+ * no-op (image receipts stay NEEDS_REVIEW). Explicit factory so a blank/missing provider falls back cleanly.
  */
 @Configuration
 @EnableConfigurationProperties(ReceiptProperties.class)
@@ -20,8 +21,13 @@ public class ReceiptExtractorConfig {
 
     @Bean
     ReceiptExtractor receiptExtractor(ReceiptProperties props, RestClient.Builder builder) {
+        if (props.isBedrock()) {
+            log.info("Receipt OCR: AWS Bedrock Claude (EU-resident, model={}, region={})",
+                    props.model(), props.region().isBlank() ? "<default chain>" : props.region());
+            return new BedrockReceiptExtractor(props);
+        }
         if (props.isAnthropic()) {
-            log.info("Receipt OCR: Anthropic vision (model={})", props.model());
+            log.info("Receipt OCR: Anthropic vision API (model={})", props.model());
             return new AnthropicReceiptExtractor(props, builder);
         }
         log.info("Receipt OCR: disabled (no provider/key) — image receipts will be marked NEEDS_REVIEW");
