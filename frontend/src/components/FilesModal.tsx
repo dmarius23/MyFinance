@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
+import { ingestionApi, type SyncResult } from "../api/ingestion";
+import { ApiError } from "../lib/apiClient";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
+
+// Bank statements and invoices may live together in one mixed Drive folder (e.g. "acte contabile").
+// Syncing with the MIXED sentinel forces no type — the classifier routes each file to statement/invoice.
+const MIXED_SOURCE = "MIXED";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
@@ -118,6 +124,25 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
   const reclassify = useMutation({
     mutationFn: () => documentsApi.reclassify(companyId, period),
     onSuccess: invalidate,
+  });
+
+  // A mixed Drive folder (bank statements + invoices together) can feed this screen. Manual upload
+  // stays available; Sync pulls this company + month from Drive, the classifier splitting the types.
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const driveQ = useQuery({
+    queryKey: ["ingestion-source", MIXED_SOURCE],
+    queryFn: () => ingestionApi.source(MIXED_SOURCE),
+  });
+  const driveEnabled = driveQ.data?.driveEnabled === true;
+  const sync = useMutation({
+    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: MIXED_SOURCE }),
+    onSuccess: (r: SyncResult) => {
+      invalidate();
+      const parts = [t("files.syncDone", r as unknown as Record<string, number>)];
+      for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
+      setSyncNote(parts.join(" · "));
+    },
+    onError: (e) => setSyncNote(e instanceof ApiError ? e.message : "Sync failed"),
   });
 
   return (
@@ -385,6 +410,23 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
             >
               {upload.isPending ? `↑ ${uploadCount}…` : `+ ${t("files.add")}`}
             </button>
+            {driveEnabled && (
+              <button
+                className="btn ghost"
+                style={{ width: "100%", marginTop: 6, justifyContent: "center" }}
+                disabled={sync.isPending}
+                onClick={() => { setSyncNote(null); sync.mutate(); }}
+                title={t("files.syncHint")}
+              >
+                {sync.isPending ? t("files.syncing") : `↧ ${t("files.syncFromDrive")}`}
+              </button>
+            )}
+            {syncNote && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 6, justifyContent: "space-between" }}>
+                <span>{syncNote}</span>
+                <button onClick={() => setSyncNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>✕</button>
+              </div>
+            )}
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{selected?.originalFilename ?? t("files.preview")}</div>

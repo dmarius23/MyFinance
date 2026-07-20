@@ -3,6 +3,7 @@ package ro.myfinance.ingestion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -163,6 +164,36 @@ class IngestionServiceTest {
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("Stat_salarii_2026_04.pdf"), any(), any(),
                 eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
         verify(documents, never()).upload(eq(companyB), any(), any(), any(), any(), any(), any()); // other company not touched
+    }
+
+    @Test
+    void mixedSyncRoutesUntypedFilesThroughTheClassifier() {
+        // A mixed "acte contabile" folder under a GENERAL Drive connection (no forced type): files not in
+        // a type sub-folder must be uploaded with type=null so the classifier splits statements/invoices.
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "D", "root", null); // no forced type
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.files = List.of(new CloudFolderConnector.RemoteFile("m1", "extras.pdf",
+                "INNOVATECODE IT SRL/2026/05 Mai/acte contabile", "application/pdf", 100, "e1", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"), any(), any(),
+                isNull(), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 5, 1));
+
+        assertThat(r.imported()).isEqualTo(1);
+        // type is null → DocumentService runs the content classifier (statement vs invoice).
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"), any(), any(),
+                isNull(), eq(DocumentSource.DRIVE));
     }
 
     @Test
