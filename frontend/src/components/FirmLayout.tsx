@@ -80,18 +80,21 @@ export function FirmLayout() {
               <>
                 {/* Section 1 — operational (all firm staff). */}
                 <NavLink to="/dashboard"><Icon name="dashboard" /> {t("nav.dashboard")}</NavLink>
-                <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
                 <NavLink to="/statements"><Icon name="statements" /> {t("nav.statements")}</NavLink>
                 <NavLink to="/taxes"><Icon name="taxes" /> {t("nav.taxes")}</NavLink>
                 <NavLink to="/payroll"><Icon name="payroll" /> {t("nav.payroll")}</NavLink>
                 <NavLink to="/reports"><Icon name="reports" /> {t("nav.reports")}</NavLink>
 
-                {/* Section 2 — collaboration. Team is admin-only. */}
+                {/* Section 2 — companies (its own group). */}
+                <div className="nav-divider" />
+                <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
+
+                {/* Section 3 — collaboration. Team is admin-only. */}
                 <div className="nav-divider" />
                 <NavLink to="/tasks"><Icon name="tasks" /> {t("nav.tasks")}</NavLink>
                 {role === "TENANT_ADMIN" && <NavLink to="/team"><Icon name="companies" /> {t("nav.team")}</NavLink>}
 
-                {/* Section 3 — tenant administration (TENANT_ADMIN only). */}
+                {/* Section 4 — tenant administration (TENANT_ADMIN only). */}
                 {role === "TENANT_ADMIN" && (
                   <>
                     <div className="nav-divider" />
