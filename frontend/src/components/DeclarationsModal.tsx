@@ -44,7 +44,6 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
   // Sync this company's declarations for the month from the Drive connection (if one covers this type).
   const driveQ = useQuery({ queryKey: ["ingestion-source", "DECLARATION"], queryFn: () => ingestionApi.source("DECLARATION") });
   const driveMode = driveQ.data?.driveEnabled === true;
-  const driveWrite = driveQ.data?.driveWrite === true;
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "DECLARATION" }),
     onSuccess: (r: SyncResult) => { setError(null); invalidate(); window.alert(t("payroll.syncDone", r as unknown as Record<string, number>)); },
@@ -96,6 +95,11 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
                 {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
               </button>
             )}
+            <input ref={fileRef} type="file" accept="application/pdf" onChange={onPick} style={{ display: "none" }} />
+            <button className="primary" style={{ width: "100%" }} disabled={upload.isPending} onClick={() => fileRef.current?.click()}>
+              <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+              {upload.isPending ? t("taxes.uploading") : t("taxes.uploadDeclaration")}
+            </button>
             {isLoading && <div style={{ color: "var(--text-muted)" }}>{t("common.loading")}</div>}
             {!isLoading && data.length === 0 && <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("taxes.noDeclarations")}</div>}
             {data.map((d) => (
@@ -139,14 +143,6 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
                 </div>
               </div>
             ))}
-            <div style={uploadZone} onClick={() => fileRef.current?.click()}>
-              <input ref={fileRef} type="file" accept="application/pdf" onChange={onPick} style={{ display: "none" }} />
-              <Icon name="upload" size={16} style={{ color: "var(--primary-dark)" }} />
-              <div style={{ fontWeight: 600, color: "var(--primary-dark)", fontSize: 12.5, marginTop: 4 }}>
-                {upload.isPending ? t("taxes.uploading") : t("taxes.uploadDeclaration")}
-              </div>
-              <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{driveWrite ? t("files.alsoToDrive") : t("taxes.uploadHint")}</div>
-            </div>
           </div>
 
           {/* structured preview */}
@@ -207,9 +203,6 @@ const header: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", padding: "12px 16px",
 };
 const closeBtn: React.CSSProperties = { background: "none", border: "none", color: "var(--chrome-text)", cursor: "pointer" };
-const uploadZone: React.CSSProperties = {
-  border: "1.5px dashed #9fd2cb", background: "#f1faf8", borderRadius: 10, padding: 14, textAlign: "center", cursor: "pointer",
-};
 const dt: React.CSSProperties = { color: "var(--text-muted)" };
 const dd: React.CSSProperties = { margin: 0 };
 const obRow: React.CSSProperties = { display: "grid", gridTemplateColumns: "1.4fr 70px 70px 90px", gap: 8, padding: "6px 4px", borderTop: "1px solid var(--hair)", fontSize: 12.5, alignItems: "center" };

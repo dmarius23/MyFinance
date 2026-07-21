@@ -117,8 +117,7 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
         <div style={header}>
           <div>
             <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{subtitle}</div>
-            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{companyName}</div>
-            <div style={{ color: "var(--chrome-text)", fontSize: 12 }}>{title}</div>
+            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{title} · {companyName}</div>
           </div>
           <button onClick={onClose} style={closeBtn}><Icon name="x" size={16} /></button>
         </div>

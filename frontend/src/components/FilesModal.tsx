@@ -5,6 +5,7 @@ import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
+import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
 // Bank statements and invoices may live together in one mixed Drive folder (e.g. "acte contabile").
@@ -151,8 +152,8 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
       <div style={modalBox} onClick={(e) => e.stopPropagation()}>
         <div style={darkHeader}>
           <div>
-            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{t("files.title")}</div>
-            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{companyName}</div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{periodLabel}</div>
+            <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{t("files.title")} · {companyName}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => reclassify.mutate()} disabled={reclassify.isPending} title={t("files.rescanHint")}
@@ -164,6 +165,33 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "460px 1fr", gap: 14, padding: 16, overflowY: "auto", alignItems: "start" }}>
           <div>
+            {/* Upload + Drive sync at the top of the list (consistent across document modals). */}
+            <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+              {driveEnabled && (
+                <button style={{ width: "100%" }} disabled={sync.isPending} title={t("files.syncHint")}
+                  onClick={() => { setSyncNote(null); sync.mutate(); }}>
+                  <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                  {sync.isPending ? t("files.syncing") : t("files.syncFromDrive")}
+                </button>
+              )}
+              <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" style={{ display: "none" }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) { setUploadCount(files.length); upload.mutate(files); }
+                  e.target.value = ""; // allow re-selecting the same file(s)
+                }} />
+              <button className="primary" style={{ width: "100%" }} disabled={upload.isPending}
+                onClick={() => fileRef.current?.click()}>
+                <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                {upload.isPending ? `${uploadCount}…` : t("files.addFiles")}
+              </button>
+              {syncNote && (
+                <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 6, justifyContent: "space-between" }}>
+                  <span>{syncNote}</span>
+                  <button onClick={() => setSyncNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>✕</button>
+                </div>
+              )}
+            </div>
             {/* Filter + sort controls for the invoices/receipts list. */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("files.filter")}:</span>
@@ -387,46 +415,6 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>{t("files.noMatch")}</div>
               )}
             </div>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept="application/pdf,image/png,image/jpeg,image/webp"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? []);
-                if (files.length > 0) {
-                  setUploadCount(files.length);
-                  upload.mutate(files);
-                }
-                e.target.value = ""; // allow re-selecting the same file(s)
-              }}
-            />
-            <button
-              className="btn ghost"
-              style={{ width: "100%", marginTop: 8, justifyContent: "center" }}
-              disabled={upload.isPending}
-              onClick={() => fileRef.current?.click()}
-            >
-              {upload.isPending ? `↑ ${uploadCount}…` : `+ ${t("files.add")}`}
-            </button>
-            {driveEnabled && (
-              <button
-                className="btn ghost"
-                style={{ width: "100%", marginTop: 6, justifyContent: "center" }}
-                disabled={sync.isPending}
-                onClick={() => { setSyncNote(null); sync.mutate(); }}
-                title={t("files.syncHint")}
-              >
-                {sync.isPending ? t("files.syncing") : `↧ ${t("files.syncFromDrive")}`}
-              </button>
-            )}
-            {syncNote && (
-              <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-muted)", display: "flex", gap: 6, justifyContent: "space-between" }}>
-                <span>{syncNote}</span>
-                <button onClick={() => setSyncNote(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit" }}>✕</button>
-              </div>
-            )}
           </div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{selected?.originalFilename ?? t("files.preview")}</div>
