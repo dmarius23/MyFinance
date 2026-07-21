@@ -36,3 +36,8 @@ export function usePeriod(): PeriodCtx {
   if (!c) throw new Error("usePeriod must be used within PeriodProvider");
   return c;
 }
+
+/** Human month label for a period (yyyy-MM-01), e.g. "mai 2026" / "May 2026". */
+export function monthLabel(period: string, lang: string): string {
+  return new Date(period).toLocaleDateString(lang === "ro" ? "ro-RO" : "en-US", { month: "long", year: "numeric" });
+}

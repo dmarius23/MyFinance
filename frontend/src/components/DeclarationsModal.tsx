@@ -5,6 +5,7 @@ import { declarationsApi, type DeclarationFile } from "../api/taxes";
 import { documentsApi } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
+import { monthLabel } from "../lib/period";
 import { Icon } from "./Icon";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
@@ -13,7 +14,7 @@ const dmy = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ro-
 /** Manage the ANAF declarations for one company + month (B skin): list, structured preview, delete, upload. */
 export function DeclarationsModal({ companyId, companyName, period, onClose }:
   { companyId: string; companyName: string; period: string; onClose: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selId, setSelId] = useState<string | null>(null);
@@ -78,8 +79,8 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
       <div style={modal} onClick={(e) => e.stopPropagation()}>
         <div style={header}>
           <div>
-            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{t("taxes.declarationsSub")}</div>
             <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{t("taxes.declarations")} · {companyName}</div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11, textTransform: "capitalize" }}>{monthLabel(period, i18n.language)}</div>
           </div>
           <button onClick={onClose} style={closeBtn}><Icon name="x" size={16} /></button>
         </div>

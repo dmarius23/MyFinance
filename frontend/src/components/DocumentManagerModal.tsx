@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document as Doc } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
+import { monthLabel } from "../lib/period";
 import { Icon } from "./Icon";
 
 /**
@@ -11,10 +12,10 @@ import { Icon } from "./Icon";
  * list the uploaded files of one type, upload more (filename-duplicate guard + server checks), delete,
  * and preview the selected file inline. Surfaces advisory flags (wrong company / outside period).
  */
-export function DocumentManagerModal({ companyId, companyName, period, type, title, subtitle, accept, multiple = true, onClose, onChanged }:
-  { companyId: string; companyName: string; period: string; type: string; title: string; subtitle: string;
+export function DocumentManagerModal({ companyId, companyName, period, type, title, accept, multiple = true, onClose, onChanged }:
+  { companyId: string; companyName: string; period: string; type: string; title: string;
     accept?: string; multiple?: boolean; onClose: () => void; onChanged?: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -116,8 +117,8 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
       <div style={modal} onClick={(e) => e.stopPropagation()}>
         <div style={header}>
           <div>
-            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{subtitle}</div>
             <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{title} · {companyName}</div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11, textTransform: "capitalize" }}>{monthLabel(period, i18n.language)}</div>
           </div>
           <button onClick={onClose} style={closeBtn}><Icon name="x" size={16} /></button>
         </div>

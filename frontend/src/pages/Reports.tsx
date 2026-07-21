@@ -112,7 +112,7 @@ export function Reports() {
       </div>
 
       {manageFor && <DocumentManagerModal companyId={manageFor.id} companyName={manageFor.name} period={period}
-        type="TRIAL_BALANCE" title={t("reports.trialBalance")} subtitle={t("reports.crumb")} accept="application/pdf"
+        type="TRIAL_BALANCE" title={t("reports.trialBalance")} accept="application/pdf"
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />}
       {chartsFor && <ReportChartsModal companyId={chartsFor.id} companyName={chartsFor.name} period={period} onClose={() => setChartsFor(null)} />}
       {logFor && <ReportLogModal companyId={logFor.id} companyName={logFor.name} period={period} onClose={() => setLogFor(null)} onCompose={() => setSendList([target(logFor.id)])} />}

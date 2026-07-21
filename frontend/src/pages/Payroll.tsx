@@ -111,7 +111,7 @@ export function Payroll() {
       </div>
 
       {manageFor && <DocumentManagerModal companyId={manageFor.id} companyName={manageFor.name} period={period}
-        type="PAYROLL" title={t("payroll.documents")} subtitle={t("payroll.crumb")}
+        type="PAYROLL" title={t("payroll.documents")}
         accept="application/pdf,image/png,image/jpeg,image/webp"
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}

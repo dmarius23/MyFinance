@@ -5,6 +5,7 @@ import { documentsApi, DOCUMENT_TYPES, type Document } from "../api/documents";
 import { reconciliationApi } from "../api/bank";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
+import { monthLabel } from "../lib/period";
 import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
@@ -26,7 +27,7 @@ const darkHeader: React.CSSProperties = {
 
 export function FilesModal({ companyId, companyName, companyCui, period, onClose }:
   { companyId: string; companyName: string; companyCui?: string; period: string; onClose: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // The statement's covered period as a date range (a monthly statement spans the whole month),
   // e.g. "01.01.2026 - 31.01.2026".
   const periodLabel = (() => {
@@ -152,8 +153,8 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
       <div style={modalBox} onClick={(e) => e.stopPropagation()}>
         <div style={darkHeader}>
           <div>
-            <div style={{ color: "var(--chrome-muted)", fontSize: 11 }}>{periodLabel}</div>
             <div style={{ color: "#f3f8f7", fontSize: 17, fontWeight: 700 }}>{t("files.title")} · {companyName}</div>
+            <div style={{ color: "var(--chrome-muted)", fontSize: 11, textTransform: "capitalize" }}>{monthLabel(period, i18n.language)}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => reclassify.mutate()} disabled={reclassify.isPending} title={t("files.rescanHint")}
