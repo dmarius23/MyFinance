@@ -1,8 +1,9 @@
-package ro.myfinance.payroll.domain;
+package ro.myfinance.common.email;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -12,17 +13,19 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import ro.myfinance.taxpayments.domain.UuidListConverter;
 
 /**
- * A record of one payroll email send for a company/month, with the document ids it attached. Append-only:
- * a resend is a new row, preserving the history shown in the payroll notification log.
+ * One record of an email send, shared by every module (tax, reports, payroll, document reminders). The
+ * {@link EmailKind kind} discriminator keeps each module's history separate. Append-only: a resend is a
+ * new row, preserving the full history each module's notification log shows. Written through
+ * {@code access.application.EmailDispatchService}.
+ *
+ * <p>{@code relatedIds} carries the ids a send referenced — the tax declarations covered (TAX) or the
+ * documents attached (PAYROLL); empty for REPORT / DOCUMENT_REMINDER.
  */
 @Entity
-@Table(name = "payroll_email")
-public class PayrollEmail {
-
-    public enum Status { SENT, FAILED }
+@Table(name = "email_history")
+public class EmailHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -30,6 +33,10 @@ public class PayrollEmail {
 
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private UUID tenantId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false)
+    private EmailKind kind;
 
     @Column(name = "company_id", nullable = false)
     private UUID companyId;
@@ -42,15 +49,15 @@ public class PayrollEmail {
     @Column(nullable = false)
     private String body;
 
-    @Enumerated(jakarta.persistence.EnumType.STRING)
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private Status status;
+    private EmailStatus status;
 
     private String error;
 
     @Convert(converter = UuidListConverter.class)
-    @Column(name = "document_ids", nullable = false)
-    private List<UUID> documentIds;
+    @Column(name = "related_ids", nullable = false)
+    private List<UUID> relatedIds;
 
     @Column(name = "sent_at", nullable = false)
     private Instant sentAt = Instant.now();
@@ -58,15 +65,17 @@ public class PayrollEmail {
     @Column(name = "sent_by")
     private UUID sentBy;
 
-    protected PayrollEmail() {
+    protected EmailHistory() {
     }
 
-    public PayrollEmail(UUID tenantId, UUID companyId, LocalDate periodMonth, List<UUID> documentIds,
-                        String recipient, String body, Status status, String error, UUID sentBy) {
+    public EmailHistory(UUID tenantId, EmailKind kind, UUID companyId, LocalDate periodMonth,
+                        List<UUID> relatedIds, String recipient, String body, EmailStatus status,
+                        String error, UUID sentBy) {
         this.tenantId = tenantId;
+        this.kind = kind;
         this.companyId = companyId;
         this.periodMonth = periodMonth;
-        this.documentIds = documentIds;
+        this.relatedIds = relatedIds == null ? List.of() : relatedIds;
         this.recipient = recipient;
         this.body = body;
         this.status = status;
@@ -75,13 +84,14 @@ public class PayrollEmail {
     }
 
     public UUID getId() { return id; }
+    public EmailKind getKind() { return kind; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
     public String getRecipient() { return recipient; }
     public String getBody() { return body; }
-    public Status getStatus() { return status; }
+    public EmailStatus getStatus() { return status; }
     public String getError() { return error; }
-    public List<UUID> getDocumentIds() { return documentIds; }
+    public List<UUID> getRelatedIds() { return relatedIds; }
     public Instant getSentAt() { return sentAt; }
     public UUID getSentBy() { return sentBy; }
 }

@@ -16,7 +16,7 @@ import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.payroll.application.PayrollService.PayrollDoc;
 import ro.myfinance.payroll.application.PayrollService.PayrollEmailView;
 import ro.myfinance.payroll.application.PayrollService.PayrollRow;
-import ro.myfinance.payroll.domain.PayrollEmail;
+import ro.myfinance.common.email.EmailStatus;
 
 /**
  * MOD-08 Payroll: monthly per-company payroll status, email preview, and email send/history. Salary
@@ -83,7 +83,7 @@ public class PayrollController {
         }
     }
 
-    public record PayrollEmailResponse(UUID id, String recipient, PayrollEmail.Status status,
+    public record PayrollEmailResponse(UUID id, String recipient, EmailStatus status,
                                        Instant sentAt, List<UUID> documentIds, String body) {
         static PayrollEmailResponse from(PayrollEmailView v) {
             return new PayrollEmailResponse(v.id(), v.recipient(), v.status(), v.sentAt(),

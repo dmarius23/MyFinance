@@ -23,7 +23,7 @@ import ro.myfinance.reports.application.ReportService;
 import ro.myfinance.reports.application.ReportService.ReportRow;
 import ro.myfinance.reports.application.ReportService.TrendPoint;
 import ro.myfinance.reports.domain.ReportData;
-import ro.myfinance.reports.domain.ReportEmail;
+import ro.myfinance.common.email.EmailStatus;
 
 /**
  * MOD-06 Reports: monthly per-company report status, the computed report (JSON for charts), the branded
@@ -111,7 +111,7 @@ public class ReportController {
         }
     }
 
-    public record ReportEmailResponse(UUID id, String recipient, ReportEmail.Status status, Instant sentAt, String body) {
+    public record ReportEmailResponse(UUID id, String recipient, EmailStatus status, Instant sentAt, String body) {
         static ReportEmailResponse from(ReportEmailView v) {
             return new ReportEmailResponse(v.id(), v.recipient(), v.status(), v.sentAt(), v.body());
         }

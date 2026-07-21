@@ -24,7 +24,7 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.application.DocumentStorage;
-import ro.myfinance.reports.adapter.persistence.ReportEmailRepository;
+import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.application.ReportService;
 import ro.myfinance.reports.application.TrialBalanceExtractor;
@@ -42,7 +42,7 @@ class ReportServiceTest {
     private static final LocalDate MONTH = LocalDate.of(2026, 3, 1);
 
     @Mock ReportSnapshotRepository snapshots;
-    @Mock ReportEmailRepository emails;
+    @Mock EmailHistoryRepository emails;
     @Mock CompanyRepository companies;
     @Mock DocumentRepository documents;
     @Mock DocumentStorage storage;

@@ -16,7 +16,8 @@ import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.application.DocumentStorage;
-import ro.myfinance.reports.adapter.persistence.ReportEmailRepository;
+import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.domain.ReportData;
 import ro.myfinance.reports.domain.ReportSnapshot;
@@ -34,7 +35,7 @@ public class ReportService {
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
     private final ReportSnapshotRepository snapshots;
-    private final ReportEmailRepository emails;
+    private final EmailHistoryRepository emails;
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
     private final ro.myfinance.company.adapter.persistence.CompanyRepository companies;
@@ -42,7 +43,7 @@ public class ReportService {
     private final DocumentStorage storage;
     private final ro.myfinance.notifications.application.NotificationService notifications;
 
-    public ReportService(ReportSnapshotRepository snapshots, ReportEmailRepository emails,
+    public ReportService(ReportSnapshotRepository snapshots, EmailHistoryRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
                          ro.myfinance.company.adapter.persistence.CompanyRepository companies,
                          DocumentRepository documents, DocumentStorage storage,
@@ -173,8 +174,8 @@ public class ReportService {
             }
             byCompany.put(s.getCompanyId(), s);
         }
-        Map<UUID, List<ro.myfinance.reports.domain.ReportEmail>> emailsByCompany = new LinkedHashMap<>();
-        for (var e : emails.findByPeriodMonthOrderBySentAtDesc(month)) {
+        Map<UUID, List<ro.myfinance.common.email.EmailHistory>> emailsByCompany = new LinkedHashMap<>();
+        for (var e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.REPORT, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();

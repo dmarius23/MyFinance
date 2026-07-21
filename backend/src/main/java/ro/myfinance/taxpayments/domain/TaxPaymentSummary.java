@@ -28,11 +28,11 @@ public record TaxPaymentSummary(UUID companyId, String companyName, String cui, 
     }
 
     /** One past send, for the history list (and to repopulate the editor on resend). */
-    public record EmailView(UUID id, String recipient, TaxEmail.Status status, Instant sentAt,
+    public record EmailView(UUID id, String recipient, ro.myfinance.common.email.EmailStatus status, Instant sentAt,
                             List<UUID> declarationIds, String body) {
-        public static EmailView from(TaxEmail e) {
+        public static EmailView from(ro.myfinance.common.email.EmailHistory e) {
             return new EmailView(e.getId(), e.getRecipient(), e.getStatus(), e.getSentAt(),
-                    e.getDeclarationIds(), e.getBody());
+                    e.getRelatedIds(), e.getBody());
         }
     }
 }

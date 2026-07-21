@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.application.DocumentReminderService;
 import ro.myfinance.extraction.application.DocumentReminderService.ReminderRow;
 import ro.myfinance.extraction.application.DocumentReminderService.ReminderView;
-import ro.myfinance.extraction.domain.DocumentReminder;
+import ro.myfinance.common.email.EmailStatus;
 
 /**
  * Missing-document reminder emails for the bank-statements &amp; invoices hub: per-period last-sent
@@ -63,7 +63,7 @@ public class DocumentReminderController {
         }
     }
 
-    public record ReminderViewResponse(UUID id, String recipient, DocumentReminder.Status status,
+    public record ReminderViewResponse(UUID id, String recipient, EmailStatus status,
                                        Instant sentAt, String body) {
         static ReminderViewResponse from(ReminderView v) {
             return new ReminderViewResponse(v.id(), v.recipient(), v.status(), v.sentAt(), v.body());

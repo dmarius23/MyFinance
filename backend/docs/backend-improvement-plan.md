@@ -225,7 +225,21 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## P3 — Architecture & code reduction *(the "less code" wins)*
 
-### S9. Collapse the 4× email-history stack into one generic mechanism  *(Net-LOC ≈ −800)*
+### S9. Collapse the 4× email-history stack into one generic mechanism  — ✅ DONE
+- **Shipped:** one `common/email/EmailHistory` entity + `EmailHistoryRepository` (kind-scoped finders) +
+  `EmailStatus`/`EmailKind` enums + relocated `UuidListConverter`, and a shared
+  `access.application.EmailDispatchService` that does resolve (`EmailEnvelopeService`) → send
+  (`EmailSender`) → record one row, parameterized by `EmailKind` + an optional `relatedIds` (covers the
+  old `declaration_ids` / `document_ids`). The four services (tax/report/payroll/reminder) now compose only
+  their subject/attachments/notification and call `dispatch(...)`; their view records map from
+  `EmailHistory`; controllers use the shared `EmailStatus` (JSON wire format unchanged). **V37** creates
+  `email_history` (RLS ENABLE+FORCE + policy + grants), copies all rows from the four old tables
+  (kind-tagged, ids → `related_ids`, preserving id/sent_at/sent_by), then drops `tax_email` /
+  `payroll_email` / `report_email` / `document_reminder`. Deleted the 4 entities + 4 repos + old converter.
+  Tests: new `EmailDispatchServiceTest` (SENT/FAILED recording + onSent-hook), per-module tests slimmed to
+  delegation, `CrossTenantIsolationTest` gains read+write isolation checks on `email_history`. Full suite
+  183 green. Net −213 LOC in main (the extra ~−600 the estimate assumed is the 3 email builders — left for
+  S13). No frontend change (field names + enum strings identical).
 - **Goal:** one shared email-history entity + repository + send/record service; per-type config only.
 - **Why:** `TaxEmail`, `ReportEmail`, `PayrollEmail`, and `DocumentReminder` are near-identical entities
   (76–88 LOC each; same fields + `Status{SENT,FAILED}`), backed by 4 identical repositories, and driven

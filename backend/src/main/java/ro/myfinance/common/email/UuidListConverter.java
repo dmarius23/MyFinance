@@ -1,4 +1,4 @@
-package ro.myfinance.taxpayments.domain;
+package ro.myfinance.common.email;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** Maps a {@code List<UUID>} to a comma-separated text column (the declarations an email covered). */
+/** Maps a {@code List<UUID>} to a comma-separated text column (the ids an email covered/attached). */
 @Converter
 public class UuidListConverter implements AttributeConverter<List<UUID>, String> {
 

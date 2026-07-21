@@ -106,7 +106,54 @@ class CrossTenantIsolationTest {
         }
     }
 
+    @Test
+    void tenantCannotReadAnotherTenantsEmailHistory() throws Exception {
+        String rowId = seedEmailHistory(TENANT_A);
+
+        try (Connection conn = appDataSource.getConnection()) {
+            setTenant(conn, TENANT_B);
+            try (PreparedStatement ps = conn.prepareStatement("SELECT count(*) FROM email_history WHERE id = ?::uuid")) {
+                ps.setString(1, rowId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    assertThat(rs.getInt(1)).as("tenant B must not see tenant A's email history").isZero();
+                }
+            }
+        }
+    }
+
+    @Test
+    void tenantCannotUpdateAnotherTenantsEmailHistory() throws Exception {
+        String rowId = seedEmailHistory(TENANT_A);
+
+        try (Connection conn = appDataSource.getConnection()) {
+            setTenant(conn, TENANT_B);
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE email_history SET recipient = 'HACKED' WHERE id = ?::uuid")) {
+                ps.setString(1, rowId);
+                assertThat(ps.executeUpdate()).as("RLS must prevent cross-tenant writes").isZero();
+            }
+        }
+    }
+
     // ---- helpers -------------------------------------------------------
+
+    /** Seed one email_history row for a tenant (admin/bypass-RLS) and return its id for the negative tests. */
+    private static String seedEmailHistory(String tenantId) throws Exception {
+        String companyId = idOfCompanyIn(tenantId);
+        try (Connection admin = adminDataSource().getConnection();
+             PreparedStatement ps = admin.prepareStatement(
+                     "INSERT INTO email_history (tenant_id, kind, company_id, period_month, recipient, body, status) "
+                             + "VALUES (?::uuid, 'TAX', ?::uuid, DATE '2026-03-01', 'client@example.com', 'body', 'SENT') "
+                             + "RETURNING id")) {
+            ps.setString(1, tenantId);
+            ps.setString(2, companyId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getString(1);
+            }
+        }
+    }
 
     private static int companyCountFor(String tenantId) throws Exception {
         try (Connection conn = appDataSource.getConnection()) {

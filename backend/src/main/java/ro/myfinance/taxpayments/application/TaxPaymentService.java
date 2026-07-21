@@ -20,12 +20,13 @@ import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.settings.application.PlatformTreasuryService;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
-import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
+import ro.myfinance.common.email.EmailHistory;
+import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.PaymentLine;
 import ro.myfinance.taxpayments.domain.TaxCategory;
 import ro.myfinance.taxpayments.domain.TaxDeclaration;
-import ro.myfinance.taxpayments.domain.TaxEmail;
 import ro.myfinance.taxpayments.domain.TaxObligation;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.DeclarationSummary;
@@ -46,14 +47,14 @@ public class TaxPaymentService {
     private final DocumentService documents;
     private final PlatformTreasuryService treasury;
     private final TaxDeclarationRepository declarations;
-    private final TaxEmailRepository emails;
+    private final EmailHistoryRepository emails;
     private final AnafDeclarationExtractor extractor;
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
 
     public TaxPaymentService(CompanyRepository companies, DocumentService documents,
                              PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
-                             TaxEmailRepository emails, AnafDeclarationExtractor extractor,
+                             EmailHistoryRepository emails, AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder) {
         this.companies = companies;
         this.documents = documents;
@@ -77,8 +78,8 @@ public class TaxPaymentService {
         for (TaxDeclaration d : declarations.findByPeriodMonth(month)) {
             declByCompany.computeIfAbsent(d.getCompanyId(), k -> new ArrayList<>()).add(d);
         }
-        Map<UUID, List<TaxEmail>> emailByCompany = new java.util.HashMap<>();
-        for (TaxEmail e : emails.findByPeriodMonth(month)) {
+        Map<UUID, List<EmailHistory>> emailByCompany = new java.util.HashMap<>();
+        for (EmailHistory e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.TAX, month)) {
             emailByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
 
@@ -95,8 +96,8 @@ public class TaxPaymentService {
                 cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
                         d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
             }
-            List<TaxEmail> es = emailByCompany.getOrDefault(c.getId(), List.of());
-            Instant last = es.stream().map(TaxEmail::getSentAt).max(Instant::compareTo).orElse(null);
+            List<EmailHistory> es = emailByCompany.getOrDefault(c.getId(), List.of());
+            Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
             rows.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
                     c.getCui(), c.getLocality(), cells, last, es.size()));
         }
@@ -108,7 +109,7 @@ public class TaxPaymentService {
         Company company = company(companyId);
         LocalDate month = period.withDayOfMonth(1);
         List<TaxDeclaration> decls = declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(companyId, month);
-        List<TaxEmail> sent = emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(companyId, month);
+        List<EmailHistory> sent = emails.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(EmailKind.TAX, companyId, month);
 
         List<DeclarationSummary> declViews = new ArrayList<>();
         for (TaxDeclaration d : decls) {
@@ -117,8 +118,8 @@ public class TaxPaymentService {
             }
             int count = 0;
             Instant last = null;
-            for (TaxEmail e : sent) {
-                if (e.getDeclarationIds().contains(d.getId())) {
+            for (EmailHistory e : sent) {
+                if (e.getRelatedIds().contains(d.getId())) {
                     count++;
                     if (last == null) {
                         last = e.getSentAt(); // list is sorted newest-first

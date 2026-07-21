@@ -26,7 +26,8 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.settings.application.PlatformTreasuryService;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
-import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
+import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
@@ -51,7 +52,7 @@ class TaxPaymentServiceTest {
     @Mock DocumentService documentService;
     @Mock PlatformTreasuryService treasury;
     @Mock TaxDeclarationRepository declarations;
-    @Mock TaxEmailRepository emails;
+    @Mock EmailHistoryRepository emails;
 
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
@@ -99,7 +100,7 @@ class TaxPaymentServiceTest {
         TaxDeclaration sd2 = storedDecl(doc2, DeclarationType.D112);
         when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(eq(companyId), any()))
                 .thenReturn(List.of(sd1, sd2));
-        when(emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(companyId), any())).thenReturn(List.of());
+        when(emails.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(EmailKind.TAX), eq(companyId), any())).thenReturn(List.of());
         when(documentService.getContent(doc1)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d100));
         when(documentService.getContent(doc2)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d112));
 
@@ -135,7 +136,7 @@ class TaxPaymentServiceTest {
         when(sd.isWrongParty()).thenReturn(true); // filed for a different CUI
         when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(eq(companyId), any()))
                 .thenReturn(List.of(sd));
-        when(emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(companyId), any())).thenReturn(List.of());
+        when(emails.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(EmailKind.TAX), eq(companyId), any())).thenReturn(List.of());
 
         TaxPaymentSummary s = service().summary(companyId, MONTH);
 
@@ -157,7 +158,7 @@ class TaxPaymentServiceTest {
         TaxDeclaration sd = storedDecl(doc, DeclarationType.D112);
         when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(eq(companyId), any()))
                 .thenReturn(List.of(sd));
-        when(emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(companyId), any())).thenReturn(List.of());
+        when(emails.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(eq(EmailKind.TAX), eq(companyId), any())).thenReturn(List.of());
         when(documentService.getContent(doc)).thenReturn(new DocumentService.DocumentContent(mock(Document.class), d112));
         when(treasury.accountFor("Nowhere", MONTH)).thenReturn(Optional.empty());
 

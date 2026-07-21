@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
-import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
+import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.TaxDeclarationService;
 import ro.myfinance.taxpayments.domain.DeclarationType;
@@ -27,7 +27,7 @@ import ro.myfinance.taxpayments.domain.TaxDeclaration;
 class TaxDeclarationServiceTest {
 
     private final TaxDeclarationRepository declarations = mock(TaxDeclarationRepository.class);
-    private final TaxEmailRepository emails = mock(TaxEmailRepository.class);
+    private final EmailHistoryRepository emails = mock(EmailHistoryRepository.class);
     private final DocumentService documents = mock(DocumentService.class);
     private final TaxDeclarationService service =
             new TaxDeclarationService(declarations, emails, documents, new AnafDeclarationExtractor());

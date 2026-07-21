@@ -2,71 +2,53 @@ package ro.myfinance.payroll;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import ro.myfinance.common.security.Role;
-import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.access.application.EmailDispatchService;
+import ro.myfinance.common.email.EmailHistory;
+import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.email.EmailStatus;
 import ro.myfinance.intake.application.DocumentService;
-import ro.myfinance.intake.domain.DocumentType;
-import ro.myfinance.payroll.adapter.persistence.PayrollEmailRepository;
 import ro.myfinance.payroll.application.PayrollEmailBuilder;
 import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.payroll.application.PayrollService.PayrollEmailView;
-import ro.myfinance.payroll.domain.PayrollEmail;
-import ro.myfinance.common.email.EmailSender;
 
-/** Verifies payroll sends are recorded (SENT/FAILED) and the standard RO body is well-formed. */
+/** Payroll delegates the send to the shared dispatch (kind=PAYROLL) and the standard RO body is well-formed. */
 class PayrollServiceTest {
 
     private final DocumentService documents = mock(DocumentService.class);
-    private final PayrollEmailRepository repo = mock(PayrollEmailRepository.class);
-    private final EmailSender sender = mock(EmailSender.class);
+    private final EmailHistoryRepository history = mock(EmailHistoryRepository.class);
+    private final EmailDispatchService dispatch = mock(EmailDispatchService.class);
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
             mock(ro.myfinance.access.application.EmailEnvelopeService.class);
     private final ro.myfinance.notifications.application.NotificationService notifications =
             mock(ro.myfinance.notifications.application.NotificationService.class);
-    private final PayrollService service = new PayrollService(documents, repo, sender, envelopes, notifications);
+    private final PayrollService service =
+            new PayrollService(documents, history, dispatch, envelopes, notifications);
 
-    @BeforeEach
-    void bindTenant() {
-        TenantContext.set(new TenantContext.Identity(UUID.randomUUID(), UUID.randomUUID(), Role.TENANT_ADMIN, null));
+    @Test
+    void sendDelegatesToDispatchWithPayrollKindAndMapsTheRow() {
+        UUID companyId = UUID.randomUUID();
         when(documents.listByCompanyPeriodType(any(), any(), any())).thenReturn(List.of());
-        when(repo.save(any(PayrollEmail.class))).thenAnswer(i -> i.getArgument(0));
-        when(envelopes.resolve(any(), any())).thenAnswer(i -> new ro.myfinance.access.application
-                .EmailEnvelopeService.Envelope("Maria Pop", "firma@contabil.ro", i.getArgument(1)));
-    }
+        EmailHistory row = new EmailHistory(UUID.randomUUID(), EmailKind.PAYROLL, companyId,
+                LocalDate.of(2026, 4, 1), List.of(), "client@example.com", "body", EmailStatus.SENT, null, null);
+        when(dispatch.dispatch(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(row);
 
-    @AfterEach
-    void clear() {
-        TenantContext.clear();
-    }
-
-    @Test
-    void recordsSentOnSuccess() {
-        PayrollEmailView saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 4, 10),
-                "client@example.com", "Bună ziua, ...", null);
-        assertThat(saved.status()).isEqualTo(PayrollEmail.Status.SENT);
-        assertThat(saved.sentAt()).isNotNull();
-        assertThat(saved.recipient()).isEqualTo("client@example.com");
-    }
-
-    @Test
-    void recordsFailedWhenSenderThrows() {
-        doThrow(new RuntimeException("SES down")).when(sender)
-                .send(any(EmailSender.Message.class));
-        PayrollEmailView saved = service.send(UUID.randomUUID(), LocalDate.of(2026, 4, 10),
+        PayrollEmailView saved = service.send(companyId, LocalDate.of(2026, 4, 10),
                 "client@example.com", "body", null);
-        assertThat(saved.status()).isEqualTo(PayrollEmail.Status.FAILED);
+
+        assertThat(saved.status()).isEqualTo(EmailStatus.SENT);
+        assertThat(saved.recipient()).isEqualTo("client@example.com");
+        verify(dispatch).dispatch(eq(EmailKind.PAYROLL), eq(companyId), eq(LocalDate.of(2026, 4, 10)),
+                eq("client@example.com"), any(String.class), eq("body"), any(), any(), any());
     }
 
     @Test

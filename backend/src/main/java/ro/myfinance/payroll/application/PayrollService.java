@@ -7,44 +7,45 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.access.application.EmailDispatchService;
+import ro.myfinance.access.application.EmailEnvelopeService;
+import ro.myfinance.common.email.EmailHistory;
+import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.email.EmailSender;
+import ro.myfinance.common.email.EmailStatus;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentType;
-import ro.myfinance.payroll.adapter.persistence.PayrollEmailRepository;
-import ro.myfinance.payroll.domain.PayrollEmail;
-import ro.myfinance.common.email.EmailSender;
 
 /**
  * MOD-08 Payroll. Manual upload of payroll files per company/month (reusing the document store as
  * type=PAYROLL), then an explicit, user-initiated email to the client with the standard Romanian body
  * and the payroll documents attached. Every send is recorded (SENT/FAILED) so the list shows "last
  * sent" and the log keeps history. No money figures are computed here — amounts live in the attachments.
+ * The resolve → send → record mechanics live in the shared {@link EmailDispatchService}.
  */
 @Service
 @Transactional
 public class PayrollService {
 
-    private static final Logger log = LoggerFactory.getLogger(PayrollService.class);
     private static final java.time.format.DateTimeFormatter MONTH_RO =
             java.time.format.DateTimeFormatter.ofPattern("LLLL yyyy", java.util.Locale.forLanguageTag("ro"));
 
     private final DocumentService documents;
-    private final PayrollEmailRepository emails;
-    private final EmailSender sender;
-    private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
+    private final EmailHistoryRepository history;
+    private final EmailDispatchService dispatch;
+    private final EmailEnvelopeService envelopes;
     private final ro.myfinance.notifications.application.NotificationService notifications;
 
-    public PayrollService(DocumentService documents, PayrollEmailRepository emails, EmailSender sender,
-                          ro.myfinance.access.application.EmailEnvelopeService envelopes,
+    public PayrollService(DocumentService documents, EmailHistoryRepository history,
+                          EmailDispatchService dispatch, EmailEnvelopeService envelopes,
                           ro.myfinance.notifications.application.NotificationService notifications) {
         this.documents = documents;
-        this.emails = emails;
-        this.sender = sender;
+        this.history = history;
+        this.dispatch = dispatch;
         this.envelopes = envelopes;
         this.notifications = notifications;
     }
@@ -58,11 +59,11 @@ public class PayrollService {
     }
 
     /** One payroll email send (notification log + resend). */
-    public record PayrollEmailView(UUID id, String recipient, PayrollEmail.Status status, Instant sentAt,
+    public record PayrollEmailView(UUID id, String recipient, EmailStatus status, Instant sentAt,
                                    List<UUID> documentIds, String body) {
-        public static PayrollEmailView from(PayrollEmail e) {
+        public static PayrollEmailView from(EmailHistory e) {
             return new PayrollEmailView(e.getId(), e.getRecipient(), e.getStatus(), e.getSentAt(),
-                    e.getDocumentIds(), e.getBody());
+                    e.getRelatedIds(), e.getBody());
         }
     }
 
@@ -75,8 +76,8 @@ public class PayrollService {
             docsByCompany.computeIfAbsent(d.getCompanyId(), k -> new ArrayList<>())
                     .add(new PayrollDoc(d.getId(), d.getOriginalFilename()));
         }
-        Map<UUID, List<PayrollEmail>> emailsByCompany = new LinkedHashMap<>();
-        for (PayrollEmail e : emails.findByPeriodMonthOrderBySentAtDesc(month)) {
+        Map<UUID, List<EmailHistory>> emailsByCompany = new LinkedHashMap<>();
+        for (EmailHistory e : history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.PAYROLL, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
@@ -86,7 +87,7 @@ public class PayrollService {
         List<PayrollRow> out = new ArrayList<>();
         for (UUID companyId : ids) {
             List<PayrollDoc> docs = docsByCompany.getOrDefault(companyId, List.of());
-            List<PayrollEmail> es = emailsByCompany.getOrDefault(companyId, List.of());
+            List<EmailHistory> es = emailsByCompany.getOrDefault(companyId, List.of());
             Instant last = es.isEmpty() ? null : es.get(0).getSentAt(); // sorted desc
             out.add(new PayrollRow(companyId, docs, last, es.size()));
         }
@@ -109,7 +110,8 @@ public class PayrollService {
     /** Full send history for a company + period (newest first). */
     @Transactional(readOnly = true)
     public List<PayrollEmailView> history(UUID companyId, LocalDate period) {
-        return emails.findByCompanyIdAndPeriodMonthOrderBySentAtDesc(companyId, period.withDayOfMonth(1))
+        return history.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(
+                        EmailKind.PAYROLL, companyId, period.withDayOfMonth(1))
                 .stream().map(PayrollEmailView::from).toList();
     }
 
@@ -119,8 +121,6 @@ public class PayrollService {
      */
     public PayrollEmailView send(UUID companyId, LocalDate period, String recipient, String body,
                                  List<UUID> documentIds) {
-        UUID tenantId = TenantContext.tenantId().orElseThrow(() -> new IllegalStateException("No tenant bound"));
-        UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         LocalDate month = period.withDayOfMonth(1);
 
         // Attach the company's payroll documents for the period. When the caller passes an explicit set
@@ -137,26 +137,11 @@ public class PayrollService {
             attachments.add(new EmailSender.Attachment(d.getOriginalFilename(), d.getContentType(), bytes));
         }
 
-        // From = logged-in user (name) + accounting firm (address); recipient defaults to the rep.
-        var env = envelopes.resolve(companyId, recipient);
-        String to = env.recipient();
-
-        PayrollEmail.Status status = PayrollEmail.Status.SENT;
-        String error = null;
-        try {
-            sender.send(new EmailSender.Message(env.fromName(), env.fromEmail(), to,
-                    PayrollEmailBuilder.subject(month), body, attachments));
-        } catch (RuntimeException e) {
-            status = PayrollEmail.Status.FAILED;
-            error = e.getMessage();
-            log.warn("Payroll email send failed for company {} period {}", companyId, month, e);
-        }
-        if (status == PayrollEmail.Status.SENT) {
-            notifications.notifyCompanyReps(companyId, "PAYROLL_READY", "State de plată disponibile",
-                    "Statul de plată, fluturașul de salariu și pontajul pentru luna " + MONTH_RO.format(month)
-                            + " sunt disponibile în aplicație și un email a fost trimis.");
-        }
-        return PayrollEmailView.from(emails.save(new PayrollEmail(
-                tenantId, companyId, month, docIds, to, body, status, error, userId)));
+        EmailHistory row = dispatch.dispatch(EmailKind.PAYROLL, companyId, period, recipient,
+                PayrollEmailBuilder.subject(month), body, attachments, docIds,
+                () -> notifications.notifyCompanyReps(companyId, "PAYROLL_READY", "State de plată disponibile",
+                        "Statul de plată, fluturașul de salariu și pontajul pentru luna " + MONTH_RO.format(month)
+                                + " sunt disponibile în aplicație și un email a fost trimis."));
+        return PayrollEmailView.from(row);
     }
 }
