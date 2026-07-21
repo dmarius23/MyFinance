@@ -1,21 +1,17 @@
 package ro.myfinance.reports.application;
 
 import java.time.LocalDate;
+import ro.myfinance.common.i18n.RomanianMonths;
 import ro.myfinance.reports.domain.ReportData;
 
 /** Builds the standard Romanian report email body. Editable before sending; figures come from the report. */
 public final class ReportEmailBuilder {
 
-    private static final String[] MONTHS_RO = {
-            "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
-            "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"
-    };
-
     private ReportEmailBuilder() {
     }
 
     public static String monthYear(LocalDate period) {
-        return MONTHS_RO[period.getMonthValue() - 1] + " " + period.getYear();
+        return RomanianMonths.monthYear(period);
     }
 
     public static String subject(LocalDate period) {

@@ -23,8 +23,10 @@ import ro.myfinance.reports.application.ReportService;
 import ro.myfinance.reports.domain.ReportData;
 
 /**
- * Backend-for-frontend for the representative PWA. Every operation is scoped to the rep's single company
- * (taken from the JWT, never the client), so a rep can only ever see/act on their own company's data.
+ * Backend-for-frontend for the representative PWA. A rep may be linked to several companies (since V26);
+ * each request names which one via the {@link #COMPANY_HEADER} header, and the server verifies the rep is
+ * actually linked to it — so a rep can only ever see/act on companies they represent, never on arbitrary
+ * data. Tenant isolation is enforced underneath by RLS.
  */
 @Service
 @Transactional

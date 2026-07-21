@@ -32,6 +32,11 @@ import ro.myfinance.taxpayments.domain.TaxObligation;
  * Extracts payable amounts from an ANAF declaration PDF (D100 / D112 / D300). Each PDF embeds a
  * named-field XML (D100.xml / DecUnica.xml / D300.xml) — we read that, not the printed page. Fully
  * deterministic, no OCR/LLM. Per-declaration parsing; the itemized obligations are authoritative.
+ *
+ * <p>Home: this lives in {@code taxpayments.application} — not {@code extraction} — on purpose. It is not a
+ * generic document extractor: it knows the ANAF declaration types and produces tax-domain
+ * {@link TaxObligation}s. It belongs with the tax module it serves; only the cross-cutting
+ * {@code ReceiptExtractor} OCR port is shared in {@code extraction}.
  */
 @Component
 public class AnafDeclarationExtractor {

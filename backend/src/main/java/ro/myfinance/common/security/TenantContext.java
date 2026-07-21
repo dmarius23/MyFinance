@@ -7,7 +7,7 @@ import java.util.UUID;
  * Request-scoped tenant/identity context, bound to the current thread.
  *
  * <p>Populated by {@link TenantContextFilter} from the validated Supabase JWT and read by
- * {@link RlsConnectionProvider} when handing out DB connections, so PostgreSQL row-level
+ * {@link RlsDataSource} when handing out DB connections, so PostgreSQL row-level
  * security is enforced even if application code forgets a {@code tenant_id} filter.
  *
  * <p>Golden rule: when no tenant is bound, RLS sees an empty {@code app.tenant_id} and returns

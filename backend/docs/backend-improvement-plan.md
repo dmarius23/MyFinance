@@ -309,12 +309,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   (S14) prevents regressions.
 - **Size:** M. **Depends-on:** none.
 
-### S13. Normalize misplaced classes & stale comments  *(small structural tidy)*  — 🟡 PARTIAL
+### S13. Normalize misplaced classes & stale comments  *(small structural tidy)*  — ✅ DONE
 - **Done:** `EmailSender` (+ `Message`/`Attachment`) moved to `common/email` (with `LoggingEmailSender`,
-  the new `SesEmailSender`, and an `EmailAddresses` mask helper); all consumers + tests updated (S7).
-  **Still open:** the shared email builders (`*EmailBuilder`) haven't moved yet (do with S9); the
-  `AnafDeclarationExtractor` home decision and the `RlsConnectionProvider` / "single company" stale-comment
-  sweep remain.
+  `SesEmailSender`, `EmailAddresses` mask helper); all consumers + tests updated (S7). The duplicated
+  Romanian month-name array — copy-pasted in `PaymentCalculator`, `ReportEmailBuilder` and
+  `PayrollEmailBuilder` — is now the single `common/i18n/RomanianMonths` (space-joined `monthYear`; the
+  tax explanation keeps its dash-joined form via `RomanianMonths.name`, still asserted by
+  `PaymentCalculatorTest`). The builders stay in their modules on purpose (they reference module domain
+  types — `ReportData`, `PaymentLine` — so moving them whole into `common` would invert the dependency);
+  only the genuinely shared month utility moved. `AnafDeclarationExtractor` documented as intentionally
+  tax-domain (stays in `taxpayments`, not `extraction`). Stale comments fixed: `TenantContext` now links
+  the real `RlsDataSource` (was the nonexistent `RlsConnectionProvider`); `PortalService` javadoc updated
+  to multi-company-per-rep (since V26, via `X-Company-Id`). No `mod01_*` references remained. Full suite
+  185 green.
 - **Goal:** put shared ports/utilities in `common`; delete stale comments.
 - **Why:** the `EmailSender` port lives in `taxpayments/application` but is used by reports, payroll, and
   extraction (wrong home). `TenantContext` javadoc references a `RlsConnectionProvider` class that does

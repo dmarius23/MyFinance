@@ -1,6 +1,7 @@
 package ro.myfinance.payroll.application;
 
 import java.time.LocalDate;
+import ro.myfinance.common.i18n.RomanianMonths;
 
 /**
  * Builds the standard Romanian payroll email body. The body is a default the accountant edits before
@@ -9,17 +10,12 @@ import java.time.LocalDate;
  */
 public final class PayrollEmailBuilder {
 
-    private static final String[] MONTHS_RO = {
-            "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
-            "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"
-    };
-
     private PayrollEmailBuilder() {
     }
 
     /** Romanian month name + year for a period month, e.g. "Aprilie 2026". */
     public static String monthYear(LocalDate period) {
-        return MONTHS_RO[period.getMonthValue() - 1] + " " + period.getYear();
+        return RomanianMonths.monthYear(period);
     }
 
     public static String subject(LocalDate period) {

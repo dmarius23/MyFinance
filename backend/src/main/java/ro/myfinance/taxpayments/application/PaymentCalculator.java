@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import ro.myfinance.common.i18n.RomanianMonths;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.PaymentLine;
 import ro.myfinance.taxpayments.domain.TaxCategory;
@@ -23,11 +24,6 @@ import ro.myfinance.taxpayments.domain.TaxObligation;
  */
 @Component
 public class PaymentCalculator {
-
-    private static final String[] RO_MONTHS = {
-        "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
-        "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"
-    };
 
     private static final class Bucket {
         BigDecimal amount = BigDecimal.ZERO;
@@ -91,6 +87,8 @@ public class PaymentCalculator {
         if (period == null) {
             return "";
         }
-        return RO_MONTHS[period.getMonthValue() - 1] + "-" + period.getYear();
+        // Dash-joined form ("Martie-2026") is the tax-payment explanation convention (see PaymentCalculatorTest);
+        // the space-joined form for subjects/bodies is RomanianMonths.monthYear.
+        return RomanianMonths.name(period.getMonthValue()) + "-" + period.getYear();
     }
 }
