@@ -26,7 +26,7 @@ function ibansOf(a: PlatformTreasuryAccount): TreasuryIbans {
   return { ibanCam: a.ibanCam, ibanImpozite: a.ibanImpozite, ibanCass: a.ibanCass, ibanCas: a.ibanCas, ibanTva: a.ibanTva };
 }
 
-const ibanInput: React.CSSProperties = { width: "100%", fontFamily: "monospace", fontSize: 12, boxSizing: "border-box" };
+const ibanInput: React.CSSProperties = { width: "100%", fontFamily: "var(--mono)", fontSize: 12, boxSizing: "border-box" };
 
 /**
  * SUPER_ADMIN screen for the GLOBAL, effective-dated reference data (national tax rates + treasury

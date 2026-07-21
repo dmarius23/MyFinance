@@ -19,7 +19,7 @@ const C = {
   warnBg: "#fef3c7", warnBd: "#fde68a", warnFg: "#92400e", amber: "#f59e0b",
   green: "#16a34a", greenBg: "#dcfce7", danger: "#dc2626",
 };
-const mono: React.CSSProperties = { fontFamily: "'IBM Plex Mono', monospace" };
+const mono: React.CSSProperties = { fontFamily: "var(--mono)" };
 const card: React.CSSProperties = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 15, minWidth: 0 };
 const cardH: React.CSSProperties = { fontSize: 15, fontWeight: 700, margin: 0, color: C.ink };
 
@@ -154,7 +154,7 @@ export function RepHome() {
   const onDownload = (d: { id: string; filename: string }) => () => portalApi.downloadFile(d.id, d.filename);
 
   return (
-    <div style={{ minHeight: "100dvh", background: C.chrome, display: "flex", justifyContent: "center", fontFamily: "'Hanken Grotesk', sans-serif" }}>
+    <div style={{ minHeight: "100dvh", background: C.chrome, display: "flex", justifyContent: "center", fontFamily: "var(--sans)" }}>
       <div style={{ width: "100%", maxWidth: 480, minWidth: 0, minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", position: "relative", overflowX: "hidden" }}>
 
         {/* ===== dark app header ===== */}

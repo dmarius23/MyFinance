@@ -116,7 +116,7 @@ function TreasurySection() {
 
   const colLabel = (col: (typeof IBAN_COLS)[number]) => ("labelKey" in col ? t(col.labelKey) : col.label);
   const cell = (v: string | null) =>
-    v ? <span style={{ fontFamily: "monospace", fontSize: 12 }}>{v}</span> : <span style={{ color: "var(--text-muted)" }}>—</span>;
+    v ? <span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{v}</span> : <span style={{ color: "var(--text-muted)" }}>—</span>;
 
   return (
     <div className="card">
