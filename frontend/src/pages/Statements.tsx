@@ -71,7 +71,7 @@ export function Statements() {
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
-  const toggle = (id: string) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): ReminderTarget => {
@@ -139,22 +139,27 @@ export function Statements() {
                 </div>
                 <div>
                   {hasBank
-                    ? <ClickPill kind="ok" label={t("statements.nStatements", { n: s?.bankStatementCount ?? 0 })} title={t("statements.chip.statements")} onClick={openFiles} />
+                    ? <ClickPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} onClick={openFiles} />
                     : <ClickPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} onClick={openFiles} />}
                 </div>
                 <div>
-                  {present === 0 && missing === 0 && noMatch === 0
-                    ? <span style={{ color: "var(--text-faint)" }}>—</span>
-                    : <>
-                        {present > 0 && <ClickPill kind="ok" label={present} title={t("statements.chip.present")} onClick={openFiles} />}
-                        {missing > 0 && <ClickPill kind="danger" label={t("statements.needsDocN", { n: missing })} title={t("statements.chip.missing")} onClick={openFiles} />}
-                        {noMatch > 0 && <ClickPill kind="muted" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
-                      </>}
+                  {present > 0
+                    ? <ClickPill kind="ok" label={present} title={t("statements.chip.present")} onClick={openFiles} />
+                    : <span style={{ color: "var(--text-faint)" }}>—</span>}
                 </div>
                 <div>
-                  {cpl === "COMPLETE" ? <span className="pill round ok">{t("statements.cpl.complete")}</span>
-                    : cpl === "PARTIAL" ? <span className="pill round warn">{t("statements.cpl.partial")}</span>
-                    : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
+                  {!hasBank
+                    ? <span className="pill round muted" title={t("statements.cpl.naTip")}>{t("statements.cpl.na")}</span>
+                    : cpl === "COMPLETE"
+                      ? <span className="pill round ok">{t("statements.cpl.complete")}</span>
+                      : missing > 0 || noMatch > 0
+                        ? <>
+                            {missing > 0 && <ClickPill kind="danger" label={missing} title={t("statements.chip.missing")} onClick={openFiles} />}
+                            {noMatch > 0 && <ClickPill kind="muted" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
+                          </>
+                        : cpl === "PARTIAL"
+                          ? <span className="pill round warn">{t("statements.cpl.partial")}</span>
+                          : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
                 </div>
                 <div>
                   {(() => {
@@ -183,7 +188,7 @@ export function Statements() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 24px minmax(220px,1.6fr) 120px 160px 104px 130px",
+  gridTemplateColumns: "30px 24px minmax(220px,1.6fr) 110px 110px 160px 130px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };

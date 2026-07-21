@@ -51,7 +51,7 @@ export function TaxPayments() {
 
   const selectable = rows.filter((r) => r.declarations.length > 0).map((r) => r.companyId);
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable));
 
   const refreshList = () => void qc.invalidateQueries({ queryKey: ["tax-list", period] });
@@ -121,7 +121,7 @@ export function TaxPayments() {
                             style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", color: "var(--text)" }}>
                             {money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
                           </button>
-                        : <button type="button" className="pill round muted" onClick={openDecl} title={t("taxes.uploadDeclaration")}
+                        : <button type="button" className="pill round danger" onClick={openDecl} title={t("taxes.uploadDeclaration")}
                             style={{ cursor: "pointer", font: "inherit" }}>{t("taxes.missing")}</button>}
                     </div>
                   );
