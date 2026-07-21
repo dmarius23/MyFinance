@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion } from "../api/bank";
 import { companiesApi } from "../api/companies";
 import { documentsApi } from "../api/documents";
+import { ingestionApi } from "../api/ingestion";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
@@ -84,6 +85,14 @@ export function ReconcileWorkspace() {
   });
   const upload = useMutation({
     mutationFn: async (files: File[]) => { for (const f of files) await documentsApi.upload(companyId, period, f); },
+    onSuccess: invalidate, onError: onErr,
+  });
+  // Drive sync (bank statements + invoices together): a general/mixed connection routes each file
+  // through the classifier, exactly like the documents modal.
+  const driveQ = useQuery({ queryKey: ["ingestion-source", "MIXED"], queryFn: () => ingestionApi.source("MIXED") });
+  const driveEnabled = driveQ.data?.driveEnabled === true;
+  const sync = useMutation({
+    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "MIXED" }),
     onSuccess: invalidate, onError: onErr,
   });
   const mapChecked = useMutation({
@@ -185,7 +194,7 @@ export function ReconcileWorkspace() {
   const poolTotal = groups.reduce((n, g) => n + g.items.length, 0);
 
   const selectTxn = (id: string) => { setSelectedTxnId((cur) => (cur === id ? null : id)); setChecked(new Set()); };
-  const toggleCheck = (id: string) => setChecked((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleCheck = (id: string) => setChecked((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const hasStatement = (statements.data?.length ?? 0) > 0;
   const c = company.data;
@@ -235,6 +244,11 @@ export function ReconcileWorkspace() {
             <div style={{ fontWeight: 700, color: "var(--danger-fg, #991b1b)", fontSize: 14 }}>{t("recon.noStatementTitle")}</div>
             <div style={{ fontSize: 12.5, color: "var(--text-secondary, #55605d)" }}>{t("recon.noStatementSub")}</div>
           </div>
+          {driveEnabled && (
+            <button disabled={sync.isPending} onClick={() => sync.mutate()}>
+              <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{sync.isPending ? t("files.syncing") : t("files.syncFromDrive")}
+            </button>
+          )}
           <button className="primary" disabled={upload.isPending} onClick={() => stmtFileRef.current?.click()}>
             <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{t("recon.uploadStatement")}
           </button>
@@ -403,6 +417,12 @@ export function ReconcileWorkspace() {
             <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" style={{ display: "none" }}
               onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (f.length) upload.mutate(f); }} />
           </div>
+          {driveEnabled && (
+            <button disabled={sync.isPending} onClick={() => sync.mutate()} title={t("files.syncHint")}
+              style={{ margin: "0 12px 12px", width: "calc(100% - 24px)", justifyContent: "center" }}>
+              <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{sync.isPending ? t("files.syncing") : t("files.syncFromDrive")}
+            </button>
+          )}
         </div>
       </div>
 
