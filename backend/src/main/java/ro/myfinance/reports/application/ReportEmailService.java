@@ -13,7 +13,7 @@ import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.reports.adapter.persistence.ReportEmailRepository;
 import ro.myfinance.reports.domain.ReportData;
 import ro.myfinance.reports.domain.ReportEmail;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.common.email.EmailSender;
 
 /**
  * Compose, send and record the monthly report email to the representative. Each send attaches the branded

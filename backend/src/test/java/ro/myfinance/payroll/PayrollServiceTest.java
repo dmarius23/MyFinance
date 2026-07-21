@@ -23,7 +23,7 @@ import ro.myfinance.payroll.application.PayrollEmailBuilder;
 import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.payroll.application.PayrollService.PayrollEmailView;
 import ro.myfinance.payroll.domain.PayrollEmail;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.common.email.EmailSender;
 
 /** Verifies payroll sends are recorded (SENT/FAILED) and the standard RO body is well-formed. */
 class PayrollServiceTest {

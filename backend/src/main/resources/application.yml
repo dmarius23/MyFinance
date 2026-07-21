@@ -89,6 +89,15 @@ myfinance:
     base-url: ${RECEIPT_BASE_URL:}
     # bedrock only: AWS region, e.g. eu-central-1 (blank → AWS default region provider chain).
     region: ${RECEIPT_REGION:}
+  # Email delivery. provider=ses → Amazon SES (must be an EU region for data residency — see
+  # docs/MyFinance-data-privacy-residency-v1.md); anything else → dev logging no-op (no real send).
+  # Every module sends through the shared EmailSender port; only the adapter changes here.
+  email:
+    provider: ${EMAIL_PROVIDER:logging}
+    # ses only: AWS region, e.g. eu-central-1 / eu-west-1 (blank → AWS default region provider chain).
+    region: ${EMAIL_REGION:}
+    # ses only: optional SES configuration set for bounce/complaint tracking (blank → none).
+    configuration-set: ${EMAIL_CONFIGURATION_SET:}
   # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
   # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
   # in-app notifications still work. The public key is served to the PWA to subscribe.

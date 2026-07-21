@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.extraction.adapter.persistence.DocumentReminderRepository;
 import ro.myfinance.extraction.domain.DocumentReminder;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.common.email.EmailSender;
 
 /**
  * Compose, send and record missing-document reminder emails for the bank-statements &amp; invoices hub.

@@ -25,8 +25,8 @@ import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.notifications.domain.Notification;
-import ro.myfinance.settings.application.SettingsService;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.access.application.EmailEnvelopeService;
+import ro.myfinance.common.email.EmailSender;
 
 /** Rep-upload notification routing: accountant gets in-app + email; unassigned → admins in-app only. */
 class NotificationServiceTest {
@@ -34,14 +34,14 @@ class NotificationServiceTest {
     private final NotificationRepository notifications = mock(NotificationRepository.class);
     private final CompanyRepository companies = mock(CompanyRepository.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
-    private final SettingsService settings = mock(SettingsService.class);
+    private final EmailEnvelopeService envelopes = mock(EmailEnvelopeService.class);
     private final EmailSender sender = mock(EmailSender.class);
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
             mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
     private final ro.myfinance.notifications.application.PushNotificationService push =
             mock(ro.myfinance.notifications.application.PushNotificationService.class);
     private final NotificationService service =
-            new NotificationService(notifications, companies, users, settings, sender, repLinks, push);
+            new NotificationService(notifications, companies, users, envelopes, sender, repLinks, push);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID repId = UUID.randomUUID();
@@ -53,7 +53,8 @@ class NotificationServiceTest {
         // The rep is the current user during their upload.
         TenantContext.set(new TenantContext.Identity(tenant, repId, Role.REPRESENTATIVE, companyId));
         lenient().when(notifications.save(any(Notification.class))).thenAnswer(i -> i.getArgument(0));
-        lenient().when(settings.senderEmail()).thenReturn("firma@contabil.ro");
+        lenient().when(envelopes.system(any())).thenAnswer(i ->
+                new EmailEnvelopeService.Envelope("MyFinance", "firma@contabil.ro", i.getArgument(0)));
         lenient().when(users.findById(repId)).thenReturn(Optional.of(
                 new AppUser(repId, tenant, "ion@client.ro", "Ion Rep", Role.REPRESENTATIVE)));
     }

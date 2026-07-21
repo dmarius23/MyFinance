@@ -98,6 +98,18 @@
             <artifactId>bedrockruntime</artifactId>
         </dependency>
 
+        <!-- AWS SES v2 — the production EmailSender adapter (EU region). Version managed by the AWS SDK BOM. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sesv2</artifactId>
+        </dependency>
+        <!-- jakarta.mail (via starter-mail) to build the MIME message handed to SES as a raw email — needed
+             for attachments (reports/payroll). We use only its MimeMessage API, not the SMTP JavaMailSender. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Scheduling lives in starter; actuator for health -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

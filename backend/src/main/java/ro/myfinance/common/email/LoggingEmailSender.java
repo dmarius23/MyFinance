@@ -1,16 +1,17 @@
-package ro.myfinance.taxpayments.adapter.external;
+package ro.myfinance.common.email;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import ro.myfinance.taxpayments.application.EmailSender;
 
 /**
- * Default {@link EmailSender}: logs instead of sending, so the full compose → send → history flow works
- * in dev without real delivery. Replace with the SES adapter in production (it would back off this via
- * {@link ConditionalOnMissingBean}). No money figures are invented here — the body is passed through.
+ * Default {@link EmailSender} for dev/test: logs instead of sending, so the full compose → send → history
+ * flow works without real delivery. Active unless {@code myfinance.email.provider=ses} selects
+ * {@link SesEmailSender}. Recipients are masked in the log line (no PII). No money figures are invented —
+ * the body is passed through untouched.
  */
 @Configuration
 public class LoggingEmailSender {
@@ -19,14 +20,15 @@ public class LoggingEmailSender {
 
     @Bean
     @ConditionalOnMissingBean(EmailSender.class)
+    @ConditionalOnProperty(name = "myfinance.email.provider", havingValue = "logging", matchIfMissing = true)
     public EmailSender defaultEmailSender() {
         return message -> {
             String names = message.attachments().isEmpty() ? "none"
                     : message.attachments().stream().map(EmailSender.Attachment::filename)
                         .collect(java.util.stream.Collectors.joining(", "));
             log.info("[email:dev] from=\"{}\" <{}> to={} subject={} ({} chars) attachments=[{}] — not actually sent",
-                    message.fromName(), message.fromEmail(), message.to(), message.subject(),
-                    message.body() == null ? 0 : message.body().length(), names);
+                    message.fromName(), message.fromEmail(), EmailAddresses.mask(message.to()),
+                    message.subject(), message.body() == null ? 0 : message.body().length(), names);
         };
     }
 }

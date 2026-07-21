@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.taxpayments.adapter.persistence.TaxEmailRepository;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.common.email.EmailSender;
 import ro.myfinance.taxpayments.application.TaxEmailService;
 import ro.myfinance.taxpayments.application.TaxPaymentService;
 import ro.myfinance.taxpayments.domain.TaxEmail;

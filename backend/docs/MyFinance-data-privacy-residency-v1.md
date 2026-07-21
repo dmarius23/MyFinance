@@ -34,7 +34,7 @@ doc's subject.
 | Document blobs | **Supabase Storage** (`SupabaseDocumentStorage`) or local FS (`LocalFsDocumentStorage`, dev) | Same Supabase project region / local disk | ⚠️ Same caveat as DB |
 | Auth (JWT issuance, JWKS) | Supabase Auth | Supabase project region | ⚠️ Same caveat |
 | Cache / job queue | **Redis** | Wherever provisioned | ⚠️ Must be an EU Redis |
-| Outbound email | `EmailSender` port — `LoggingEmailSender` today; **SES** is the prod target | Not yet wired | ⚠️ Pick an **EU SES region** (e.g. `eu-central-1`) |
+| Outbound email | `EmailSender` port — `SesEmailSender` (AWS SES v2) / `LoggingEmailSender` (dev) | SES region (config) | ⚠️ EU when `EMAIL_REGION` is `eu-*` — **wired, config-gated** |
 | **Receipt/invoice OCR (vision LLM)** | `ReceiptExtractor` port | **Anthropic API (US)** *or* **AWS Bedrock (EU)** | ⚠️ **Provider-dependent — see §3** |
 | Document mirror / ingestion | **Google Drive** | Google Workspace data region | ⚠️ **Not EU-guaranteed unless Workspace EU data regions — see §4** |
 
@@ -123,7 +123,8 @@ call it out in onboarding and the DPA.
 1. **Supabase project region = EU** (e.g. `eu-central-1` / Frankfurt). Verify in the Supabase dashboard —
    this covers the DB, Storage blobs, and Auth in one setting. *This is the single most important item.*
 2. **Redis = EU** instance.
-3. **Email = EU SES region** once the SES adapter replaces `LoggingEmailSender`.
+3. **Email = `EMAIL_PROVIDER=ses` with an EU `EMAIL_REGION`** (e.g. `eu-central-1`). The `SesEmailSender`
+   adapter is wired behind the shared `EmailSender` port; never ship `provider=logging` to production.
 4. **OCR = `provider=bedrock`, EU region, EU inference profile** (§3.3). Never ship `provider=anthropic` to
    production.
 5. **Google Drive** (if used) = Workspace **EU data regions**, else Supabase-only mode (§4).
@@ -138,7 +139,9 @@ call it out in onboarding and the DPA.
   requirement for the DB, blobs, and auth at once.
 - **`OcrReclassifier` under Bedrock** disables rather than routing through Bedrock — acceptable (fail-safe,
   no US transmission) but means EU deployments lose that classification fallback until it's ported.
-- **SES adapter** is not yet built; until then no email is actually sent (logging stub), so no email egress.
+- **SES adapter** is built and wired (`SesEmailSender`, raw-MIME with attachments, recipient masked in
+  logs). It could not be exercised end-to-end here (no AWS creds/SES sandbox); enable via
+  `EMAIL_PROVIDER=ses` + an EU `EMAIL_REGION`. SPF/DKIM/DMARC on the sender domain are an ops prerequisite.
 - **Bedrock end-to-end** could not be exercised in dev (no AWS Bedrock access here); the adapter is wired and
   compiles, enabled purely via env in production.
 
@@ -148,3 +151,6 @@ call it out in onboarding and the DPA.
 
 - v1 — initial map. Shipped alongside the Bedrock EU OCR adapter (`BedrockReceiptExtractor`) and the
   `provider`/`base-url`/`region` config switch on `myfinance.receipt`.
+- v1.1 — email delivery wired: shared `EmailSender` port relocated to `common/email`; real
+  `SesEmailSender` (AWS SES v2, EU region, `EMAIL_PROVIDER`/`EMAIL_REGION`) behind it; every module
+  (tax, reports, payroll, reminders, upload notifications) delivers through the one port.

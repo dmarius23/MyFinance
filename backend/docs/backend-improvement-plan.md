@@ -188,7 +188,15 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## P2 — Production blockers (stubbed features, behind existing ports)
 
-### S7. Real `EmailSender` (Amazon SES) behind the existing port
+### S7. Real `EmailSender` (Amazon SES) behind the existing port — ✅ DONE
+- **Shipped:** `SesEmailSender` (AWS SDK v2 `sesv2`) selected by `@ConditionalOnProperty(myfinance.email.provider=ses)`;
+  `LoggingEmailSender` stays the dev default. Raw-MIME send (jakarta.mail via `spring-boot-starter-mail`)
+  so attachments (reports/payroll) work; region via `EMAIL_REGION` (EU for residency); recipients masked
+  in logs (`EmailAddresses.mask`). The `EmailSender` port was relocated to `common/email` (the S13 move
+  below) and `NotificationService` now resolves its From via `EmailEnvelopeService.system(...)`, so all
+  five send-sites share one port + one envelope. Config: `myfinance.email.{provider,region,configuration-set}`.
+  **Not yet done:** routing through the outbox relay for retry (still synchronous — see S4); LocalStack/SES-sandbox
+  integration test (adapter compiles + MIME unit-tested; no AWS creds here for an end-to-end send).
 - **Goal:** actually deliver email in production; keep `LoggingEmailSender` for dev.
 - **Why:** only `LoggingEmailSender` exists; no SES/AWS SDK in the build (review §10). The `EmailSender`
   port already abstracts the seam.
@@ -287,7 +295,12 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   (S14) prevents regressions.
 - **Size:** M. **Depends-on:** none.
 
-### S13. Normalize misplaced classes & stale comments  *(small structural tidy)*
+### S13. Normalize misplaced classes & stale comments  *(small structural tidy)*  — 🟡 PARTIAL
+- **Done:** `EmailSender` (+ `Message`/`Attachment`) moved to `common/email` (with `LoggingEmailSender`,
+  the new `SesEmailSender`, and an `EmailAddresses` mask helper); all consumers + tests updated (S7).
+  **Still open:** the shared email builders (`*EmailBuilder`) haven't moved yet (do with S9); the
+  `AnafDeclarationExtractor` home decision and the `RlsConnectionProvider` / "single company" stale-comment
+  sweep remain.
 - **Goal:** put shared ports/utilities in `common`; delete stale comments.
 - **Why:** the `EmailSender` port lives in `taxpayments/application` but is used by reports, payroll, and
   extraction (wrong home). `TenantContext` javadoc references a `RlsConnectionProvider` class that does

@@ -17,7 +17,7 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.payroll.adapter.persistence.PayrollEmailRepository;
 import ro.myfinance.payroll.domain.PayrollEmail;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.common.email.EmailSender;
 
 /**
  * MOD-08 Payroll. Manual upload of payroll files per company/month (reusing the document store as

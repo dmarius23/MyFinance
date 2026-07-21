@@ -48,6 +48,15 @@ public class EmailEnvelopeService {
         return new Envelope(currentUserName(), settings.senderEmail(), recipient);
     }
 
+    /**
+     * From/To for a <b>system-generated</b> email (e.g. the "new upload" notification to the accountant):
+     * the From name is the product, not a logged-in user, but the From address stays the firm's configured
+     * sender so every outbound email shares one identity/domain. The recipient is passed in (internal staff).
+     */
+    public Envelope system(String recipient) {
+        return new Envelope("MyFinance", settings.senderEmail(), recipient);
+    }
+
     /** The logged-in user's display name (falls back to their email, then null). */
     public String currentUserName() {
         return TenantContext.current().map(TenantContext.Identity::userId)

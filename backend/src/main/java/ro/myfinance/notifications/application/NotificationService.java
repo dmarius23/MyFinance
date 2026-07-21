@@ -16,8 +16,8 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.domain.Notification;
-import ro.myfinance.settings.application.SettingsService;
-import ro.myfinance.taxpayments.application.EmailSender;
+import ro.myfinance.access.application.EmailEnvelopeService;
+import ro.myfinance.common.email.EmailSender;
 
 /**
  * MOD-09 Notifications. Creates in-app notifications for firm staff and dispatches the matching email.
@@ -34,19 +34,19 @@ public class NotificationService {
     private final NotificationRepository notifications;
     private final CompanyRepository companies;
     private final AppUserRepository users;
-    private final SettingsService settings;
+    private final EmailEnvelopeService envelopes;
     private final EmailSender sender;
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
     private final PushNotificationService push;
 
     public NotificationService(NotificationRepository notifications, CompanyRepository companies,
-                               AppUserRepository users, SettingsService settings, EmailSender sender,
+                               AppUserRepository users, EmailEnvelopeService envelopes, EmailSender sender,
                                ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
                                PushNotificationService push) {
         this.notifications = notifications;
         this.companies = companies;
         this.users = users;
-        this.settings = settings;
+        this.envelopes = envelopes;
         this.sender = sender;
         this.repLinks = repLinks;
         this.push = push;
@@ -116,11 +116,12 @@ public class NotificationService {
                         companyId, companyName, documentId));
             }
 
-            // Email the accountant (the PWA-triggered notification email).
+            // Email the accountant (the PWA-triggered notification email) — same From identity as every
+            // other outbound email, resolved centrally.
             if (accountant != null && accountant.getEmail() != null) {
-                String from = settings.senderEmail();
-                sender.send(new EmailSender.Message("MyFinance", from, accountant.getEmail(),
-                        title + " — " + companyName, body, List.of()));
+                var env = envelopes.system(accountant.getEmail());
+                sender.send(EmailSender.Message.of(env.fromName(), env.fromEmail(), env.recipient(),
+                        title + " — " + companyName, body));
             }
         } catch (RuntimeException e) {
             log.warn("Failed to create upload notification for document {}", documentId, e);
