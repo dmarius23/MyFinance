@@ -31,7 +31,7 @@ function ClickPill({ label, kind, title, onClick }:
   { label: React.ReactNode; kind: "ok" | "danger" | "muted" | "warn"; title: string; onClick?: () => void }) {
   const cls = `pill round ${kind}`;
   return onClick
-    ? <button type="button" className={cls} title={title} onClick={onClick} style={{ cursor: "pointer", marginRight: 4, font: "inherit" }}>{label}</button>
+    ? <button type="button" className={cls} title={title} onClick={onClick} style={{ cursor: "pointer", marginRight: 4 }}>{label}</button>
     : <span className={cls} title={title} style={{ marginRight: 4 }}>{label}</span>;
 }
 
@@ -192,5 +192,5 @@ const gridRow: React.CSSProperties = {
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
+const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

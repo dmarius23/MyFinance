@@ -122,7 +122,7 @@ export function TaxPayments() {
                             {money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
                           </button>
                         : <button type="button" className="pill round danger" onClick={openDecl} title={t("taxes.uploadDeclaration")}
-                            style={{ cursor: "pointer", font: "inherit" }}>{t("taxes.missing")}</button>}
+                            style={{ cursor: "pointer" }}>{t("taxes.missing")}</button>}
                     </div>
                   );
                 })}
@@ -164,5 +164,5 @@ const gridRow: React.CSSProperties = {
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)", font: "inherit" };
+const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
 const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };
