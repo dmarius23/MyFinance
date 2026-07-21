@@ -6,14 +6,6 @@ import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
 import { PeriodProvider, usePeriod } from "../lib/period";
 
-const NAV = [
-  { to: "/dashboard", key: "nav.dashboard", icon: "dashboard" },
-  { to: "/statements", key: "nav.statements", icon: "statements" },
-  { to: "/taxes", key: "nav.taxes", icon: "taxes" },
-  { to: "/payroll", key: "nav.payroll", icon: "payroll" },
-  { to: "/reports", key: "nav.reports", icon: "reports" },
-  { to: "/tasks", key: "nav.tasks", icon: "tasks" },
-] as const;
 
 /** Routes where the topbar month stepper is meaningful. */
 const MONTH_ROUTES = ["/dashboard", "/statements", "/taxes", "/payroll", "/reports"];
@@ -86,16 +78,27 @@ export function FirmLayout() {
               </>
             ) : (
               <>
-                {NAV.map((item) => (
-                  <NavLink key={item.to} to={item.to}>
-                    <Icon name={item.icon} /> {t(item.key)}
-                  </NavLink>
-                ))}
-                <div className="nav-divider" />
+                {/* Section 1 — operational (all firm staff). */}
+                <NavLink to="/dashboard"><Icon name="dashboard" /> {t("nav.dashboard")}</NavLink>
                 <NavLink to="/companies"><Icon name="companies" /> {t("nav.companies")}</NavLink>
+                <NavLink to="/statements"><Icon name="statements" /> {t("nav.statements")}</NavLink>
+                <NavLink to="/taxes"><Icon name="taxes" /> {t("nav.taxes")}</NavLink>
+                <NavLink to="/payroll"><Icon name="payroll" /> {t("nav.payroll")}</NavLink>
+                <NavLink to="/reports"><Icon name="reports" /> {t("nav.reports")}</NavLink>
+
+                {/* Section 2 — collaboration. Team is admin-only. */}
+                <div className="nav-divider" />
+                <NavLink to="/tasks"><Icon name="tasks" /> {t("nav.tasks")}</NavLink>
                 {role === "TENANT_ADMIN" && <NavLink to="/team"><Icon name="companies" /> {t("nav.team")}</NavLink>}
-                {role === "TENANT_ADMIN" && <NavLink to="/data-sources"><Icon name="folder" /> {t("nav.dataSources")}</NavLink>}
-                {role === "TENANT_ADMIN" && <NavLink to="/settings"><Icon name="settings" /> {t("nav.settings")}</NavLink>}
+
+                {/* Section 3 — tenant administration (TENANT_ADMIN only). */}
+                {role === "TENANT_ADMIN" && (
+                  <>
+                    <div className="nav-divider" />
+                    <NavLink to="/data-sources"><Icon name="folder" /> {t("nav.dataSources")}</NavLink>
+                    <NavLink to="/settings"><Icon name="settings" /> {t("nav.settings")}</NavLink>
+                  </>
+                )}
               </>
             )}
           </nav>
