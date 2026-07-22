@@ -2,9 +2,14 @@ package ro.myfinance.taxpayments.application;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.LocalDate;
+import ro.myfinance.common.async.AsyncConfig;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
@@ -17,8 +22,10 @@ import ro.myfinance.taxpayments.domain.TaxDeclaration;
 
 /**
  * On every DECLARATION upload (or re-upload / reclassify), extract its ANAF XML and store/refresh the
- * tax_declaration summary. Idempotent: upserts by document id. Cross-type cleanup removes a stale row
- * if the document was previously a declaration and is now something else. Failures never break upload.
+ * tax_declaration summary. Runs after the upload commits and off the request thread ({@code AFTER_COMMIT}
+ * + {@code @Async}), in its own transaction. Idempotent: upserts by document id. Cross-type cleanup
+ * removes a stale row if the document was previously a declaration and is now something else. Failures
+ * never break upload.
  */
 @Component
 public class TaxDeclarationListener {
@@ -36,12 +43,16 @@ public class TaxDeclarationListener {
         this.companies = companies;
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentDeleted(DocumentDeletedEvent e) {
         declarations.deleteByDocumentId(e.documentId());
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
             // Always purge stale declaration row first — covers type changes, re-uploads, period moves.

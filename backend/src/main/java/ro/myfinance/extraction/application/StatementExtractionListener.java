@@ -2,8 +2,13 @@ package ro.myfinance.extraction.application;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import ro.myfinance.common.async.AsyncConfig;
 import ro.myfinance.extraction.adapter.persistence.BankStatementRepository;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.intake.application.DocumentDeletedEvent;
@@ -12,10 +17,11 @@ import ro.myfinance.intake.domain.DocumentType;
 
 /**
  * Extracts + matches when a document is uploaded (or re-uploaded / re-classified / its type changed).
- * Fires synchronously on the publish, within the caller's transaction (so the document is visible for
- * the bank_statement FK). First purges any prior extraction artifacts for the document, making the
- * operation idempotent and safe across type changes. Failures are caught and logged so a parse
- * problem never propagates out of the upload. (A future async worker/queue is the intended decoupling.)
+ * Runs <b>after the upload commits</b> and <b>off the request thread</b> ({@code AFTER_COMMIT} +
+ * {@code @Async}), each invocation in its own transaction — so the HTTP upload returns immediately and
+ * the sibling pipeline listeners no longer contend on the same row within one transaction. First purges
+ * any prior extraction artifacts for the document, making the operation idempotent and safe across type
+ * changes. Failures are caught and logged so a parse problem never surfaces to the user.
  */
 @Component
 public class StatementExtractionListener {
@@ -37,14 +43,18 @@ public class StatementExtractionListener {
         this.invoiceRepo = invoiceRepo;
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentDeleted(DocumentDeletedEvent e) {
         // Clean up all extraction artifacts for the deleted document.
         invoiceRepo.deleteByDocumentId(e.documentId());
         statementRepo.deleteByDocumentId(e.documentId());
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentUploaded(DocumentUploadedEvent e) {
         try {
             if (e.type() == DocumentType.BANK_STATEMENT) {

@@ -38,5 +38,8 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.flyway.locations", () -> "classpath:db/migration");
         // No Supabase creds in tests → LoggingUserInviter is active.
         registry.add("myfinance.supabase.service-role-key", () -> "");
+        // Run the post-upload document pipeline inline (still in its own post-commit transaction) so
+        // integration tests that assert extraction/reconciliation results stay deterministic.
+        registry.add("myfinance.async.inline", () -> "true");
     }
 }

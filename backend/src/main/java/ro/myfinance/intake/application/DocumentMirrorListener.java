@@ -4,8 +4,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import ro.myfinance.common.async.AsyncConfig;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
@@ -15,10 +20,10 @@ import ro.myfinance.intake.domain.DriveDocLayout;
 /**
  * Mirrors uploaded documents into the tenant's write-enabled Google Drive source connection (MOD-15), so
  * the firm keeps a browsable copy in its own Drive. Best-effort: any failure is logged and the document
- * stays fully usable from Supabase (the canonical store). Runs in the upload transaction (like the
- * extraction listeners); moving it to a post-commit worker job is a later optimisation. Cleans up the
- * mirror copy on delete. No-op when the tenant has no write-enabled Drive connection or the service
- * account is not configured.
+ * stays fully usable from Supabase (the canonical store). Runs after the upload commits and off the
+ * request thread ({@code AFTER_COMMIT} + {@code @Async}), in its own transaction — the network round-trip
+ * to Drive no longer blocks the HTTP response. Cleans up the mirror copy on delete. No-op when the tenant
+ * has no write-enabled Drive connection or the service account is not configured.
  */
 @Component
 public class DocumentMirrorListener {
@@ -40,7 +45,9 @@ public class DocumentMirrorListener {
         this.documents = documents;
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onUploaded(DocumentUploadedEvent e) {
         if (!driveWriter.isEnabled()) {
             return;
@@ -68,8 +75,10 @@ public class DocumentMirrorListener {
         }
     }
 
-    @EventListener
+    @Async(AsyncConfig.DOCUMENT_PIPELINE)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onDeleted(DocumentDeletedEvent e) {
+        // External Drive cleanup only — no DB write, so no transaction needed.
         if (e.driveFileId() == null || e.driveFileId().isBlank() || !driveWriter.isEnabled()) {
             return;
         }

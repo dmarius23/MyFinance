@@ -36,15 +36,16 @@ class DocumentServiceIT extends AbstractPostgresIT {
         return companies.create("Client SRL", "RO-DOC-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
     }
 
+    /** A valid 8-byte PNG signature — the magic-byte guard requires ≥8 bytes with the PNG header. */
     private static byte[] png() {
-        return new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 1, 2, 3};
+        return new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
     }
 
     @Test
     void uploadsClassifiesListsAndDownloads() {
         UUID companyId = asTenantWithCompany(TENANT_A);
 
-        Document doc = documents.upload(companyId, LocalDate.of(2026, 6, 15), "receipt.jpg", "image/jpeg", png());
+        Document doc = documents.upload(companyId, LocalDate.of(2026, 6, 15), "receipt.png", "image/png", png());
 
         assertThat(doc.getType().name()).isEqualTo("RECEIPT");
         assertThat(doc.getPeriodMonth()).isEqualTo(LocalDate.of(2026, 6, 1));
