@@ -107,10 +107,12 @@ class PlatformReferenceControllerIT extends AbstractPostgresIT {
                         .with(superAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"residence\":\"" + residence + "\",\"validFrom\":\"2099-01-01\","
-                                + "\"ibanTva\":\"RO00TEST0000000000000001\"}"))
+                                + "\"ibanTva\":\"RO00TEST0000000000000001\","
+                                + "\"ibanTvaExtern\":\"RO00TEST0000000000000002\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.residence").value(residence))
                 .andExpect(jsonPath("$.ibanTva").value("RO00TEST0000000000000001"))
+                .andExpect(jsonPath("$.ibanTvaExtern").value("RO00TEST0000000000000002"))
                 .andReturn().getResponse().getContentAsString();
 
         String id = created.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");

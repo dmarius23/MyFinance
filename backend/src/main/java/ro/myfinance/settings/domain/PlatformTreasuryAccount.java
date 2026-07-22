@@ -13,7 +13,10 @@ import org.hibernate.annotations.CreationTimestamp;
 
 /**
  * Treasury IBANs for one fiscal residence (city/town): a dedicated IBAN per tax category —
- * CAM, impozite (all income/profit/salary/dividend taxes), CASS, CAS, TVA. GLOBAL reference data
+ * CAM, impozite (all income/profit/salary/dividend taxes), CASS, CAS, TVA intern and TVA extern.
+ * The "cont unic" account (55.03) is shared by impozite/CASS/CAS, so those three hold the same IBAN;
+ * TVA splits into intern (20A100101 -> {@code ibanTva}) and extern (20A100102 -> {@code ibanTvaExtern}).
+ * GLOBAL reference data
  * (no {@code tenant_id}, no RLS — see V35) and effective-dated: the row with the greatest
  * {@code valid_from <= period} wins. Managed by SUPER_ADMIN; tenants read only. Used by MOD-07 to
  * resolve the IBAN when composing state-payment emails.
@@ -44,6 +47,9 @@ public class PlatformTreasuryAccount {
     @Column(name = "iban_tva")
     private String ibanTva;
 
+    @Column(name = "iban_tva_extern")
+    private String ibanTvaExtern;
+
     @Column(name = "valid_from", nullable = false)
     private LocalDate validFrom;
 
@@ -59,13 +65,14 @@ public class PlatformTreasuryAccount {
         this.validFrom = validFrom;
     }
 
-    /** Replace all five IBANs (blank -> null). */
-    public void setIbans(String cam, String impozite, String cass, String cas, String tva) {
+    /** Replace all IBANs (blank -> null). {@code tva} is the intern account, {@code tvaExtern} the extern one. */
+    public void setIbans(String cam, String impozite, String cass, String cas, String tva, String tvaExtern) {
         this.ibanCam = blankToNull(cam);
         this.ibanImpozite = blankToNull(impozite);
         this.ibanCass = blankToNull(cass);
         this.ibanCas = blankToNull(cas);
         this.ibanTva = blankToNull(tva);
+        this.ibanTvaExtern = blankToNull(tvaExtern);
     }
 
     private static String blankToNull(String s) {
@@ -79,6 +86,7 @@ public class PlatformTreasuryAccount {
     public String getIbanCass() { return ibanCass; }
     public String getIbanCas() { return ibanCas; }
     public String getIbanTva() { return ibanTva; }
+    public String getIbanTvaExtern() { return ibanTvaExtern; }
     public LocalDate getValidFrom() { return validFrom; }
     public Instant getCreatedAt() { return createdAt; }
 }

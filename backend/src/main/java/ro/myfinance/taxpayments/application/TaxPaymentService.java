@@ -220,6 +220,7 @@ public class TaxPaymentService {
         putIfPresent(map, TaxCategory.CASS, a.getIbanCass());
         putIfPresent(map, TaxCategory.CAM, a.getIbanCam());
         putIfPresent(map, TaxCategory.TVA, a.getIbanTva());
+        putIfPresent(map, TaxCategory.TVA_EXTERN, a.getIbanTvaExtern());
         return map;
     }
 

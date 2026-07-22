@@ -73,13 +73,13 @@ public class PlatformReferenceController {
     @ResponseStatus(HttpStatus.CREATED)
     public TreasuryResponse addTreasury(@Valid @RequestBody CreateTreasuryRequest r) {
         return TreasuryResponse.from(service.addTreasuryAccount(r.residence(), r.validFrom(), r.ibanCam(),
-                r.ibanImpozite(), r.ibanCass(), r.ibanCas(), r.ibanTva()));
+                r.ibanImpozite(), r.ibanCass(), r.ibanCas(), r.ibanTva(), r.ibanTvaExtern()));
     }
 
     @PutMapping("/treasury-accounts/{id}")
     public TreasuryResponse updateTreasury(@PathVariable UUID id, @Valid @RequestBody UpdateTreasuryRequest r) {
         return TreasuryResponse.from(service.updateTreasuryAccount(id, r.ibanCam(), r.ibanImpozite(),
-                r.ibanCass(), r.ibanCas(), r.ibanTva()));
+                r.ibanCass(), r.ibanCas(), r.ibanTva(), r.ibanTvaExtern()));
     }
 
     @DeleteMapping("/treasury-accounts/{id}")

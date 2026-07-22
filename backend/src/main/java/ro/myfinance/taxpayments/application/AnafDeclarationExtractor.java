@@ -124,6 +124,12 @@ public class AnafDeclarationExtractor {
         BigDecimal amount = signedAmount(r.getAttribute("R41_2"), r.getAttribute("R42_2"));
         List<TaxObligation> obligations = new ArrayList<>();
         if (amount.signum() != 0) {
+            // TVA intern vs extern classification hook.
+            // The whole D300 net VAT currently maps to TVA (intern -> iban_tva). ANAF also publishes a
+            // separate TVA-extern account (20A100102 -> iban_tva_extern) for imports / intra-community
+            // operations; once we confirm which D300 field carries that extern amount, split it out here
+            // into a second TaxObligation(TaxCategory.TVA_EXTERN, ...) — the payment calculator and email
+            // already render it as its own "TVA extern" line at the extern IBAN.
             obligations.add(new TaxObligation(TaxCategory.TVA, "TVA", amount, defaultDeadline(period)));
         }
         return new ParsedDeclaration(DeclarationType.D300, r.getAttribute("cui"), r.getAttribute("den"),

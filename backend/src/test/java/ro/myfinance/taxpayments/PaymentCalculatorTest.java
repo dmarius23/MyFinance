@@ -79,6 +79,31 @@ class PaymentCalculatorTest {
     }
 
     @Test
+    void tvaInternAndExternRenderAsSeparateLines() {
+        String tvaIntern = "RO00TREZ21620A100101XTVA";
+        String tvaExtern = "RO00TREZ21620A100102XTVA";
+        LocalDate due = LocalDate.of(2026, 4, 25);
+        ParsedDeclaration d300 = new ParsedDeclaration(DeclarationType.D300, "49443957", "INNOVATECODE IT SRL",
+                YearMonth.of(2026, 3),
+                List.of(
+                    new TaxObligation(TaxCategory.TVA, "TVA", new BigDecimal("500"), due),
+                    new TaxObligation(TaxCategory.TVA_EXTERN, "TVA", new BigDecimal("120"), due)),
+                null);
+        Map<TaxCategory, String> ibans = Map.of(TaxCategory.TVA, tvaIntern, TaxCategory.TVA_EXTERN, tvaExtern);
+
+        List<PaymentLine> lines = calc.compute(List.of(d300), ibans);
+        assertThat(lines).hasSize(2);
+
+        PaymentLine intern = lines.stream().filter(l -> l.iban().equals(tvaIntern)).findFirst().orElseThrow();
+        assertThat(intern.amount()).isEqualByComparingTo("500");
+        assertThat(intern.explanation()).isEqualTo("TVA Martie-2026");
+
+        PaymentLine extern = lines.stream().filter(l -> l.iban().equals(tvaExtern)).findFirst().orElseThrow();
+        assertThat(extern.amount()).isEqualByComparingTo("120");
+        assertThat(extern.explanation()).isEqualTo("TVA extern Martie-2026");
+    }
+
+    @Test
     void separateIbansAreNotMerged() {
         // If each category has its own IBAN, the social block splits into three lines + CAM.
         Map<TaxCategory, String> perTax = Map.of(

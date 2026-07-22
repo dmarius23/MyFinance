@@ -73,17 +73,19 @@ class PlatformReferenceSettingsIT extends AbstractPostgresIT {
         String residence = "Testburg-" + UUID.randomUUID();
 
         PlatformTreasuryAccount oldAcc = new PlatformTreasuryAccount(residence, LocalDate.of(2020, 1, 1));
-        oldAcc.setIbans(null, null, null, null, "RO00OLD0000000000000001");
+        oldAcc.setIbans(null, null, null, null, "RO00OLD0000000000000001", null);
         createdAccounts.add(treasuryRepo.save(oldAcc).getId());
 
         PlatformTreasuryAccount newAcc = new PlatformTreasuryAccount(residence, LocalDate.of(2026, 1, 1));
-        newAcc.setIbans(null, null, null, null, "RO00NEW0000000000000001");
+        newAcc.setIbans(null, null, null, null, "RO00NEW0000000000000001", "RO00NEWEXT000000000000001");
         createdAccounts.add(treasuryRepo.save(newAcc).getId());
 
         assertThat(treasury.accountFor(residence, LocalDate.of(2025, 6, 1)))
                 .get().extracting(PlatformTreasuryAccount::getIbanTva).isEqualTo("RO00OLD0000000000000001");
         assertThat(treasury.accountFor(residence, LocalDate.of(2026, 6, 1)))
                 .get().extracting(PlatformTreasuryAccount::getIbanTva).isEqualTo("RO00NEW0000000000000001");
+        assertThat(treasury.accountFor(residence, LocalDate.of(2026, 6, 1)))
+                .get().extracting(PlatformTreasuryAccount::getIbanTvaExtern).isEqualTo("RO00NEWEXT000000000000001");
         assertThat(treasury.accountFor(residence, LocalDate.of(2019, 1, 1))).isEmpty();
         assertThat(treasury.accountFor("no-such-residence", LocalDate.of(2026, 6, 1))).isEmpty();
     }
