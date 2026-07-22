@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!-- <meta name="viewport" content="width=device-width, initial-scale=0.1"> -->
+
+<!-- rel=dynamic-content indicates an element that is replaced with the contents produced by the specified href. 
+	 dyn-cs:* URIs are resolved using the WP DynamicContentSpotMappings resource environment provider. These values can
+	 also be set using theme metadata if a theme is specified in the URI (e.g. @tl:oid:theme_unique_name). -->
+<link rel="stylesheet" href="/anaf/contenthandler/!ut/p/digest!cd4pjwNgCKL9YPmgaOL2Aw/sp/mashup:ra:collection?soffset=0&amp;eoffset=6&amp;themeID=ZJ_H1H6H282JOM520QL2UG98O3050&amp;locale=ro&amp;mime-type=text%2Fcss&amp;entry=wp_one_ui_30__0.0%3Ahead_css&amp;entry=wp_one_ui_dijit_30__0.0%3Ahead_css&amp;entry=wp_theme_portal_80__0.0%3Ahead_css&amp;entry=wp_portlet_css__0.0%3Ahead_css&amp;entry=wp_preview__0.0%3Ahead_css&amp;entry=jQuery__0.0%3Ahead_css&amp;entry=wp_legacy_layouts__0.0%3Ahead_css&amp;entry=wp_project_menu__0.0%3Ahead_css&amp;entry=wp_status_bar__0.0%3Ahead_css" type="text/css"/><link rel="stylesheet" href="/anaf/contenthandler/!ut/p/digest!cd4pjwNgCKL9YPmgaOL2Aw/sp/mashup:ra:collection?soffset=6&amp;eoffset=16&amp;themeID=ZJ_H1H6H282JOM520QL2UG98O3050&amp;locale=ro&amp;mime-type=text%2Fcss&amp;entry=wp_one_ui_30__0.0%3Ahead_css&amp;entry=wp_one_ui_dijit_30__0.0%3Ahead_css&amp;entry=wp_theme_portal_80__0.0%3Ahead_css&amp;entry=wp_portlet_css__0.0%3Ahead_css&amp;entry=wp_preview__0.0%3Ahead_css&amp;entry=jQuery__0.0%3Ahead_css&amp;entry=wp_legacy_layouts__0.0%3Ahead_css&amp;entry=wp_project_menu__0.0%3Ahead_css&amp;entry=wp_status_bar__0.0%3Ahead_css" type="text/css"/><script type="text/javascript" src="/anaf/contenthandler/!ut/p/digest!gsJv5rHqPSfDh9bVlzpTAg/mashup/ra:collection?themeID=ZJ_H1H6H282JOM520QL2UG98O3050&amp;locale=ro&amp;mime-type=text%2Fplain&amp;entry=wp_client_main__0.0%3Ahead_js&amp;entry=wp_client_ext__0.0%3Ahead_js&amp;entry=wp_theme_portal_80__0.0%3Ahead_js&amp;entry=jQuery__0.0%3Ahead_js&amp;entry=wp_analytics_aggregator__0.0%3Ahead_js"></script><!--[if IE 7]>
+<script type="text/javascript">document.getElementsByTagName("html")[0].className+=" lotusui_ie lotusui_ie7";</script>
+<![endif]--> 
+<!--[if IE 8]>
+<script type="text/javascript">document.getElementsByTagName("html")[0].className+=" lotusui_ie8";</script>
+<![endif]-->
+<!--[if IE 9]>
+<script type="text/javascript">document.getElementsByTagName("html")[0].className+=" lotusui_ie9";</script>
+<![endif]-->
+<style id="layout-wstate-styles"></style><!-- rendering is delegated to the specified href for each locale -->
+<!-- Template Internet Test ro -->
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<style>
+@media print {
+	header[role=banner] {
+		display: none;
+	}
+	footer[role=contentinfo] {
+		display: none;
+	}
+	@page {
+		size: auto; /* auto is the current printer page size */
+		margin-left: 0mm;
+		/* this affects the margin in the printer settings */
+	}
+}
+</style>
+<script>
+		$(document)
+				.ready(
+						function() {
+							if (document.URL.toLowerCase().indexOf("myextranet") > 1 || document.URL.toLowerCase().indexOf("/anaf/extranet/aplicatii/spatiu_privat") > 1 || document.URL.toLowerCase().indexOf("/anaf/extranet/aplicatii/spatiu_privat") > 1 || document.URL.toLowerCase().indexOf("/anaf/extranet/aplicatii/schimb_masiv_date") > 1 ) {
+								$("#certificatauth01").hide();
+							} else {
+								$("#certificatexit02").hide();
+								
+								// Forexebug
+								if (document.URL.toLowerCase().indexOf("/anaf/extranet/aplicatii") >1) {
+									$("#certificatauth01").show();
+								}				
+								
+							}
+														
+							});
+						
+	</script>
+<script>
+$(document).ready(function(){
+//SPV-meniu
+if (document.URL.toLowerCase().indexOf("myinternet") > 1) {
+			$("a").removeClass("inactiveLink");
+			$( "div" ).remove(".slideshow-containeri");
+		}
+//Forexe		
+ if (document.URL.toLowerCase().indexOf("executiebugetara") > 1) {
+			
+		$( "a:contains('Rapoarte Intreprinderi Publice')" ).removeClass("inactiveLink");
+		
+} 
+if (document.URL.toLowerCase().indexOf("aplicatii") > 1) {
+			
+		$( "a:contains('Punct Unic de Acces')" ).addClass("inactiveLink");
+		$( "a:contains('Schimb masiv de date')" ).addClass("inactiveLink");
+} 
+
+// read speaker buttons
+	$("div.anfReadSpeaker a[href*='https://static'], div.anfReadSpeaker a[href*='https://static']").each(function(){
+		var link_a = $(this);
+		var link_href = link_a.attr('href');
+		var link_parent = link_a.parent();
+		var fileExtension = link_href.slice(link_href.lastIndexOf('.') + 1,link_href.length);
+		var link_html = $.trim(link_a.html());
+		link_a.html(link_html);
+		
+		if (fileExtension){
+			if (fileExtension.toLowerCase() === "pdf" || fileExtension.toLowerCase() === "ppt" || fileExtension.toLowerCase() === "doc") {
+				var html_btn = '<a rel="nofollow" href="https://docreader.readspeaker.com/docreader/?cid=bunuu&amp;lang=ro_ro&amp;url=';
+				html_btn += link_href + '" onclick="window.open(this.href, \'dcrwin\'); return false;" title="Cite&#351;te acest document cu aplica&#355;ia ReadSpeaker" class="anf_readspeaker_btn">';
+				html_btn += '<img src="https://static.anaf.ro/static/10/Anaf/primapagina/ReadSpeaker2.5/img/icon_16px.gif" alt="ReadSpeaker"></a><img class="anf_file_ico" src="https://static.anaf.ro/static/10/Anaf/primapagina/simbol_' + fileExtension.toLowerCase() + '.jpg">';
+				link_parent.prepend(html_btn);
+			}
+			
+			if (fileExtension.toLowerCase() === "html" || fileExtension.toLowerCase() === "htm" || fileExtension.toLowerCase() === "xhtm") {
+				link_parent.prepend('<a href="' + link_href + '" class="anf_readspeaker_btn" title="Cite&#351;te acest document cu aplica&#355;ia ReadSpeaker"><img src="https://static.anaf.ro/static/10/Anaf/primapagina/ReadSpeaker2.5/img/icon_16px.gif" alt="ReadSpeaker"></a><img class="anf_file_ico" src="https://static.anaf.ro/static/10/Anaf/primapagina/simbol_htm.jpg">');
+			}
+		}
+	});
+});
+
+
+function setCookie(cname, cvalue, exMin) {
+	    var d = new Date();
+	    d.setTime(d.getTime() + (exMin*60*1000));
+	    var expires = "expires="+ d.toUTCString();
+	    document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+	}
+	
+	function getCookieValue(cname) {
+	    var name = cname + "=";
+	    var decodedCookie = decodeURIComponent(document.cookie);
+	    var ca = decodedCookie.split(';');
+	    for(var i = 0; i <ca.length; i++) {
+	        var c = ca[i];
+	        while (c.charAt(0) == ' ') {
+	            c = c.substring(1);
+	        }
+	        if (c.indexOf(name) == 0) {
+	            return c.substring(name.length, c.length);
+	        }
+	    }
+	    return "";
+	}
+</script>
+</head>
+<body class="wpthemeSplitView lotusui30dojo tundra locale_ro">		
+	<div class="wpthemeFrame">		
+		<header role="banner">						
+			﻿	
+
+<style>
+	.bannerFlags{
+width:108px;
+
+}
+.headerButtons {
+    width: 155px;
+}
+.buttonsViolet{
+margin : 0px ;
+height : 39px;
+line-height : 10px;
+margin-left: 2px;
+vertical-align:middle;
+
+}
+*{margin : 1px;
+}
+</style>
+
+</head>
+
+<div class="wpthemeHeader">
+
+
+
+	<div class="wpthemeInner">
+		<div class="wpthemeLogo wpthemeLeft">
+			<table class="layoutColumn wpthemeHeader" cellpadding="0" cellspacing="0"
+                                                 role="presentation">
+          <tbody>
+              <tr>
+                 <td style="width:33%; height: 124px" valign="top">
+                     <a href="https://www.anaf.ro/anaf/internet/ANAF " style="float: left; clear: left; width: 353px;">
+                               <img alt="[ANAF]" src="https://static.anaf.ro/static/10/Anaf/primapagina/anaf_ro.png" style="width: 285px;">
+                       </a> 
+                                                      
+                                                      
+                                  
+                                                       
+  </td>
+       <td class="rightWrapHeader" valign="top">
+            <div class="buttonWrapHeader">
+<!--                     <img style="width: 150px; height: 25px; padding: 5px; cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/SPV1.jpg" onmouseover="location.href='#lightboxCustom'" title="SPV">   -->
+	               <!-- <img style="width: 150px; height: 35px; padding: 5px; cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/spv.png" onmouseover="location.href='#lightboxCustom'" title="SPV">  -->
+   
+	               <div class="bannerFlags">    
+	               <a href="/anaf/internet/ANAF/asistenta_contribuabili/plata_oblig_fiscale/coduri_iban/!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOI9DD3MPIwsjLwMPAINDAJNnTyDTN0DDNzdjYEKInErMLA0pky_gRlx-g1wAEcDQvrD9aPwKzHCrwDsRbwKQH4AK8DjyILc0NAIg0zPdEdFRQDbbJ-c/dl5/d5/L0lDUmlTUSEhL3dHa0FKRnNBLzRKVXBDQSEhL3Jv/">
+                   <img style="margin: 0 2px; cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/versiuni_ro.gif" title="RO">
+                    </a>
+                  <a href="/anaf/internet/ANAF/asistenta_contribuabili/plata_oblig_fiscale/coduri_iban/!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOI9DD3MPIwsjLwMPAINDAJNnTyDTN0DDNzdjYEKInErMLA0pky_gRlx-g1wAEcDQvrD9aPwKzHCrwDsRbwKQH4AK8DjyILc0NAIg0zPdEdFRQDbbJ-c/dl5/d5/L0lDUmlTUSEhL3dHa0FKRnNBLzRKVXBDQSEhL2Vu/">
+                    <img style="margin: 0 2px; cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/versiuni_uk.gif" title="EN">
+                  </a> 
+                  <img style="margin: 0 2px; cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/sitemap.gif" onclick="location.href='https://www.anaf.ro/anaf/internet/ANAF/info_anaf/harta_site'" title="Harta site">
+            </div>
+            
+             </div>  
+                 
+   
+            <div>
+			     <div class="lightboxCustom" id="lightboxCustom">
+					<div class="lightboxCustominner">
+						<a class="close" href="#_">
+						        <span style="color: #fff;  margin-left: 550; ">x</span></a>
+	               <center>
+					<a href="https://static.anaf.ro/static/10/SPV/info_spv.htm" style="color: #fff; text-decoration: none; " target="_blank">
+					      <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/info.png" width="30" height="30" title = "Informatii SPV">
+					</a>
+				 </center>
+	<form>
+	  <table style="width:100%">      
+		<tr>
+		 <td>
+		   <p>			
+			 <a href="https://pfinternet.anaf.ro" class="buttoniii" style="color: #fff; text-decoration: none;"  title="Autentificare utilizator"  target="_blank">
+			 <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/autentificare_utilizator.png" width="30" height="30" title = "Servicii web">&nbsp;Autentificare utilizator</a>
+			</p>
+			</td>
+			 <td>
+			  <p>	
+				<a href="https://www.anaf.ro/auth_status.html" class="buttoniii" style="color: #fff; text-decoration: none;"  title="Autentificare certificat"  target="_blank">
+				   <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/autentificare_certificat.png" width="30" height="30" title = "Servicii web">&nbsp;Autentificare certificat
+				</a>
+    
+	         </p>
+	        </td>
+	          </tr>				
+				<tr>
+				 <td> 
+				   <p>
+					  <a href="https://formulareSPV-PF.anaf.ro" class="buttonii" style=" background-color: red; color: #fff; text-decoration: none;"  title="Depunere declaratie unica si alte formulare SPV-PF"  target="_blank">
+					  <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/depunere_declaratie.png" width="30" height="30" title = "Servicii web">&nbsp;Depunere declaratie unica si alte formulare SPV-PF</a>
+                   </p>
+              </td>
+				<td>				
+				 <p>
+					  <a href="https://www.anaf.ro/anaf/internet/ANAF/servicii_online/inreg_inrol_pf_pj_spv" class="buttonii" style=" background-color: red; color: #fff; text-decoration: none;"  title="Inregistrare in Spatiul Privat Virtual"  target="_blank">
+					  <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/inregistrareinspv.png" width="30" height="30" title = "Servicii web">&nbsp;Inregistrare in Spatiul Privat Virtual</a>
+                 </p>
+                </td>
+                </tr>
+           </table>
+</form>
+		</div>
+			</div>
+				</div>
+<img style="width: 30px;height: 20px;padding: 8px;cursor: pointer;" src="https://static.anaf.ro/static/10/Anaf/primapagina/search_iconRez.png" onclick="location.href='https://www.anaf.ro/anaf/internet/ANAF/cautare'" title="Cautare">                                                                	                   
+<div style="margin-right: 1px;display: inline-table;">
+    <div style="display:flex;">
+        
+        <button id="cautare" class="buttonsViolet headerButtons" style = "display:table-cell; line-height:11px; font-size:10px; margin-bottom:1px" onclick="location.href='https://app.anaf.ro/ANAF/static/status.html'" title="Autentificare Ro e-Factura / Ro e-Transport RO e-TVA" >&nbsp;Autentificare<br/>
+Ro e-Factura / Ro e-Transport RO e-TVA</button>   	  
+        <button id="certificat" class="buttonsViolet headerButtons" style = "display:table-cell; line-height:11px; font-size:10px;" onclick="location.href='https://www.anaf.ro/auth_status.html'" title="Autentificare certificat">&nbsp;Autentificare certificat</button>
+    </div>
+    
+    <div style="display:flex;">
+        <div></div>
+        <button id="authUser" class="buttonsViolet headerButtons" style = "display:table-cell; line-height:11px; font-size:10px; margin-bottom:1px"" onclick="location.href='https://pfinternet.anaf.ro'" title="Autentificare utilizator">&nbsp;Autentificare utilizator  </button>
+        <button id="singleDeclaratii" style="display:table-cell; vertical-align: middle; line-height:11px; font-size:10px;" class="buttonsViolet headerButtons" onclick="location.href='https://formulareSPV-PF.anaf.ro'" title="Depunere declaratie unica si alte formulare SPV-PF">&nbsp;Depunere declaratie unica si alte formulare SPV-PF
+        </button>
+    </div>
+</div>
+ 
+   </td>
+     </tr>
+        </tbody>
+     </table>			
+		</div>
+		<div class="wpthemeRight">
+		</div>
+	</div>
+</div>	
+
+<link href="https://druidapcstatic.anaf.ro/v2/druid_webchat_v2.css" rel="stylesheet">
+<script type="text/javascript" src="https://druidapcstatic.anaf.ro/v2/druid_webchat_v2.js"></script>
+<script type="text/javascript">
+    DruidWebchat_v2.init({
+        botId: "b82da724-f058-4812-5147-08de183d1f1e",
+        baseUrl: "https://druidapi.anaf.ro",
+        queryParams: "",
+    });
+</script><div class="wpthemeContainerHeader">
+			
+<div class="wpthemeCrumbTrail wpthemeLeft">
+	
+					<a href="https://www.anaf.ro/anaf/internet/ANAF/acasa"><span lang="ro" dir="ltr">ANAF</span></a>
+					
+				
+				<span class="wpthemeCrumbTrailSeparator">&gt;</span>
+			
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0093"><span lang="ro" dir="ltr">Asistență Contribuabili</span></a>
+					
+				
+				<span class="wpthemeCrumbTrailSeparator">&gt;</span>
+			
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GG2"><span lang="ro" dir="ltr">Plata obligaţiilor fiscale</span></a>
+					
+				
+				<span class="wpthemeCrumbTrailSeparator">&gt;</span>
+						
+					<strong style="background-color: #38396B"><span lang="ro" dir="ltr">Codurile IBAN</span></strong>
+				
+</div>
+<!-- portal logout link new -->
+<div style="display:none">  
+        <a id="anf_logout_link" href="/anaf/internet/ANAF/asistenta_contribuabili/plata_oblig_fiscale/coduri_iban/!ut/p/a1/04_Sj9CPykssy0xPLMnMz0vMAfGjzOI9DD3MPIwsjLwMPAINDAJNnTyDTN0DDNzdjYEKInErMLA0pky_gRlx-g1wAEcDQvrD9aPwKzHCrwDsRbwKQH4AK8DjyILc0NAIg0zPdEdFRQDbbJ-c/dl5/d5/L3dDb1ZJQSEhL3dPb0JKTnNBLzRQeWhDQlVZV0JFIS8wLzEzNTUxL2xv/">Logout</a> 
+</div> 
+ 
+
+<ul class="nav-menu">
+	
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0041" class="inactiveLink">Despre ANAF</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00K0" class="inactiveLink">Conducere ANAF</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00K1">Demnitari ANAF</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00S4">Agenda conducerii ANAF</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0022" class="inactiveLink">Organizare</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0023">Regulamentul de organizare și funcționare al ANAF</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00I7">Organigrama</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J077D0QJOM1J3B3005">Unități subordonate</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00Q0" class="inactiveLink">Resurse umane</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00Q1">Concursuri</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J0US5060VO7KG81046">Propuneri subiecte concurs</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JGMK906C8060000006">Transfer</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG5D8065TIA9660082">Procedură probe suplimentare</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG0B206NLTK7522006">Etică și conduită profesională</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J81PF068FCPDO410G6">Comisia Paritară ANAF - aparat propriu</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JG8T806EP92G922006">Acord Colectiv</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J88C90639FN5QH2005">Contract colectiv</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0010" class="inactiveLink">Strategii ANAF</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0011">Programe și strategii</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J8FQC0QR1LEAK000G7" class="inactiveLink">Proiecte de digitalizare</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J8FQC0QR1LEAK00086">SAF-T</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J8FQC0QR1LEAK000O2">E-Factura</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J8FQC0QR1LEAK00020">OSS</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JGTE7060V3UAVT2002">RO e-Transport</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J8FQC0QR1LEAK00025">SIPOCA 739</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JO8F806IA2PJ0Q3006">CESOP</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOVME06HU8G7IF0006">SME-SS (Schema specială de TVA pentru întreprinderile mici)</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J843606FSOQFGH0006">iBON</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00H6">Rapoarte și studii</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JG8F506IG2SGKT3006">Declarație accesabilitate</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0093" class="inactiveLink">Asistență Contribuabili</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00P2" class="inactiveLink">Informații privind obligațiile fiscale</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00P3">Calendarul obligațiilor fiscale</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00D4" class="inactiveLink">Declararea obligaţiilor fiscale</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00D5">Toate formularele, cu explicații</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0073">Norme de venit</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00N7">Prețuri medii produse agricole</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00V0">Codurile CAEN</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0G04">Cursuri valutare</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GG2" class="inactiveLink">Plata obligaţiilor fiscale</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GG3">Codurile IBAN</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0G87">Nomenclatoarele obligațiilor</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0G40">Programe utile</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GK4" class="inactiveLink">Legislaţie</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0026">Buletin informativ fiscal</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GK5">Codul fiscal</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GC3">Codul de procedură fiscală</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0KR106JGRKFVD20G7">Hotărâri CJUE</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GI0">Circulare ANAF</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0GS7">Alte acte normative</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0006" class="inactiveLink">Acorduri internaționale</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0007">Convenții pentru evitarea dublei impuneri</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0080">Acorduri internaționale</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J00M80QNDSGSU93005">Colaborări internaționale</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00O4" class="inactiveLink">Servicii oferite contribuabililor</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0FGC0QDNN5F670006">Servicii electronice oferite contribuabililor</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00K0">Ghiduri curente și alte materiale informative</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00C4">Întrebări și răspunsuri pe Facebook</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00S2">Baza de date cu întrebări și răspunsuri - ANAFI</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00I1">Adrese sedii ANAF dotate cu calculatoare destinate Self - Service</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00A7">Seminare web</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0062">Acces date prin SMS</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00M6">Catalogul serviciilor oferite contribuabililor</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ2006" class="inactiveLink">Schimbul automat de informații în domeniul impozitelor directe</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0AVD06O21CLM610G0">Directiva 2011/16/UE privind cooperarea administrativă în domeniul fiscal (DAC1)</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0AVD06O21CLM61086" class="inactiveLink">Directiva 2014/107/UE privind schimbul automat obligatoriu de informații în domeniul fiscal (DAC2)/CRS/FATCA</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ2007">Ghiduri privind schimbul automat de informații</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ20O5">Întrebări frecvente</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J0JG206O6QJPFB1005">Listă jurisdicții</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ20K0">Alte link-uri utile</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JONN806MJCH0SM30O4">Directiva (UE)2016/881 a Consiliului din 25 mai 2016 de modificare a Directivei 2011/16/UE(DAC4)</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JG2J706OL6C2H720G2">Directiva 2018/822/UE privind obligația de raportare a aranjamentelor transfrontaliere (DAC6)</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JGJP006HV4Q68A0005">Directiva (UE) 2021/514 a Consiliului de modificare a Directivei 2011/16/UE privind cooperarea administrativã în domeniul fiscal (DAC7)</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J84K506J3CIRO41006" class="inactiveLink">DIRECTIVA 2023/2226/UE privind cooperarea administrativã în domeniul fiscal (DAC8/CARF)</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J84K506J3CIRO41083">Ghid crypto privind schimbul automat de informații</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J84K506J3CIRO410O7">Întrebări frecvente</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J00B2067GPU1D03040">Listă jurisdicții</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ20C6" class="inactiveLink">Contact</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ20C7">Contact pentru probleme de business</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JG7E0068N901LJ20S3">Formular contact pentru probleme tehnice</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J81AD06NFKR4QE3006" class="inactiveLink">Directiva (UE) 2025/872 DAC9 – Pilonul II</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J81AD06NFKR4QE3007">Informații utile</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J81AD06NFKR4QE30G3">Documentație</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J81AD06NFKR4QE3085">Schimbul de informații DAC 9 / Pilonul II</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J81AD06NFKR4QE30O1">Informații tehnice</a>
+																		</li>
+																		
+														</ul> 	
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S00U7">Carta contribuabilului</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00T3" class="inactiveLink">Servicii Online</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JGA900600RDDF90001">Inregistrare utilizatori</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8F0E0608J1OUL3006">Descărcare declaraţii electronice</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G01">Programări online</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GG5">Verificare documente electronice eliberate în Spaţiul Privat Virtual</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J03PA0QLM0O2MK3006" class="inactiveLink">Registre</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J03870Q7VDGFI51006">Registrul RO e-Factura</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GL1">Registrul persoanelor impozabile înregistrate în scopuri de TVA</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GT4">Registrul persoanelor impozabile care aplică TVA la încasare</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G56">Registrul persoanelor care aplică plata defalcată a TVA</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GP2">Registrul contribuabililor inactivi/reactivaţi</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GJ6">Registrul agricultorilor care aplică regimul special</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GN7">Registrul entităților/unităților de cult</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GR0">Lista persoanelor impozabile care au depus D089 pe propria răspundere - Energie electrică</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JO1950Q7D5JVPD10G3">Lista persoanelor impozabile care au depus D089 pe propria răspundere - Gaze naturale</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GO7">Servicii WEB - ANAF</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOPK0064CJS5LC1005">Lista contribuabililor fără obligații restante</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G94">Obligaţii restante către bugete</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GA3">Aparate de marcat electronice fiscale (case de marcat)</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GQ7">Rambursare TVA din UE</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G71">Stadiul de soluţionare al unui decont cu suma negativă de TVA</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0070">Notificări</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GM7">Aplicaţii în curs de dezvoltare pentru interesul contribuabililor</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GE7">PATRIMVEN - specificații tehnice</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8AO00QJU0A8IG00K0">One Stop Shop</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J01470666JKR1G0006">Formular 707</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0032" class="inactiveLink">Info publice</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S08C7" class="inactiveLink">Informaţii de interes public</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S08S6">Numele și prenumele persoanei responsabile pentru Legea 544/2001</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOH9D06M2EFM153006">Formular pentru solicitare informaţii de interes public</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S08I5">Modalități de contestare</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1006">Lista documente de interes public și lista cu documente produse/gestionate de instituție</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10G1">Rapoarte de aplicare a Legii 544/2001</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1085">Buletin informativ în baza Legii nr. 544/2001</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10O3" class="inactiveLink">Buget</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1042">Buget pe surse financiare</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10K6">Situația plăților</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10C1">Situația drepturilor salariale</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10S5">Bilanțuri contabile</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1023" class="inactiveLink">Declaraţii de avere şi interese</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10I2">Declaraţii de avere şi interese</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10A5">Ghidul de completare a declaraţiilor de avere şi interese</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G10" class="inactiveLink">Informaţii privind agenţii economici</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0G11">Listele contribuabililor mari şi mijlocii</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0GH5">Antrepozite fiscale autorizate</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10Q3">Formulare tip</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J8UH40QNT1SUKD2005">Protocoale ANAF</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10U1">Lista achiziţiilor publice de produse, servicii şi lucrări</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1015">Ordin nr. 830/10-X-2006 al preşedintelui ANAF</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JGVJ306GQVRD3V3005">Registrul Național de Publicitate Mobiliară</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10H3">RSS</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0886">Plan de măsuri pentru eficientizarea colectării veniturilor la Bugetul General Consolidat</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0R380Q5BFEB9S0804">Strategia Națională Anticorupție</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0T0806ILCJ5NP3006">Metodologia de calcul al duratei de completare a formularelor ANAF</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JG34206QB36PC810Q7">Situația bunurilor imobile eligibile conform OUG 91/2023</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00J2" class="inactiveLink">Info ANAF</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JO1J20QNKUEHPD2080">Consultare publică</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GF2">Protecția datelor cu caracter personal</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GU6">Registrul Unic al Transparenței Intereselor</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1880" class="inactiveLink">Relaţii internaţionale</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1881">Prezentare</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO18M7" class="inactiveLink">Banca Mondială</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO18E6">RAMP</a>
+																		</li>
+																		
+														</ul> 	
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G10" class="inactiveLink">Anunţuri</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G11">Valorificare bunuri din proprietatea privată a statului</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GH5">Valorificare prin licitaţie a bunurilor sechestrate</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G93">Valorificare prin vânzare directă a bunurilor sechestrate</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GL0">Anunţuri de achiziţie de bunuri şi servicii</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GD4">Anunţuri acte administrative fiscale</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GT2">Executări silite cu darea în plată</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J83TB0QL1RDCBP2007">Lista centralizată a bunurilor perisabile</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GB4">Anunțuri bunuri perisabile</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GR2">Valorificări bunuri perisabile</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G76">Anunţuri de interes general</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8QAE0QLSBEI1H0G34">Hartă site</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOL2806SNCL2C600G3">Campanii</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0AJD06A9B6GH03006" class="inactiveLink">Programe și Proiecte</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0AJD06A9B6GH03024" class="inactiveLink">P.N.R.R.</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0AJD06A9B6GH030I0">Descriere P.N.R.R.</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0AJD06A9B6GH03064">Jaloane/Ținte</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOTG206AL63RNM0006">Investiții ce sustin reforma A.N.A.F. prin digitalizare</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0AJD06A9B6GH030A2" class="inactiveLink">Proiecte finanțate FSE</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0J5206ADGQJJ60084">Îmbunătățirea sistemului de monitorizare a tranzacțiilor intracomunitare, cod SIPOCA 702</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282J0J5206ADGQJJ600O0">Consolidarea capacității A.N.A.F. de a susține inițiativele de modernizare, cod SIPOCA 604</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0J5206ADGQJJ60006">Proiecte finanțate din PSRS/TSI</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0J5206ADGQJJ600G2">Arhivă proiecte</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP0033" class="inactiveLink">Info UE</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10B6">Info Brexit</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10R1">Rambursări TVA din UE</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1075">VIES solicitare verificare cod TVA</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10N4">VIES verificarea codului TVA</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10F4" class="inactiveLink">EMCS</a>
+										<span class="spanSageata">&#62;</span>
+										
+										
+										<ul>
+											
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10F5">Prima pagină</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO10V3" class="inactiveLink">Descriere EMCS</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G02">Ce este EMCS?</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GG6">Baza legală a EMCS</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G81">Schema simplă de funcţionare</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GO5">Etapele de dezvoltare</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G43">Caiete de sarcini</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GK7" class="inactiveLink">Funcţionalitate</a>
+														<span class="spanSageata">&#62;</span>
+														
+														
+														<ul>
+															
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GC6">Ce reprezintă FESS?</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GS1">Descrierea funcţionării sistemului</a>
+																		</li>
+																	
+																		<li style="display: flex; justify-content: space-between;">
+																			<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G25">SEED</a>
+																		</li>
+																		
+														</ul> 	
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GI3">Prototip EMCS</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GA7">Glosar</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1G60">Noutăţi</a>
+														
+													</li>
+													<li style="display: flex; justify-content: space-between;">
+													
+													
+														<a href="?uri=nm:oid:Z6_H1H6H282JOOI70Q5RP8GKO1GM6">Contact EMCS</a>
+														
+													</li>		
+										</ul> 
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0IVA0QDMBLQCF30K4">ICS2 - Sistemul de control al importurilor</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J8EU00682FB70410G4" class="inactiveLink">Integritate Instituțională</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8EU00682FB70410G5">Cod etic/deontologic/de conduită</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8EU00682FB7041081">Declaraţia privind asumarea unei agende de integritate organizaţională</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOIED06DJL6JRH1082">Raportări privind încălcări ale legii</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8EU00682FB70410O6">Planul de integritate al instituţiei</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8EU00682FB7041042">Situaţia incidentelor de integritate şi măsurile adoptate</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JO3B906SCG8LU33080">Lista cuprinzând cadourile primite potrivit Legii nr.251/2004 și destinația acestora</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J0HK906ABH9GHQ1001">Raport anual de evaluare a măsurilor incluse în Planul de integritate al ANAF pe perioada 2022-2025</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J8KK806TOSC7G41006" class="inactiveLink">Sancțiuni Internaționale</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8KK806TOSC7G41007">Cadrul juridic național privind sancțiunile internaționale</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8KK806TOSC7G41082">Cadrul juridic internațional și Liste persoane și entități vizate de sancțiuni internaționale</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8KK806TOSC7G41043">Informații utile privind sanctiunile internationale / Formular tip / Procedura solicitării</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8KK806TOSC7G410O5">Ordine de blocare/deblocare</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li>
+			 <li>
+					<a href="?uri=nm:oid:Z6_H1H6H282J0HQ00Q5BIR5GP00J3" class="inactiveLink">Contact</a>
+					
+					
+					<ul>
+						
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J03PA0QLM0O2MK3082">Formular de contact</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JOBL70QB1UU6OO2006">Servicii de asistență</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JGV9406428MVCB0080">Direcția Generală Juridică</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8HC30Q57SL8NL1082">Relații publice / Mass media / Transparență decizională</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8HC30Q57SL8NL10S6">Contact unități fiscale</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8HC30Q57SL8NL1021">Contact Trezorerii</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8HC30Q57SL8NL1041">Afişare sediu unitate fiscală</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JO2DD0QJNKUNFO2064">Magazine proprii valorificare bunuri</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282J8HC30Q57SL8NL10O6">Programul de funcționare al instituției</a>
+					 				
+					 			</li> 
+								<li style="display: flex; justify-content: space-between;">
+								
+										<a href="?uri=nm:oid:Z6_H1H6H282JO05C06770GV8A2006">Program de audiențe</a>
+					 				
+					 			</li> 
+					</ul> 
+			</li> 
+</ul><div class="wpthemeMainContent" role="main">
+			<div class="wpthemeInner">
+			
+				
+<div class="wpthemeInner">
+	<div id="wpthemeStatusBarContainer" class="lotusui30">
+		
+		<noscript>
+			<div class="lotusMessage2" role="alert" wairole="alert">
+				<img class="lotusIcon lotusIconMsgError" src="icons/blank.gif" alt="Error" />
+				<span class="lotusAltText">Error:</span>
+				<div class="lotusMessageBody">Javascript este dezactivat în acest browser. Această pagină necesită Javascript. Modificaţi setările browser-ului dumneavoastră pentru a permite executarea Javascript-ului. Consultaţi documentaţia browser-ului dumneavoastră pentru instrucţiuni specifice.</div>
+			</div>
+		</noscript>
+	</div>
+</div><div class="wpthemeClear"></div>		
+		
+			<!-- required - do not remove -->
+			<div style="display:none" id="portletState">{}</div><div id="layoutContainers" class="wpthemeLayoutContainers wpthemeLayoutContainersHidden wpthemeLeft">		
+					
+
+
+
+
+
+
+<table class="layoutRow" cellpadding="0" cellspacing="0" role="presentation">
+	<tr>
+
+        
+            
+
+		<td valign="top" >
+            
+
+
+
+
+
+
+<table class="layoutColumn" cellpadding="0" cellspacing="0" role="presentation">
+	
+	<tr>
+		<td style="width:100%;" valign="top">
+			<div class='component-control id-Z7_H1H6H282J0HQ00Q5BIR5GP0G85' ><span id="Z7_H1H6H282J0HQ00Q5BIR5GP0G85"></span><section class="ibmPortalControl wpthemeControl wpthemeStandard a11yRegionTarget" role="region" >
+	
+	
+	<!-- start header markup -->
+	<header class="wpthemeControlHeader dojoDndHandle">
+		<div class="wpthemeInner">
+			<h2>
+				<!-- lm-dynamic-title node marks location for dynamic title support -->
+				<span class="lm-dynamic-title asa.portlet.title a11yRegionLabel"><span lang="ro" dir="ltr">Codurile IBAN</span></span>
+			</h2>
+			<!--  <a aria-haspopup="true" href="javascript:;" class="wpthemeIcon wpthemeActionDisabled wpthemeMenuFocus" tabindex="0"
+				onclick="javascript:if (typeof wptheme != 'undefined') wptheme.contextMenu.init(this, 'skinAction', {'navID':ibmCfg.portalConfig.currentPageOID,'windowID':wptheme.getWindowIDFromSkin(this)});"
+				onmousemove="javascript:if (typeof i$ != 'undefined' && typeof wptheme != 'undefined') { i$.removeClass(this,'wpthemeActionDisabled'); this.onmousemove = null; }">
+				<span title="Display menu"><img aria-label="Display menu" alt="" src="/wps/themeModules/themes/html/dynamicSpots/icons/blank.gif"></span>
+				<span class="wpthemeAltText">Actions</span>
+				<span class="wpthemeMenuRight">
+					<div class="wpthemeMenuBorder">
+						<div class="wpthemeMenuNotchBorder"></div>
+						
+						<ul class="wpthemeMenuDropDown wpthemeTemplateMenu" role="menu">
+							<li class="${css-class}" role="menuitem" tabindex="-1"><span class="wpthemeMenuText">${title}</span></li>
+						</ul>
+					</div>
+					
+					<div class="wpthemeMenuLoading wpthemeTemplateLoading">Loading...</div>
+					
+					<div class="wpthemeAnchorSubmenu wpthemeTemplateSubmenu">
+						<div class="wpthemeMenuBorder wpthemeMenuSubmenu">
+							<ul id="${submenu-id}" class="wpthemeMenuDropDown" role="menu"><li role="menuitem" tabindex="-1"></li></ul>
+						</div>
+					</div>
+				</span>
+			</a>-->
+		</div>
+	</header>
+	
+	<div class="wpthemeControlBody wpthemeOverflowAuto wpthemeClear"> <!-- lm:control dynamic spot injects markup of layout control -->
+	<!-- asa.overlay marks the node that the AsaOverlayWidget will be placed in -->
+		<div style="position:relative">
+			<div class="analytics.overlay"></div>
+		</div>
+		<span class='inapoi_btn' onclick='window.history.back();'><img style='float:right; margin-top:9px; margin-right: 6px; cursor: pointer; width: 60px; height: 19px;' src='/anaf/PA_StaticHTMLRender/img/inapoi_btn.png'></img></span><script>$('.inapoi_btn').each(function(index, element) {$(element).parent().parent().children('header').children('div').children('a').css('visibility', 'hidden');});</script><br><html><head><title>Codurile IBAN</title><link rel="stylesheet" href="https://static.anaf.ro/static/10/Anaf/primapagina/aces/styley.css" type="text/css"><script src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/jav.js"></script><script src="https://static.anaf.ro/static/10/Anaf/primapagina/ReadSpeaker2.5/ReadSpeaker.js?pids=embhl" type="text/javascript"></script><style> .autotd {    padding-top: 05px;    padding-right: 07px;    padding-bottom: 05px;    padding-left: 07px;}</style></head><body><div id="readspeaker_button01" class="rs_skip rsbtn rs_preserve">		<a rel="nofollow" class="rsbtn_play" accesskey="L" title="Ascult&#259;" href="https://app.readspeaker.com/cgi-bin/rsent?customerid=7127&amp;lang=ro_ro&amp;readid=anf_read_speaker01&amp;url=https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/Iban2014.htm">			<span class="rsbtn_left rsimg rspart"><span class="rsbtn_text"><span>Ascult&#259;</span></span></span>			<span class="rsbtn_right rsimg rsplay rspart"></span>		</a>	</div>	<div class="anfReadSpeaker">		<div id="anf_read_speaker01">      <div id="poz" >			<span display: inline-block onclick="openNav()"  ><img src="https://static.anaf.ro/static/10/Anaf/imagini/index.png" width="50" height="50" />			</span>			</div>		<div id = "content"><div>	<table  border="1" align="center"	cellpadding="5" cellspacing="0" >		<tr>			<td class="autotd" class="autotd"  colspan="5" >			<p align="center"><b>Codurile IBAN aferente conturilor de cheltuieli care se utilizeaz&#259; de 			institu&#355;ii publice</b>			</td>		</tr>		<tr>			<td class="autotd"  align="center" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/bugetstat.htm" target="_blank">			<span style="text-decoration: none">Buget 			</span></a>&nbsp;de stat</td>			<td class="autotd" align="center" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/bugetlocal.htm" target="_blank">			<span style="text-decoration: none">Buget 			</span> 			</a>&nbsp;local </td>			<td class="autotd" align="center" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/bass.htm" target="_blank">			<span style="text-decoration: none">Buget 			</span> 			</a>&nbsp;asigur&#259;ri sociale de stat</td>			<td class="autotd"  align="center" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/fnuass.htm" target="_blank">			<span style="text-decoration: none">Buget 			</span> 			</a>&nbsp;Fond Na&#355;ional Unic de asigur&#259;ri sociale de s&#259;n&#259;tate</td>			<td class="autotd"  align="center" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/somaj.htm" target="_blank">			<span style="text-decoration: none">Buget 			</span> 			</a>&nbsp;Fond somaj</td>		</tr>		<tr>			<td class="autotd"  align="center" colspan="3" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/IBAN_cheltuieli_trez.pdf" target="_blank">			<span style="text-decoration: none">Buget trezorerie</span>			</a></td></td>			<td class="autotd"  align="center" colspan="2" >			<a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/IBAN_cheltuieli_mediu.pdf" target="_blank">			<span style="text-decoration: none">Fond Mediu</span>			</a> </td></td>		</tr>	</table>&nbsp;<p> <a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_cheltuieli_ss.pdf" target="_blank">	<span style="text-decoration: none">Coduri 	IBAN</span></a>&nbsp;SECTOARE SPECIALE	</div><br><div><table width="100%" height="96%" border="1" align="center"	cellpadding="0" cellspacing="0" ><tr>		<td class="autotd"  colspan="4">		<p align="center"><b>		Codurile IBAN aferente conturilor de 		venituri care se utilizeaz&#259; de c&#259;tre persoane fizice &#351;i juridice</b></p></td>	</tr>	<tr>		<td class="autotd" width="80">Cod</td>		<td class="autotd" width="200">Denumire</td>		<td class="autotd" width="80">Cod</td>		<td class="autotd" width="200">Denumire</td>	</tr>	<tr>		<td class="autotd" >TREZ001		</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Alba.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Alba</td>		<td class="autotd" >TREZ020</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Arad.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Arad</td>	</tr>	<tr>		<td class="autotd" >TREZ045</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Arges.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Arge&#351;</td>		<td class="autotd" >TREZ060</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Bacau.htm" 	target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Bac&#259;u</td>	</tr>	<tr>		<td class="autotd" >TREZ075</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Bihor.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Bihor</td>		<td class="autotd" >TREZ100</td>		<td class="autotd" ><a	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Bistrita_nasaud.htm"target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Bistri&#355;a-N&#259;s&#259;ud</td>	</tr>	<tr>		<td class="autotd" >TREZ115</td>		<td class="autotd" ><a	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Botosani.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Boto&#351;ani</td>		<td class="autotd" >TREZ150</td>		<td class="autotd" ><a	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Braila.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Br&#259;ila</td>	</tr>	<tr>		<td class="autotd" >TREZ130</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Brasov.htm" 			target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Bra&#351;ov</td> 		<td class="autotd" >TREZ700</td> 		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ700.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Municipiul Bucure&#351;ti</td>	</tr>	<tr>		<td class="autotd">TREZ701 </td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ701.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 1</td>		<td class="autotd">TREZ702 </td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ702.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 2</td>	</tr>	<tr>		<td class="autotd">TREZ703 </td>		<td class="autotd"><a 	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ703.pdf"target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 3</td>		<td class="autotd">TREZ704 </td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ704.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 4</td>	</tr>	<tr>		<td class="autotd">TREZ705 </td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ705.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 5</td>		<td class="autotd">TREZ706</td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/iban_TREZ000_TREZ706.pdf" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> operativ&#259; Sector 6</td>	</tr>	<tr>		<td class="autotd" >TREZ165</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Buzau.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Buz&#259;u</td>		<td class="autotd" >TREZ200</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Calarasi.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; C&#259;l&#259;ra&#351;i</td>	</tr>	<tr>		<td class="autotd" style="height: 31px" >TREZ180</td>		<td class="autotd" style="height: 31px" ><a 	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Caras_Severin.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Cara&#351;-Severin</td>		<td class="autotd" style="height: 31px" >TREZ215 </td>		<td class="autotd" style="height: 31px" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Cluj.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Cluj</td>	</tr>	<tr>		<td class="autotd" >TREZ230</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Constanta.htm"	target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Constan&#355;a</td>		<td class="autotd" >TREZ255</td>		<td class="autotd" ><a			href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Covasna.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Covasna</td>	</tr>	<tr>		<td class="autotd" >TREZ270</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Dambovita.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; D&#226;mbovi&#355;a</td>		<td class="autotd" >TREZ290</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Dolj.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Dolj</td>	</tr>	<tr>		<td class="autotd" >TREZ305</td>		<td class="autotd" ><a 	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Galati.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Gala&#355;i</td>		<td class="autotd" >TREZ320</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Giurgiu.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Giurgiu</td> 	</tr>	<tr>		<td class="autotd" >TREZ335</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Gorj.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Gorj</td> 		<td class="autotd" >TREZ350</td>		<td class="autotd" ><a	href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Harghita.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Harghita</td>	</tr>	<tr>		<td class="autotd">TREZ365</td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Hunedoara.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Hunedoara</td>		<td class="autotd">TREZ390</td>		<td class="autotd"><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Ialomita.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Ialomi&#355;a</td>	</tr>	<tr>		<td class="autotd" >TREZ405</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Iasi.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Ia&#351;i</td>		<td class="autotd" >TREZ420</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Ilfov.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Ilfov</td>	</tr>	<tr>		<td class="autotd" >TREZ435</td>		<td class="autotd" ><a			href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Maramures.htm"	target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Maramure&#351;</td>		<td class="autotd" >TREZ460</td>		<td class="autotd" ><a			href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Mehedinti.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Mehedin&#355;i</td>	</tr>	<tr>		<td class="autotd" >TREZ475</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Mures.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Mure&#351;</td>		<td class="autotd" >TREZ490</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Neamt.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Neam&#355;</td>	</tr>	<tr>		<td class="autotd" >TREZ505</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Olt.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Olt</td>		<td class="autotd" >TREZ520 </td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Prahova.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Prahova</td>	</tr>	<tr>		<td class="autotd" >TREZ560</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Salaj.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; S&#259;laj</td>		<td class="autotd" >TREZ545</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Satu_Mare.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Satu Mare</td>	</tr>	<tr>		<td class="autotd" >TREZ575</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Sibiu.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Sibiu</td>				<td class="autotd" >TREZ590</td>				<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Suceava.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Suceava</td>	</tr>	<tr>		<td class="autotd" >TREZ605</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Teleorman.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Teleorman</td>		<td class="autotd" >TREZ620</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Timis.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Timi&#351;</td>	</tr>	<tr>		<td class="autotd" >TREZ640</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Tulcea.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Tulcea</td>		<td class="autotd" >TREZ670</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Valcea.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; V&#226;lcea</td>	</tr>	<tr>		<td class="autotd" > TREZ655</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Vaslui.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Vaslui</td>		<td class="autotd" >TREZ690</td>		<td class="autotd" ><a href="https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/Vrancea.htm" target="_blank">		<span style="text-decoration: none">Trezoreria</span></a> jude&#355;ean&#259; Vrancea</td>	</tr></table><br></div></div>	</div></div><div id="mySidenav" class="sidenav"><div id = "formx"><a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a></div><div id = "form"><label  id="change_brightness_label">Luminozitate: </label><input type="image" name="button" id="decrease_brightness" src ="https://static.anaf.ro/static/10/Anaf/primapagina/aces/minh.png"  class="xbutton133" value="-"><input type="image" id="increase_brightness" src = "https://static.anaf.ro/static/10/Anaf/primapagina/aces/pls.png" class="xbutton13" value="+"><script src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/javv.js"></script></div><div id = "form1"><label >Font: </label><input type = "image" src ="https://static.anaf.ro/static/10/Anaf/primapagina/aces/minh.png"  value = "-" id = "clicked(-1)" class="xbutton133" onclick="clicked(-1)"  /> <span id="test" class="xbutton1">--</span><input type = "image"src = "https://static.anaf.ro/static/10/Anaf/primapagina/aces/pls.png" value = "+" id = "clicked(+1)" class="xbutton13" onclick="clicked(1)" />	<script src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/javi.js"></script></div><div id = "form3"><label  id="change_brightnessl">Contrast: </label><input type="image" src="https://static.anaf.ro/static/10/Anaf/imagini/cr2.png" class="xbutton13" id="normal" onclick="myFunctioiiiin()"> <input type="image" src="https://static.anaf.ro/static/10/Anaf/imagini/cr3.png" class="xbutton13" id="decrease_brightnesss"  onclick="myFunctionttt()"><script src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/sfarsi2.js"></script></div>	</body>	</html><div class="wpthemeClear"></div>
+	</div>
+</section> 
+</div>
+		</td>
+	</tr>
+	 
+</table>
+		</td>
+
+        
+        
+	</tr>
+</table><div class="wpthemeClear"></div>
+				</div>
+				
+				<div class="wpthemeClear"></div>
+			</div>
+			
+		</div><!--end main content-->
+		
+
+<!-- C_v1 -->
+
+<footer class="wpthemeFooter" role="contentinfo">
+        <div class="wpthemeInner">        
+                	<style>
+
+        /* Slideshow container */
+        .slideshow-containeri {
+          margin: auto;
+          bottom: 10px;
+          text-align: center;
+          height: 40px;
+        }
+        
+        /* Next & previous buttons */
+        .previ, .nexti {
+          cursor: pointer;
+          top: 50%;
+          width: auto;
+          color: white;
+          font-weight: bold;
+          font-size: 18px;
+          transition: 0.6s ease;
+          border-radius: 0 3px 3px 0;
+          user-select: none;
+        }
+        
+        /* Position the "next button" to the right */
+        .nexti {
+          right: 0;
+          border-radius: 3px 0 0 3px;
+        }
+        
+        /* On hover, add a black background color with a little bit see-through */
+        .previ:hover, .nexti:hover {
+          background-color: rgba(0,0,0,0.8);
+        }
+        
+
+        
+        /* The dots/bullets/indicators */
+        .doti {
+          float: center;
+        height: 10px;
+        width: 10px;
+		    border-radius: 50%;
+        background-color: #bbb;
+        display: inline-block;
+        transition: background-color 0.6s ease;
+        }
+        
+        .active, .doti:hover {
+          background-color: #717171;
+        }
+        
+        /* Fading animation */
+        .fadei {
+          -webkit-animation-name: fade;
+          -webkit-animation-duration: 1.5s;
+          animation-name: fade;
+          animation-duration: 1.5s;
+        }
+        
+
+        @keyframes fadei {
+          from {opacity: .4} 
+          to {opacity: 1}
+        }
+        
+        
+        </style>
+
+
+
+
+<div class="slideshow-containeri">
+    <div style="text-align:center">
+        <span class="doti" onclick="currentSlide(1)"></span> 
+        <span class="doti" onclick="currentSlide(2)"></span> 
+        
+      </div>
+    <div class="mySlides fadei">
+                      
+		<a target="_blank" href="https://www.anaf.ro/anaf/internet/ANAF/info_ue/rambursari_tva_ue" title="Rabursări TVA din UE">
+			<img src="https://static.anaf.ro/static/10/Anaf/primapagina/rambursari.jpg" alt="Rabursări TVA din UE">
+		</a>
+	   
+	 <a target="_blank" href="https://chat.anaf.ro/cod_tva.nsf/solicitare_tva" title="VIES - Solicitare verificare cod TVA">
+		<img src="https://static.anaf.ro/static/10/Anaf/primapagina/vies3.jpg" alt="VIES Solicitare verificare cod TVA">
+	</a>
+	 <a target="_blank" href="https://ec.europa.eu/taxation_customs/vies/#/vat-validation?locale=ro" title="VIES - Verificarea codului TVA">
+		<img alt="Verificarea codului TVA" src="https://static.anaf.ro/static/10/Anaf/primapagina/vies.jpg">
+	</a>
+	 <a target="_blank" href="https://www.anaf.ro/auth_status.html" title="One Stop Shop">
+		<img alt="OSS" src="https://static.anaf.ro/static/10/Anaf/primapagina/OSS.jpg">
+	</a>
+	 <a target="_blank" href="https://ec.europa.eu/taxation_customs/dds2/seed/seed_consultation.jsp?Excnr=&ContextPath=&offset=1&Screen=0&Expand=false&Lang=ro" title="Verificarea autorizaţiei pentru accize">
+		<img alt="Verificarea autorizatiei pentru accize" src="https://static.anaf.ro/static/10/Anaf/primapagina/seed.jpg">
+	</a>
+	<!--  <img style="width: 149px;height: 35px;padding: 2px;cursor: pointer; margin-right: -1px;" src="https://static.anaf.ro/static/10/Anaf/primapagina/brexit.jpg" onclick="location.href='https://www.anaf.ro/anaf/internet/ANAF/info_ue/notif_brexit/'" title="Brexit"> -->	 
+	 
+	<!--  <a target="_blank" href="https://extranet.anaf.mfinante.gov.ro/anaf/extranet/EXECUTIEBUGETARA/" title="Transparenta bugetara">
+		<img src="https://static.anaf.ro/static/10/Anaf/primapagina/for.jpg" alt="Transparenta bugetara">
+	</a> 
+	-->	
+	<a target="_blank" href="https://www.mfinante.gov.ro" title="Ministerul Finanţelor Publice">
+		<img src="https://static.anaf.ro/static/10/Anaf/primapagina/mfp.jpg" alt="MFP">
+	</a>	
+
+	<a target="_blank"  href="https://www.customs.ro" title="Directia Generala a Vamilor">
+		<img src="https://static.anaf.ro/static/10/Anaf/primapagina/Directia Generala a Vamilor RO.png" alt="Directia Generala a Vamilor">
+	</a>	
+
+
+
+    </div>
+    
+    <div class="mySlides fadei">    
+    	 
+
+		<a target="_blank" href="https://www.anaf.ro/anaf/internet/ANAF/info_ue/emcs/prima_pagina" title="Info EMCS">
+		<img src="https://static.anaf.ro/static/10/Anaf/primapagina/EMCS.jpg" alt="EMCS">
+	</a>
+		<!-- <a target="_blank" href="https://www.emabucharest.ro" title="EMA Bucuresti">
+			<img alt="EMABucuresti" src="https://static.anaf.ro/static/10/Anaf/primapagina/emabucharest.png"height="35" width="70">
+		</a> -->
+		 <a target="_blank" href="https://ec.europa.eu/solvit/index_ro.htm" title="Website SOLVIT">
+			<img alt="WebsiteSolvit" src="https://static.anaf.ro/static/10/Anaf/primapagina/solvit.png" height="35" width="70">
+		</a>
+		 <a target="_blank" href="https://europa.eu/taxedu/home_ro" title="Website TAXEDU">
+			<img alt="WebsiteTAXEDU" src="https://static.anaf.ro/static/10/Anaf/primapagina/taxedu.png" height="35" width="40">
+		</a>
+		<!--  <a target="_blank" href="https://respectreciproc.ro/" title="Respect Reciproc">
+			<img src="https://static.anaf.ro/static/10/Anaf/primapagina/respectreciproc_1280_400px.gif" alt="Respect Reciproc" height="35" width="150">
+		</a> -->
+	
+		<span title="Taxele şi impozitele se pot plăti şi online pe www.ghiseul.ro">
+			<a href="https://www.ghiseul.ro" target="_blank">
+				<img src="https://static.anaf.ro/static/10/Anaf/primapagina/logo_ghiseul_orizontal.png" style="width: 115px; height: 35px; margin: 0 30px;">
+			</a>
+		<span title="Fii pregatit">
+			<a href="https://www.fiipregatit.ro" target="_blank">
+				<img src="https://static.anaf.ro/static/10/Anaf/primapagina/Fipregatit.png" style="width: 148px; height: 35px; margin: 0 30px;">
+			</a>
+		<span title="Concurs_national">
+			<!-- <a href="https://www.anfp.gov.ro/continut/Concurs_national__Proiect_pilot" target="_blank">
+				<img src="https://static.anaf.ro/static/10/Anaf/primapagina/concurs_proiect.png" style="width: 120px; height: 50px; margin: 0 30px;">
+			</a> -->
+      <a href="https://concurs-national.anfp.gov.ro" target="_blank">
+				<img src="https://static.anaf.ro/static/10/Anaf/primapagina/concurs-national_logo.jpg" style="width: 120px; height: 45px; margin: 0 30px;">
+			</a> 
+      
+       
+    </div>
+    
+
+    
+    
+    </div>
+    <br>
+    
+
+    <script>
+    var slideIndexi = 1;
+      showSlidesi(slideIndexi);
+    
+      function plusSlides(n) {
+        showSlidesi(slideIndexi += n);
+      }
+      function currentSlide(n) {
+        showSlidesi(slideIndexi = n);
+      }
+      function showSlidesi(n) {
+        var i;
+        var slides = document.getElementsByClassName("mySlides");
+        var dotsi = document.getElementsByClassName("doti");
+        if (n > slides.length) {slideIndexi = 1}
+        if (n < 1) {slideIndexi = slides.length}
+        for (i = 0; i < slides.length; i++) {
+           slides[i].style.display = "none";
+        }
+        for (i = 0; i < dotsi.length; i++) {
+            dotsi[i].className = dotsi[i].className.replace(" active", "");
+        }
+        if (slideIndexi> slides.length) {slideIndexi = 1}
+        slides[slideIndexi-1].style.display = "block";
+        dotsi[slideIndexi-1].className += " active";
+     }
+     setInterval(plusSlides, 4000, 1); // call plusSlider, with 1 as parameter
+    
+    
+       
+    
+    
+    </script>
+                <div style="/* position: absolute; */background: white;/* margin-left: 2px; */">
+
+<!--	<table style="width: 100%;" class="auto-style1"> -->
+	<table style="margin-left:auto;margin-right:auto;">	
+	<tbody><tr>
+<!--
+			<td style="text-align: center; color: #38396b;"> <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/mfp.png" alt="Ministerul Finantelor Publice" style="width: 52px; height: 47px; margin-left: 65px;"/><span style="color: #FFFFFF;"><strong style="font-size:9px;"></strong>
+-->
+		        <td style="width: 35px"> <img src="https://static.anaf.ro/static/10/Anaf/primapagina/aces/anaft.png" alt="Ministerul Finantelor Publice" style="width: 122px; height: 59;"/>
+			</span></td>
+			<td>
+			<span style="color: #38396b; font-size: 14;">© Agenția Națională de Administrare Fiscală - CNIF - </span>
+				<span style="color: #38396b; font-size: 14;">Conținutul acestui portal este proprietatea Agenției Naționale de Administrare
+                        Fiscală
+                        
+</span>
+</td>
+		</tr>
+	</tbody></table>
+
+</br>
+
+</div>
+				
+				
+                <div class="wpthemeClear"></div>
+            </div>
+                <div class="wpthemeClear"></div>
+        </div>
+</footer><!-- end frame -->
+		
+    <!-- This is responsible for bootstrapping the configuration for the javascript framework. 
+        This is located here instead of the head section to improve client performance. -->
+	<div class="wpthemeComplementaryContent" id="wpthemeComplementaryContent" role="region" aria-labelledby="wpthemeComplementaryContentText">
+		<span class="wpthemeAltText" id="wpthemeComplementaryContentText" >Complementary Content</span>		
+		<script type="text/javascript" src="/anaf/contenthandler/!ut/p/digest!S4O7jBRUI3ELbASvkPDL0w/mashup/ra:collection?themeID=ZJ_H1H6H282JOM520QL2UG98O3050&amp;locale=ro&amp;mime-type=text%2Fplain&amp;entry=wp_portal__0.0%3Aconfig_config_static"></script><script type="text/javascript">i$.merge({"ibmCfg":{"themeConfig":{"themeUniqueName":"ibm.portal.ANAF2020.ro","themeRootURI":"/anaf/contenthandler/!ut/p/digest!XMYO3DlFPsrU1jxNk3jqyg/war/StaticAnaf2020/themes/ANAF.ro","themeWebAppBaseURI":"/DynamicAnaf2020/themes/html/dynamicSpots","themeWebDAVBaseURI":"war:StaticAnaf2020/themes/ANAF.ro/","modulesWebAppBaseURI":"/anaf/themeModules","commonResourcesRootURI":"/anaf/contenthandler/!ut/p/digest!cd4pjwNgCKL9YPmgaOL2Aw/dav/fs-type1/common-resources","isRTL":false,"isPageRenderModeCSA":false,"portletOverridePageTitle":"Codurile IBAN","currentContentNodeOID":"Z6_H1H6H282J0HQ00Q5BIR5GP0GG3","loadingImage":"css/images/loading.gif","dndSourceDefinitions":[{"id":"ibmDndColumn","object":"com.ibm.pb.dnd.layout.LayoutColumnSource","orientation":"vertical"},{"id":"ibmDndRow","object":"com.ibm.pb.dnd.layout.LayoutRowSource","orientation":"horizontal"}],"categorySources":[],"styleSources":[],"layoutSources":[]},"portalConfig":{"locale":"ro","portalURI":"/anaf/internet","contentHandlerURI":"/anaf/contenthandler/!ut/p/digest!Rr30iktRwftFoqJG0Rmtnw/","isVirtualPortal":false,"canImpersonate":false,"themeRootURI":"/DynamicAnaf2020/themes/html/dynamicSpots","parentPageID":"Z6_H1H6H282J0HQ00Q5BIR5GP0GG2","currentPageOID":"Z6_H1H6H282J0HQ00Q5BIR5GP0GG3","bootstrapState":"&lt;?xml version=&#034;1.0&#034; encoding=&#034;UTF-8&#034;?&gt;&lt;root xmlns=&#034;http://www.ibm.com/xmlns/prod/websphere/portal/v6.1/portal-state&#034;&gt;&lt;state type=&#034;navigational&#034;&gt;&lt;selection selection-node=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0GG3&#034;&gt;&lt;mapping src=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0093&#034; dst=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0GG3&#034;/&gt;&lt;mapping src=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0006&#034; dst=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0GG3&#034;/&gt;&lt;mapping src=&#034;Z6_000000000000000000000000A0&#034; dst=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0GG3&#034;/&gt;&lt;/selection&gt;&lt;expansions&gt;&lt;node id=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0GG2&#034;/&gt;&lt;node id=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0093&#034;/&gt;&lt;node id=&#034;Z6_H1H6H282J0HQ00Q5BIR5GP0006&#034;/&gt;&lt;node id=&#034;Z6_000000000000000000000000A0&#034;/&gt;&lt;/expansions&gt;&lt;/state&gt;&lt;/root&gt;","isUserLoggedIn":false,"currentUser":"anonymous portal user","currentUserOID":"","aggregatedStyle":null,"wcmPageMetadata":{"contentRoot":null,"sharingScope":null}},"userName":""},"com_ibm_theme_capabilities":{"analytics_aggregator":"8.0","oneUI":"3.0.1"}});ibmCfg.portalConfig.bootstrapState=(ibmCfg.portalConfig.bootstrapState||"").replace(/&lt;/gm, '<').replace(/&gt;/gm, '>').replace(/&amp;/gm, '&').replace(/&#039;/gm, "'").replace(/&#034;/gm, '"');
+(function(){ibmToolbarConfig = {projectUUID: "",toolbarMode: "closed",inManagedPages: "true"==="true",isPrivilegedUser: "false"==="true",hasEditSharedPermission: "false"==="true",dialogJavascriptURL: "/anaf/contenthandler/!ut/p/digest!XMYO3DlFPsrU1jxNk3jqyg/dialog/dialogModal.js",dialogUtilsJavascriptURL: "/anaf/contenthandler/!ut/p/digest!XMYO3DlFPsrU1jxNk3jqyg/dialog/dialogModalUtils.js",draftPageUUID: ""
+	}})();</script><script type="text/javascript" src="/anaf/contenthandler/!ut/p/digest!gsJv5rHqPSfDh9bVlzpTAg/mashup/ra:collection?themeID=ZJ_H1H6H282JOM520QL2UG98O3050&amp;locale=ro&amp;mime-type=text%2Fplain&amp;entry=wp_one_ui_30__0.0%3Aconfig_js&amp;entry=wp_theme_menus__0.0%3Aconfig_js&amp;entry=wp_theme_skin_region__0.0%3Aconfig_js&amp;entry=wp_project_menu__0.0%3Aconfig_js&amp;entry=wp_theme_high_contrast__0.0%3Aconfig_js&amp;entry=wp_theme_edit__0.0%3Aconfig_js&amp;entry=wp_status_bar__0.0%3Aconfig_js"></script></div>
+	
+<script>
+	  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+	  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+	  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+	  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+	
+	  ga('create', 'UA-23372776-2', 'auto');
+	  ga('send', 'pageview');
+	</script>
+	
+</body>
+</html><HTML>
+<BODY onfocus="document.cookie='IV_JCT=%2Fanaf%2Finternet; path=/'">
+</BODY>
+</HTML>

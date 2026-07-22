@@ -81,7 +81,7 @@ public class PlatformReferenceAdminService {
     /** Add an effective-dated treasury row for a residence. One row per (residence, valid_from). */
     public PlatformTreasuryAccount addTreasuryAccount(String residence, LocalDate validFrom, String ibanCam,
                                                       String ibanImpozite, String ibanCass, String ibanCas,
-                                                      String ibanTva) {
+                                                      String ibanTva, String ibanTvaExtern) {
         if (residence == null || residence.isBlank()) {
             throw new IllegalArgumentException("Residence is required");
         }
@@ -93,16 +93,37 @@ public class PlatformReferenceAdminService {
                     + validFrom + " already exists");
         }
         PlatformTreasuryAccount account = new PlatformTreasuryAccount(residence.trim(), validFrom);
-        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva);
+        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva, ibanTvaExtern);
         return treasury.save(account);
     }
 
-    /** Update the five IBANs of an existing row (residence and effective date are immutable). */
+    /**
+     * Add-or-update the effective-dated row for {@code (residence, validFrom)}. Used by the ANAF sync when
+     * applying an approved diff, so re-applying the same run is idempotent (the second pass just re-sets the
+     * same IBANs on the existing row instead of raising the {@code addTreasuryAccount} conflict).
+     */
+    public PlatformTreasuryAccount upsertTreasuryAccount(String residence, LocalDate validFrom, String ibanCam,
+                                                         String ibanImpozite, String ibanCass, String ibanCas,
+                                                         String ibanTva, String ibanTvaExtern) {
+        if (residence == null || residence.isBlank()) {
+            throw new IllegalArgumentException("Residence is required");
+        }
+        if (validFrom == null) {
+            throw new IllegalArgumentException("Effective date is required");
+        }
+        PlatformTreasuryAccount account = treasury.findByResidenceAndValidFrom(residence.trim(), validFrom)
+                .orElseGet(() -> new PlatformTreasuryAccount(residence.trim(), validFrom));
+        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva, ibanTvaExtern);
+        return treasury.save(account);
+    }
+
+    /** Update the IBANs of an existing row (residence and effective date are immutable). */
     public PlatformTreasuryAccount updateTreasuryAccount(UUID id, String ibanCam, String ibanImpozite,
-                                                         String ibanCass, String ibanCas, String ibanTva) {
+                                                         String ibanCass, String ibanCas, String ibanTva,
+                                                         String ibanTvaExtern) {
         PlatformTreasuryAccount account = treasury.findById(id)
                 .orElseThrow(() -> new NotFoundException("Treasury entry not found: " + id));
-        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva);
+        account.setIbans(ibanCam, ibanImpozite, ibanCass, ibanCas, ibanTva, ibanTvaExtern);
         return account;
     }
 

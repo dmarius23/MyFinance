@@ -11,5 +11,8 @@ public enum TaxCategory {
     CAS,
     CASS,
     CAM,
-    TVA
+    /** TVA for internal operations (ANAF budget code 20A100101 -> {@code iban_tva}). */
+    TVA,
+    /** TVA for external operations — imports / intra-community (20A100102 -> {@code iban_tva_extern}). */
+    TVA_EXTERN
 }

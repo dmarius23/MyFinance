@@ -124,6 +124,13 @@ public class AnafDeclarationExtractor {
         BigDecimal amount = signedAmount(r.getAttribute("R41_2"), r.getAttribute("R42_2"));
         List<TaxObligation> obligations = new ArrayList<>();
         if (amount.signum() != 0) {
+            // D300 net VAT is INTERN VAT only (account 20A100101 -> iban_tva). R41_2 is a single net
+            // payable; imports and intra-community acquisitions are reverse-charged (taxare inversă —
+            // collected and deducted in the same decont, netting to zero) and are already folded into it.
+            // The extern account (20A100102, "TVA pentru importuri de bunuri") is fed by import VAT paid
+            // in cash at CUSTOMS (the DVI declaration), NOT by D300 — so there is deliberately no
+            // TVA_EXTERN obligation here. TaxCategory.TVA_EXTERN + iban_tva_extern exist for that separate
+            // customs source, should it ever be ingested; the decont never produces an extern payable.
             obligations.add(new TaxObligation(TaxCategory.TVA, "TVA", amount, defaultDeadline(period)));
         }
         return new ParsedDeclaration(DeclarationType.D300, r.getAttribute("cui"), r.getAttribute("den"),

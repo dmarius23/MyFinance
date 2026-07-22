@@ -29,19 +29,20 @@ public final class PlatformReferenceDtos {
     }
 
     public record TreasuryResponse(UUID id, String residence, LocalDate validFrom, String ibanCam,
-                                   String ibanImpozite, String ibanCass, String ibanCas, String ibanTva) {
+                                   String ibanImpozite, String ibanCass, String ibanCas, String ibanTva,
+                                   String ibanTvaExtern) {
         public static TreasuryResponse from(PlatformTreasuryAccount a) {
             return new TreasuryResponse(a.getId(), a.getResidence(), a.getValidFrom(), a.getIbanCam(),
-                    a.getIbanImpozite(), a.getIbanCass(), a.getIbanCas(), a.getIbanTva());
+                    a.getIbanImpozite(), a.getIbanCass(), a.getIbanCas(), a.getIbanTva(), a.getIbanTvaExtern());
         }
     }
 
     public record CreateTreasuryRequest(@NotBlank String residence, @NotNull LocalDate validFrom,
                                         String ibanCam, String ibanImpozite, String ibanCass,
-                                        String ibanCas, String ibanTva) {
+                                        String ibanCas, String ibanTva, String ibanTvaExtern) {
     }
 
     public record UpdateTreasuryRequest(String ibanCam, String ibanImpozite, String ibanCass,
-                                        String ibanCas, String ibanTva) {
+                                        String ibanCas, String ibanTva, String ibanTvaExtern) {
     }
 }

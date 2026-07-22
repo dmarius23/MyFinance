@@ -20,7 +20,7 @@ import ro.myfinance.taxpayments.domain.TaxObligation;
  * Turns a set of parsed declarations into payment lines. Each obligation resolves to a treasury IBAN
  * via its category (the per-residence settings); obligations sharing an IBAN are summed into one line —
  * so pointing impozit/CAS/CASS at the same "cont unic" IBAN reproduces the single "Contribuții sociale"
- * line, while CAM and TVA (different IBANs) stay separate.
+ * line, while CAM, TVA intern and TVA extern (different IBANs) stay separate.
  */
 @Component
 public class PaymentCalculator {
@@ -71,6 +71,9 @@ public class PaymentCalculator {
     /** Human explanation for a grouped line, mirroring the accountant's wording. */
     static String explanation(Set<TaxCategory> categories, YearMonth period) {
         String when = monthYear(period);
+        if (categories.contains(TaxCategory.TVA_EXTERN)) {
+            return "TVA extern " + when;
+        }
         if (categories.contains(TaxCategory.TVA)) {
             return "TVA " + when;
         }
