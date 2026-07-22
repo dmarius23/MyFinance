@@ -120,7 +120,8 @@ Both tables are **global** (no `tenant_id`, no RLS), mirroring `platform_treasur
 gated at the web layer with `hasRole('SUPER_ADMIN')`.
 
 **Migration split (one per phase, not one bundle):** `V38__treasury_iban_tva_extern.sql` (Phase 1) adds only
-`iban_tva_extern`; the two staging tables land in their own migration in Phase 4 (`V39__anaf_treasury_sync.sql`).
+`iban_tva_extern`; the two staging tables land in their own migration in Phase 4 (`V41__anaf_treasury_sync.sql`
+— V39/V40 were taken by other work on the branch).
 
 ---
 

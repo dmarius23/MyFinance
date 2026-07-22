@@ -19,4 +19,7 @@ public interface PlatformTreasuryAccountRepository extends JpaRepository<Platfor
 
     /** Guards the (residence, valid_from) uniqueness at the app layer for a friendly conflict message. */
     boolean existsByResidenceAndValidFrom(String residence, LocalDate validFrom);
+
+    /** The exact effective-dated row (used by the ANAF sync to upsert idempotently). */
+    Optional<PlatformTreasuryAccount> findByResidenceAndValidFrom(String residence, LocalDate validFrom);
 }
