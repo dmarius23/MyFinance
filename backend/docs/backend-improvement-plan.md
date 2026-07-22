@@ -138,8 +138,17 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   (`myfinance.outbox.inline=true`) delivers inline for dev/tests. Idempotent: only PENDING rows deliver, so
   redelivery of a SENT row is a no-op. `OutboxRelayIT` proves deliver→SENT, redelivery no-op, and
   poison→DLQ→history FAILED on a real Postgres. Frontend renders `QUEUED` as an info pill.
-- **Deferred to S4d (not blocking):** SELECT … FOR UPDATE SKIP LOCKED for multi-worker single-flight, and
-  a queue visibility timeout. Extraction idempotency already holds (delete-then-insert per document_id).
+- **Shipped (S4d — queue hardening):** the relay now claims due rows atomically with
+  `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED LIMIT n) RETURNING …` (`OutboxClaimRepository`),
+  flipping them to a transient `PROCESSING` state — so concurrent workers never grab the same message
+  (multi-worker single-flight). **V43** adds `claimed_at`; a **visibility-timeout reaper**
+  (`myfinance.outbox.visibility-timeout-seconds`, default 300) returns rows a crashed worker left
+  PROCESSING back to PENDING for redelivery. **Graceful shutdown**: `spring.task.scheduling.shutdown`
+  (await-termination) lets an in-flight relay tick finish on SIGTERM, and `server.shutdown: graceful`
+  drains the web app; anything still PROCESSING is reclaimed on the next start, so nothing is lost.
+  `OutboxRelayIT` proves the claim is single-flight (a claimed row isn't re-claimed), a stale claim is
+  reaped + redelivered, and a live claim is never double-processed. Document-pipeline single-flight is
+  covered by its existing idempotency (delete-then-insert per document_id → re-processing is a no-op).
 - **Goal:** PDF extraction, reconciliation, and email delivery run **asynchronously** with at-least-once
   delivery, retry/backoff, DLQ, and idempotency — instead of inline in the HTTP request.
 - **Why:** the `outbox_message` table has **zero Java** — no `OutboxMessage` entity, repository, writer,
@@ -163,7 +172,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   - **S4c — async extraction:** make extraction async via `@TransactionalEventListener(AFTER_COMMIT)` +
     an `@Async` executor **or** by enqueuing an `EXTRACT_DOCUMENT` job the worker consumes. Idempotency
     keyed by `document_id` (re-processing must be a no-op).
-  - **S4d — queue hardening:** graceful shutdown, visibility timeout, single-flight per job key.
+  - **S4d — queue hardening (✅ done):** graceful shutdown, visibility timeout, single-flight per job key.
 - **Acceptance:** upload returns before extraction finishes; killing the worker mid-batch loses no email
   (redelivered on restart); a poison message lands in the DLQ after N attempts; re-running any job is a
   no-op.

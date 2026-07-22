@@ -24,7 +24,7 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "outbox_message")
 public class OutboxMessage {
 
-    public enum Status { PENDING, SENT, DLQ }
+    public enum Status { PENDING, PROCESSING, SENT, DLQ }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -65,6 +65,9 @@ public class OutboxMessage {
     @Column(name = "sent_at")
     private Instant sentAt;
 
+    @Column(name = "claimed_at")
+    private Instant claimedAt;
+
     protected OutboxMessage() {
     }
 
@@ -76,19 +79,24 @@ public class OutboxMessage {
         this.payload = payload;
     }
 
-    /** Mark this row delivered. */
+    /** Mark this row delivered (releasing the claim). */
     public void markSent(Instant now) {
         this.status = Status.SENT;
         this.sentAt = now;
         this.error = null;
+        this.claimedAt = null;
     }
 
-    /** Record a failed attempt: back off to {@code nextAttemptAt}, or move to DLQ once {@code maxAttempts} is hit. */
+    /**
+     * Record a failed attempt: release the claim and back off to {@code nextAttemptAt} (status PENDING), or
+     * move to DLQ once {@code maxAttempts} is hit.
+     */
     public void recordFailure(String message, Instant nextAttempt, int maxAttempts) {
         this.attempts += 1;
         this.error = message;
         this.status = this.attempts >= maxAttempts ? Status.DLQ : Status.PENDING;
         this.nextAttemptAt = nextAttempt;
+        this.claimedAt = null;
     }
 
     public UUID getId() { return id; }
@@ -103,4 +111,5 @@ public class OutboxMessage {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getNextAttemptAt() { return nextAttemptAt; }
     public Instant getSentAt() { return sentAt; }
+    public Instant getClaimedAt() { return claimedAt; }
 }

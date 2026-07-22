@@ -34,15 +34,15 @@ public class OutboxDelivery {
     }
 
     /**
-     * Deliver one message. Idempotency guard: only PENDING rows are delivered, so a redelivered row already
-     * marked SENT is skipped (no double send). A handler exception backs the row off (or DLQs it after the
-     * attempts cap) but is caught so the batch continues.
+     * Deliver one <b>claimed</b> (PROCESSING) message. Idempotency guard: only PROCESSING rows are
+     * delivered, so a row already SENT/DLQ (or no longer claimed) is skipped — no double send. A handler
+     * exception backs the row off (or DLQs it after the attempts cap) but is caught so the batch continues.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deliverOne(UUID id) {
         OutboxMessage msg = outbox.findById(id).orElse(null);
-        if (msg == null || msg.getStatus() != OutboxMessage.Status.PENDING) {
-            return; // already delivered/gone — no double send
+        if (msg == null || msg.getStatus() != OutboxMessage.Status.PROCESSING) {
+            return; // not a live claim — no double send
         }
         OutboxHandler handler = handlers.get(msg.getType());
         if (handler == null) {

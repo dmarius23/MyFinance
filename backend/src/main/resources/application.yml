@@ -10,6 +10,17 @@ spring:
       max-file-size: 25MB
       max-request-size: 30MB
 
+  # Graceful shutdown: on SIGTERM (deploy), let the outbox relay's in-flight tick finish rather than being
+  # cut off mid-delivery. Any message still PROCESSING when the timeout lapses is reclaimed by the reaper
+  # on the next worker start, so nothing is lost either way.
+  task:
+    scheduling:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+  lifecycle:
+    timeout-per-shutdown-phase: 35s
+
   # Application datasource — connects as the RLS-subject role. Wrapped by RlsDataSource.
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/myfinance}
@@ -53,6 +64,11 @@ spring:
           jws-algorithms:
             - ES256
             - RS256
+
+# Web app: drain in-flight HTTP requests on shutdown (the worker has no web server; its relay is drained
+# via spring.task.scheduling.shutdown above).
+server:
+  shutdown: graceful
 
 management:
   endpoints:
@@ -104,6 +120,10 @@ myfinance:
   outbox:
     inline: ${OUTBOX_INLINE:false}
     relay-delay-ms: ${OUTBOX_RELAY_DELAY_MS:5000}
+    # Multi-worker single-flight: a claimed (PROCESSING) message is invisible to other workers until it is
+    # delivered or this visibility timeout lapses — after which a reaper returns a crashed worker's row to
+    # PENDING for redelivery. Keep comfortably above the slowest expected delivery (SES + attachments).
+    visibility-timeout-seconds: ${OUTBOX_VISIBILITY_TIMEOUT_SECONDS:300}
   # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
   # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
   # in-app notifications still work. The public key is served to the PWA to subscribe.
