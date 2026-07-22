@@ -39,6 +39,20 @@ public enum Granularity {
         return periodStart(anchor).plusMonths(monthsPerPeriod).minusDays(1);
     }
 
+    /**
+     * A short filename/label form of the period enclosing {@code anchor}:
+     * {@code 2026-03} (month), {@code 2026-Q2}, {@code 2026-H1}, {@code 2026} (year).
+     */
+    public String label(LocalDate anchor) {
+        LocalDate start = periodStart(anchor);
+        return switch (this) {
+            case MONTH -> start.toString().substring(0, 7);
+            case QUARTER -> start.getYear() + "-Q" + ((start.getMonthValue() - 1) / 3 + 1);
+            case HALF -> start.getYear() + "-H" + ((start.getMonthValue() - 1) / 6 + 1);
+            case YEAR -> Integer.toString(start.getYear());
+        };
+    }
+
     /** The first-of-month dates the enclosing period spans, in chronological order. */
     public List<LocalDate> months(LocalDate anchor) {
         LocalDate start = periodStart(anchor);

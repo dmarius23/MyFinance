@@ -24,6 +24,8 @@ import ro.myfinance.portal.application.PortalService.CompanyInfo;
 import ro.myfinance.portal.application.PortalService.DocView;
 import ro.myfinance.portal.application.PortalService.MissingItem;
 import ro.myfinance.portal.application.PortalService.PayrollFile;
+import ro.myfinance.reports.application.Granularity;
+import ro.myfinance.reports.application.PeriodReportService.PeriodReportResult;
 import ro.myfinance.reports.domain.ReportData;
 
 /**
@@ -67,24 +69,42 @@ public class PortalController {
         return portal.myDocuments(period);
     }
 
+    /**
+     * The rep's own-company report for the period at the requested granularity (month by default). 204
+     * when no data yet. Period coverage is returned in the {@code X-Report-*} headers so the PWA can flag
+     * an incomplete quarter/half/year.
+     */
     @GetMapping("/api/v1/portal/report")
-    public ResponseEntity<ReportData> report(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
-        ReportData r = portal.report(period);
-        return r == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(r);
+    public ResponseEntity<ReportData> report(
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
+        PeriodReportResult res = portal.report(period, granularity);
+        if (res == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok()
+                .header("X-Report-Complete", Boolean.toString(res.complete()))
+                .header("X-Report-Months-Present", Integer.toString(res.monthsPresent()))
+                .header("X-Report-Months-Expected", Integer.toString(res.monthsExpected()))
+                .body(res.data());
     }
 
+    /** Trend for the rep's company, optionally with {@code forecast} projected months (non-authoritative). */
     @GetMapping("/api/v1/portal/report/trend")
     public List<ro.myfinance.reports.application.ReportService.TrendPoint> trend(
             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
-            @RequestParam(value = "months", defaultValue = "12") int months) {
-        return portal.trend(period, months);
+            @RequestParam(value = "months", defaultValue = "12") int months,
+            @RequestParam(value = "forecast", defaultValue = "0") int forecast) {
+        return portal.trend(period, months, forecast);
     }
 
     @GetMapping("/api/v1/portal/report/pdf")
-    public ResponseEntity<byte[]> reportPdf(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
-        byte[] bytes = portal.reportPdf(period);
+    public ResponseEntity<byte[]> reportPdf(
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
+        byte[] bytes = portal.reportPdf(period, granularity);
         ContentDisposition cd = ContentDisposition.attachment()
-                .filename("raport-" + period.withDayOfMonth(1) + ".pdf").build();
+                .filename("raport-" + granularity.label(period) + ".pdf").build();
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString()).body(bytes);
     }

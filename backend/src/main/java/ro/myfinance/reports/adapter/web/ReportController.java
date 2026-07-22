@@ -95,22 +95,11 @@ public class ReportController {
         ReportData r = periodReports.report(companyId, granularity, period).data();
         byte[] bytes = pdf.generate(r);
         ContentDisposition cd = ContentDisposition.attachment()
-                .filename("raport-financiar-" + periodLabel(granularity, period) + ".pdf").build();
+                .filename("raport-financiar-" + granularity.label(period) + ".pdf").build();
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())
                 .body(bytes);
-    }
-
-    /** A filename-friendly period label, e.g. {@code 2026-03} (month), {@code 2026-Q2}, {@code 2026-H1}, {@code 2026}. */
-    private static String periodLabel(Granularity granularity, LocalDate period) {
-        LocalDate start = granularity.periodStart(period);
-        return switch (granularity) {
-            case MONTH -> start.toString().substring(0, 7);              // yyyy-MM
-            case QUARTER -> start.getYear() + "-Q" + ((start.getMonthValue() - 1) / 3 + 1);
-            case HALF -> start.getYear() + "-H" + ((start.getMonthValue() - 1) / 6 + 1);
-            case YEAR -> Integer.toString(start.getYear());
-        };
     }
 
     @GetMapping("/api/v1/companies/{companyId}/report-emails")
