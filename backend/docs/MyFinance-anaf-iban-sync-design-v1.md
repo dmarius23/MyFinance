@@ -85,12 +85,17 @@ argument; the manual admin screen/API and `PlatformReferenceController` follow.
 `resolveIbans` maps `TVA → iban_tva` and `TVA_EXTERN → iban_tva_extern`. `PaymentCalculator` already groups
 by distinct IBAN, so an extern line naturally renders separately with explanation *"TVA extern <month>"*.
 
-> **Dependency / honest limitation.** Today `AnafDeclarationExtractor` emits a **single** TVA obligation
-> from D300 (whole net VAT → `TVA`). There is **no extern amount at the source yet**, so an extern payment
-> line only appears once a declaration/obligation is classified as extern TVA. v1 therefore: (a) stores
-> `iban_tva_extern`, (b) adds the `TVA_EXTERN` category + IBAN resolution + calculator/email rendering, and
-> (c) leaves a single, clearly-marked classification hook in the extractor. Populating an extern amount
-> from a real D300 field (or a dedicated obligation code) is a follow-up once we confirm the source field.
+> **Where the extern amount comes from (resolved).** We inspected a real D300 (`D300.xml`) and confirmed
+> the decont produces a **single net VAT payable** (`R41_2`, or refund `R42_2`) that is **intern VAT**
+> (account 20A100101 → `iban_tva`). Imports and intra-community acquisitions in D300 are **reverse-charged**
+> (taxare inversă — collected and deducted in the same decont, netting to zero) and are already folded into
+> `R41_2`; there is **no separate extern payable field** to map. The extern account
+> (20A100102, "TVA pentru importuri de bunuri") is fed by import VAT paid **in cash at customs** (the DVI
+> declaration), a **different source document, not D300**. So `AnafDeclarationExtractor` deliberately emits
+> only the intern `TVA` obligation. `TaxCategory.TVA_EXTERN`, `iban_tva_extern`, and the calculator/email
+> rendering are all in place and correct — they stay **dormant** until (and unless) a customs-VAT ingestion
+> path is built. Wiring an extern line out of D300 would double-count against `R41_2` and put a wrong figure
+> in a payment email (golden rule #3), so it is intentionally not done.
 
 ### 3.3 New tables — staging a sync for review
 
