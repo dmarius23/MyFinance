@@ -16,5 +16,9 @@ public interface ReportSnapshotRepository extends JpaRepository<ReportSnapshot, 
     List<ReportSnapshot> findByCompanyIdAndPeriodMonthLessThanEqualOrderByPeriodMonthAsc(
             UUID companyId, LocalDate periodMonth);
 
+    /** All monthly snapshots for a company within a calendar period, chronological. */
+    List<ReportSnapshot> findByCompanyIdAndPeriodMonthBetweenOrderByPeriodMonthAsc(
+            UUID companyId, LocalDate from, LocalDate to);
+
     void deleteByDocumentId(UUID documentId);
 }

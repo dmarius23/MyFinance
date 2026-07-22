@@ -215,7 +215,7 @@ public class PortalService {
     /** Revenue/expenses/profit trend across the last months for the rep's company (charts). */
     @Transactional(readOnly = true)
     public List<ReportService.TrendPoint> trend(LocalDate period, int months) {
-        return reports.trend(companyId(), period.withDayOfMonth(1), months);
+        return reports.trend(companyId(), period.withDayOfMonth(1), months, 0);
     }
 
     @Transactional(readOnly = true)
