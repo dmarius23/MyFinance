@@ -2,13 +2,18 @@ package ro.myfinance.settings.application;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ro.myfinance.common.async.AsyncConfig;
+import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.settings.adapter.persistence.PlatformTreasuryAccountRepository;
 import ro.myfinance.settings.adapter.persistence.TreasurySyncItemRepository;
@@ -36,15 +41,30 @@ public class AnafTreasurySyncService {
     private final PlatformReferenceAdminService admin;
     private final TreasurySyncRunRepository runs;
     private final TreasurySyncItemRepository items;
+    private final Executor executor;
 
     public AnafTreasurySyncService(AnafIbanSource source, PlatformTreasuryAccountRepository liveAccounts,
                                    PlatformReferenceAdminService admin, TreasurySyncRunRepository runs,
-                                   TreasurySyncItemRepository items) {
+                                   TreasurySyncItemRepository items,
+                                   @Qualifier(AsyncConfig.ANAF_SYNC) Executor executor) {
         this.source = source;
         this.liveAccounts = liveAccounts;
         this.admin = admin;
         this.runs = runs;
         this.items = items;
+        this.executor = executor;
+    }
+
+    /**
+     * Kick off a sync: persist the RUNNING run (returned immediately) and dispatch the crawl off the request
+     * thread. In tests ({@code myfinance.async.inline=true}) the crawl runs synchronously before this returns.
+     */
+    public TreasurySyncRun startSync(UUID startedBy, LocalDate effectiveFrom) {
+        UUID runId = createRun(startedBy, effectiveFrom).getId();
+        executor.execute(() -> execute(runId));
+        // Re-read so the caller sees the freshest state: RUNNING when the crawl is still on a background
+        // thread (async prod), or the finished state when it ran inline (tests).
+        return get(runId);
     }
 
     /** Create the RUNNING run record (fast, in the request thread); the crawl itself runs via {@link #execute}. */
@@ -116,7 +136,7 @@ public class AnafTreasurySyncService {
     public TreasurySyncRun apply(UUID runId) {
         TreasurySyncRun run = run(runId);
         if (run.getStatus() != SyncRunStatus.READY_FOR_REVIEW) {
-            throw new IllegalStateException("Run " + runId + " is " + run.getStatus() + ", not READY_FOR_REVIEW");
+            throw new ConflictException("Run " + runId + " is " + run.getStatus() + ", not READY_FOR_REVIEW");
         }
         List<TreasurySyncItem> applicable =
                 items.findByRunIdAndChangeInOrderByCountyAscResidenceAsc(runId, APPLICABLE);
@@ -134,7 +154,7 @@ public class AnafTreasurySyncService {
     public TreasurySyncRun cancel(UUID runId) {
         TreasurySyncRun run = run(runId);
         if (run.getStatus() == SyncRunStatus.APPLIED) {
-            throw new IllegalStateException("Run " + runId + " is already APPLIED");
+            throw new ConflictException("Run " + runId + " is already APPLIED");
         }
         run.markCancelled();
         return run;
@@ -160,6 +180,15 @@ public class AnafTreasurySyncService {
     @Transactional(readOnly = true)
     public List<TreasurySyncItem> itemsFor(UUID runId) {
         return items.findByRunIdOrderByCountyAscResidenceAsc(runId);
+    }
+
+    /** Items filtered to the given change verdicts (e.g. the reviewable ADDED+CHANGED subset). */
+    @Transactional(readOnly = true)
+    public List<TreasurySyncItem> itemsFor(UUID runId, Collection<SyncChange> changes) {
+        if (changes == null || changes.isEmpty()) {
+            return itemsFor(runId);
+        }
+        return items.findByRunIdAndChangeInOrderByCountyAscResidenceAsc(runId, changes);
     }
 
     /** How a scraped treasury compares to its live row — pure, so it is unit-tested directly. */

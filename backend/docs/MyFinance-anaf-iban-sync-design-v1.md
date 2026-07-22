@@ -139,9 +139,13 @@ gated at the web layer with `hasRole('SUPER_ADMIN')`.
   residence, persist `sync_item` rows with `change`, flip run to READY_FOR_REVIEW. Separate `apply(runId)`
   method writes approved rows via the existing `PlatformReferenceAdminService` (add/append effective-dated
   rows), then flips to APPLIED.
-- **Worker job** `ANAF_TREASURY_SYNC` — a sync fans out to hundreds of PDFs (~42 counties × up to ~40
-  treasuries) and is minutes-long, so it runs in the **worker**, never the request thread. The endpoint
-  enqueues the job and returns the `runId`; the UI polls run status.
+- **Async execution** — a sync fans out to hundreds of PDFs (~41 counties × up to ~40 treasuries) and is
+  minutes-long, so it runs **off the request thread**, never blocking the HTTP call. `startSync` persists
+  the RUNNING run, dispatches the crawl to a dedicated single-thread `anafSyncExecutor`
+  (`myfinance.async.inline=true` makes it synchronous in tests), and returns the `runId`; the UI polls run
+  status. *Implementation note:* the Redis job-queue/worker path is still an unwired scaffold and the outbox
+  is tenant-scoped (unsuitable for a tenant-less global op), so this dedicated executor is the worker for now;
+  moving it onto a proper worker job-queue consumer is a later infra step.
 - **Web** endpoints on a new `AnafTreasurySyncController` (or folded into `PlatformReferenceController`),
   all `@PreAuthorize("hasRole('SUPER_ADMIN')")`:
   - `POST /api/v1/admin/reference/treasury-accounts/sync` → start a run, returns `{runId}`.
@@ -232,8 +236,8 @@ between ANAF and existing company localities are an existing concern; the diff s
    configured county list; unit tests on fixtures.
 4. **Sync service + staging** — `AnafTreasurySyncService` (run, diff, apply), repositories, run/item
    domain; service tests with a fake source.
-5. **Worker job + endpoints** — `ANAF_TREASURY_SYNC` job type + consumer; `AnafTreasurySyncController`
-   with the five endpoints; authz tests.
+5. **Async execution + endpoints** — dedicated `anafSyncExecutor` (inline in tests) driving `startSync`;
+   `AnafTreasurySyncController` with the endpoints (start/list/get/items/apply/cancel); authz + flow ITs.
 6. **Frontend (separate, later)** — super-admin "Sync from ANAF" button, run-status poll, diff review +
    Apply. (Backend is usable via API without it.)
 
