@@ -98,6 +98,12 @@ myfinance:
     region: ${EMAIL_REGION:}
     # ses only: optional SES configuration set for bounce/complaint tracking (blank → none).
     configuration-set: ${EMAIL_CONFIGURATION_SET:}
+  # Transactional outbox: email sends are recorded QUEUED + written to outbox_message in the business
+  # transaction, then delivered by the worker's OutboxRelayScheduler (with retries + DLQ). In a single
+  # web process (dev) set OUTBOX_INLINE=true to drain inline right after commit — no separate worker.
+  outbox:
+    inline: ${OUTBOX_INLINE:false}
+    relay-delay-ms: ${OUTBOX_RELAY_DELAY_MS:5000}
   # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
   # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
   # in-app notifications still work. The public key is served to the PWA to subscribe.

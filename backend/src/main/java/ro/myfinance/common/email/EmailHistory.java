@@ -83,6 +83,18 @@ public class EmailHistory {
         this.sentBy = sentBy;
     }
 
+    /** Relay callback: the queued email was delivered. */
+    public void markSent() {
+        this.status = EmailStatus.SENT;
+        this.error = null;
+    }
+
+    /** Relay callback: delivery permanently failed (outbox message reached the DLQ). */
+    public void markFailed(String errorMessage) {
+        this.status = EmailStatus.FAILED;
+        this.error = errorMessage;
+    }
+
     public UUID getId() { return id; }
     public EmailKind getKind() { return kind; }
     public UUID getCompanyId() { return companyId; }

@@ -116,7 +116,30 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## P1 — Reliability & correctness of core flows
 
-### S4. Move heavy work off the request thread + wire the outbox relay & worker  *(epic)*
+### S4. Move heavy work off the request thread + wire the outbox relay & worker  *(epic)* — ✅ DONE
+- **Shipped (S4c — async document pipeline):** the four DocumentUploaded/Deleted listeners
+  (extraction+reconciliation, report ingest, tax-declaration parse, Drive mirror) now run
+  `@TransactionalEventListener(AFTER_COMMIT)` + `@Async(documentPipelineExecutor)` +
+  `@Transactional(REQUIRES_NEW)` — upload returns immediately, each listener runs off the request thread
+  in its own tx (killing the in-tx optimistic-lock contention). `AsyncConfig` bounds the pool with graceful
+  shutdown; `TenantContextTaskDecorator` carries the tenant onto the worker thread (RLS holds).
+  `myfinance.async.inline=true` runs it inline in tests (still post-commit). Repaired the 3 broken
+  `DocumentServiceIT` happy-path tests (valid PNG magic + matching content-type; the async fan-out removed
+  the optimistic-lock conflict).
+- **Shipped (S4a — outbox writer):** `OutboxMessage` entity/repo + `OutboxWriter` (writes inside the
+  business tx); **V40** adds `error` + `next_attempt_at` to `outbox_message`. Email now records
+  `EmailHistory` as `QUEUED` and enqueues a `SEND_EMAIL` outbox row in the same transaction (atomic, never
+  lost on crash).
+- **Shipped (S4b — worker relay):** `OutboxRelay`/`OutboxDelivery` drain due PENDING rows (cross-tenant
+  scan under a system `SUPER_ADMIN` identity honoring the V30 outbox RLS hatch; each message processed
+  bound to its own tenant, its own `REQUIRES_NEW` tx), mark SENT, back off exponentially, and move to DLQ
+  after 8 attempts — invoking `OutboxHandler.onExhausted` so `EmailOutboxHandler` flips the history row to
+  FAILED. `OutboxRelayScheduler` (worker profile) ticks on a fixed delay; `OutboxInlineDrainer`
+  (`myfinance.outbox.inline=true`) delivers inline for dev/tests. Idempotent: only PENDING rows deliver, so
+  redelivery of a SENT row is a no-op. `OutboxRelayIT` proves deliver→SENT, redelivery no-op, and
+  poison→DLQ→history FAILED on a real Postgres. Frontend renders `QUEUED` as an info pill.
+- **Deferred to S4d (not blocking):** SELECT … FOR UPDATE SKIP LOCKED for multi-worker single-flight, and
+  a queue visibility timeout. Extraction idempotency already holds (delete-then-insert per document_id).
 - **Goal:** PDF extraction, reconciliation, and email delivery run **asynchronously** with at-least-once
   delivery, retry/backoff, DLQ, and idempotency — instead of inline in the HTTP request.
 - **Why:** the `outbox_message` table has **zero Java** — no `OutboxMessage` entity, repository, writer,

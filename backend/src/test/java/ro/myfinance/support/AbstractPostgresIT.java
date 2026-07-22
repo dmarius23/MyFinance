@@ -41,5 +41,7 @@ public abstract class AbstractPostgresIT {
         // Run the post-upload document pipeline inline (still in its own post-commit transaction) so
         // integration tests that assert extraction/reconciliation results stay deterministic.
         registry.add("myfinance.async.inline", () -> "true");
+        // Drain the email outbox inline (after commit) so tests deliver without a separate worker process.
+        registry.add("myfinance.outbox.inline", () -> "true");
     }
 }

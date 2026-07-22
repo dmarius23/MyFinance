@@ -17,7 +17,7 @@ export interface PayrollRow {
 export interface PayrollEmailView {
   id: string;
   recipient: string | null;
-  status: "SENT" | "FAILED";
+  status: "QUEUED" | "SENT" | "FAILED";
   sentAt: string;
   documentIds: string[];
   body: string;

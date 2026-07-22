@@ -215,7 +215,7 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                       <div style={{ textAlign: "right" }}>
                         <div className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{when(e.sentAt)}</div>
                         <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{time(e.sentAt)}</div>
-                        <span className={`pill round ${e.status === "SENT" ? "ok" : "danger"}`} style={{ marginTop: 3, display: "inline-block", fontSize: 9.5 }}>{e.status}</span>
+                        <span className={`pill round ${e.status === "SENT" ? "ok" : e.status === "QUEUED" ? "info" : "danger"}`} style={{ marginTop: 3, display: "inline-block", fontSize: 9.5 }}>{e.status}</span>
                       </div>
                     </div>
                   ))

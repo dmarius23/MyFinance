@@ -59,7 +59,7 @@ export interface TrendPoint {
 export interface ReportEmailView {
   id: string;
   recipient: string | null;
-  status: "SENT" | "FAILED";
+  status: "QUEUED" | "SENT" | "FAILED";
   sentAt: string;
   body: string;
 }

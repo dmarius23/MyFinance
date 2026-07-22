@@ -28,7 +28,7 @@ export interface Unconfigured {
 export interface EmailView {
   id: string;
   recipient: string | null;
-  status: "SENT" | "FAILED";
+  status: "QUEUED" | "SENT" | "FAILED";
   sentAt: string;
   declarationIds: string[];
   body: string;
