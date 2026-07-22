@@ -74,7 +74,7 @@ export async function enablePush(): Promise<PushState> {
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(cfg.publicKey),
+      applicationServerKey: urlBase64ToUint8Array(cfg.publicKey) as BufferSource,
     });
   }
   const json = sub.toJSON();

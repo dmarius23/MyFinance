@@ -48,6 +48,7 @@ function crumbFor(path: string, t: (k: string) => string): string {
     "/taxes": "nav.taxes", "/payroll": "nav.payroll", "/reports": "nav.reports", "/settings": "nav.settings",
     "/tasks": "nav.tasks", "/notifications": "notif.title", "/team": "nav.team",
     "/data-sources": "nav.dataSources", "/admin/reference": "nav.reference",
+    "/admin/treasury-sync": "nav.treasurySync",
   };
   const key = Object.keys(map).find((p) => path.startsWith(p));
   return key ? t(map[key]) : "";
@@ -75,6 +76,7 @@ export function FirmLayout() {
               <>
                 <NavLink to="/admin/tenants"><Icon name="companies" /> {t("nav.tenants")}</NavLink>
                 <NavLink to="/admin/reference"><Icon name="settings" /> {t("nav.reference")}</NavLink>
+                <NavLink to="/admin/treasury-sync"><Icon name="reconcile" /> {t("nav.treasurySync")}</NavLink>
               </>
             ) : (
               <>
