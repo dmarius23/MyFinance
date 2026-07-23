@@ -18,6 +18,9 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.payroll.application.PayrollService;
+import ro.myfinance.reports.application.Granularity;
+import ro.myfinance.reports.application.PeriodReportService;
+import ro.myfinance.reports.application.PeriodReportService.PeriodReportResult;
 import ro.myfinance.reports.application.ReportPdfGenerator;
 import ro.myfinance.reports.application.ReportService;
 import ro.myfinance.reports.domain.ReportData;
@@ -40,6 +43,7 @@ public class PortalService {
     private final NotificationService notifications;
     private final ReconciliationService reconciliation;
     private final ReportService reports;
+    private final PeriodReportService periodReports;
     private final ReportPdfGenerator reportPdf;
     private final PayrollService payroll;
     private final ro.myfinance.taxpayments.application.TaxPaymentService taxes;
@@ -48,7 +52,8 @@ public class PortalService {
     private final jakarta.servlet.http.HttpServletRequest request;
 
     public PortalService(CompanyRepository companies, DocumentService documents, NotificationService notifications,
-                         ReconciliationService reconciliation, ReportService reports, ReportPdfGenerator reportPdf,
+                         ReconciliationService reconciliation, ReportService reports,
+                         PeriodReportService periodReports, ReportPdfGenerator reportPdf,
                          PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes,
                          ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
                          ro.myfinance.access.adapter.persistence.AppUserRepository users,
@@ -58,6 +63,7 @@ public class PortalService {
         this.notifications = notifications;
         this.reconciliation = reconciliation;
         this.reports = reports;
+        this.periodReports = periodReports;
         this.reportPdf = reportPdf;
         this.payroll = payroll;
         this.taxes = taxes;
@@ -202,26 +208,32 @@ public class PortalService {
         return new PaymentView(s.totalToPay(), lines, unconfigured);
     }
 
-    /** The computed monthly report for the rep's company, or null if none is available yet. */
+    /**
+     * The computed report for the rep's company at the requested {@link Granularity} (month by default;
+     * quarter/half/year aggregated), or null if none is available yet. Company is resolved and validated
+     * server-side by {@link #companyId()} — a rep can never read another company's report.
+     */
     @Transactional(readOnly = true)
-    public ReportData report(LocalDate period) {
+    public PeriodReportResult report(LocalDate period, Granularity granularity) {
         try {
-            return reports.report(companyId(), period.withDayOfMonth(1));
+            return periodReports.report(companyId(), granularity, period);
         } catch (NotFoundException e) {
             return null;
         }
     }
 
-    /** Revenue/expenses/profit trend across the last months for the rep's company (charts). */
+    /**
+     * Revenue/expenses/profit trend for the rep's company, optionally with {@code forecast} projected
+     * months (a non-authoritative estimate). Charts only.
+     */
     @Transactional(readOnly = true)
-    public List<ReportService.TrendPoint> trend(LocalDate period, int months) {
-        return reports.trend(companyId(), period.withDayOfMonth(1), months);
+    public List<ReportService.TrendPoint> trend(LocalDate period, int months, int forecast) {
+        return reports.trend(companyId(), period.withDayOfMonth(1), months, forecast);
     }
 
     @Transactional(readOnly = true)
-    public byte[] reportPdf(LocalDate period) {
-        ReportData r = reports.report(companyId(), period.withDayOfMonth(1));
-        return reportPdf.generate(r);
+    public byte[] reportPdf(LocalDate period, Granularity granularity) {
+        return reportPdf.generate(periodReports.report(companyId(), granularity, period).data());
     }
 
     @Transactional(readOnly = true)

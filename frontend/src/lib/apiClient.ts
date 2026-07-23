@@ -58,6 +58,40 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Like {@link api} but also returns the raw response headers (and undefined on 204). Used where the
+ * server carries out-of-band metadata in headers — e.g. the report's period-coverage `X-Report-*`.
+ */
+export async function apiWithHeaders<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ data: T | undefined; headers: Headers }> {
+  const token = await authToken();
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  withCompany(headers);
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  if (!res.ok) {
+    let detail: unknown;
+    try {
+      detail = await res.json();
+    } catch {
+      detail = await res.text();
+    }
+    const message =
+      detail && typeof detail === "object" && "detail" in detail
+        ? String((detail as { detail: unknown }).detail)
+        : `Request failed (${res.status})`;
+    throw new ApiError(res.status, message, detail);
+  }
+  if (res.status === 204) {
+    return { data: undefined, headers: res.headers };
+  }
+  return { data: (await res.json()) as T, headers: res.headers };
+}
+
 /** Resolves the current Supabase access token, or null. */
 async function authToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();

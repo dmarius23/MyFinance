@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ro.myfinance.reports.application.Granularity;
+import ro.myfinance.reports.application.PeriodReportService;
+import ro.myfinance.reports.application.PeriodReportService.PeriodReportResult;
 import ro.myfinance.reports.application.ReportEmailService;
 import ro.myfinance.reports.application.ReportEmailService.ReportEmailView;
 import ro.myfinance.reports.application.ReportPdfGenerator;
@@ -34,11 +37,14 @@ import ro.myfinance.common.email.EmailStatus;
 public class ReportController {
 
     private final ReportService reports;
+    private final PeriodReportService periodReports;
     private final ReportEmailService emails;
     private final ReportPdfGenerator pdf;
 
-    public ReportController(ReportService reports, ReportEmailService emails, ReportPdfGenerator pdf) {
+    public ReportController(ReportService reports, PeriodReportService periodReports,
+                            ReportEmailService emails, ReportPdfGenerator pdf) {
         this.reports = reports;
+        this.periodReports = periodReports;
         this.emails = emails;
         this.pdf = pdf;
     }
@@ -49,30 +55,47 @@ public class ReportController {
         return reports.summary(period).stream().map(ReportRowResponse::from).toList();
     }
 
-    /** The computed report (P&L + balance sheet + KPIs) — drives the on-screen charts. */
+    /**
+     * The computed report (P&L + balance sheet + KPIs) for the calendar period of {@code granularity}
+     * enclosing {@code period} — drives the on-screen charts. Defaults to the raw MONTH.
+     * Period coverage is returned in the {@code X-Report-*} headers so the UI can flag an incomplete
+     * quarter/half/year ("2 of 3 months") without changing the report body shape.
+     */
     @GetMapping("/api/v1/companies/{companyId}/report")
-    public ReportData report(@PathVariable UUID companyId,
-                             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
-        return reports.report(companyId, period);
+    public ResponseEntity<ReportData> report(
+            @PathVariable UUID companyId,
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
+        PeriodReportResult res = periodReports.report(companyId, granularity, period);
+        return ResponseEntity.ok()
+                .header("X-Report-Complete", Boolean.toString(res.complete()))
+                .header("X-Report-Months-Present", Integer.toString(res.monthsPresent()))
+                .header("X-Report-Months-Expected", Integer.toString(res.monthsExpected()))
+                .body(res.data());
     }
 
-    /** Revenue/expenses/net-profit trend across the last N months (default 12). */
+    /**
+     * Revenue/expenses/net-profit trend across the last N months (default 12), optionally followed by
+     * {@code forecast} projected months (default 0). Projected points are flagged and non-authoritative.
+     */
     @GetMapping("/api/v1/companies/{companyId}/report/trend")
     public List<TrendPoint> trend(@PathVariable UUID companyId,
                                   @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
-                                  @RequestParam(value = "months", defaultValue = "12") int months) {
-        return reports.trend(companyId, period, months);
+                                  @RequestParam(value = "months", defaultValue = "12") int months,
+                                  @RequestParam(value = "forecast", defaultValue = "0") int forecast) {
+        return reports.trend(companyId, period, months, forecast);
     }
 
-    /** Download the branded monthly report PDF. */
+    /** Download the branded report PDF for the requested period (MONTH by default). */
     @GetMapping("/api/v1/companies/{companyId}/report/pdf")
     public ResponseEntity<byte[]> downloadPdf(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
-        ReportData r = reports.report(companyId, period);
+            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
+        ReportData r = periodReports.report(companyId, granularity, period).data();
         byte[] bytes = pdf.generate(r);
         ContentDisposition cd = ContentDisposition.attachment()
-                .filename("raport-financiar-" + period.withDayOfMonth(1) + ".pdf").build();
+                .filename("raport-financiar-" + granularity.label(period) + ".pdf").build();
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, cd.toString())

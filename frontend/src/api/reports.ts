@@ -1,4 +1,5 @@
-import { api, download } from "../lib/apiClient";
+import { api, apiWithHeaders, download } from "../lib/apiClient";
+import { periodTag, type Granularity } from "./portal";
 
 export interface ReportItem {
   code: string | null;
@@ -54,6 +55,13 @@ export interface TrendPoint {
   revenue: number;
   expenses: number;
   netProfit: number;
+  /** true for forecast points (a non-authoritative estimate); false for actuals. */
+  projected: boolean;
+  /** Confidence band on the charted lines — null on actuals or when too few points to estimate. */
+  revenueLow: number | null;
+  revenueHigh: number | null;
+  netProfitLow: number | null;
+  netProfitHigh: number | null;
 }
 
 export interface ReportEmailView {
@@ -76,15 +84,38 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+const MONTHS_IN: Record<Granularity, number> = { MONTH: 1, QUARTER: 3, HALF: 6, YEAR: 12 };
+
+/** The computed report plus how much of the requested period is covered (from the X-Report-* headers). */
+export interface ReportWithCoverage {
+  report: ReportData | null;
+  complete: boolean;
+  monthsPresent: number;
+  monthsExpected: number;
+}
+
 export const reportsApi = {
   list: (period: string) => api<ReportRow[]>(`/api/v1/reports?period=${period}`),
-  report: (companyId: string, period: string) =>
-    api<ReportData>(`/api/v1/companies/${companyId}/report?period=${period}`),
-  trend: (companyId: string, period: string, months = 12) =>
-    api<TrendPoint[]>(`/api/v1/companies/${companyId}/report/trend?period=${period}&months=${months}`),
-  downloadPdf: async (companyId: string, period: string) => {
-    const blob = await download(`/api/v1/companies/${companyId}/report/pdf?period=${period}`);
-    saveBlob(blob, `raport-financiar-${period.slice(0, 7)}.pdf`);
+  report: async (companyId: string, period: string, granularity: Granularity = "MONTH"): Promise<ReportWithCoverage> => {
+    const { data, headers } = await apiWithHeaders<ReportData>(
+      `/api/v1/companies/${companyId}/report?period=${period}&granularity=${granularity}`,
+    );
+    const num = (h: string, fallback: number) => {
+      const v = headers.get(h);
+      return v == null ? fallback : Number(v);
+    };
+    return {
+      report: data ?? null,
+      complete: headers.get("X-Report-Complete") === "true",
+      monthsPresent: num("X-Report-Months-Present", 0),
+      monthsExpected: num("X-Report-Months-Expected", MONTHS_IN[granularity]),
+    };
+  },
+  trend: (companyId: string, period: string, months = 12, forecast = 0) =>
+    api<TrendPoint[]>(`/api/v1/companies/${companyId}/report/trend?period=${period}&months=${months}&forecast=${forecast}`),
+  downloadPdf: async (companyId: string, period: string, granularity: Granularity = "MONTH") => {
+    const blob = await download(`/api/v1/companies/${companyId}/report/pdf?period=${period}&granularity=${granularity}`);
+    saveBlob(blob, `raport-financiar-${periodTag(period, granularity)}.pdf`);
   },
   emailBody: (companyId: string, period: string) =>
     api<{ body: string }>(`/api/v1/companies/${companyId}/report/email-body?period=${period}`),

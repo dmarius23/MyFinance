@@ -63,9 +63,23 @@ public class ReportService {
                             Instant lastSentAt, int sentCount) {
     }
 
-    /** One point on the revenue/profit trend. */
+    /**
+     * One point on the revenue/profit trend. Historical points have {@code projected == false} and null
+     * bands; forecast points have {@code projected == true} and a confidence band on the two charted
+     * lines (revenue, net profit) — bands are null when too few points exist to estimate spread. A
+     * forecast is a <b>non-authoritative estimate</b>: it is never stored and never used as a money figure.
+     */
     public record TrendPoint(LocalDate periodMonth, java.math.BigDecimal revenue,
-                             java.math.BigDecimal expenses, java.math.BigDecimal netProfit) {
+                             java.math.BigDecimal expenses, java.math.BigDecimal netProfit,
+                             boolean projected,
+                             java.math.BigDecimal revenueLow, java.math.BigDecimal revenueHigh,
+                             java.math.BigDecimal netProfitLow, java.math.BigDecimal netProfitHigh) {
+
+        /** A historical (actual) point — no projection, no band. */
+        public static TrendPoint actual(LocalDate periodMonth, java.math.BigDecimal revenue,
+                                        java.math.BigDecimal expenses, java.math.BigDecimal netProfit) {
+            return new TrendPoint(periodMonth, revenue, expenses, netProfit, false, null, null, null, null);
+        }
     }
 
     /** Extract + compute + store the report for an uploaded trial balance (re-upload bumps version). */
@@ -196,9 +210,13 @@ public class ReportService {
         return out;
     }
 
-    /** Revenue/expenses/net-profit for the last {@code months} periods up to and including the given one. */
+    /**
+     * Revenue/expenses/net-profit for the last {@code months} periods up to and including the given one,
+     * optionally followed by {@code forecast} projected points (a simple trend estimate — see
+     * {@link TrendForecaster}). Projected points are computed per request and never persisted.
+     */
     @Transactional(readOnly = true)
-    public List<TrendPoint> trend(UUID companyId, LocalDate periodMonth, int months) {
+    public List<TrendPoint> trend(UUID companyId, LocalDate periodMonth, int months, int forecast) {
         LocalDate to = periodMonth.withDayOfMonth(1);
         LocalDate from = to.minusMonths(Math.max(0, months - 1L));
         List<TrendPoint> out = new ArrayList<>();
@@ -207,8 +225,11 @@ public class ReportService {
                 continue;
             }
             ReportData d = read(s.getReportJson());
-            out.add(new TrendPoint(s.getPeriodMonth(), d.profitLoss().revenue(),
+            out.add(TrendPoint.actual(s.getPeriodMonth(), d.profitLoss().revenue(),
                     d.profitLoss().operatingExpenses(), d.profitLoss().netProfit()));
+        }
+        if (forecast > 0) {
+            out.addAll(TrendForecaster.forecast(out, forecast));
         }
         return out;
     }
