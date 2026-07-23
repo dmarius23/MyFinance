@@ -32,8 +32,16 @@ Three navigation levels, all deterministic — **no OCR, no LLM**:
    are volatile JS-portlet URLs and should **not** be scraped. Every county instead has a **stable static
    page**:
    `https://static.anaf.ro/static/10/Anaf/AsistentaContribuabili_r/iban2014/<County>.htm`
-   (e.g. `Alba.htm`, `Arad.htm`, `Arges.htm`, `Bucuresti.htm`). We drive from a **configured county list**
-   (the 41 județe + București), not from the portal HTML.
+   (e.g. `Alba.htm`, `Arad.htm`, `Arges.htm`). We discover the **41 județe** by parsing the
+   `iban2014/*.htm` links out of the index HTML (minus the handful of non-county pages: buget stat/local,
+   bass, fnuass, somaj).
+
+   **București is special:** it has **no county `.htm` page**. Its 7 treasuries — Municipiul București
+   (`iban_TREZ000_TREZ700.pdf`) + Sectoarele 1–6 (`…_TREZ701`…`…_TREZ706.pdf`) — are linked **directly on
+   the index** as PDFs. We pick these up by running the same `iban_TREZ*.pdf` link parser over the index
+   page itself and processing any PDF not already covered by a county (grouped under county `Bucuresti`;
+   the residence from each PDF header — "Bucuresti", "Sector 1"… — distinguishes them). The `IBAN_cheltuieli*`
+   reference PDFs on the index are not treasuries and are excluded (they don't match `iban_TREZ`).
 
 2. **County page** (e.g. `Alba.htm`) — lists that county's treasuries as links to **PDF** files:
    `iban_TREZ001_TREZ002.pdf`, `iban_TREZ001_TREZ003.pdf`, … (`TREZ001` = județean, the rest = operative
