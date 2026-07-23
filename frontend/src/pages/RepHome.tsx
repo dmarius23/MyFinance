@@ -44,6 +44,9 @@ export function RepHome() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState(latestMonth());
   const [gran, setGran] = useState<Granularity>("MONTH");
+  const [screen, setScreen] = useState<"home" | "reports">("home");
+  // Home shows the plain monthly report; the Reports screen honours the granularity selector.
+  const effGran: Granularity = screen === "reports" ? gran : "MONTH";
   const [preview, setPreview] = useState<{ load: () => Promise<Blob>; filename: string } | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -105,12 +108,13 @@ export function RepHome() {
   };
   const missing = useQuery({ queryKey: ["portal-missing", cid, period], queryFn: () => portalApi.missing(period) });
   const docs = useQuery({ queryKey: ["portal-company-docs", cid, period], queryFn: () => portalApi.companyDocuments(period) });
-  const report = useQuery({ queryKey: ["portal-report", cid, period, gran], queryFn: () => portalApi.report(period, gran) });
+  const report = useQuery({ queryKey: ["portal-report", cid, period, effGran], queryFn: () => portalApi.report(period, effGran) });
   const balanceSheet = useQuery({ queryKey: ["portal-balance", cid, period], queryFn: () => portalApi.balanceSheet(period) });
   const payroll = useQuery({ queryKey: ["portal-payroll", cid, period], queryFn: () => portalApi.payroll(period) });
   const payments = useQuery({ queryKey: ["portal-payments", cid, period], queryFn: () => portalApi.payments(period) });
   // Trend is always a monthly time series; request a 3-month forecast (a non-authoritative estimate).
-  const trend = useQuery({ queryKey: ["portal-trend", cid, period], queryFn: () => portalApi.trend(period, 12, 3) });
+  // Only needed on the Reports screen.
+  const trend = useQuery({ queryKey: ["portal-trend", cid, period], queryFn: () => portalApi.trend(period, 12, 3), enabled: screen === "reports" });
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["portal-company-docs", cid, period] });
@@ -205,6 +209,7 @@ export function RepHome() {
             <button onClick={() => !atLatest && setPeriod((p) => shiftMonth(p, 1))} aria-label={t("common.next")} disabled={atLatest} style={stepBtn(atLatest)}>›</button>
           </div>
 
+          {screen === "home" && (<>
           {/* documents-needed banner */}
           {needsDocs && (
             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", background: C.warnBg, border: `1px solid ${C.warnBd}`, borderRadius: 12, padding: "12px 13px" }}>
@@ -314,22 +319,9 @@ export function RepHome() {
             )}
           </div>
 
-          {/* FINANCIALS card */}
+          {/* FINANCIALS card — monthly balance & report (charts live on the Reports screen) */}
           <div style={card}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-              <h2 style={cardH}>{t("portal.financials")}</h2>
-              {gran !== "MONTH" && <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.sub }}>{periodTag(period, gran)}</span>}
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <GranularitySelector value={gran} onChange={setGran} />
-            </div>
-            {gran !== "MONTH" && r && coverage && !coverage.complete && (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", background: C.warnBg, border: `1px solid ${C.warnBd}`, borderRadius: 10, padding: "8px 11px", marginBottom: 12 }}>
-                <span style={{ fontSize: 13, color: C.warnFg, fontWeight: 600 }}>
-                  {t("portal.reportIncomplete", { present: coverage.monthsPresent, expected: coverage.monthsExpected })}
-                </span>
-              </div>
-            )}
+            <h2 style={{ ...cardH, marginBottom: 10 }}>{t("portal.financials")}</h2>
             {report.isLoading && <div style={{ color: C.mut, fontSize: 13 }}>…</div>}
             {r && (
               <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -343,39 +335,26 @@ export function RepHome() {
                 </div>
               </div>
             )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button disabled={!r} onClick={() => setPreview({ load: () => portalApi.reportBlob(period, gran), filename: `raport-${periodTag(period, gran)}.pdf` })}
-                style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, background: C.card, fontSize: 13, fontWeight: 600, color: C.ink, cursor: "pointer", opacity: r ? 1 : 0.45, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <EyeIcon /> {t("portal.view")}
-              </button>
-              <button disabled={!r} onClick={() => portalApi.downloadReport(period, gran)}
-                style={{ flex: 1, background: C.teal, border: "none", borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, color: C.tealInk, cursor: "pointer", opacity: r ? 1 : 0.45, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <DownloadIcon stroke={C.tealInk} /> {t("portal.downloadReport")}
-              </button>
-            </div>
+            {/* the generated monthly report as a previewable/downloadable file row (PDF preview near the name) */}
+            {r && (
+              <DocRow filename={`raport-${period.slice(0, 7)}.pdf`} label={t("portal.reportPdf")} iconBg="#e6f4f2" iconFg="#0f766e"
+                onView={() => setPreview({ load: () => portalApi.reportBlob(period, "MONTH"), filename: `raport-${period.slice(0, 7)}.pdf` })}
+                onDownload={() => portalApi.downloadReport(period, "MONTH")} />
+            )}
             {(balanceSheet.data ?? []).map((d) => (
               <DocRow key={d.id} filename={d.filename} label={t("portal.docType.balance")} iconBg="#e6f4f2" iconFg="#0f766e"
                 onView={onView(d)} onDownload={onDownload(d)} />
             ))}
+            {r && (
+              <button onClick={() => setScreen("reports")}
+                style={{ width: "100%", marginTop: 10, border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, background: C.card, fontSize: 13, fontWeight: 700, color: C.ink, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <BarsIcon /> {t("portal.viewCharts")}
+              </button>
+            )}
             {!report.isLoading && !r && (balanceSheet.data ?? []).length === 0 && (
               <div style={{ color: C.mut, fontSize: 13, marginTop: 8 }}>{t("portal.reportNotReady")}</div>
             )}
           </div>
-
-          {/* CHARTS */}
-          {r && (
-            <div style={card}>
-              <h2 style={{ ...cardH, marginBottom: 10 }}>{t("reports.charts")}</h2>
-              <div style={{ display: "grid", gap: 14 }}>
-                <ChartCard title={t("reports.chart.pl")}><PlBars r={r} /></ChartCard>
-                {r.profitLoss.expenseItems.length > 0 && <ChartCard title={t("reports.chart.expenses")}><Donut items={r.profitLoss.expenseItems} /></ChartCard>}
-                <ChartCard title={t("reports.chart.trend")}>
-                  <Trend points={trend.data ?? []} loading={trend.isLoading} emptyLabel={t("reports.trendEmpty")} forecastLabel={t("portal.forecast")} />
-                </ChartCard>
-                <ChartCard title={t("reports.chart.kpi")}><Kpis r={r} t={t} /></ChartCard>
-              </div>
-            </div>
-          )}
 
           {/* PAYROLL */}
           {(payroll.data ?? []).length > 0 && (
@@ -387,13 +366,76 @@ export function RepHome() {
               ))}
             </div>
           )}
+          </>)}
+
+          {/* ===== REPORTS screen: period selector + Balanță & report + Evolution + Key indicators ===== */}
+          {screen === "reports" && (<>
+            <div style={card}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                <h2 style={cardH}>{t("portal.financials")}</h2>
+                {gran !== "MONTH" && <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.sub }}>{periodTag(period, gran)}</span>}
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <GranularitySelector value={gran} onChange={setGran} />
+              </div>
+              {gran !== "MONTH" && r && coverage && !coverage.complete && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center", background: C.warnBg, border: `1px solid ${C.warnBd}`, borderRadius: 10, padding: "8px 11px", marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: C.warnFg, fontWeight: 600 }}>
+                    {t("portal.reportIncomplete", { present: coverage.monthsPresent, expected: coverage.monthsExpected })}
+                  </span>
+                </div>
+              )}
+              {report.isLoading && <div style={{ color: C.mut, fontSize: 13 }}>…</div>}
+              {r && (
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <div style={{ flex: 1, background: "#f7f8f8", borderRadius: 11, padding: "11px 12px" }}>
+                    <div style={{ ...mono, fontSize: 18, fontWeight: 700, color: C.ink }}>{money(r.profitLoss.revenue)}</div>
+                    <div style={{ fontSize: 11, color: C.mut, marginTop: 1 }}>{t("portal.revenue")}</div>
+                  </div>
+                  <div style={{ flex: 1, background: "#f7f8f8", borderRadius: 11, padding: "11px 12px" }}>
+                    <div style={{ ...mono, fontSize: 18, fontWeight: 700, color: "#0f766e" }}>{money(r.profitLoss.netProfit)}</div>
+                    <div style={{ fontSize: 11, color: C.mut, marginTop: 1 }}>{t("portal.netProfit")}</div>
+                  </div>
+                </div>
+              )}
+              {r && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setPreview({ load: () => portalApi.reportBlob(period, gran), filename: `raport-${periodTag(period, gran)}.pdf` })}
+                    style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, background: C.card, fontSize: 13, fontWeight: 600, color: C.ink, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <EyeIcon /> {t("portal.viewPdf")}
+                  </button>
+                  <button onClick={() => portalApi.downloadReport(period, gran)}
+                    style={{ flex: 1, background: C.teal, border: "none", borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, color: C.tealInk, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <DownloadIcon stroke={C.tealInk} /> {t("portal.downloadReport")}
+                  </button>
+                </div>
+              )}
+              {!report.isLoading && !r && (
+                <div style={{ color: C.mut, fontSize: 13, marginTop: 8 }}>{t("portal.reportNotReady")}</div>
+              )}
+            </div>
+
+            {r && (
+              <div style={card}>
+                <h2 style={{ ...cardH, marginBottom: 10 }}>{t("reports.charts")}</h2>
+                <div style={{ display: "grid", gap: 14 }}>
+                  <ChartCard title={t("reports.chart.pl")}><PlBars r={r} /></ChartCard>
+                  {r.profitLoss.expenseItems.length > 0 && <ChartCard title={t("reports.chart.expenses")}><Donut items={r.profitLoss.expenseItems} /></ChartCard>}
+                  <ChartCard title={t("reports.chart.trend")}>
+                    <Trend points={trend.data ?? []} loading={trend.isLoading} emptyLabel={t("reports.trendEmpty")} forecastLabel={t("portal.forecast")} />
+                  </ChartCard>
+                  <ChartCard title={t("reports.chart.kpi")}><Kpis r={r} t={t} /></ChartCard>
+                </div>
+              </div>
+            )}
+          </>)}
         </div>
 
         {/* ===== bottom tab bar ===== */}
         <div style={{ flex: "none", position: "sticky", bottom: 0, zIndex: 5, background: C.chrome, borderTop: `1px solid #1a2624`, padding: "9px 0 14px", display: "flex" }}>
-          <Tab active label={t("portal.navHome")} onClick={() => {}}><HomeIcon /></Tab>
+          <Tab active={screen === "home"} label={t("portal.navHome")} onClick={() => setScreen("home")}><HomeIcon /></Tab>
           <Tab label={t("portal.navUpload")} onClick={() => fileRef.current?.click()}><CameraIcon stroke="currentColor" /></Tab>
-          <Tab label={t("portal.navReports")} onClick={() => r && setPreview({ load: () => portalApi.reportBlob(period, gran), filename: `raport-${periodTag(period, gran)}.pdf` })}><BarsIcon /></Tab>
+          <Tab active={screen === "reports"} label={t("portal.navReports")} onClick={() => setScreen("reports")}><BarsIcon /></Tab>
           <Tab label={t("portal.navProfile")} onClick={() => void signOut()}><UserIcon /></Tab>
         </div>
 

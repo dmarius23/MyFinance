@@ -1,10 +1,8 @@
-import { api, apiWithHeaders, upload, download } from "../lib/apiClient";
+import { api, upload, download } from "../lib/apiClient";
 import type { ReportData, TrendPoint } from "./reports";
 
 /** Reporting period grain — mirrors the backend enum. */
 export type Granularity = "MONTH" | "QUARTER" | "HALF" | "YEAR";
-
-const MONTHS_IN: Record<Granularity, number> = { MONTH: 1, QUARTER: 3, HALF: 6, YEAR: 12 };
 
 /** A filename/label tag for the calendar period containing {@code period} (yyyy-MM-01): 2026-03, 2026-Q2, 2026-H1, 2026. */
 export function periodTag(period: string, g: Granularity): string {
@@ -17,7 +15,7 @@ export function periodTag(period: string, g: Granularity): string {
   }
 }
 
-/** The report for a period plus how much of that period is covered (from the X-Report-* headers). */
+/** The report for a period plus how much of that period is covered (server-computed). */
 export interface PortalReport {
   report: ReportData | null;
   complete: boolean;
@@ -121,23 +119,10 @@ export const portalApi = {
   missing: (period: string) => api<MissingItem[]>(`/api/v1/portal/missing?period=${period}`),
   myDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/documents?period=${period}`),
   companyDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/company-documents?period=${period}`),
-  // The report for the calendar period of `granularity` containing `period`, plus its coverage headers.
-  // 204 → no report yet (report: null).
-  report: async (period: string, granularity: Granularity = "MONTH"): Promise<PortalReport> => {
-    const { data, headers } = await apiWithHeaders<ReportData>(
-      `/api/v1/portal/report?period=${period}&granularity=${granularity}`,
-    );
-    const num = (h: string, fallback: number) => {
-      const v = headers.get(h);
-      return v == null ? fallback : Number(v);
-    };
-    return {
-      report: data ?? null,
-      complete: headers.get("X-Report-Complete") === "true",
-      monthsPresent: num("X-Report-Months-Present", 0),
-      monthsExpected: num("X-Report-Months-Expected", MONTHS_IN[granularity]),
-    };
-  },
+  // The report for the calendar period of `granularity` containing `period`, plus its coverage
+  // (report: null when none is available yet).
+  report: (period: string, granularity: Granularity = "MONTH") =>
+    api<PortalReport>(`/api/v1/portal/report?period=${period}&granularity=${granularity}`),
   payroll: (period: string) => api<PayrollFile[]>(`/api/v1/portal/payroll?period=${period}`),
   balanceSheet: (period: string) => api<PortalDoc[]>(`/api/v1/portal/balance-sheet?period=${period}`),
   payments: (period: string) => api<Payment>(`/api/v1/portal/payments?period=${period}`),

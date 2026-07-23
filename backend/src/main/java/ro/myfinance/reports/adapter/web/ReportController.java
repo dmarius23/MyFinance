@@ -57,21 +57,20 @@ public class ReportController {
 
     /**
      * The computed report (P&L + balance sheet + KPIs) for the calendar period of {@code granularity}
-     * enclosing {@code period} — drives the on-screen charts. Defaults to the raw MONTH.
-     * Period coverage is returned in the {@code X-Report-*} headers so the UI can flag an incomplete
-     * quarter/half/year ("2 of 3 months") without changing the report body shape.
+     * enclosing {@code period} — drives the on-screen charts. Defaults to the raw MONTH. The response
+     * wraps the report with its period coverage so the UI can flag an incomplete quarter/half/year.
      */
     @GetMapping("/api/v1/companies/{companyId}/report")
-    public ResponseEntity<ReportData> report(
+    public ReportView report(
             @PathVariable UUID companyId,
             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         PeriodReportResult res = periodReports.report(companyId, granularity, period);
-        return ResponseEntity.ok()
-                .header("X-Report-Complete", Boolean.toString(res.complete()))
-                .header("X-Report-Months-Present", Integer.toString(res.monthsPresent()))
-                .header("X-Report-Months-Expected", Integer.toString(res.monthsExpected()))
-                .body(res.data());
+        return new ReportView(res.data(), res.complete(), res.monthsPresent(), res.monthsExpected());
+    }
+
+    /** A computed report plus how much of the requested period it covers. */
+    public record ReportView(ReportData report, boolean complete, int monthsPresent, int monthsExpected) {
     }
 
     /**

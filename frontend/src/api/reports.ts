@@ -1,4 +1,4 @@
-import { api, apiWithHeaders, download } from "../lib/apiClient";
+import { api, download } from "../lib/apiClient";
 import { periodTag, type Granularity } from "./portal";
 
 export interface ReportItem {
@@ -84,9 +84,7 @@ function saveBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const MONTHS_IN: Record<Granularity, number> = { MONTH: 1, QUARTER: 3, HALF: 6, YEAR: 12 };
-
-/** The computed report plus how much of the requested period is covered (from the X-Report-* headers). */
+/** The computed report plus how much of the requested period is covered (server-computed). */
 export interface ReportWithCoverage {
   report: ReportData | null;
   complete: boolean;
@@ -96,21 +94,8 @@ export interface ReportWithCoverage {
 
 export const reportsApi = {
   list: (period: string) => api<ReportRow[]>(`/api/v1/reports?period=${period}`),
-  report: async (companyId: string, period: string, granularity: Granularity = "MONTH"): Promise<ReportWithCoverage> => {
-    const { data, headers } = await apiWithHeaders<ReportData>(
-      `/api/v1/companies/${companyId}/report?period=${period}&granularity=${granularity}`,
-    );
-    const num = (h: string, fallback: number) => {
-      const v = headers.get(h);
-      return v == null ? fallback : Number(v);
-    };
-    return {
-      report: data ?? null,
-      complete: headers.get("X-Report-Complete") === "true",
-      monthsPresent: num("X-Report-Months-Present", 0),
-      monthsExpected: num("X-Report-Months-Expected", MONTHS_IN[granularity]),
-    };
-  },
+  report: (companyId: string, period: string, granularity: Granularity = "MONTH") =>
+    api<ReportWithCoverage>(`/api/v1/companies/${companyId}/report?period=${period}&granularity=${granularity}`),
   trend: (companyId: string, period: string, months = 12, forecast = 0) =>
     api<TrendPoint[]>(`/api/v1/companies/${companyId}/report/trend?period=${period}&months=${months}&forecast=${forecast}`),
   downloadPdf: async (companyId: string, period: string, granularity: Granularity = "MONTH") => {
