@@ -68,18 +68,20 @@ export function SendReminderModal({ companies, period, onClose }:
   });
 
   const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string => {
-    const lines = [t("email.greeting"), ""];
+    const lines = [t("email.greeting")];
     if (!c.hasBankStatement) {
-      lines.push(t("email.needStatementAndDocs", { month }));
+      // (a) nothing uploaded yet — the standard "please send statement + documents" reminder.
+      lines.push("", t("email.needStatementAndDocs", { month }), "", t("email.uploadPortal"));
     } else if (missing.length > 0) {
-      lines.push(t("email.needDocsForTxns", { month }));
+      // (b) some transactions still lack a document — list them so the client knows exactly what to send.
+      lines.push("", t("email.needDocsForTxns", { month }));
       for (const tx of missing) {
         lines.push(`• ${tx.txnDate} — ${tx.partnerName ?? "—"} — ${fmt(Math.abs(tx.amount))} RON`);
       }
-    } else {
-      lines.push(t("email.needDocs", { month }));
+      lines.push("", t("email.uploadPortal"));
     }
-    lines.push("", t("email.uploadPortal"), "", t("email.signoff"));
+    // (c) everything reconciled — no reminder text, just a courtesy greeting + sign-off the user can edit.
+    lines.push("", t("email.signoff"));
     if (fromName) lines.push(fromName);
     return lines.join("\n");
   };

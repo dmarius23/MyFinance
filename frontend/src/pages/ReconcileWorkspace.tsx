@@ -215,9 +215,9 @@ export function ReconcileWorkspace() {
           <span style={{ color: "var(--warn-fg, #92400e)" }}>{counts.partial} {t("recon.partialShort")}</span>
           <span style={{ color: "var(--danger-fg, #991b1b)" }}>{counts.need} {t("recon.needDoc")}</span>
         </div>
-        <button className="primary" disabled={counts.need + counts.partial === 0} onClick={() => setRequesting(true)}>
+        <button className="primary" disabled={!c} onClick={() => setRequesting(true)}>
           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-          {t("recon.requestClient")} · {counts.need + counts.partial}
+          {t("recon.requestClient")}{counts.need + counts.partial > 0 ? ` · ${counts.need + counts.partial}` : ""}
         </button>
       </div>
 
