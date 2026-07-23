@@ -25,6 +25,7 @@ import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.notifications.domain.Notification;
+import ro.myfinance.access.application.EmailDispatchService;
 import ro.myfinance.access.application.EmailEnvelopeService;
 import ro.myfinance.common.email.EmailSender;
 
@@ -35,13 +36,13 @@ class NotificationServiceTest {
     private final CompanyRepository companies = mock(CompanyRepository.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final EmailEnvelopeService envelopes = mock(EmailEnvelopeService.class);
-    private final EmailSender sender = mock(EmailSender.class);
+    private final EmailDispatchService dispatch = mock(EmailDispatchService.class);
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
             mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
     private final ro.myfinance.notifications.application.PushNotificationService push =
             mock(ro.myfinance.notifications.application.PushNotificationService.class);
     private final NotificationService service =
-            new NotificationService(notifications, companies, users, envelopes, sender, repLinks, push);
+            new NotificationService(notifications, companies, users, envelopes, dispatch, repLinks, push);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID repId = UUID.randomUUID();
@@ -86,7 +87,7 @@ class NotificationServiceTest {
         assertThat(n.getValue().getBody()).contains("Ion Rep").contains("Client SRL").contains("bon.pdf");
 
         ArgumentCaptor<EmailSender.Message> m = ArgumentCaptor.forClass(EmailSender.Message.class);
-        verify(sender).send(m.capture());
+        verify(dispatch).queue(any(), m.capture()); // durably queued to the outbox, not sent inline
         assertThat(m.getValue().to()).isEqualTo("maria@contabil.ro");
         assertThat(m.getValue().subject()).contains("Client SRL");
     }
@@ -102,7 +103,7 @@ class NotificationServiceTest {
         service.documentUploadedByRep(companyId, UUID.randomUUID(), "factura.pdf");
 
         verify(notifications, times(2)).save(any(Notification.class));
-        verify(sender, never()).send(any(EmailSender.Message.class));
+        verify(dispatch, never()).queue(any(), any(EmailSender.Message.class));
     }
 
     @Test

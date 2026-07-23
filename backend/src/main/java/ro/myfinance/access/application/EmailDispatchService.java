@@ -74,4 +74,15 @@ public class EmailDispatchService {
         }
         return row;
     }
+
+    /**
+     * Durably queue an already-composed email that has <b>no per-module history row</b> — e.g. the internal
+     * "new upload" notification to the accountant. Same outbox path (retries, DLQ, single-flight) as
+     * {@link #dispatch}, but nothing is recorded in {@link EmailHistory}. Call inside the business
+     * transaction; {@code aggregateId} identifies the source for audit.
+     */
+    public void queue(String aggregateId, EmailSender.Message message) {
+        outbox.enqueue(EmailOutboxHandler.AGGREGATE, aggregateId, EmailOutboxHandler.TYPE,
+                emailOutbox.serialize(new EmailOutboxHandler.Payload(null, message)));
+    }
 }

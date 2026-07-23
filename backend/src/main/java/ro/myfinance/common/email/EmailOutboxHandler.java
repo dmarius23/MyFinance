@@ -9,10 +9,11 @@ import ro.myfinance.common.outbox.OutboxMessage;
 
 /**
  * Delivers a queued email when the outbox relay drains a {@code SEND_EMAIL} message: deserializes the
- * stored {@link EmailSender.Message}, hands it to the {@link EmailSender} transport, and flips the
- * originating {@link EmailHistory} row to SENT. Idempotent — the relay only delivers PENDING rows, and a
- * second attempt on an already-sent history row simply re-sets SENT. On permanent failure (DLQ) the
- * history row is marked FAILED so the module's notification log reflects it.
+ * stored {@link EmailSender.Message} and hands it to the {@link EmailSender} transport. When the payload
+ * carries a {@code historyId} (the client-facing module emails), delivery also flips that
+ * {@link EmailHistory} row to SENT — or to FAILED on permanent failure (DLQ) so the module's notification
+ * log reflects it. Emails with no history row (e.g. the internal upload notification) carry a null
+ * {@code historyId} and are simply delivered. Idempotent — the relay only delivers claimed rows.
  */
 @Component
 public class EmailOutboxHandler implements OutboxHandler {
@@ -31,7 +32,11 @@ public class EmailOutboxHandler implements OutboxHandler {
         this.mapper = mapper;
     }
 
-    /** The serialized outbox payload: which history row this is, plus the fully-addressed message to send. */
+    /**
+     * The serialized outbox payload: the fully-addressed message to send, plus an optional
+     * {@code historyId}. Present → delivery flips that {@link EmailHistory} row to SENT/FAILED; null (e.g.
+     * an internal notification email with no per-module history) → the message is just delivered.
+     */
     public record Payload(UUID historyId, EmailSender.Message message) {
     }
 
@@ -52,14 +57,18 @@ public class EmailOutboxHandler implements OutboxHandler {
     public void handle(OutboxMessage message) {
         Payload payload = parse(message);
         sender.send(payload.message()); // throws on transport failure → relay retries
-        history.findById(payload.historyId()).ifPresent(EmailHistory::markSent);
+        if (payload.historyId() != null) {
+            history.findById(payload.historyId()).ifPresent(EmailHistory::markSent);
+        }
     }
 
     @Override
     public void onExhausted(OutboxMessage message) {
         Payload payload = parse(message);
-        history.findById(payload.historyId())
-                .ifPresent(h -> h.markFailed("Delivery failed after retries: " + message.getError()));
+        if (payload.historyId() != null) {
+            history.findById(payload.historyId())
+                    .ifPresent(h -> h.markFailed("Delivery failed after retries: " + message.getError()));
+        }
     }
 
     private Payload parse(OutboxMessage message) {

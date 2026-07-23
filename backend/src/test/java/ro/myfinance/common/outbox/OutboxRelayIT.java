@@ -179,4 +179,20 @@ class OutboxRelayIT extends AbstractPostgresIT {
         assertThat(failingHandler.attempts.get()).as("a live claim is never delivered by another worker")
                 .isEqualTo(deliveriesBefore);
     }
+
+    @Test
+    void historylessEmailDeliversWithoutTouchingAnyHistoryRow() {
+        bindTenant();
+        // The internal "new upload" notification: a real email payload with a NULL historyId (no EmailHistory).
+        var message = EmailSender.Message.of("MyFinance", "firma@contabil.ro", "maria@contabil.ro",
+                "Document nou — Client SRL", "Ion (Client SRL) a încărcat: bon.pdf");
+        OutboxMessage msg = outboxRepo.save(new OutboxMessage(TENANT, EmailOutboxHandler.AGGREGATE,
+                UUID.randomUUID().toString(), EmailOutboxHandler.TYPE,
+                emailHandler.serialize(new EmailOutboxHandler.Payload(null, message))));
+
+        int attempted = relay.relayDue(10);
+
+        assertThat(attempted).isEqualTo(1);
+        assertThat(outboxRepo.findById(msg.getId()).orElseThrow().getStatus()).isEqualTo(OutboxMessage.Status.SENT);
+    }
 }

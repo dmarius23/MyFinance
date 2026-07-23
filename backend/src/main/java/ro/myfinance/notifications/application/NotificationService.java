@@ -16,6 +16,7 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.domain.Notification;
+import ro.myfinance.access.application.EmailDispatchService;
 import ro.myfinance.access.application.EmailEnvelopeService;
 import ro.myfinance.common.email.EmailSender;
 
@@ -35,19 +36,19 @@ public class NotificationService {
     private final CompanyRepository companies;
     private final AppUserRepository users;
     private final EmailEnvelopeService envelopes;
-    private final EmailSender sender;
+    private final EmailDispatchService dispatch;
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
     private final PushNotificationService push;
 
     public NotificationService(NotificationRepository notifications, CompanyRepository companies,
-                               AppUserRepository users, EmailEnvelopeService envelopes, EmailSender sender,
+                               AppUserRepository users, EmailEnvelopeService envelopes, EmailDispatchService dispatch,
                                ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
                                PushNotificationService push) {
         this.notifications = notifications;
         this.companies = companies;
         this.users = users;
         this.envelopes = envelopes;
-        this.sender = sender;
+        this.dispatch = dispatch;
         this.repLinks = repLinks;
         this.push = push;
     }
@@ -116,12 +117,12 @@ public class NotificationService {
                         companyId, companyName, documentId));
             }
 
-            // Email the accountant (the PWA-triggered notification email) — same From identity as every
-            // other outbound email, resolved centrally.
+            // Email the accountant (the PWA-triggered notification email) — durably queued to the outbox
+            // (retries/DLQ) like every other outbound email; no per-module history row for this internal one.
             if (accountant != null && accountant.getEmail() != null) {
                 var env = envelopes.system(accountant.getEmail());
-                sender.send(EmailSender.Message.of(env.fromName(), env.fromEmail(), env.recipient(),
-                        title + " — " + companyName, body));
+                dispatch.queue(documentId.toString(), EmailSender.Message.of(env.fromName(), env.fromEmail(),
+                        env.recipient(), title + " — " + companyName, body));
             }
         } catch (RuntimeException e) {
             log.warn("Failed to create upload notification for document {}", documentId, e);
