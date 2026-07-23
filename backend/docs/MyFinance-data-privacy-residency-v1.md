@@ -39,7 +39,7 @@ doc's subject.
 | Document mirror / ingestion | **Google Drive** | Google Workspace data region | ⚠️ **Not EU-guaranteed unless Workspace EU data regions — see §4** |
 
 **Compute is EU by virtue of the Hetzner deployment.** The residency risk is entirely in the **managed
-data services** (Supabase, Redis, SES) and the **two egress paths** below.
+data services** (Supabase, Redis, the email provider) and the **two egress paths** below.
 
 ---
 
@@ -142,9 +142,13 @@ call it out in onboarding and the DPA.
   requirement for the DB, blobs, and auth at once.
 - **`OcrReclassifier` under Bedrock** disables rather than routing through Bedrock — acceptable (fail-safe,
   no US transmission) but means EU deployments lose that classification fallback until it's ported.
-- **SES adapter** is built and wired (`SesEmailSender`, raw-MIME with attachments, recipient masked in
-  logs). It could not be exercised end-to-end here (no AWS creds/SES sandbox); enable via
-  `EMAIL_PROVIDER=ses` + an EU `EMAIL_REGION`. SPF/DKIM/DMARC on the sender domain are an ops prerequisite.
+- **Email adapters** are built and wired behind the shared `EmailSender` port, recipients masked in logs.
+  The recommended EU-resident path for this non-AWS stack is **`SmtpEmailSender`** (`EMAIL_PROVIDER=smtp`
+  via `spring.mail.*`) against an EU provider (Brevo, Scaleway TEM, Mailjet, …) — no AWS account, data in
+  the provider's EU region; `SesEmailSender` (`EMAIL_PROVIDER=ses`, EU region) remains an option, callable
+  off-AWS with IAM access keys. Neither was exercised end-to-end here (no provider credentials); enable via
+  env in production. SPF/DKIM/DMARC on the sender domain (set in *Conturi & taxe*) are an ops prerequisite
+  either way.
 - **Bedrock end-to-end** could not be exercised in dev (no AWS Bedrock access here); the adapter is wired and
   compiles, enabled purely via env in production.
 
@@ -157,3 +161,7 @@ call it out in onboarding and the DPA.
 - v1.1 — email delivery wired: shared `EmailSender` port relocated to `common/email`; real
   `SesEmailSender` (AWS SES v2, EU region, `EMAIL_PROVIDER`/`EMAIL_REGION`) behind it; every module
   (tax, reports, payroll, reminders, upload notifications) delivers through the one port.
+- v1.2 — added `SmtpEmailSender` (`EMAIL_PROVIDER=smtp`, `spring.mail.*`) so an EU-native SMTP provider
+  (Brevo, Scaleway TEM, Mailjet, …) can be used with no AWS account — now the recommended email path for
+  the EU-hosted stack. All outbound email (including the internal upload notification) delivers durably via
+  the transactional outbox + worker relay (retries, DLQ), independent of which transport is configured.
