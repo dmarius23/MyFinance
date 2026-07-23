@@ -55,6 +55,34 @@ class AnafIbanParserTest {
     }
 
     @Test
+    void extractsBucurestiTreasuryPdfsLinkedDirectlyOnTheIndex() throws IOException {
+        // Bucuresti (municipal + 6 sectors) has no county page — its PDFs are linked straight on the index.
+        List<String> pdfs = AnafIbanParser.pdfLinks(fixtureText("index.html"), BASE);
+
+        assertThat(pdfs).containsExactlyInAnyOrder(
+                BASE + "/iban_TREZ000_TREZ700.pdf", // Municipiul Bucuresti
+                BASE + "/iban_TREZ000_TREZ701.pdf", // Sector 1
+                BASE + "/iban_TREZ000_TREZ702.pdf",
+                BASE + "/iban_TREZ000_TREZ703.pdf",
+                BASE + "/iban_TREZ000_TREZ704.pdf",
+                BASE + "/iban_TREZ000_TREZ705.pdf",
+                BASE + "/iban_TREZ000_TREZ706.pdf"); // Sector 6
+        // the "cheltuieli" reference PDFs on the index are not treasuries and must be excluded
+        assertThat(pdfs).noneMatch(u -> u.toLowerCase().contains("cheltuieli"));
+    }
+
+    @Test
+    void extractsIbansAndResidenceFromABucurestiSectorPdf() throws IOException {
+        String text = AnafHttpIbanSource.extractText(fixtureBytes("iban_TREZ000_TREZ701.pdf"));
+
+        assertThat(AnafIbanParser.residence(text)).isEqualTo("Sector 1");
+        assertThat(AnafIbanParser.ibanByCode(text, AnafIbanParser.CODE_5503)).isEqualTo("RO14TREZ7015503XXXXXXXXX");
+        assertThat(AnafIbanParser.ibanByCode(text, AnafIbanParser.CODE_CAM)).isEqualTo("RO54TREZ70120A470300XXXX");
+        assertThat(AnafIbanParser.ibanByCode(text, AnafIbanParser.CODE_TVA_INTERN)).isEqualTo("RO32TREZ70120A100101XTVA");
+        assertThat(AnafIbanParser.ibanByCode(text, AnafIbanParser.CODE_TVA_EXTERN)).isEqualTo("RO76TREZ70120A100102XTVA");
+    }
+
+    @Test
     void extractsTheFourTargetIbansByEmbeddedCode() throws IOException {
         String text = AnafHttpIbanSource.extractText(fixtureBytes("iban_TREZ001_TREZ002.pdf"));
 

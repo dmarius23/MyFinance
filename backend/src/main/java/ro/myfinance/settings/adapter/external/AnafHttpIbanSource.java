@@ -7,7 +7,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
@@ -30,6 +32,8 @@ public class AnafHttpIbanSource implements AnafIbanSource {
 
     private static final Logger log = LoggerFactory.getLogger(AnafHttpIbanSource.class);
     private static final Pattern TREZ_STEM = Pattern.compile("iban_(TREZ[0-9A-Z_]+)\\.pdf", Pattern.CASE_INSENSITIVE);
+    /** Bucuresti (municipal + the 6 sectors) has no county page — its PDFs are linked directly on the index. */
+    private static final String DIRECT_INDEX_COUNTY = "Bucuresti";
 
     private final AnafIbanProperties props;
     private final HttpClient http;
@@ -54,6 +58,7 @@ public class AnafHttpIbanSource implements AnafIbanSource {
         List<String> countyUrls = AnafIbanParser.countyPageUrls(indexHtml, props.baseUrl());
         log.info("ANAF IBAN sync: {} county pages discovered", countyUrls.size());
 
+        Set<String> seenPdfs = new LinkedHashSet<>();
         for (String countyUrl : countyUrls) {
             String county = countyName(countyUrl);
             List<String> pdfLinks;
@@ -65,10 +70,27 @@ public class AnafHttpIbanSource implements AnafIbanSource {
                 continue;
             }
             for (String pdfUrl : pdfLinks) {
-                out.add(fetchTreasury(county, pdfUrl));
+                if (seenPdfs.add(pdfUrl)) {
+                    out.add(fetchTreasury(county, pdfUrl));
+                    sleep();
+                }
+            }
+        }
+
+        // Bucuresti (Municipiul Bucuresti + Sectoarele 1-6) has no county .htm page — those treasury PDFs
+        // are linked directly on the index. Process any iban_TREZ*.pdf on the index not already covered by
+        // a county page. The residence (from each PDF header) distinguishes them: "Bucuresti", "Sector 1"…
+        List<String> directPdfs = AnafIbanParser.pdfLinks(indexHtml, props.baseUrl()).stream()
+                .filter(seenPdfs::add)
+                .toList();
+        if (!directPdfs.isEmpty()) {
+            log.info("ANAF IBAN sync: {} treasury PDFs linked directly on the index (Bucuresti)", directPdfs.size());
+            for (String pdfUrl : directPdfs) {
+                out.add(fetchTreasury(DIRECT_INDEX_COUNTY, pdfUrl));
                 sleep();
             }
         }
+
         log.info("ANAF IBAN sync: {} treasuries scraped ({} errors)",
                 out.size(), out.stream().filter(t -> !t.ok()).count());
         return out;
