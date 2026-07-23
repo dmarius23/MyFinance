@@ -34,7 +34,7 @@ doc's subject.
 | Document blobs | **Supabase Storage** (`SupabaseDocumentStorage`) or local FS (`LocalFsDocumentStorage`, dev) | Same Supabase project region / local disk | ⚠️ Same caveat as DB |
 | Auth (JWT issuance, JWKS) | Supabase Auth | Supabase project region | ⚠️ Same caveat |
 | Cache / job queue | **Redis** | Wherever provisioned | ⚠️ Must be an EU Redis |
-| Outbound email | `EmailSender` port — `SesEmailSender` (AWS SES v2) / `LoggingEmailSender` (dev) | SES region (config) | ⚠️ EU when `EMAIL_REGION` is `eu-*` — **wired, config-gated** |
+| Outbound email | `EmailSender` port — `SmtpEmailSender` (any EU SMTP provider) / `SesEmailSender` (AWS SES v2) / `LoggingEmailSender` (dev) | provider region (config) | ⚠️ EU when using an EU SMTP provider or an `eu-*` SES region — **wired, config-gated** |
 | **Receipt/invoice OCR (vision LLM)** | `ReceiptExtractor` port | **Anthropic API (US)** *or* **AWS Bedrock (EU)** | ⚠️ **Provider-dependent — see §3** |
 | Document mirror / ingestion | **Google Drive** | Google Workspace data region | ⚠️ **Not EU-guaranteed unless Workspace EU data regions — see §4** |
 
@@ -123,8 +123,11 @@ call it out in onboarding and the DPA.
 1. **Supabase project region = EU** (e.g. `eu-central-1` / Frankfurt). Verify in the Supabase dashboard —
    this covers the DB, Storage blobs, and Auth in one setting. *This is the single most important item.*
 2. **Redis = EU** instance.
-3. **Email = `EMAIL_PROVIDER=ses` with an EU `EMAIL_REGION`** (e.g. `eu-central-1`). The `SesEmailSender`
-   adapter is wired behind the shared `EmailSender` port; never ship `provider=logging` to production.
+3. **Email = an EU-resident provider.** For an EU-hosted, non-AWS stack the simplest fit is
+   `EMAIL_PROVIDER=smtp` with an **EU SMTP provider** (Brevo, Scaleway TEM, Mailjet, …) via `spring.mail.*`
+   — no AWS account, data stays in the provider's EU region. Alternatively `EMAIL_PROVIDER=ses` with an EU
+   `EMAIL_REGION` (SES is callable off-AWS with IAM access keys). Both are behind the shared `EmailSender`
+   port; never ship `provider=logging` to production.
 4. **OCR = `provider=bedrock`, EU region, EU inference profile** (§3.3). Never ship `provider=anthropic` to
    production.
 5. **Google Drive** (if used) = Workspace **EU data regions**, else Supabase-only mode (§4).

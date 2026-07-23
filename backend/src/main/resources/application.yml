@@ -52,6 +52,21 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+  # SMTP transport for myfinance.email.provider=smtp (an EU provider — Brevo, Scaleway TEM, Mailjet, …).
+  # Blank SMTP_HOST → no JavaMailSender is created, so this costs nothing for logging/ses providers.
+  # Timeouts stop a stuck SMTP server from hanging a worker delivery thread (the outbox retries instead).
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 15000
+      mail.smtp.writetimeout: 15000
+
   # Resource server — validates Supabase-issued JWTs via the project JWKS endpoint.
   # Set SUPABASE_JWKS_URI to your project's URL; until then, secured endpoints return 401.
   security:
@@ -79,6 +94,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # Don't let the readiness/liveness probe open an SMTP connection on every check (provider=smtp).
+    mail:
+      enabled: false
 
 myfinance:
   cors:
@@ -105,8 +124,11 @@ myfinance:
     base-url: ${RECEIPT_BASE_URL:}
     # bedrock only: AWS region, e.g. eu-central-1 (blank → AWS default region provider chain).
     region: ${RECEIPT_REGION:}
-  # Email delivery. provider=ses → Amazon SES (must be an EU region for data residency — see
-  # docs/MyFinance-data-privacy-residency-v1.md); anything else → dev logging no-op (no real send).
+  # Email delivery (data must stay in the EU — see docs/MyFinance-data-privacy-residency-v1.md):
+  #   provider=smtp → any EU SMTP provider (Brevo, Scaleway TEM, Mailjet, …) via spring.mail.* below
+  #                   — no AWS account, works from the EU-hosted app;
+  #   provider=ses  → Amazon SES (use an EU region); callable off-AWS with IAM access keys;
+  #   anything else → dev logging no-op (no real send).
   # Every module sends through the shared EmailSender port; only the adapter changes here.
   email:
     provider: ${EMAIL_PROVIDER:logging}
