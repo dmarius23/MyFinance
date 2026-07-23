@@ -57,7 +57,7 @@ never stored** (it is volatile and non-authoritative). A worker job pre-warms cl
   - Frontend `reportsApi` (`frontend/src/api/reports.ts`), chart components
     (`frontend/src/components/reportCharts.tsx`), `ReportChartsModal`, firm `Reports.tsx` page.
 - Built on branch `feat/period-reports-forecast` (worktree off commit `ebe1069`, where the latest committed
-  migration is `V37`). Mine is numbered `V40` to stay clear of a parallel branch's uncommitted `V38` — the
+  migration is `V37`). Mine is numbered `V43` to stay clear of a parallel branch's uncommitted `V38` — the
   number may need reconciling at merge time. Docker not guaranteed locally → `*IT` may skip; verify
   `mvn -B -DskipTests test-compile` + `mvn -B test` (unit) and FE `npm run lint && npm run build`.
 
@@ -84,9 +84,9 @@ never stored** (it is volatile and non-authoritative). A worker job pre-warms cl
 - [ ] **Step 4:** Unit tests: sum-of-flows, period-end balance sheet, recomputed KPIs, all-balanced
       rule, incomplete period (missing middle month), single-month passthrough. No DB.
 
-## Task 2: `V40__period_report.sql` migration (+ RLS + isolation test)
+## Task 2: `V43__period_report.sql` migration (+ RLS + isolation test)
 
-**File:** `backend/src/main/resources/db/migration/V40__period_report.sql`
+**File:** `backend/src/main/resources/db/migration/V43__period_report.sql`
 
 - [ ] **Step 1:** Table:
 ```sql
