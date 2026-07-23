@@ -54,6 +54,13 @@ export interface TrendPoint {
   revenue: number;
   expenses: number;
   netProfit: number;
+  /** true for forecast points (a non-authoritative estimate); false for actuals. */
+  projected: boolean;
+  /** Confidence band on the charted lines — null on actuals or when too few points to estimate. */
+  revenueLow: number | null;
+  revenueHigh: number | null;
+  netProfitLow: number | null;
+  netProfitHigh: number | null;
 }
 
 export interface ReportEmailView {

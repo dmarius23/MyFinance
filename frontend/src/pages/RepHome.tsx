@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { portalApi, type PortalDoc } from "../api/portal";
+import { portalApi, periodTag, type PortalDoc, type Granularity } from "../api/portal";
 import { getActiveCompanyId, setActiveCompanyId } from "../lib/activeCompany";
 import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
+import { GranularitySelector } from "../components/GranularitySelector";
 import { PortalPreviewModal } from "../components/PortalPreviewModal";
 import { currentPushState, enablePush, disablePush, type PushState } from "../lib/push";
 
@@ -42,6 +43,7 @@ export function RepHome() {
   const { signOut } = useAuth();
   const qc = useQueryClient();
   const [period, setPeriod] = useState(latestMonth());
+  const [gran, setGran] = useState<Granularity>("MONTH");
   const [preview, setPreview] = useState<{ load: () => Promise<Blob>; filename: string } | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -103,11 +105,12 @@ export function RepHome() {
   };
   const missing = useQuery({ queryKey: ["portal-missing", cid, period], queryFn: () => portalApi.missing(period) });
   const docs = useQuery({ queryKey: ["portal-company-docs", cid, period], queryFn: () => portalApi.companyDocuments(period) });
-  const report = useQuery({ queryKey: ["portal-report", cid, period], queryFn: () => portalApi.report(period) });
+  const report = useQuery({ queryKey: ["portal-report", cid, period, gran], queryFn: () => portalApi.report(period, gran) });
   const balanceSheet = useQuery({ queryKey: ["portal-balance", cid, period], queryFn: () => portalApi.balanceSheet(period) });
   const payroll = useQuery({ queryKey: ["portal-payroll", cid, period], queryFn: () => portalApi.payroll(period) });
   const payments = useQuery({ queryKey: ["portal-payments", cid, period], queryFn: () => portalApi.payments(period) });
-  const trend = useQuery({ queryKey: ["portal-trend", cid, period], queryFn: () => portalApi.trend(period) });
+  // Trend is always a monthly time series; request a 3-month forecast (a non-authoritative estimate).
+  const trend = useQuery({ queryKey: ["portal-trend", cid, period], queryFn: () => portalApi.trend(period, 12, 3) });
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["portal-company-docs", cid, period] });
@@ -137,7 +140,8 @@ export function RepHome() {
   };
   const toggleLang = () => void i18n.changeLanguage(i18n.language === "ro" ? "en" : "ro");
 
-  const r = report.data;
+  const r = report.data?.report ?? null;
+  const coverage = report.data;
   const all = docs.data ?? [];
   const bank = all.filter((d) => d.type === "BANK_STATEMENT");
   const others = all.filter((d) => d.type !== "BANK_STATEMENT");
@@ -312,7 +316,20 @@ export function RepHome() {
 
           {/* FINANCIALS card */}
           <div style={card}>
-            <h2 style={{ ...cardH, marginBottom: 10 }}>{t("portal.financials")}</h2>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+              <h2 style={cardH}>{t("portal.financials")}</h2>
+              {gran !== "MONTH" && <span style={{ ...mono, fontSize: 12, fontWeight: 700, color: C.sub }}>{periodTag(period, gran)}</span>}
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <GranularitySelector value={gran} onChange={setGran} />
+            </div>
+            {gran !== "MONTH" && r && coverage && !coverage.complete && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", background: C.warnBg, border: `1px solid ${C.warnBd}`, borderRadius: 10, padding: "8px 11px", marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: C.warnFg, fontWeight: 600 }}>
+                  {t("portal.reportIncomplete", { present: coverage.monthsPresent, expected: coverage.monthsExpected })}
+                </span>
+              </div>
+            )}
             {report.isLoading && <div style={{ color: C.mut, fontSize: 13 }}>…</div>}
             {r && (
               <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -327,11 +344,11 @@ export function RepHome() {
               </div>
             )}
             <div style={{ display: "flex", gap: 8 }}>
-              <button disabled={!r} onClick={() => setPreview({ load: () => portalApi.reportBlob(period), filename: `raport-${period.slice(0, 7)}.pdf` })}
+              <button disabled={!r} onClick={() => setPreview({ load: () => portalApi.reportBlob(period, gran), filename: `raport-${periodTag(period, gran)}.pdf` })}
                 style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10, background: C.card, fontSize: 13, fontWeight: 600, color: C.ink, cursor: "pointer", opacity: r ? 1 : 0.45, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <EyeIcon /> {t("portal.view")}
               </button>
-              <button disabled={!r} onClick={() => portalApi.downloadReport(period)}
+              <button disabled={!r} onClick={() => portalApi.downloadReport(period, gran)}
                 style={{ flex: 1, background: C.teal, border: "none", borderRadius: 10, padding: 10, fontSize: 13, fontWeight: 700, color: C.tealInk, cursor: "pointer", opacity: r ? 1 : 0.45, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <DownloadIcon stroke={C.tealInk} /> {t("portal.downloadReport")}
               </button>
@@ -353,7 +370,7 @@ export function RepHome() {
                 <ChartCard title={t("reports.chart.pl")}><PlBars r={r} /></ChartCard>
                 {r.profitLoss.expenseItems.length > 0 && <ChartCard title={t("reports.chart.expenses")}><Donut items={r.profitLoss.expenseItems} /></ChartCard>}
                 <ChartCard title={t("reports.chart.trend")}>
-                  <Trend points={trend.data ?? []} loading={trend.isLoading} emptyLabel={t("reports.trendEmpty")} />
+                  <Trend points={trend.data ?? []} loading={trend.isLoading} emptyLabel={t("reports.trendEmpty")} forecastLabel={t("portal.forecast")} />
                 </ChartCard>
                 <ChartCard title={t("reports.chart.kpi")}><Kpis r={r} t={t} /></ChartCard>
               </div>
@@ -376,7 +393,7 @@ export function RepHome() {
         <div style={{ flex: "none", position: "sticky", bottom: 0, zIndex: 5, background: C.chrome, borderTop: `1px solid #1a2624`, padding: "9px 0 14px", display: "flex" }}>
           <Tab active label={t("portal.navHome")} onClick={() => {}}><HomeIcon /></Tab>
           <Tab label={t("portal.navUpload")} onClick={() => fileRef.current?.click()}><CameraIcon stroke="currentColor" /></Tab>
-          <Tab label={t("portal.navReports")} onClick={() => r && setPreview({ load: () => portalApi.reportBlob(period), filename: `raport-${period.slice(0, 7)}.pdf` })}><BarsIcon /></Tab>
+          <Tab label={t("portal.navReports")} onClick={() => r && setPreview({ load: () => portalApi.reportBlob(period, gran), filename: `raport-${periodTag(period, gran)}.pdf` })}><BarsIcon /></Tab>
           <Tab label={t("portal.navProfile")} onClick={() => void signOut()}><UserIcon /></Tab>
         </div>
 

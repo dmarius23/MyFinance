@@ -1,5 +1,29 @@
-import { api, upload, download } from "../lib/apiClient";
+import { api, apiWithHeaders, upload, download } from "../lib/apiClient";
 import type { ReportData, TrendPoint } from "./reports";
+
+/** Reporting period grain — mirrors the backend enum. */
+export type Granularity = "MONTH" | "QUARTER" | "HALF" | "YEAR";
+
+const MONTHS_IN: Record<Granularity, number> = { MONTH: 1, QUARTER: 3, HALF: 6, YEAR: 12 };
+
+/** A filename/label tag for the calendar period containing {@code period} (yyyy-MM-01): 2026-03, 2026-Q2, 2026-H1, 2026. */
+export function periodTag(period: string, g: Granularity): string {
+  const [y, m] = period.split("-").map(Number);
+  switch (g) {
+    case "MONTH": return period.slice(0, 7);
+    case "QUARTER": return `${y}-Q${Math.floor((m - 1) / 3) + 1}`;
+    case "HALF": return `${y}-H${Math.floor((m - 1) / 6) + 1}`;
+    case "YEAR": return `${y}`;
+  }
+}
+
+/** The report for a period plus how much of that period is covered (from the X-Report-* headers). */
+export interface PortalReport {
+  report: ReportData | null;
+  complete: boolean;
+  monthsPresent: number;
+  monthsExpected: number;
+}
 
 export interface CompanyOption {
   companyId: string;
@@ -97,19 +121,38 @@ export const portalApi = {
   missing: (period: string) => api<MissingItem[]>(`/api/v1/portal/missing?period=${period}`),
   myDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/documents?period=${period}`),
   companyDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/company-documents?period=${period}`),
-  // 204 → undefined (no report for the period yet).
-  report: (period: string) => api<ReportData | null>(`/api/v1/portal/report?period=${period}`),
+  // The report for the calendar period of `granularity` containing `period`, plus its coverage headers.
+  // 204 → no report yet (report: null).
+  report: async (period: string, granularity: Granularity = "MONTH"): Promise<PortalReport> => {
+    const { data, headers } = await apiWithHeaders<ReportData>(
+      `/api/v1/portal/report?period=${period}&granularity=${granularity}`,
+    );
+    const num = (h: string, fallback: number) => {
+      const v = headers.get(h);
+      return v == null ? fallback : Number(v);
+    };
+    return {
+      report: data ?? null,
+      complete: headers.get("X-Report-Complete") === "true",
+      monthsPresent: num("X-Report-Months-Present", 0),
+      monthsExpected: num("X-Report-Months-Expected", MONTHS_IN[granularity]),
+    };
+  },
   payroll: (period: string) => api<PayrollFile[]>(`/api/v1/portal/payroll?period=${period}`),
   balanceSheet: (period: string) => api<PortalDoc[]>(`/api/v1/portal/balance-sheet?period=${period}`),
   payments: (period: string) => api<Payment>(`/api/v1/portal/payments?period=${period}`),
-  trend: (period: string, months = 12) => api<TrendPoint[]>(`/api/v1/portal/report/trend?period=${period}&months=${months}`),
-  downloadReport: async (period: string) =>
-    saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}`), `raport-${period.slice(0, 7)}.pdf`),
+  // Monthly time series (always month-stepped), optionally with `forecast` projected months appended.
+  trend: (period: string, months = 12, forecast = 0) =>
+    api<TrendPoint[]>(`/api/v1/portal/report/trend?period=${period}&months=${months}&forecast=${forecast}`),
+  downloadReport: async (period: string, granularity: Granularity = "MONTH") =>
+    saveBlob(await download(`/api/v1/portal/report/pdf?period=${period}&granularity=${granularity}`),
+      `raport-${periodTag(period, granularity)}.pdf`),
   downloadFile: async (id: string, filename: string) =>
     saveBlob(await download(`/api/v1/portal/files/${id}`), filename),
   // Same content as a Blob, for in-app preview (no download).
   fileBlob: (id: string) => download(`/api/v1/portal/files/${id}`),
-  reportBlob: (period: string) => download(`/api/v1/portal/report/pdf?period=${period}`),
+  reportBlob: (period: string, granularity: Granularity = "MONTH") =>
+    download(`/api/v1/portal/report/pdf?period=${period}&granularity=${granularity}`),
   notifications: () => api<PortalNotification[]>("/api/v1/portal/notifications"),
   markNotificationRead: (id: string) => api<void>(`/api/v1/portal/notifications/${id}/read`, { method: "POST" }),
   // Web Push (VAPID) — config (public key + whether the server has push enabled) and (un)subscribe.

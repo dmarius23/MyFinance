@@ -72,23 +72,69 @@ export function Donut({ items }: { items: ReportItem[] }) {
   );
 }
 
-/** Revenue & net-profit line chart across months. */
-export function Trend({ points, loading, emptyLabel }: { points: TrendPoint[]; loading: boolean; emptyLabel: string }) {
+/**
+ * Revenue & net-profit line chart across months. When the series ends with `projected` points (a
+ * forecast), those are drawn as a dashed continuation with a shaded confidence band and a boundary
+ * marker — an estimate, visually distinct from the actuals.
+ */
+export function Trend({ points, loading, emptyLabel, forecastLabel }:
+  { points: TrendPoint[]; loading: boolean; emptyLabel: string; forecastLabel?: string }) {
   if (loading) return <span style={{ color: "var(--text-muted)", fontSize: 12.5 }}>…</span>;
   if (points.length < 2) return <div style={{ color: "var(--text-faint)", fontSize: 12.5 }}>{emptyLabel}</div>;
   const W = 560, H = 150, P = 28;
-  const max = Math.max(...points.map((p) => Math.max(p.revenue, p.netProfit)), 1);
-  const min = Math.min(...points.map((p) => p.netProfit), 0);
+  const firstProj = points.findIndex((p) => p.projected);
+  const hasForecast = firstProj > 0; // need at least one actual before the projection to anchor it
+  const lastActual = hasForecast ? firstProj - 1 : points.length - 1;
+
+  const vals = points.flatMap((p) => [
+    p.revenue, p.netProfit,
+    p.revenueHigh ?? p.revenue, p.netProfitHigh ?? p.netProfit,
+    p.revenueLow ?? p.revenue, p.netProfitLow ?? p.netProfit,
+  ]);
+  const max = Math.max(...vals, 1);
+  const min = Math.min(...vals, 0);
   const x = (i: number) => P + (i / (points.length - 1)) * (W - 2 * P);
   const y = (v: number) => H - P - ((v - min) / (max - min || 1)) * (H - 2 * P);
-  const path = (key: "revenue" | "netProfit") =>
-    points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+
+  const line = (key: "revenue" | "netProfit", from: number, to: number) =>
+    points.slice(from, to + 1)
+      .map((p, idx) => `${idx === 0 ? "M" : "L"}${x(from + idx).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+
+  // Area between the low/high band across the projected region, anchored at the last actual point.
+  const band = (lowKey: "revenueLow" | "netProfitLow", highKey: "revenueHigh" | "netProfitHigh",
+                actualKey: "revenue" | "netProfit"): string | null => {
+    if (!hasForecast || !points.slice(firstProj).some((p) => p[highKey] != null && p[lowKey] != null)) return null;
+    const idxs = Array.from({ length: points.length - lastActual }, (_, k) => lastActual + k);
+    const pt = (i: number, key: "revenueLow" | "netProfitLow" | "revenueHigh" | "netProfitHigh") => {
+      const p = points[i];
+      const v = i === lastActual ? p[actualKey] : (p[key] ?? p[actualKey]);
+      return `${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+    };
+    return [...idxs.map((i) => pt(i, highKey)), ...idxs.map((i) => pt(i, lowKey)).reverse()].join(" ");
+  };
+  const revBand = band("revenueLow", "revenueHigh", "revenue");
+  const npBand = band("netProfitLow", "netProfitHigh", "netProfit");
+
   return (
     <div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ maxWidth: W }}>
         <line x1={P} y1={H - P} x2={W - P} y2={H - P} stroke="var(--border)" />
-        <path d={path("revenue")} fill="none" stroke="#0f766e" strokeWidth="2.5" />
-        <path d={path("netProfit")} fill="none" stroke="#14b8a6" strokeWidth="2.5" strokeDasharray="4 3" />
+        {revBand && <polygon points={revBand} fill="#0f766e" opacity={0.1} />}
+        {npBand && <polygon points={npBand} fill="#14b8a6" opacity={0.1} />}
+        {/* actuals */}
+        <path d={line("revenue", 0, lastActual)} fill="none" stroke="#0f766e" strokeWidth="2.5" />
+        <path d={line("netProfit", 0, lastActual)} fill="none" stroke="#14b8a6" strokeWidth="2.5" strokeDasharray="4 3" />
+        {/* forecast continuation */}
+        {hasForecast && (
+          <>
+            <line x1={x(lastActual)} y1={P / 2} x2={x(lastActual)} y2={H - P} stroke="var(--border)" strokeDasharray="3 3" />
+            <path d={line("revenue", lastActual, points.length - 1)} fill="none" stroke="#0f766e" strokeWidth="2" strokeDasharray="2 3" opacity={0.65} />
+            <path d={line("netProfit", lastActual, points.length - 1)} fill="none" stroke="#14b8a6" strokeWidth="2" strokeDasharray="2 3" opacity={0.65} />
+            {points.slice(firstProj).map((p, k) => (
+              <circle key={`p${firstProj + k}`} cx={x(firstProj + k)} cy={y(p.revenue)} r="2.4" fill="#0f766e" opacity={0.7} />
+            ))}
+          </>
+        )}
         {points.map((p, i) => (
           <text key={i} x={x(i)} y={H - 8} fontSize="9" textAnchor="middle" fill="var(--text-muted)">{p.periodMonth.slice(0, 7)}</text>
         ))}
@@ -96,6 +142,11 @@ export function Trend({ points, loading, emptyLabel }: { points: TrendPoint[]; l
       <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 11.5, marginTop: 4 }}>
         <Legend color="#0f766e" label="Venituri" />
         <Legend color="#14b8a6" label="Profit net" />
+        {hasForecast && forecastLabel && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-muted)" }}>
+            <span style={{ width: 12, height: 0, borderTop: "2px dashed var(--text-muted)", display: "inline-block" }} />{forecastLabel}
+          </span>
+        )}
       </div>
     </div>
   );
