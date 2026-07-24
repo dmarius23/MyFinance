@@ -70,23 +70,22 @@ public class PortalController {
     }
 
     /**
-     * The rep's own-company report for the period at the requested granularity (month by default). 204
-     * when no data yet. Period coverage is returned in the {@code X-Report-*} headers so the PWA can flag
-     * an incomplete quarter/half/year.
+     * The rep's own-company report for the period at the requested granularity (month by default). The
+     * response wraps the report ({@code null} when none is available yet) with its period coverage, so the
+     * PWA can flag an incomplete quarter/half/year.
      */
     @GetMapping("/api/v1/portal/report")
-    public ResponseEntity<ReportData> report(
+    public ReportView report(
             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         PeriodReportResult res = portal.report(period, granularity);
-        if (res == null) {
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.ok()
-                .header("X-Report-Complete", Boolean.toString(res.complete()))
-                .header("X-Report-Months-Present", Integer.toString(res.monthsPresent()))
-                .header("X-Report-Months-Expected", Integer.toString(res.monthsExpected()))
-                .body(res.data());
+        return res == null
+                ? new ReportView(null, false, 0, granularity.monthsExpected())
+                : new ReportView(res.data(), res.complete(), res.monthsPresent(), res.monthsExpected());
+    }
+
+    /** A computed report plus how much of the requested period it covers ({@code report} null = none yet). */
+    public record ReportView(ReportData report, boolean complete, int monthsPresent, int monthsExpected) {
     }
 
     /** Trend for the rep's company, optionally with {@code forecast} projected months (non-authoritative). */
