@@ -47,7 +47,11 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
   const driveMode = driveQ.data?.driveEnabled === true;
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "DECLARATION" }),
-    onSuccess: (r: SyncResult) => { setError(null); invalidate(); window.alert(t("payroll.syncDone", r as unknown as Record<string, number>)); },
+    onSuccess: (r: SyncResult) => {
+      setError(null); invalidate();
+      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      window.alert(t("payroll.syncDone", r as unknown as Record<string, number>));
+    },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Sync failed"),
   });
   const remove = useMutation({

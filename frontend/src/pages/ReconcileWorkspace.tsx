@@ -93,7 +93,12 @@ export function ReconcileWorkspace() {
   const driveEnabled = driveQ.data?.driveEnabled === true;
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "MIXED" }),
-    onSuccess: invalidate, onError: onErr,
+    onSuccess: () => {
+      invalidate();
+      // A sync imports any document type for this company+month — refresh every list scoped to it.
+      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+    },
+    onError: onErr,
   });
   const mapChecked = useMutation({
     mutationFn: async ({ txnId, invoiceIds }: { txnId: string; invoiceIds: string[] }) => { for (const id of invoiceIds) await bankApi.match(companyId, txnId, id); },

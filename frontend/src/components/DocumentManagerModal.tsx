@@ -99,6 +99,8 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
     onSuccess: (r: SyncResult) => {
       refresh();
+      // A sync imports any document type found for this company+month — refresh every list scoped to it.
+      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
       const parts = [t("payroll.syncDone", r as unknown as Record<string, number>)];
       for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
       setNote(parts.join(" · "));
