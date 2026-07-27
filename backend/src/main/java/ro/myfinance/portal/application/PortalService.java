@@ -213,7 +213,9 @@ public class PortalService {
      * quarter/half/year aggregated), or null if none is available yet. Company is resolved and validated
      * server-side by {@link #companyId()} — a rep can never read another company's report.
      */
-    @Transactional(readOnly = true)
+    // Not read-only: periodReports.report may persist the aggregated period_report cache row, and a
+    // read-only transaction silently drops that write (Hibernate never flushes it).
+    @Transactional
     public PeriodReportResult report(LocalDate period, Granularity granularity) {
         try {
             return periodReports.report(companyId(), granularity, period);
@@ -231,7 +233,8 @@ public class PortalService {
         return reports.trend(companyId(), period.withDayOfMonth(1), months, forecast);
     }
 
-    @Transactional(readOnly = true)
+    // Not read-only — period_report cache write via periodReports.report (see report()).
+    @Transactional
     public byte[] reportPdf(LocalDate period, Granularity granularity) {
         return reportPdf.generate(periodReports.report(companyId(), granularity, period).data());
     }

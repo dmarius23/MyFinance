@@ -8,8 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      // Enable the generated SW in dev too, so Web Push can be tested on localhost.
-      devOptions: { enabled: true, type: "module" },
+      // SW disabled in dev: it precaches the app shell and serves a stale bundle after code changes
+      // (blank pages / outdated UI until a manual unregister). Flip to `enabled: true` temporarily
+      // only when you need to test Web Push on localhost.
+      devOptions: { enabled: false, type: "module" },
       // App-shell precache; never cache sensitive API responses (handled by not matching /api).
       // push-sw.js (in public/) adds the `push` + `notificationclick` handlers to the generated SW.
       workbox: {
