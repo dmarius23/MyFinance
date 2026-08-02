@@ -31,7 +31,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 |---|---|---|---|
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
 | **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
-| **P2** | Production blockers (stubbed features) | S7, S8 | 🟡 In progress — **S7 ✅ done**; S8 not started |
+| **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
 | **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S13 ✅ done**; S10–S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
@@ -42,7 +42,8 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 > the `DocumentServiceIT` repair) · **S5 ✅ done** (invite atomicity via outbox compensation — no orphaned
 > auth user) · **S6 ✅ done** (ShedLock distributed lock on the ingestion poll — exactly-once across
 > instances) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
-> port) · **S9 ✅ done** (4× email-history stacks collapsed into one) · **S13 ✅ done** (shared ports moved to
+> port) · **S8 ✅ done** (durable Supabase Storage adapter behind the `DocumentStorage` port, hardened) ·
+> **S9 ✅ done** (4× email-history stacks collapsed into one) · **S13 ✅ done** (shared ports moved to
 > `common`, month-name dedup, stale-comment sweep). Deferred follow-ups discovered during P0: failsafe/CI +
 > `*IT`-suite isolation → **S15/S18** (see notes on those steps).
 
@@ -266,7 +267,21 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** integration test against SES sandbox or LocalStack sends; dev profile still logs.
 - **Size:** M. **Depends-on:** S4 (retry), S13 (port move).
 
-### S8. Durable `DocumentStorage` (S3 / Supabase Storage) behind the existing port
+### S8. Durable `DocumentStorage` (S3 / Supabase Storage) behind the existing port — ✅ DONE
+- **Shipped:** `SupabaseDocumentStorage` (durable object store, encrypted at rest by Supabase's S3 backend)
+  is wired behind the existing `DocumentStorage` port and selected by config
+  (`myfinance.storage.type=supabase`, else local FS for dev — `DocumentStorageConfig`); the `storage_key`
+  scheme is unchanged. **Hardened** the adapter as part of this step: the multi-segment key is now emitted
+  as real URL path segments (`pathSegment`, slashes kept literal) instead of a single `{key}` template var
+  that RestClient would mangle into `%2F`; missing objects map to 404 (not 500) and delete is idempotent —
+  matching `LocalFsDocumentStorage`. Path-traversal is already guarded in the local adapter
+  (`resolve()` normalizes + `startsWith(baseDir)`); downloads are proxied through
+  `DocumentService.getContent`, which re-checks ownership under RLS before reading. Added an explicit
+  `myfinance.storage.*` config block. Test: `SupabaseDocumentStorageTest` proves the store→retrieve→delete
+  round-trip against a mock storage endpoint, incl. literal-slash URLs and the 404/idempotency behaviour.
+  **Deliberately not done:** true streaming (the `DocumentStorage` port + the whole intake pipeline are
+  `byte[]`-based and the app caps uploads at 20 MB, so buffering is fine — streaming would be a
+  cross-cutting refactor, out of scope); a separate S3 adapter (Supabase Storage *is* the durable store).
 - **Goal:** replace local-filesystem-only storage with durable, multi-instance-safe object storage.
 - **Why:** `LocalFsDocumentStorage` is the only adapter (review §10) — not durable and not safe across
   multiple app instances. The `DocumentStorage` port already abstracts it.

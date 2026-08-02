@@ -110,6 +110,14 @@ myfinance:
     # from jwk-set-uri (issuer = JWKS URL minus /.well-known/jwks.json) — so setting only
     # SUPABASE_JWKS_URI is enough, and it still fails closed on the YOUR-PROJECT placeholder.
     issuer: ${SUPABASE_ISSUER:}
+  # Document blob storage. type=supabase → Supabase Storage bucket (durable, multi-instance, encrypted at
+  # rest — the production path; requires myfinance.supabase.* configured). Anything else → local filesystem
+  # (dev). See docs/MyFinance-data-privacy-residency-v1.md.
+  storage:
+    type: ${STORAGE_TYPE:local}
+    supabase-bucket: ${STORAGE_SUPABASE_BUCKET:documents}
+    # local only: blank → ~/.myfinance/docs (persistent; NOT java.io.tmpdir, which the OS purges).
+    local-base-dir: ${STORAGE_LOCAL_DIR:}
   # Receipt-image OCR. Blank api-key → image receipts stay NEEDS_REVIEW (no LLM calls, no cost).
   # Prod uses Claude via AWS Bedrock (EU); local/dev can use the Anthropic API directly.
   receipt:
