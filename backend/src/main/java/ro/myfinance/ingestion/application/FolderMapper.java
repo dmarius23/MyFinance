@@ -39,20 +39,27 @@ public final class FolderMapper {
     /** Resolve the company a file belongs to from its folder path, against the tenant's companies. */
     public static Optional<UUID> resolveCompany(RemoteFile file, List<Company> companies) {
         for (String segment : segments(file)) {
-            String segDigits = digits(segment);
-            String segNorm = normalize(segment);
             for (Company c : companies) {
-                String cuiDigits = digits(c.getCui());
-                if (cuiDigits.length() >= 4 && segDigits.contains(cuiDigits)) {
-                    return Optional.of(c.getId());
-                }
-                String core = coreName(c.getLegalName());
-                if (core != null && segNorm.contains(core)) {
+                if (matchesCompany(segment, c)) {
                     return Optional.of(c.getId());
                 }
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether a folder-path segment identifies {@code c} — by its CUI digits or a distinctive part of
+     * its legal name. Used both to resolve a file's company and to locate a company's folder under the
+     * root for a scoped crawl.
+     */
+    public static boolean matchesCompany(String segment, Company c) {
+        String cuiDigits = digits(c.getCui());
+        if (cuiDigits.length() >= 4 && digits(segment).contains(cuiDigits)) {
+            return true;
+        }
+        String core = coreName(c.getLegalName());
+        return core != null && normalize(segment).contains(core);
     }
 
     /**

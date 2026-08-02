@@ -18,6 +18,28 @@ public interface CloudFolderConnector {
      *  for incremental polling; null lists everything. Returns the files plus the next cursor. */
     Listing list(SourceConnection connection, String cursor);
 
+    /**
+     * Recursively list files under {@code startFolderId} (a folder below the root), so a per-company
+     * sync can crawl only that company's folder instead of the whole drive. {@code path} on the
+     * returned files is relative to {@code startFolderId}. Default: full root crawl (connectors that
+     * don't scope just ignore the start folder).
+     */
+    default Listing list(SourceConnection connection, String startFolderId, String cursor) {
+        return list(connection, cursor);
+    }
+
+    /**
+     * Direct child folders of {@code parentId} — used to locate a company's folder under the root.
+     * Default: empty (the caller then falls back to a full crawl).
+     */
+    default List<Folder> subfolders(SourceConnection connection, String parentId) {
+        return List.of();
+    }
+
+    /** A folder in the watched tree (id + display name). */
+    record Folder(String id, String name) {
+    }
+
     /** Download a file's bytes. */
     byte[] download(SourceConnection connection, RemoteFile file);
 

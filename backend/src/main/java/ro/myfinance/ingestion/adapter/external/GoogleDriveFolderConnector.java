@@ -34,6 +34,12 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
     private final RestClient http;
     private final ObjectMapper json = new ObjectMapper();
 
+    // A minted access token is valid for 1h and identical for every call (single service account), yet a
+    // sync mints one per subfolders/list/download round-trip — several seconds of avoidable token exchanges.
+    // Cache it and reuse until shortly before expiry.
+    private volatile String cachedToken;
+    private volatile long cachedTokenExpiry; // epoch seconds when the cached token stops being usable
+
     public GoogleDriveFolderConnector(GoogleIngestionProperties props, RestClient.Builder builder) {
         this.props = props;
         this.http = builder.build();
@@ -46,10 +52,32 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
 
     @Override
     public Listing list(SourceConnection connection, String cursor) {
+        return list(connection, connection.getRootFolderId(), cursor);
+    }
+
+    @Override
+    public List<Folder> subfolders(SourceConnection connection, String parentId) {
+        String token = accessToken();
+        List<Folder> out = new ArrayList<>();
+        String pageToken = null;
+        do {
+            JsonNode page = listPage(token, parentId, pageToken);
+            for (JsonNode f : page.path("files")) {
+                if (FOLDER_MIME.equals(f.path("mimeType").asText(""))) {
+                    out.add(new Folder(f.path("id").asText(), f.path("name").asText("")));
+                }
+            }
+            pageToken = page.path("nextPageToken").asText(null);
+        } while (pageToken != null && !pageToken.isBlank());
+        return out;
+    }
+
+    @Override
+    public Listing list(SourceConnection connection, String startFolderId, String cursor) {
         String token = accessToken();
         List<RemoteFile> out = new ArrayList<>();
         Deque<String[]> stack = new ArrayDeque<>(); // [folderId, relativePath, depth]
-        stack.push(new String[]{connection.getRootFolderId(), "", "0"});
+        stack.push(new String[]{startFolderId, "", "0"});
         while (!stack.isEmpty()) {
             String[] cur = stack.pop();
             String folderId = cur[0], path = cur[1];
@@ -111,8 +139,26 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
         }
     }
 
-    /** Mint a short-lived access token from the service-account key (JWT-bearer grant). */
+    /** A valid access token, reusing the cached one until ~5 min before it expires. */
     private String accessToken() {
+        long now = Instant.now().getEpochSecond();
+        String tok = cachedToken;
+        if (tok != null && now < cachedTokenExpiry) {
+            return tok;
+        }
+        synchronized (this) {
+            if (cachedToken != null && Instant.now().getEpochSecond() < cachedTokenExpiry) {
+                return cachedToken;
+            }
+            String fresh = mintToken();
+            cachedToken = fresh;
+            cachedTokenExpiry = Instant.now().getEpochSecond() + 3600 - 300; // 1h lifetime, refresh 5 min early
+            return fresh;
+        }
+    }
+
+    /** Mint a short-lived access token from the service-account key (JWT-bearer grant). */
+    private String mintToken() {
         if (!props.isConfigured()) {
             throw new IllegalStateException("Google Drive ingestion is not configured (service-account key missing)");
         }
