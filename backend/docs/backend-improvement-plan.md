@@ -30,7 +30,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | Band | Theme | Steps | Status |
 |---|---|---|---|
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
-| **P1** | Reliability & correctness of core flows | S4, S5, S6 | 🟡 In progress — **S4, S5 ✅ done**; S6 not started |
+| **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
 | **P2** | Production blockers (stubbed features) | S7, S8 | 🟡 In progress — **S7 ✅ done**; S8 not started |
 | **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S13 ✅ done**; S10–S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
@@ -40,7 +40,8 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 > already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
 > JWKS URI) · **S4 ✅ done** (async document pipeline + durable email outbox relay, sub-steps S4a–d, incl.
 > the `DocumentServiceIT` repair) · **S5 ✅ done** (invite atomicity via outbox compensation — no orphaned
-> auth user) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
+> auth user) · **S6 ✅ done** (ShedLock distributed lock on the ingestion poll — exactly-once across
+> instances) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
 > port) · **S9 ✅ done** (4× email-history stacks collapsed into one) · **S13 ✅ done** (shared ports moved to
 > `common`, month-name dedup, stale-comment sweep). Deferred follow-ups discovered during P0: failsafe/CI +
 > `*IT`-suite isolation → **S15/S18** (see notes on those steps).
@@ -217,7 +218,16 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** induced persistence failure leaves no orphaned auth user.
 - **Size:** M. **Depends-on:** S4a (if taking the outbox route).
 
-### S6. Ingestion scheduler multi-instance safety
+### S6. Ingestion scheduler multi-instance safety — ✅ DONE
+- **Shipped:** chose the **ShedLock** route (robust for N instances, consistent with the SKIP-LOCKED outbox
+  worker from S4d — rather than the single-worker-profile assumption). Added `shedlock-spring` +
+  `shedlock-provider-jdbc-template`; **V47** creates the `shedlock` lock table (cross-instance infra — no
+  `tenant_id`, intentionally outside RLS, documented in the migration). `ShedLockConfig`
+  (`@EnableSchedulerLock`, `JdbcTemplateLockProvider` on the admin JdbcTemplate, `usingDbTime` so timing is
+  immune to per-instance clock skew). `IngestionScheduler.pollFrequent/pollDaily` now carry
+  `@SchedulerLock` (made public so the proxy intercepts) → with several web/worker instances up, exactly
+  one runs each tick and the rest skip. `IngestionSchedulerLockIT` proves the guarantee on real Postgres: a
+  held lock blocks a second acquire and frees on release. Full suite green.
 - **Goal:** guarantee exactly-once scheduling when the web tier is scaled horizontally.
 - **Why:** `IngestionScheduler` runs in the **web** app (`@EnableScheduling` is on
   `MyFinanceApplication`). It is `@ConditionalOnProperty(myfinance.ingestion.poll.enabled=true)`, so it's

@@ -2,6 +2,7 @@ package ro.myfinance.ingestion.application;
 
 import java.util.List;
 import java.util.UUID;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,6 +19,9 @@ import ro.myfinance.common.security.TenantContext;
  * (both cron expressions configurable). Each run enumerates Drive connections across tenants (via the
  * admin/RLS-bypassing datasource), then syncs the current + previous month for each, under that tenant's
  * RLS context. New previous-month payroll notifies the company's representatives.
+ *
+ * <p>Multi-instance safe (S6): each tick is guarded by a ShedLock {@code @SchedulerLock}, so with several
+ * web/worker instances up exactly one runs the poll and the rest skip it — no duplicate Drive imports.
  */
 @Component
 @ConditionalOnProperty(prefix = "myfinance.ingestion.poll", name = "enabled", havingValue = "true")
@@ -33,15 +37,17 @@ public class IngestionScheduler {
         this.ingestion = ingestion;
     }
 
-    /** Hourly during the first week of the month (days 1–7). */
+    /** Hourly during the first week of the month (days 1–7). One instance per tick via the distributed lock. */
     @Scheduled(cron = "${myfinance.ingestion.poll.cron-frequent:0 0 * 1-7 * *}")
-    void pollFrequent() {
+    @SchedulerLock(name = "ingestionPollFrequent", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
+    public void pollFrequent() {
         run("frequent");
     }
 
-    /** Once a day for the rest of the month (days 8–31, 09:00). */
+    /** Once a day for the rest of the month (days 8–31, 09:00). One instance per tick via the distributed lock. */
     @Scheduled(cron = "${myfinance.ingestion.poll.cron-daily:0 0 9 8-31 * *}")
-    void pollDaily() {
+    @SchedulerLock(name = "ingestionPollDaily", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
+    public void pollDaily() {
         run("daily");
     }
 
