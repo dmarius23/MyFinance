@@ -21,4 +21,9 @@ public class LoggingUserInviter implements UserInviter {
                 email, claims.role(), claims.tenantId(), claims.companyId(), id);
         return new InvitedUser(id);
     }
+
+    @Override
+    public void delete(UUID externalUserId) {
+        log.info("[DEV INVITE] would delete orphaned auth user {}", externalUserId);
+    }
 }

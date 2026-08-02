@@ -25,19 +25,23 @@ import ro.myfinance.company.adapter.persistence.CompanyRepository;
 @Transactional
 public class RepresentativeService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RepresentativeService.class);
+
     private final CompanyRepository companies;
     private final AppUserRepository users;
     private final RepresentativeLinkRepository links;
     private final UserInviter inviter;
+    private final AuthUserCleanup authCleanup;
     private final AuditRecorder audit;
 
     public RepresentativeService(CompanyRepository companies, AppUserRepository users,
                                  RepresentativeLinkRepository links, UserInviter inviter,
-                                 AuditRecorder audit) {
+                                 AuthUserCleanup authCleanup, AuditRecorder audit) {
         this.companies = companies;
         this.users = users;
         this.links = links;
         this.inviter = inviter;
+        this.authCleanup = authCleanup;
         this.audit = audit;
     }
 
@@ -64,19 +68,30 @@ public class RepresentativeService {
             return existing;
         }
 
-        // NOTE: the external invite happens before the local persistence. If a save below fails or
-        // the tx rolls back, the Supabase auth user + invite email are NOT rolled back, leaving an
-        // orphaned auth user. The findByEmail pre-check narrows this but doesn't eliminate it.
-        // TODO(MOD-02): when the real Supabase adapter is enabled, add a compensating delete (or move
-        // to persist-then-invite via the outbox) so a failed persistence can't orphan an auth user.
+        // The external invite (Supabase auth user + email) happens before the local persistence, and the
+        // GoTrue-generated id becomes the app_user PK — so we can't reverse the order. Instead we make it
+        // atomic by compensation: if any local write below fails, the transaction rolls back AND we durably
+        // schedule the deletion of the just-created auth user (own tx via the outbox, so it survives this
+        // rollback and is retried) — leaving no orphaned auth user. saveAndFlush surfaces constraint
+        // failures here, inside the try, rather than at commit.
         var invited = inviter.invite(email, new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId));
-        AppUser rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
-        rep.setPhone(phone);
-        rep.setStatus(UserStatus.INVITED);
-        users.save(rep);
-        links.save(new RepresentativeLink(tenantId, rep.getId(), companyId));
-        audit.record("REPRESENTATIVE_INVITED", "company", companyId);
-        return rep;
+        try {
+            AppUser rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
+            rep.setPhone(phone);
+            rep.setStatus(UserStatus.INVITED);
+            users.saveAndFlush(rep);
+            links.saveAndFlush(new RepresentativeLink(tenantId, rep.getId(), companyId));
+            audit.record("REPRESENTATIVE_INVITED", "company", companyId);
+            return rep;
+        } catch (RuntimeException e) {
+            try {
+                authCleanup.scheduleDelete(invited.externalUserId());
+            } catch (RuntimeException cleanupEx) {
+                log.error("Persist failed AND could not schedule cleanup of orphaned auth user {}",
+                        invited.externalUserId(), cleanupEx);
+            }
+            throw e;
+        }
     }
 
     /** Update a representative's contact details (must be assigned to the given company). */

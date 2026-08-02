@@ -50,4 +50,41 @@ class SupabaseUserInviterTest {
         assertThat(result.externalUserId()).isEqualTo(newUserId);
         server.verify();
     }
+
+    @Test
+    void deletesViaGoTrueAdmin() {
+        UUID id = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users/" + id))
+                .andExpect(method(HttpMethod.DELETE))
+                .andExpect(header("Authorization", "Bearer test-service-key"))
+                .andRespond(withSuccess());
+
+        inviter(builder).delete(id);
+
+        server.verify();
+    }
+
+    @Test
+    void deleteToleratesAnAlreadyAbsentUser() {
+        UUID id = UUID.fromString("11111111-2222-3333-4444-555555555556");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users/" + id))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
+
+        // Idempotent: a 404 must not throw (else the outbox would retry forever).
+        inviter(builder).delete(id);
+
+        server.verify();
+    }
+
+    private static SupabaseUserInviter inviter(RestClient.Builder builder) {
+        var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key",
+                "https://proj.supabase.co/auth/v1");
+        return new SupabaseUserInviter(props, builder);
+    }
 }

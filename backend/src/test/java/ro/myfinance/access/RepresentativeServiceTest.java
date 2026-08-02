@@ -1,0 +1,81 @@
+package ro.myfinance.access;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import ro.myfinance.access.adapter.persistence.AppUserRepository;
+import ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository;
+import ro.myfinance.access.application.AuthUserCleanup;
+import ro.myfinance.access.application.RepresentativeService;
+import ro.myfinance.access.application.UserInviter;
+import ro.myfinance.access.domain.AppUser;
+import ro.myfinance.common.audit.AuditRecorder;
+import ro.myfinance.common.security.Role;
+import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.domain.Company;
+
+/**
+ * Invite atomicity (S5): the external auth user is created before the local persistence, so if a local
+ * write fails the created auth user must be compensated (durably scheduled for deletion) — never orphaned.
+ */
+class RepresentativeServiceTest {
+
+    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final AppUserRepository users = mock(AppUserRepository.class);
+    private final RepresentativeLinkRepository links = mock(RepresentativeLinkRepository.class);
+    private final UserInviter inviter = mock(UserInviter.class);
+    private final AuthUserCleanup authCleanup = mock(AuthUserCleanup.class);
+    private final AuditRecorder audit = mock(AuditRecorder.class);
+    private final RepresentativeService service =
+            new RepresentativeService(companies, users, links, inviter, authCleanup, audit);
+
+    private final UUID tenant = UUID.randomUUID();
+    private final UUID companyId = UUID.randomUUID();
+    private final UUID externalId = UUID.randomUUID();
+
+    @BeforeEach
+    void bind() {
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        when(companies.findById(companyId)).thenReturn(Optional.of(mock(Company.class)));
+        when(users.findByEmail("rep@client.ro")).thenReturn(Optional.empty()); // new invite path
+        when(inviter.invite(any(), any())).thenReturn(new UserInviter.InvitedUser(externalId));
+    }
+
+    @AfterEach
+    void clear() {
+        TenantContext.clear();
+    }
+
+    @Test
+    void happyPathPersistsAndNeverCompensates() {
+        when(users.saveAndFlush(any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
+
+        AppUser rep = service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678");
+
+        org.assertj.core.api.Assertions.assertThat(rep.getId()).isEqualTo(externalId);
+        verify(authCleanup, never()).scheduleDelete(any());
+    }
+
+    @Test
+    void persistFailureSchedulesDeletionOfTheOrphanedAuthUser() {
+        when(users.saveAndFlush(any(AppUser.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("dup"));
+
+        assertThatThrownBy(() ->
+                service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678"))
+                .isInstanceOf(RuntimeException.class);
+
+        // The just-created auth user must be scheduled for deletion — no orphan.
+        verify(authCleanup).scheduleDelete(externalId);
+    }
+}

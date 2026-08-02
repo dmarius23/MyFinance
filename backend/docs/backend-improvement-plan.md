@@ -30,7 +30,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | Band | Theme | Steps | Status |
 |---|---|---|---|
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
-| **P1** | Reliability & correctness of core flows | S4, S5, S6 | 🟡 In progress — **S4 ✅ done**; S5, S6 not started |
+| **P1** | Reliability & correctness of core flows | S4, S5, S6 | 🟡 In progress — **S4, S5 ✅ done**; S6 not started |
 | **P2** | Production blockers (stubbed features) | S7, S8 | 🟡 In progress — **S7 ✅ done**; S8 not started |
 | **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S13 ✅ done**; S10–S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
@@ -39,7 +39,8 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 > **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
 > already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
 > JWKS URI) · **S4 ✅ done** (async document pipeline + durable email outbox relay, sub-steps S4a–d, incl.
-> the `DocumentServiceIT` repair) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
+> the `DocumentServiceIT` repair) · **S5 ✅ done** (invite atomicity via outbox compensation — no orphaned
+> auth user) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
 > port) · **S9 ✅ done** (4× email-history stacks collapsed into one) · **S13 ✅ done** (shared ports moved to
 > `common`, month-name dedup, stale-comment sweep). Deferred follow-ups discovered during P0: failsafe/CI +
 > `*IT`-suite isolation → **S15/S18** (see notes on those steps).
@@ -192,7 +193,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   synchronous pipeline is the blocker.
 - **Size:** L. **Depends-on:** informs S5 and S7.
 
-### S5. Fix `RepresentativeService` invite/persist atomicity
+### S5. Fix `RepresentativeService` invite/persist atomicity — ✅ DONE
+- **Shipped:** the invite is now atomic by **outbox compensation**. The "preferred" persist-then-invite
+  route is infeasible here because GoTrue generates the auth user's id and that id *is* the `app_user` PK
+  (the JWT subject) — you can't pre-persist a PENDING row with the right id. So instead: `invite()` →
+  `saveAndFlush` the user + link (constraint failures surface inside the try) → on any failure the tx rolls
+  back **and** `AuthUserCleanup.scheduleDelete` durably enqueues a `DELETE_AUTH_USER` outbox job in its own
+  `REQUIRES_NEW` transaction (so it survives the rollback); the worker relay deletes the orphaned auth user
+  with retries/DLQ (reuses S4a/S4b). Added `UserInviter.delete` (Supabase `DELETE /admin/users/{id}`,
+  404-idempotent; logging fallback). Tests: `RepresentativeServiceTest` (compensation fires on save failure,
+  never on the happy path), `AuthUserCleanupTest` (enqueue + delete-on-handle), `SupabaseUserInviterTest`
+  delete cases, and the existing `RepresentativeServiceIT` stays green. Residual (accepted): a commit-time
+  failure *after* the method returns is the classic non-2PC window — rare, and the same for any
+  invite-then-persist design. Removed the stale TODO.
 - **Goal:** never leave an orphaned Supabase auth user when the local DB write fails.
 - **Why:** `inviter.invite()` (Supabase GoTrue) is called *before* `users.save()`; if the JPA persist
   fails, the external auth user is orphaned. The code's own TODO admits there is no compensating delete.

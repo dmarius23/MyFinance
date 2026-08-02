@@ -13,6 +13,13 @@ public interface UserInviter {
 
     InvitedUser invite(String email, InviteClaims claims);
 
+    /**
+     * Delete an auth user by its external id — the compensating action when the local persistence that
+     * should have followed an {@link #invite} fails, so no orphaned auth user is left behind. Must be
+     * <b>idempotent</b>: deleting an already-absent user is a success (the outbox retries this).
+     */
+    void delete(UUID externalUserId);
+
     /** {@code companyId} is null for firm staff (admin/employee); set only for representatives. */
     record InviteClaims(UUID tenantId, Role role, UUID companyId) {}
 

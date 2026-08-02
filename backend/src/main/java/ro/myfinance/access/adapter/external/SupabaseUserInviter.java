@@ -55,5 +55,17 @@ public class SupabaseUserInviter implements UserInviter {
         return new InvitedUser(created.id());
     }
 
+    @Override
+    public void delete(UUID externalUserId) {
+        try {
+            client.delete()
+                    .uri("/auth/v1/admin/users/{id}", externalUserId)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (org.springframework.web.client.HttpClientErrorException.NotFound alreadyGone) {
+            // Idempotent: the auth user is already absent — nothing to compensate.
+        }
+    }
+
     record GoTrueUser(UUID id) {}
 }
