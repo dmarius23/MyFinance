@@ -144,7 +144,7 @@ public class IngestionService {
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
-        return doSync(conn, null, null, null, previousMonth(), true);
+        return doSync(conn, null, null, null, previousMonth(), true, conn.getRootFolderId(), false);
     }
 
     /**
@@ -156,7 +156,7 @@ public class IngestionService {
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true);
+        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false);
     }
 
     /**
@@ -166,10 +166,39 @@ public class IngestionService {
     public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
         SourceConnection conn = findDriveConnection(forcedType)
                 .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
+        // Fast path: crawl only this company's folder under the root instead of the whole drive. Falls
+        // back to a full crawl when the company folder can't be located (then the file paths still carry
+        // the company name for per-file resolution).
+        Company company = companies.findById(companyId).orElse(null);
+        String startFolder = conn.getRootFolderId();
+        boolean companyKnown = false;
+        String companyFolderId = company == null ? null : findCompanyFolder(conn, company);
+        if (companyFolderId != null) {
+            startFolder = companyFolderId;
+            companyKnown = true;
+        }
+        log.info("syncCompanyMonth type={} company={} period={} connection={} companyFolder={} (scoped={})",
+                forcedType, companyId, period, conn.getId(), companyFolderId, companyKnown);
         // Synced from a type-specific screen (payroll/reports/declarations): files not filed in a type
         // sub-folder default to that type, so a document dropped straight in the month folder is still typed.
-        return doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), parseForcedType(forcedType),
-                previousMonth(), false);
+        SyncResult r = doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), parseForcedType(forcedType),
+                previousMonth(), false, startFolder, companyKnown);
+        log.info("syncCompanyMonth done company={} period={} → imported={} review={} skipped={} failed={}",
+                companyId, period, r.imported(), r.needsReview(), r.skipped(), r.failed());
+        return r;
+    }
+
+    /** The Drive folder id for {@code company} directly under the connection root, or null if not found. */
+    private String findCompanyFolder(SourceConnection conn, Company company) {
+        try {
+            return registry.forProvider(conn.getProvider()).subfolders(conn, conn.getRootFolderId()).stream()
+                    .filter(sf -> FolderMapper.matchesCompany(sf.name(), company))
+                    .map(CloudFolderConnector.Folder::id)
+                    .findFirst().orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Could not list root subfolders for connection {} — full crawl", conn.getId(), e);
+            return null;
+        }
     }
 
     private Optional<SourceConnection> findDriveConnection(String forcedType) {
@@ -191,7 +220,8 @@ public class IngestionService {
      * controls whether the connection's cursor/status/summary are updated (only for the full sync).
      */
     private SyncResult doSync(SourceConnection conn, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
-                             DocumentType fallbackType, LocalDate notifyMonth, boolean persistStatus) {
+                             DocumentType fallbackType, LocalDate notifyMonth, boolean persistStatus,
+                             String startFolderId, boolean companyKnown) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
@@ -202,7 +232,7 @@ public class IngestionService {
         java.util.Set<UUID> newPayrollLastMonth = new java.util.HashSet<>();
         Listing listing;
         try {
-            listing = connector.list(conn, conn.getCursor());
+            listing = connector.list(conn, startFolderId, conn.getCursor());
         } catch (RuntimeException e) {
             log.warn("Listing failed for connection {} ({})", conn.getId(), conn.getProvider(), e);
             if (persistStatus) {
@@ -212,6 +242,8 @@ public class IngestionService {
             }
             return new SyncResult(0, 0, 0, 1, List.of());
         }
+        log.info("doSync connection={} startFolder={} companyKnown={} → {} file(s) listed",
+                conn.getId(), startFolderId, companyKnown, listing.files().size());
 
         for (RemoteFile f : listing.files()) {
             try {
@@ -219,7 +251,9 @@ public class IngestionService {
                     if (onlyCompany == null) skipped++;
                     continue;
                 }
-                Optional<UUID> companyId = FolderMapper.resolveCompany(f, tenantCompanies);
+                Optional<UUID> companyId = companyKnown
+                        ? Optional.of(onlyCompany)
+                        : FolderMapper.resolveCompany(f, tenantCompanies);
                 LocalDate period = FolderMapper.resolvePeriod(f);
                 // Scoped sync: silently pass over files outside the requested company/month.
                 if (onlyCompany != null && (companyId.isEmpty() || !companyId.get().equals(onlyCompany))) {

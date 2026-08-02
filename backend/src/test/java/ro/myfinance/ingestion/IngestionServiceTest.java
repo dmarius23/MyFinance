@@ -252,11 +252,50 @@ class IngestionServiceTest {
         verify(notifications).notifyCompanyReps(eq(COMPANY), eq("PAYROLL_READY"), any(), any());
     }
 
+    @Test
+    void scopedSyncCrawlsOnlyTheCompanyFolderAndForcesTheCompany() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "D", "root", null);
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        when(companies.findById(COMPANY)).thenReturn(Optional.of(a));
+        // Root holds the company folder; crawling it yields a file whose PATH carries no company segment —
+        // so the company can only come from the located folder (companyKnown), not path resolution.
+        fake.folders = List.of(new CloudFolderConnector.Folder("cf1", "INNOVATECODE IT SRL"));
+        fake.filesByFolder.put("cf1", List.of(new CloudFolderConnector.RemoteFile(
+                "s1", "extras.pdf", "2026/05 Mai/acte contabile", "application/pdf", 100, "e1", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"),
+                any(), any(), isNull(), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 5, 1));
+
+        assertThat(r.imported()).isEqualTo(1);
+        // Only the company folder was crawled — the whole-drive list() was never used.
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"),
+                any(), any(), isNull(), eq(DocumentSource.DRIVE));
+    }
+
     /** In-memory connector — feeds the pipeline a controlled file list. */
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
+        List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)
+        final java.util.Map<String, List<RemoteFile>> filesByFolder = new java.util.HashMap<>();
         @Override public String provider() { return "FAKE"; }
         @Override public Listing list(SourceConnection c, String cursor) { return new Listing(files, null); }
+        @Override public Listing list(SourceConnection c, String startFolderId, String cursor) {
+            return new Listing(filesByFolder.getOrDefault(startFolderId, files), null);
+        }
+        @Override public List<Folder> subfolders(SourceConnection c, String parentId) { return folders; }
         @Override public byte[] download(SourceConnection c, RemoteFile f) { return new byte[]{1, 2, 3}; }
     }
 }

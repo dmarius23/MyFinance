@@ -99,8 +99,14 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
     onSuccess: (r: SyncResult) => {
       refresh();
+      onChanged?.();
       // A sync imports any document type found for this company+month — refresh every list scoped to it.
-      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      const refreshScoped = () =>
+        qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      void refreshScoped();
+      // Extraction/report/reconciliation for imported docs runs asynchronously after the import commits,
+      // so the first refetch can land before those results exist. Re-refresh shortly after to pick them up.
+      if (r.imported > 0) [1500, 4000].forEach((ms) => window.setTimeout(() => { onChanged?.(); void refreshScoped(); }, ms));
       const parts = [t("payroll.syncDone", r as unknown as Record<string, number>)];
       for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
       setNote(parts.join(" · "));

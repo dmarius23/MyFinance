@@ -141,7 +141,12 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
     onSuccess: (r: SyncResult) => {
       invalidate();
       // A sync imports any document type for this company+month — refresh every list scoped to it.
-      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      const refreshScoped = () =>
+        qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      void refreshScoped();
+      // Extraction/report/reconciliation for imported docs runs asynchronously after the import commits,
+      // so the first refetch can land before those results exist. Re-refresh shortly after to pick them up.
+      if (r.imported > 0) [1500, 4000].forEach((ms) => window.setTimeout(() => void refreshScoped(), ms));
       const parts = [t("files.syncDone", r as unknown as Record<string, number>)];
       for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
       setSyncNote(parts.join(" · "));
