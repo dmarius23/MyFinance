@@ -221,7 +221,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 ### S6. Ingestion scheduler multi-instance safety — ✅ DONE
 - **Shipped:** chose the **ShedLock** route (robust for N instances, consistent with the SKIP-LOCKED outbox
   worker from S4d — rather than the single-worker-profile assumption). Added `shedlock-spring` +
-  `shedlock-provider-jdbc-template`; **V47** creates the `shedlock` lock table (cross-instance infra — no
+  `shedlock-provider-jdbc-template`; **V48** creates the `shedlock` lock table (cross-instance infra — no
   `tenant_id`, intentionally outside RLS, documented in the migration). `ShedLockConfig`
   (`@EnableSchedulerLock`, `JdbcTemplateLockProvider` on the admin JdbcTemplate, `usingDbTime` so timing is
   immune to per-instance clock skew). `IngestionScheduler.pollFrequent/pollDaily` now carry
