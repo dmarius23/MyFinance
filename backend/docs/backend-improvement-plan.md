@@ -30,15 +30,18 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | Band | Theme | Steps | Status |
 |---|---|---|---|
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
-| **P1** | Reliability & correctness of core flows | S4, S5, S6 | ⬜ Not started |
-| **P2** | Production blockers (stubbed features) | S7, S8 | ⬜ Not started |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ⬜ Not started |
+| **P1** | Reliability & correctness of core flows | S4, S5, S6 | 🟡 In progress — **S4 ✅ done**; S5, S6 not started |
+| **P2** | Production blockers (stubbed features) | S7, S8 | 🟡 In progress — **S7 ✅ done**; S8 not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S13 ✅ done**; S10–S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
 
 > **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
 > already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
-> JWKS URI). Deferred follow-ups discovered during P0: `DocumentServiceIT` repair → **S4**; failsafe/CI +
+> JWKS URI) · **S4 ✅ done** (async document pipeline + durable email outbox relay, sub-steps S4a–d, incl.
+> the `DocumentServiceIT` repair) · **S7 ✅ done** (real `EmailSender` — SES *and* SMTP adapters behind the
+> port) · **S9 ✅ done** (4× email-history stacks collapsed into one) · **S13 ✅ done** (shared ports moved to
+> `common`, month-name dedup, stale-comment sweep). Deferred follow-ups discovered during P0: failsafe/CI +
 > `*IT`-suite isolation → **S15/S18** (see notes on those steps).
 
 ---
