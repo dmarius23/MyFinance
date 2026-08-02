@@ -1,7 +1,7 @@
 package ro.myfinance.intake.application;
 
-import java.text.Normalizer;
 import java.util.regex.Pattern;
+import ro.myfinance.common.text.StringNormalizer;
 
 /**
  * Decides whether an extracted PDF text belongs to a given company. A payslip (fluturaș) prints only the
@@ -10,8 +10,6 @@ import java.util.regex.Pattern;
  * it can't be determined (no text, or nothing to match on) — callers treat null as "can't verify, allow".
  */
 final class CompanyMatcher {
-
-    private static final Pattern NON_ALNUM = Pattern.compile("[^A-Z0-9]");
 
     private CompanyMatcher() {
     }
@@ -29,7 +27,7 @@ final class CompanyMatcher {
         }
         String key = coreName(companyName);
         boolean haveName = key != null;
-        if (haveName && normalize(text).contains(key)) {
+        if (haveName && StringNormalizer.alnumUpper(text).contains(key)) {
             return true;
         }
         if (!haveCui && !haveName) {
@@ -48,16 +46,9 @@ final class CompanyMatcher {
         if (name == null) {
             return null;
         }
-        String n = normalize(name);
+        String n = StringNormalizer.alnumUpper(name);
         n = n.replaceFirst("^SC(?=.{5,}$)", "");
         n = n.replaceFirst("(?<=.{5})(SRLD|SRL|SNC|SCS|SCA|SA|PFA|IF|II)$", "");
         return n.length() >= 5 ? n : null;
-    }
-
-    private static String normalize(String s) {
-        String n = Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}+", "")
-                .replace('ș', 's').replace('ț', 't').replace('Ș', 'S').replace('Ț', 'T')
-                .toUpperCase();
-        return NON_ALNUM.matcher(n).replaceAll("");
     }
 }

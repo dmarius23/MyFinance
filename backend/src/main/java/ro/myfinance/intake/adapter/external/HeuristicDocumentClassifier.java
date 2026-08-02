@@ -1,7 +1,6 @@
 package ro.myfinance.intake.adapter.external;
 
 import java.io.IOException;
-import java.text.Normalizer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
@@ -11,6 +10,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import ro.myfinance.common.text.StringNormalizer;
 import ro.myfinance.intake.application.DocumentClassifier;
 import ro.myfinance.intake.domain.DocumentType;
 
@@ -35,13 +35,13 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             if (looksLikeCamt(text) || looksLikeMt940(text)) {
                 return DocumentType.BANK_STATEMENT;
             }
-            return classifyMarkers(normalize(text));
+            return classifyMarkers(StringNormalizer.foldLower(text));
         }
         try (PDDocument pdf = Loader.loadPDF(bytes)) {
             if (hasEmbeddedXml(pdf)) {
                 return DocumentType.DECLARATION;
             }
-            return classifyMarkers(normalize(extractText(pdf)));
+            return classifyMarkers(StringNormalizer.foldLower(extractText(pdf)));
         } catch (IOException | RuntimeException e) {
             log.debug("Classification failed for {}, defaulting to UNCLASSIFIED", filename, e);
             return DocumentType.UNCLASSIFIED;
@@ -50,7 +50,7 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
 
     @Override
     public DocumentType classifyText(String text) {
-        return classifyMarkers(normalize(text));
+        return classifyMarkers(StringNormalizer.foldLower(text));
     }
 
     /** The deterministic text-marker rules, applied to already-normalised text. */
@@ -121,16 +121,6 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
         } catch (IOException e) {
             return false;
         }
-    }
-
-    /** Lower-cased, diacritics-stripped, for accent-insensitive matching. */
-    private String normalize(String s) {
-        if (s == null) {
-            return "";
-        }
-        String stripped = Normalizer.normalize(s, Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
-        return stripped.toLowerCase();
     }
 
     private boolean containsAny(String haystack, String... needles) {

@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,7 +34,7 @@ public class DocumentReminderController {
     /** Per-company last-sent + count for the period (drives the Statements "last sent" column). */
     @GetMapping("/api/v1/document-reminders")
     public List<ReminderRowResponse> list(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return reminders.listByPeriod(period).stream().map(ReminderRowResponse::from).toList();
     }
 
@@ -43,7 +42,7 @@ public class DocumentReminderController {
     @GetMapping("/api/v1/companies/{companyId}/document-reminders")
     public List<ReminderViewResponse> history(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return reminders.history(companyId, period).stream().map(ReminderViewResponse::from).toList();
     }
 

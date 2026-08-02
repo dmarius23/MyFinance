@@ -2,7 +2,6 @@ package ro.myfinance.dashboard.adapter.web;
 
 import java.time.LocalDate;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,7 +23,7 @@ public class DashboardController {
 
     @GetMapping("/api/v1/dashboard")
     public DashboardView get(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "representative", required = false) UUID representative,
             @RequestParam(value = "status", required = false) StatusFilter status) {
         return dashboard.build(period, representative, status);

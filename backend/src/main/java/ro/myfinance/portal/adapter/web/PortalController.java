@@ -5,7 +5,6 @@ import java.io.UncheckedIOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -50,8 +49,7 @@ public class PortalController {
     @PostMapping("/api/v1/portal/documents")
     @ResponseStatus(HttpStatus.CREATED)
     public DocView upload(@RequestParam("file") MultipartFile file,
-                          @RequestParam(value = "periodMonth", required = false)
-                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodMonth) {
+                          @RequestParam(value = "periodMonth", required = false) LocalDate periodMonth) {
         try {
             return portal.upload(file.getOriginalFilename(), file.getContentType(), file.getBytes(), periodMonth);
         } catch (IOException e) {
@@ -60,12 +58,12 @@ public class PortalController {
     }
 
     @GetMapping("/api/v1/portal/missing")
-    public List<MissingItem> missing(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<MissingItem> missing(@RequestParam("period") LocalDate period) {
         return portal.missing(period);
     }
 
     @GetMapping("/api/v1/portal/documents")
-    public List<DocView> myDocuments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<DocView> myDocuments(@RequestParam("period") LocalDate period) {
         return portal.myDocuments(period);
     }
 
@@ -76,7 +74,7 @@ public class PortalController {
      */
     @GetMapping("/api/v1/portal/report")
     public ReportView report(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         PeriodReportResult res = portal.report(period, granularity);
         return res == null
@@ -91,7 +89,7 @@ public class PortalController {
     /** Trend for the rep's company, optionally with {@code forecast} projected months (non-authoritative). */
     @GetMapping("/api/v1/portal/report/trend")
     public List<ro.myfinance.reports.application.ReportService.TrendPoint> trend(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "months", defaultValue = "12") int months,
             @RequestParam(value = "forecast", defaultValue = "0") int forecast) {
         return portal.trend(period, months, forecast);
@@ -99,7 +97,7 @@ public class PortalController {
 
     @GetMapping("/api/v1/portal/report/pdf")
     public ResponseEntity<byte[]> reportPdf(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         byte[] bytes = portal.reportPdf(period, granularity);
         ContentDisposition cd = ContentDisposition.attachment()
@@ -109,22 +107,22 @@ public class PortalController {
     }
 
     @GetMapping("/api/v1/portal/payroll")
-    public List<PayrollFile> payroll(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<PayrollFile> payroll(@RequestParam("period") LocalDate period) {
         return portal.payroll(period);
     }
 
     @GetMapping("/api/v1/portal/balance-sheet")
-    public List<DocView> balanceSheet(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<DocView> balanceSheet(@RequestParam("period") LocalDate period) {
         return portal.balanceSheet(period);
     }
 
     @GetMapping("/api/v1/portal/company-documents")
-    public List<DocView> companyDocuments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<DocView> companyDocuments(@RequestParam("period") LocalDate period) {
         return portal.companyDocuments(period);
     }
 
     @GetMapping("/api/v1/portal/payments")
-    public PortalService.PaymentView payments(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public PortalService.PaymentView payments(@RequestParam("period") LocalDate period) {
         return portal.payments(period);
     }
 

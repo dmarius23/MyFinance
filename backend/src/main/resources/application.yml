@@ -2,6 +2,13 @@ spring:
   application:
     name: myfinance-backend
 
+  # Bind LocalDate request params (the ubiquitous ?period=YYYY-MM-DD) as ISO dates by default, so
+  # controllers don't repeat @DateTimeFormat(iso = ISO.DATE) on every endpoint. A per-field
+  # @DateTimeFormat still overrides this when a specific format is needed.
+  mvc:
+    format:
+      date: iso
+
   # Multipart limits sized to the app's 20 MB per-file cap (DocumentService.MAX_SIZE_BYTES), with
   # headroom for multipart framing. Without this the servlet default (~1 MB) rejects valid uploads
   # before the application validation runs.

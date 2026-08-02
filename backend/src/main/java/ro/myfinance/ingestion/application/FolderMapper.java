@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import ro.myfinance.common.text.StringNormalizer;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.ingestion.application.CloudFolderConnector.RemoteFile;
 
@@ -59,7 +60,7 @@ public final class FolderMapper {
             return true;
         }
         String core = coreName(c.getLegalName());
-        return core != null && normalize(segment).contains(core);
+        return core != null && StringNormalizer.alnumUpper(segment).contains(core);
     }
 
     /**
@@ -154,7 +155,7 @@ public final class FolderMapper {
         if (m.find()) {
             return Integer.parseInt(m.group(1));
         }
-        String norm = normalize(segment); // upper, diacritics & non-alnum stripped
+        String norm = StringNormalizer.alnumUpper(segment); // upper, diacritics & non-alnum stripped
         if (norm.length() <= 12) {         // guard: don't match a month name inside a long company name
             for (java.util.Map.Entry<String, Integer> e : RO_MONTHS.entrySet()) {
                 if (norm.contains(e.getKey())) {
@@ -174,19 +175,9 @@ public final class FolderMapper {
         return s == null ? "" : s.replaceAll("\\D", "");
     }
 
-    private static String normalize(String s) {
-        if (s == null) {
-            return "";
-        }
-        String stripped = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-                .replace('ș', 's').replace('ț', 't');
-        return stripped.toUpperCase().replaceAll("[^A-Z0-9]", "");
-    }
-
     /** Distinctive core of a legal name (drops SC prefix + legal-form suffix), ≥4 chars, else null. */
     private static String coreName(String name) {
-        String n = normalize(name);
+        String n = StringNormalizer.alnumUpper(name);
         n = n.replaceFirst("^SC(?=.{4,}$)", "");
         n = n.replaceFirst("(?<=.{4})(SRLD|SRL|SNC|SCS|SCA|SA|PFA|IF|II)$", "");
         return n.length() >= 4 ? n : null;

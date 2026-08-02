@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -46,7 +45,7 @@ public class TaxPaymentController {
     /** Stored declarations for the manager modal (with wrong-party / outside-period flags). */
     @GetMapping("/api/v1/companies/{companyId}/declarations")
     public List<DeclarationView> declarations(@PathVariable UUID companyId,
-                                              @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                              @RequestParam("period") LocalDate period) {
         return declarations.list(companyId, period);
     }
 
@@ -65,13 +64,13 @@ public class TaxPaymentController {
 
     @GetMapping("/api/v1/tax-payments")
     public List<ro.myfinance.taxpayments.domain.TaxPaymentRow> list(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return payments.list(period);
     }
 
     @GetMapping("/api/v1/companies/{companyId}/tax-payments")
     public TaxPaymentSummary summary(@PathVariable UUID companyId,
-                                     @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                     @RequestParam("period") LocalDate period) {
         return payments.summary(companyId, period);
     }
 
@@ -85,7 +84,7 @@ public class TaxPaymentController {
     /** Email send history for a company + period (notification log). */
     @GetMapping("/api/v1/companies/{companyId}/tax-emails")
     public List<EmailView> emailHistory(@PathVariable UUID companyId,
-                                        @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                        @RequestParam("period") LocalDate period) {
         return emails.history(companyId, period);
     }
 

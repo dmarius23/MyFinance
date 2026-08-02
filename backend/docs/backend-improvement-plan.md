@@ -32,7 +32,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
 | **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
 | **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S13 ✅ done**; S10–S12 not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S10, S13 ✅ done**; S11–S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
 
@@ -334,7 +334,16 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   down ~800; per-module tests green (add the missing ones from S18).
 - **Size:** L. **Depends-on:** S13 (do the `EmailSender` port move first).
 
-### S10. Extract shared helpers: string normalization + web request boilerplate  *(Net-LOC negative)*
+### S10. Extract shared helpers: string normalization + web request boilerplate  *(Net-LOC negative)* — ✅ **DONE**
+- **Delivered:** (1) `common/text/StringNormalizer` (`stripDiacritics` / `foldLower` / `alnumUpper`) unifies
+  the three copy-pasted `normalize()` helpers — `FolderMapper`, `CompanyMatcher` (alnum-upper),
+  `HeuristicDocumentClassifier` (fold-lower); unit-tested in `StringNormalizerTest`. (2) The repeated
+  `@DateTimeFormat(iso = ISO.DATE)` on every `LocalDate` request param (39 sites, 11 controllers) was
+  hoisted to a single global default, `spring.mvc.format.date=iso` in `application.yml`, and the
+  per-endpoint annotations + imports removed. A composed `@RequestParam`-bundling annotation was ruled
+  out — `@RequestParam`'s `@Target` is `PARAMETER`-only, so it can't be a meta-annotation. `PeriodDateBindingIT`
+  proves a bare `@RequestParam LocalDate` binds ISO and rejects non-ISO through the real Boot MVC stack.
+  `coreName()` (near-dup in FolderMapper/CompanyMatcher) was left alone — different ≥4 vs ≥5 thresholds.
 - **Goal:** remove triplicated `normalize()` and the repeated controller companyId+period parsing.
 - **Why:** `normalize()` (diacritic-strip → alnum → upper) is copy-pasted three times, and the
   `companyId` + `period` request-param pattern is repeated ~119× across 22 controllers, with

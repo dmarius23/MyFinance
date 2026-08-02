@@ -5,7 +5,6 @@ import java.io.UncheckedIOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -45,7 +44,7 @@ public class DocumentController {
     @GetMapping("/flags")
     public List<ro.myfinance.intake.application.DocumentFlagService.Flags> flags(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam("type") ro.myfinance.intake.domain.DocumentType type) {
         return flags.flagsFor(companyId, period, type);
     }
@@ -53,7 +52,7 @@ public class DocumentController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public DocumentResponse upload(@PathVariable UUID companyId,
-                                   @RequestParam("periodMonth") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodMonth,
+                                   @RequestParam("periodMonth") LocalDate periodMonth,
                                    @RequestParam("file") MultipartFile file,
                                    @RequestParam(value = "type", required = false) ro.myfinance.intake.domain.DocumentType type) {
         try {
@@ -66,8 +65,7 @@ public class DocumentController {
 
     @GetMapping
     public List<DocumentResponse> list(@PathVariable UUID companyId,
-                                       @RequestParam(value = "period", required = false)
-                                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                       @RequestParam(value = "period", required = false) LocalDate period) {
         return service.list(companyId, period).stream().map(DocumentResponse::from).toList();
     }
 
@@ -105,7 +103,7 @@ public class DocumentController {
 
     @PostMapping("/reclassify")
     public int reclassify(@PathVariable UUID companyId,
-                          @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                          @RequestParam("period") LocalDate period) {
         return service.reclassify(companyId, period);
     }
 }

@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,14 +34,14 @@ public class PayrollController {
     /** Per-company payroll rows for the period (docs uploaded + last-sent). */
     @GetMapping("/api/v1/payroll")
     public List<PayrollRowResponse> list(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return payroll.summary(period).stream().map(PayrollRowResponse::from).toList();
     }
 
     /** Default editable email body for a company/period. */
     @GetMapping("/api/v1/companies/{companyId}/payroll/email-body")
     public BodyResponse body(@PathVariable UUID companyId,
-                             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                             @RequestParam("period") LocalDate period) {
         return new BodyResponse(payroll.composeBody(companyId, period));
     }
 
@@ -50,7 +49,7 @@ public class PayrollController {
     @GetMapping("/api/v1/companies/{companyId}/payroll/emails")
     public List<PayrollEmailResponse> history(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return payroll.history(companyId, period).stream().map(PayrollEmailResponse::from).toList();
     }
 

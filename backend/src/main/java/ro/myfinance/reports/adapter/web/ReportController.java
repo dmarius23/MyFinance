@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -51,7 +50,7 @@ public class ReportController {
 
     @GetMapping("/api/v1/reports")
     public List<ReportRowResponse> list(
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return reports.summary(period).stream().map(ReportRowResponse::from).toList();
     }
 
@@ -63,7 +62,7 @@ public class ReportController {
     @GetMapping("/api/v1/companies/{companyId}/report")
     public ReportView report(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         PeriodReportResult res = periodReports.report(companyId, granularity, period);
         return new ReportView(res.data(), res.complete(), res.monthsPresent(), res.monthsExpected());
@@ -79,7 +78,7 @@ public class ReportController {
      */
     @GetMapping("/api/v1/companies/{companyId}/report/trend")
     public List<TrendPoint> trend(@PathVariable UUID companyId,
-                                  @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+                                  @RequestParam("period") LocalDate period,
                                   @RequestParam(value = "months", defaultValue = "12") int months,
                                   @RequestParam(value = "forecast", defaultValue = "0") int forecast) {
         return reports.trend(companyId, period, months, forecast);
@@ -89,7 +88,7 @@ public class ReportController {
     @GetMapping("/api/v1/companies/{companyId}/report/pdf")
     public ResponseEntity<byte[]> downloadPdf(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+            @RequestParam("period") LocalDate period,
             @RequestParam(value = "granularity", defaultValue = "MONTH") Granularity granularity) {
         ReportData r = periodReports.report(companyId, granularity, period).data();
         byte[] bytes = pdf.generate(r);
@@ -104,13 +103,13 @@ public class ReportController {
     @GetMapping("/api/v1/companies/{companyId}/report-emails")
     public List<ReportEmailResponse> history(
             @PathVariable UUID companyId,
-            @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+            @RequestParam("period") LocalDate period) {
         return emails.history(companyId, period).stream().map(ReportEmailResponse::from).toList();
     }
 
     @GetMapping("/api/v1/companies/{companyId}/report/email-body")
     public BodyResponse body(@PathVariable UUID companyId,
-                             @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                             @RequestParam("period") LocalDate period) {
         return new BodyResponse(emails.composeBody(companyId, period));
     }
 

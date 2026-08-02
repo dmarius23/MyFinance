@@ -3,7 +3,6 @@ package ro.myfinance.extraction.adapter.web;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -53,19 +52,19 @@ public class ReconciliationController {
     }
 
     @GetMapping("/api/v1/reconciliation/summary")
-    public List<CompanyCompleteness> summary(@RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+    public List<CompanyCompleteness> summary(@RequestParam("period") LocalDate period) {
         return service.completenessSummary(period);
     }
 
     @GetMapping("/api/v1/companies/{companyId}/document-status")
     public List<DocumentStatus> documentStatus(@PathVariable UUID companyId,
-                                               @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                               @RequestParam("period") LocalDate period) {
         return service.documentStatuses(companyId, period);
     }
 
     @GetMapping("/api/v1/companies/{companyId}/match-suggestions")
     public List<SuggestionResponse> suggestions(@PathVariable UUID companyId,
-                                                @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                                @RequestParam("period") LocalDate period) {
         return service.suggestions(companyId, period).stream().map(SuggestionResponse::from).toList();
     }
 }

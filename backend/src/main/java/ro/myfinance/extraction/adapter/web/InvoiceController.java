@@ -3,7 +3,6 @@ package ro.myfinance.extraction.adapter.web;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,7 +28,7 @@ public class InvoiceController {
 
     @GetMapping
     public List<InvoiceResponse> list(@PathVariable UUID companyId,
-                                      @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+                                      @RequestParam("period") LocalDate period) {
         return reconciliation.invoicesForPeriod(companyId, period).stream()
                 .map(InvoiceResponse::from).toList();
     }
@@ -37,7 +36,7 @@ public class InvoiceController {
     /** Invoices still open for payment within a rolling window (default 18 months) ending at period. */
     @GetMapping("/open")
     public List<OpenInvoiceResponse> open(@PathVariable UUID companyId,
-                                          @RequestParam("period") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
+                                          @RequestParam("period") LocalDate period,
                                           @RequestParam(value = "months", defaultValue = "18") int months,
                                           @RequestParam(value = "includeMapped", defaultValue = "false") boolean includeMapped) {
         return reconciliation.openInvoices(companyId, period, months, includeMapped).stream()
