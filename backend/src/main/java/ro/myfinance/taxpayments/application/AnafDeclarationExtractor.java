@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
+import ro.myfinance.common.xml.SecureXml;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
@@ -208,9 +209,8 @@ public class AnafDeclarationExtractor {
 
     private static Document parseXml(byte[] xml) {
         try {
-            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+            DocumentBuilderFactory f = SecureXml.hardenedDocumentBuilderFactory();
             f.setNamespaceAware(false); // attributes are unprefixed; simplest to read by local name
-            f.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             Document d = f.newDocumentBuilder().parse(new ByteArrayInputStream(xml));
             d.getDocumentElement().normalize();
             return d;

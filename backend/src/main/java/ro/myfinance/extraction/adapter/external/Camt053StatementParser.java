@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.slf4j.Logger;
@@ -14,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
+import ro.myfinance.common.xml.SecureXml;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -132,14 +132,8 @@ public class Camt053StatementParser implements BankStatementParser {
 
     private Document parseXmlSecurely(String xml) {
         try {
-            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+            DocumentBuilderFactory f = SecureXml.hardenedDocumentBuilderFactory();
             f.setNamespaceAware(true);
-            f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            f.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            f.setXIncludeAware(false);
-            f.setExpandEntityReferences(false);
             DocumentBuilder b = f.newDocumentBuilder();
             return b.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {

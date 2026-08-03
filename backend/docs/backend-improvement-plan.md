@@ -478,7 +478,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## P5 — Optimizations, hardening & hygiene
 
-### S15. CI security + supply chain: add SAST/SCA, upgrade dependencies
+### S15. CI security + supply chain: add SAST/SCA, upgrade dependencies — 🟡 **MOSTLY DONE** (IT-in-CI deferred)
+- **Delivered:** (1) **XXE hardening** — shared `common/xml/SecureXml.hardenedDocumentBuilderFactory()`
+  (disallow-doctype-decl + external general/parameter entities off + secure processing + no XInclude/entity
+  expansion); both DOM parsers route through it. `Camt053StatementParser` was already hardened;
+  **`AnafDeclarationExtractor` was NOT** (only disabled external-DTD) — now fixed. e-Factura parses via regex
+  (no XML parser → no XXE). `SecureXmlTest` proves DOCTYPE/external entities are rejected. (2) **PDFBox
+  3.0.3 → 3.0.5** (all PDF-parsing tests green). (3) **SCA/SAST CI gates** (repo is public → CodeQL &
+  dependency-review are free): `.github/dependabot.yml` (maven/npm/actions weekly + security updates);
+  `dependency-review` job in `ci.yml` (fails a PR that adds a high/critical-advisory dep);
+  `.github/workflows/codeql.yml` (Java + JS SAST on push/PR/weekly).
+- **Deferred (gated on S18):** wiring the `*IT` suite into CI via maven-failsafe — the ITs fail wholesale
+  when run together (Hikari pool exhaustion + cross-IT data bleed), so flipping failsafe on now turns CI
+  red. Do it with the S18 isolation fixes (or forked JVMs / pool tuning). Task already filed.
 - **Why:** CI runs only `gitleaks` (review §9). PDFBox 3.0.3 parses untrusted PDFs (check
   CVE-2024-50379 OOM and any newer advisories).
 - **Evidence:** `.github/workflows/ci.yml`; `backend/pom.xml` (PDFBox 3.0.3).

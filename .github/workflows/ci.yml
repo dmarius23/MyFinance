@@ -51,3 +51,17 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # SCA gate: fail a PR that introduces a dependency with a known high/critical advisory
+  # (GitHub Advisory DB). Runs only on PRs, where it can diff dependencies against the base.
+  dependency-review:
+    name: Dependency review (SCA)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
