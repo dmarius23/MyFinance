@@ -34,14 +34,14 @@ public class BankStatementExtractionService {
     private final BankTransactionRepository transactions;
     private final ReconciliationService reconciliation;
     private final AuditRecorder audit;
-    private final ro.myfinance.intake.adapter.persistence.DocumentRepository documents;
+    private final ro.myfinance.intake.application.DocumentDirectory documents;
 
     public BankStatementExtractionService(BankStatementParserRegistry registry,
                                           BankStatementRepository statements,
                                           BankTransactionRepository transactions,
                                           ReconciliationService reconciliation,
                                           AuditRecorder audit,
-                                          ro.myfinance.intake.adapter.persistence.DocumentRepository documents) {
+                                          ro.myfinance.intake.application.DocumentDirectory documents) {
         this.registry = registry;
         this.statements = statements;
         this.transactions = transactions;

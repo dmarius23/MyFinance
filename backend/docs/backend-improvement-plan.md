@@ -33,7 +33,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
 | **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
 | **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ✅ **Done** — S9, S10, S11, S12, S13 |
-| **P4** | Documentation & guardrails | S14 | ⬜ Not started |
+| **P4** | Documentation & guardrails | S14 | ✅ **Done** — S14 |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
 
 > **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
@@ -443,7 +443,20 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 
 ## P4 — Documentation & guardrails
 
-### S14. Sync backend docs with the code + add ArchUnit guardrails
+### S14. Sync backend docs with the code + add ArchUnit guardrails — ✅ **DONE**
+- **Delivered:** (1) **ArchUnit** suite `architecture/ArchitectureTest` (plain JUnit `*Test`, so it runs in
+  the normal build — unlike the `*IT` gap): domain depends on no Spring/adapter (JPA annotations aside);
+  controllers (`adapter.web`) never touch `adapter.persistence`; **no module reads another module's
+  `adapter.persistence`** (custom condition — backs S12). To make that last rule green I also finished the
+  cross-module decoupling: new `UserDirectory` + `RepresentativeLinkDirectory` (`access/application`) and
+  `DocumentDirectory` (`intake/application`); swapped the 6 remaining consumers (tasks/dashboard/portal/
+  notifications → access; reports/extraction → intake). Cross-module `adapter.persistence` refs are now 0.
+  (2) **Doc sync** of `MyFinance-backend-design-v1.md` + root `README.md`: real package names (dropped the
+  `mod01_…` fiction) with an implemented/planned **status table**; outbox+ShedLock (not pgmq/Redis-queue);
+  `tax_declaration` (not `fiscal_declaration`) + `report_json` note + "authoritative schema = migrations";
+  `EmailSender` port with SES/SMTP/logging (no Thymeleaf); OCR via Anthropic|Bedrock + Noop; MOD-13 chatbot
+  marked not-built. **Validated:** unit suite green (255, incl. ArchUnit ×3); HarnessSmokeIT boots context.
+  archunit 0.22.0 test-scoped (resolves online in CI).
 - **Goal:** make `backend/docs/MyFinance-backend-design-v1.md` and `README.md` describe what actually exists, and
   encode the key architectural invariants as tests.
 - **Why (verified doc drift):** the design doc still says `mod01_*` package names (code uses plain

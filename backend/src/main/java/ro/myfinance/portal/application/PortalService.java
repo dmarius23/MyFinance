@@ -47,16 +47,16 @@ public class PortalService {
     private final ReportPdfGenerator reportPdf;
     private final PayrollService payroll;
     private final ro.myfinance.taxpayments.application.TaxPaymentService taxes;
-    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
-    private final ro.myfinance.access.adapter.persistence.AppUserRepository users;
+    private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks;
+    private final ro.myfinance.access.application.UserDirectory users;
     private final jakarta.servlet.http.HttpServletRequest request;
 
     public PortalService(CompanyDirectory companies, DocumentService documents, NotificationService notifications,
                          ReconciliationService reconciliation, ReportService reports,
                          PeriodReportService periodReports, ReportPdfGenerator reportPdf,
                          PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes,
-                         ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
-                         ro.myfinance.access.adapter.persistence.AppUserRepository users,
+                         ro.myfinance.access.application.RepresentativeLinkDirectory repLinks,
+                         ro.myfinance.access.application.UserDirectory users,
                          jakarta.servlet.http.HttpServletRequest request) {
         this.companies = companies;
         this.documents = documents;

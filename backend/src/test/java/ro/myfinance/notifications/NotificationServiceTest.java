@@ -16,7 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
+import ro.myfinance.access.application.UserDirectory;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
@@ -34,11 +34,11 @@ class NotificationServiceTest {
 
     private final NotificationRepository notifications = mock(NotificationRepository.class);
     private final CompanyDirectory companies = mock(CompanyDirectory.class);
-    private final AppUserRepository users = mock(AppUserRepository.class);
+    private final UserDirectory users = mock(UserDirectory.class);
     private final EmailEnvelopeService envelopes = mock(EmailEnvelopeService.class);
     private final EmailDispatchService dispatch = mock(EmailDispatchService.class);
-    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
-            mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
+    private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks =
+            mock(ro.myfinance.access.application.RepresentativeLinkDirectory.class);
     private final ro.myfinance.notifications.application.PushNotificationService push =
             mock(ro.myfinance.notifications.application.PushNotificationService.class);
     private final NotificationService service =

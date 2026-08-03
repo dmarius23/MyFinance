@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
+import ro.myfinance.access.application.UserDirectory;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
@@ -34,15 +34,15 @@ public class NotificationService {
 
     private final NotificationRepository notifications;
     private final CompanyDirectory companies;
-    private final AppUserRepository users;
+    private final UserDirectory users;
     private final EmailEnvelopeService envelopes;
     private final EmailDispatchService dispatch;
-    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
+    private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks;
     private final PushNotificationService push;
 
     public NotificationService(NotificationRepository notifications, CompanyDirectory companies,
-                               AppUserRepository users, EmailEnvelopeService envelopes, EmailDispatchService dispatch,
-                               ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
+                               UserDirectory users, EmailEnvelopeService envelopes, EmailDispatchService dispatch,
+                               ro.myfinance.access.application.RepresentativeLinkDirectory repLinks,
                                PushNotificationService push) {
         this.notifications = notifications;
         this.companies = companies;

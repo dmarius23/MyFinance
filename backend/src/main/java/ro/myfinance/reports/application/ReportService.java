@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.intake.adapter.persistence.DocumentRepository;
+import ro.myfinance.intake.application.DocumentDirectory;
 import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
@@ -39,14 +39,14 @@ public class ReportService {
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
     private final ro.myfinance.company.application.CompanyDirectory companies;
-    private final DocumentRepository documents;
+    private final DocumentDirectory documents;
     private final DocumentStorage storage;
     private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public ReportService(ReportSnapshotRepository snapshots, EmailHistoryRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
                          ro.myfinance.company.application.CompanyDirectory companies,
-                         DocumentRepository documents, DocumentStorage storage,
+                         DocumentDirectory documents, DocumentStorage storage,
                          ro.myfinance.notifications.application.NotificationService notifications) {
         this.snapshots = snapshots;
         this.emails = emails;

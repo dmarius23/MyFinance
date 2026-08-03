@@ -10,7 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
+import ro.myfinance.access.application.UserDirectory;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
@@ -29,11 +29,11 @@ import ro.myfinance.tasks.domain.TaskItem;
 public class TaskService {
 
     private final TaskRepository tasks;
-    private final AppUserRepository users;
+    private final UserDirectory users;
     private final CompanyDirectory companies;
     private final NotificationService notifications;
 
-    public TaskService(TaskRepository tasks, AppUserRepository users, CompanyDirectory companies,
+    public TaskService(TaskRepository tasks, UserDirectory users, CompanyDirectory companies,
                        NotificationService notifications) {
         this.tasks = tasks;
         this.users = users;

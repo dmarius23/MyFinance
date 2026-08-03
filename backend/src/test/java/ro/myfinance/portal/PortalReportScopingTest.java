@@ -18,8 +18,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
-import ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository;
+import ro.myfinance.access.application.UserDirectory;
+import ro.myfinance.access.application.RepresentativeLinkDirectory;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.access.domain.RepresentativeLink;
 import ro.myfinance.access.domain.UserStatus;
@@ -48,16 +48,16 @@ class PortalReportScopingTest {
 
     private PeriodReportService periodReports;
     private ReportService reports;
-    private RepresentativeLinkRepository repLinks;
-    private AppUserRepository users;
+    private RepresentativeLinkDirectory repLinks;
+    private UserDirectory users;
     private HttpServletRequest request;
 
     @BeforeEach
     void setup() {
         periodReports = mock(PeriodReportService.class);
         reports = mock(ReportService.class);
-        repLinks = mock(RepresentativeLinkRepository.class);
-        users = mock(AppUserRepository.class);
+        repLinks = mock(RepresentativeLinkDirectory.class);
+        users = mock(UserDirectory.class);
         request = mock(HttpServletRequest.class);
 
         AppUser active = mock(AppUser.class);

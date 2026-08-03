@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import ro.myfinance.access.adapter.persistence.AppUserRepository;
+import ro.myfinance.access.application.UserDirectory;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.company.application.CompanyDirectory;
@@ -35,13 +35,13 @@ import ro.myfinance.taxpayments.domain.TaxPaymentRow;
 class DashboardServiceTest {
 
     private final CompanyDirectory companies = mock(CompanyDirectory.class);
-    private final AppUserRepository users = mock(AppUserRepository.class);
+    private final UserDirectory users = mock(UserDirectory.class);
     private final ReconciliationService reconciliation = mock(ReconciliationService.class);
     private final TaxPaymentService taxes = mock(TaxPaymentService.class);
     private final PayrollService payroll = mock(PayrollService.class);
     private final ReportService reports = mock(ReportService.class);
-    private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks =
-            mock(ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository.class);
+    private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks =
+            mock(ro.myfinance.access.application.RepresentativeLinkDirectory.class);
     private final DashboardService service =
             new DashboardService(companies, users, reconciliation, taxes, payroll, reports, repLinks);
 

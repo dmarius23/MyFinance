@@ -158,6 +158,13 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- ArchUnit: encodes module/layer boundary invariants as plain JUnit tests (run in CI). -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit</artifactId>
+            <version>0.22.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- PDF parsing (text + AcroForm/XFA). Apache-2.0; no iText. -->
         <dependency>

@@ -22,7 +22,7 @@ import org.mockito.quality.Strictness;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
-import ro.myfinance.intake.adapter.persistence.DocumentRepository;
+import ro.myfinance.intake.application.DocumentDirectory;
 import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
@@ -44,7 +44,7 @@ class ReportServiceTest {
     @Mock ReportSnapshotRepository snapshots;
     @Mock EmailHistoryRepository emails;
     @Mock CompanyDirectory companies;
-    @Mock DocumentRepository documents;
+    @Mock DocumentDirectory documents;
     @Mock DocumentStorage storage;
     @Mock ro.myfinance.notifications.application.NotificationService notifications;
 

@@ -7,7 +7,10 @@ Companion to [`MyFinance-architecture-v1.md`](../../docs/MyFinance-architecture-
 - **Java 21, Spring Boot 3** — Web, Security (resource server validating Supabase JWTs), Data JPA, Validation, Scheduling.
 - **Modular monolith** + a **separate worker process** (same codebase, different entrypoint) for async jobs.
 - **Supabase** (EU/Frankfurt): PostgreSQL (+ Row-Level Security, pgvector), Auth, Storage.
-- **Redis** (or Postgres `pgmq`) for the job queue + cache.
+- **Async work** runs on a transactional **outbox** (`common/outbox`, migrations V42/V43) relayed by the
+  worker, with **ShedLock** (`__shedlock`, V48) for multi-instance scheduling. *(As-built: the `pgmq` /
+  Redis-queue option in earlier drafts was not implemented — Redis config exists but `RedisJobQueue` is a
+  dead stub superseded by the outbox.)*
 - **Flyway** migrations; RLS policies are part of the schema.
 - **Hexagonal layering** per module: `domain` (entities, value objects, ports) / `application` (services, use-cases) / `adapter` (web, persistence, external).
 - Golden rules (see CLAUDE.md): tenant isolation via RLS on every table; representatives scoped to their own company; extracted/AI amounts non-authoritative until verified; no iText; secrets via env; backend always-on.
@@ -19,26 +22,31 @@ backend/
  ├─ pom.xml
  ├─ src/main/java/ro/myfinance/
  │   ├─ MyFinanceApplication.java        # web entrypoint
- │   ├─ WorkerApplication.java           # worker entrypoint (queue consumers)
- │   ├─ common/                          # security, tenancy context, error handling, config
- │   │   ├─ security/  (JwtAuthFilter, TenantContext, RlsConnectionInitializer)
- │   │   ├─ web/       (ApiExceptionHandler, ApiResponse)
- │   │   └─ jobs/      (Job, JobQueue port, Outbox)
- │   ├─ mod01_tenant/   {domain, application, adapter}
- │   ├─ mod02_access/
- │   ├─ mod03_company/
- │   ├─ mod04_intake/        # upload, reconciliation, transaction classification
- │   ├─ mod05_extraction/    # parsers behind ports (bank, invoice, declaration, balance, receipt-OCR)
- │   ├─ mod06_reports/
- │   ├─ mod07_statepay/
- │   ├─ mod08_payroll/
- │   ├─ mod09_notifications/
- │   ├─ mod10_tasks/
- │   ├─ mod11_dashboard/
- │   ├─ mod12_audit/
- │   └─ mod13_chatbot/
+ │   ├─ WorkerApplication.java           # worker entrypoint (outbox relay + schedulers)
+ │   ├─ common/                          # security, tenancy, errors, config, cross-cutting
+ │   │   ├─ security/  (JWT resource server, TenantContext, RlsDataSource)
+ │   │   ├─ web/       (ApiExceptionHandler, NotFoundException, ConflictException)
+ │   │   ├─ outbox/    (transactional email/notification outbox + relay)   # replaces the old jobs/ queue
+ │   │   ├─ audit/     (AuditRecorder, AuditEntry)                          # MOD-12 lives here, not a module
+ │   │   ├─ email/     (EmailSender port + SES/SMTP/logging adapters)
+ │   │   └─ i18n/, async/, pdf/
+ │   └─ <module>/  {domain, application, adapter{web,persistence,external}}
  └─ src/main/resources/db/migration/      # Flyway V1__..., includes RLS policies
 ```
+
+**Modules & status** (plain package names under `ro.myfinance.*` — the old `mod01_…` prefixes were never used):
+
+| Package | Was | Status |
+|---|---|---|
+| `tenant`, `access`, `company` | MOD-01/02/03 | ✅ implemented |
+| `intake` (upload, reconciliation, classification) | MOD-04 | ✅ implemented |
+| `extraction` (bank/invoice/declaration/balance parsers behind ports; receipt OCR) | MOD-05 | ✅ implemented |
+| `reports` (+ period trend/forecast) | MOD-06 | ✅ implemented |
+| `taxpayments` (state-payment emails) | MOD-07 (“statepay”) | ✅ implemented |
+| `payroll`, `notifications`, `tasks`, `dashboard` | MOD-08/09/10/11 | ✅ implemented |
+| audit → `common/audit` | MOD-12 | ✅ implemented (in `common`) |
+| `settings` (global tax-rate/treasury reference), `ingestion` (cloud-folder), `portal` (rep API) | — | ✅ implemented |
+| AI chatbot + KB | MOD-13 | ⬜ not built (planned) |
 
 ## 3. Multi-tenancy & security (cross-cutting)
 
@@ -51,7 +59,10 @@ backend/
 
 ## 4. Data model (core tables)
 
-Keyed by `tenant_id`. Only the load-bearing columns are listed.
+Keyed by `tenant_id`. Only the load-bearing columns are listed. *(This is the design-time sketch; the
+**authoritative schema is the Flyway migrations** under `db/migration`. Known renames since this draft:
+`fiscal_declaration` → **`tax_declaration`**; the trial-balance/report payload is stored as
+**`report_json text`**, not `lines/totals jsonb`.)*
 
 - **tenant**(id, name, cui, status, plan, limits jsonb, branding jsonb, created_at)
 - **app_user**(id, tenant_id, email, name, role, status, mfa_enabled, last_login)
@@ -67,7 +78,7 @@ Keyed by `tenant_id`. Only the load-bearing columns are listed.
 - **extraction_job**(id, tenant_id, document_id, status[PENDING|EXTRACTED|NEEDS_REVIEW|COMMITTED|FAILED], extractor, confidence, payload jsonb, cross_check_ok)
 - **trial_balance**(id, company_id, period_month, document_id, version, lines jsonb, totals jsonb)
 - **financial_report**(id, company_id, period_month, pdf_key, status[GENERATED|SENT|RESENT], generated_at)
-- **fiscal_declaration**(id, company_id, period_month, decl_type[D212|D300|D301|D112|...], document_id, parsed jsonb, cross_check_ok)
+- **tax_declaration**(id, company_id, period_month, decl_type[D212|D300|D301|D112|...], document_id, parsed jsonb, cross_check_ok)   # was “fiscal_declaration” in the draft
 - **tax_line**(id, declaration_id, tax_type, amount, treasury_account_id nullable)
 - **monthly_tax_summary**(id, company_id, period_month, amounts jsonb, deadline, verification_status[NEVERIFICAT|VERIFICAT], email_status[NETRIMIS|TRIMIS], verified_by)
 - **payroll_document**(id, company_id, period_month, document_id, employees_count, status, email_status)
@@ -105,14 +116,14 @@ One port per document type, deterministic where possible:
 - `InvoiceParser` — text PDF / e-Factura XML (JAXB). Output: supplier, supplier IBAN, number, date, due date, total, VAT.
 - `DeclarationExtractor` — read **embedded declaration XML** (e.g. `d212.xml`) via **per-type XML mapper** (D212/D300/D301/D112…). Output: amount per tax + period + deadline. **Cross-check** component taxes vs stated total.
 - `TrialBalanceParser` — readable-PDF table; **cross-check** parsed lines vs stated totals (class 6/7 sums).
-- `ReceiptExtractor` — **OCR only here**: Claude vision via AWS Bedrock (EU) default; PaddleOCR self-hosted fallback; per-field confidence.
+- `ReceiptExtractor` — **OCR only here**: Claude vision behind the port, `provider=anthropic` (direct API) or `provider=bedrock` (AWS Bedrock, EU-resident) per config; a **Noop fallback** when no key is set (image receipts → `NEEDS_REVIEW`). Per-field confidence.
 Below-threshold OCR or failed cross-check → `NEEDS_REVIEW`. Every extraction audited (source → values → reviewer).
 
 ### MOD-06 Financial Statements & Reports
-Upload trial balance → extract + cross-check → generate **branded monthly PDF** (formatted repackage, fixed template) → view/download → email to rep (SES, Thymeleaf) → `email_status`. Re-upload after send regenerates + flags. Rep sees own reports read-only.
+Upload trial balance → extract + cross-check → generate **branded monthly PDF** (formatted repackage, fixed template) → view/download → email to rep via the **`EmailSender` port** (SES / SMTP / logging adapters; no Thymeleaf — bodies are built in code) → `email_status`. Re-upload after send regenerates + flags. Rep sees own reports read-only.
 
-### MOD-07 Fiscal Declarations & State Payments
-Upload declaration PDFs (separate per tax) → extract (MOD-05) → aggregate `monthly_tax_summary` → **mandatory Verificat gate** by responsible person → compose templated email auto-filling amounts + deadline + treasury account per tax → send (SES) → `email_status`. Missing treasury account blocks send. Manual amount entry fallback.
+### MOD-07 Fiscal Declarations & State Payments  *(module: `taxpayments`)*
+Upload declaration PDFs (separate per tax) → extract (MOD-05) → aggregate the monthly tax summary → **mandatory Verificat gate** by responsible person → compose templated email auto-filling amounts + deadline + treasury account per tax → send via the **`EmailSender` port** → `email_status`. Missing treasury account blocks send. Manual amount entry fallback.
 
 ### MOD-08 Payroll
 Manual upload of payroll files per company/month → view/download → email to rep → status. Salary data = strongest access controls + field-level encryption + audit. Payslips to representative only (MVP).
@@ -129,11 +140,16 @@ Read-model/aggregates: per-company monthly row (docs/report/tax/payroll + open r
 ### MOD-12 Audit, Security & GDPR
 Append-only `audit_entry` for all user + automated actions. Retention-aware deletion: anonymize non-required PII immediately, retain mandated accounting records for the statutory window, purge after. Encryption at rest (sensitive PII + payroll), TLS in transit, PII masked in logs.
 
-### MOD-13 AI Chatbot + Knowledge Base
-Rep-facing, retrieval-grounded over **own company data + admin-managed KB** (pgvector). Read-only, disclaimers, escalate on low confidence, audited, feature-flag gated. (Only AI surface besides receipt OCR.)
+### MOD-13 AI Chatbot + Knowledge Base  *(⬜ not built — planned)*
+Design target: rep-facing, retrieval-grounded over **own company data + admin-managed KB** (pgvector). Read-only, disclaimers, escalate on low confidence, audited, feature-flag gated. **As-built: absent** — the only AI surface today is receipt OCR (`ReceiptExtractor`).
 
 ## 6. Async jobs (worker)
-Queue jobs: `extract-document`, `reconcile-period`, `classify-transactions`, `generate-report`, `send-email`, `run-notification-rule`, `ingest-mailbox`. **Idempotent** (keyed by document/period/message id), exponential backoff + DLQ. Outbox for email/notification so a crash never double-sends.
+As-built, async work is **event/outbox-driven**, not a named-job queue. The post-upload pipeline
+(extract → classify → reconcile) runs via Spring events + `common/async`; email/notification dispatch goes
+through the transactional **outbox** (`common/outbox`) relayed by the worker (`OutboxRelayScheduler`),
+**idempotent** (keyed by document/period/message id) with backoff + DLQ so a crash never double-sends.
+Cloud-folder ingestion is polled under **ShedLock**. *(The earlier named-job list —
+`extract-document`, `reconcile-period`, … `ingest-mailbox` — describes the intent, not current class names.)*
 
 ## 7. API conventions
 REST `/api/v1`, JSON, OpenAPI as contract source with a breaking-change CI gate. Errors via `ApiExceptionHandler` (RFC-7807-ish). Pagination on list endpoints. All money as integer minor units or `BigDecimal` (never float).

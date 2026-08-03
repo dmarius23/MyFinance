@@ -18,12 +18,13 @@ It is multi-tenant from day one so it can be sold to multiple accounting firms.
 - Tenant administration (provision accounting-firm tenants, plans, feature flags)
 - Users, roles & access — Supabase Auth (email+password, Google OAuth, TOTP MFA)
 - Client company management — tax profile, treasury accounts, lightweight HR registry
-- Document intake & reconciliation — rep/employee upload + email-ingestion agent; missing-doc detection
+- Document intake & reconciliation — rep/employee upload + cloud-folder ingestion (Google Drive); missing-doc detection
 - Document extraction — PDFBox/tabula for PDFs, Claude vision for photo receipts
 - Financial statements & reports — trial balance → branded monthly PDF → email + sent-status
 - Fiscal declarations & state payments — extract amounts → verify → templated payment email
 - Payroll distribution, notifications (email + in-app), internal tasks, dashboards
-- Audit, security & GDPR (retention-aware erasure), AI chatbot + knowledge base, PWA
+- Audit, security & GDPR (retention-aware erasure), PWA
+- _Planned (not yet built): AI chatbot + knowledge base_
 
 ## Tech stack
 
