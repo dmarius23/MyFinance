@@ -497,7 +497,22 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   must be paired with the isolation fixes in S18 (or forked JVMs / pool+context tuning) or CI will go red.
 - **Size:** M. **Depends-on:** pairs with S18 (IT isolation) before flipping failsafe on in CI.
 
-### S16. Guardrails: pagination, targeted queries, per-tenant quota, rate limiting
+### S16. Guardrails: pagination, targeted queries, per-tenant quota, rate limiting — 🟡 **PARTIAL**
+- **Done (commit ece8886):** **rate limiting** — in-memory token-bucket `common/web/RateLimiter` +
+  `RateLimitFilter` (after `TenantContextFilter`) reject excessive upload/email POSTs with 429, keyed per
+  tenant+user; config `myfinance.ratelimit.*` (per-instance; a Redis impl can slot in behind the methods —
+  Bucket4j was skipped as it isn't needed for a coarse guard). **Per-tenant quota** — `tenant/application/
+  TenantDirectory` (reads current tenant limits without crossing into tenant persistence);
+  `DocumentService.upload` enforces `limits.maxDocumentsPerCompanyMonth` (missing/≤0 ⇒ no limit, so current
+  tenants unaffected). **Targeted queries:** assessed — the flagged `findAll()` sites (`IngestionService`,
+  `TaxPaymentService`, `DashboardService`, `PeriodReportWarmer`) are RLS-**tenant-scoped** loop *headers*
+  (iterate one firm's companies, related data bulk-fetched — no whole-table scan, no query-per-item N+1), so
+  the "no findAll in per-item loops" bar already holds; no churn made. Also **fixed the S14 ArchUnit** which
+  was vacuous on Java 21 bytecode (0.22.0 → 1.3.0 + a guard test asserting classes were actually imported).
+- **Deferred → own effort:** **pagination** on the ~16 list endpoints. It's a breaking backend+frontend
+  change (`List<T>` → `Page<T>` alters JSON shape), most list endpoints are naturally bounded per
+  company/period, and the real unbounded-growth vectors are now mitigated by the quota + rate limiting.
+  Do it as a coordinated backend+frontend slice (default + max page size). Task filed.
 - **Why:** ~16 list endpoints are unbounded; three services do `findAll()`-then-filter-in-Java; there is
   no rate limiting; `tenant.limits` (jsonb) is never enforced.
 - **Evidence:** `ingestion/application/IngestionService.java:175` (per-file loop over all companies),
