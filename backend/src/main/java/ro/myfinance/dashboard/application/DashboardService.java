@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.access.adapter.persistence.AppUserRepository;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.dashboard.domain.DashboardView;
 import ro.myfinance.dashboard.domain.DashboardView.Status;
@@ -31,7 +31,7 @@ import ro.myfinance.taxpayments.domain.TaxPaymentRow;
 @Transactional(readOnly = true)
 public class DashboardService {
 
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final AppUserRepository users;
     private final ReconciliationService reconciliation;
     private final TaxPaymentService taxes;
@@ -39,7 +39,7 @@ public class DashboardService {
     private final ReportService reports;
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
 
-    public DashboardService(CompanyRepository companies, AppUserRepository users,
+    public DashboardService(CompanyDirectory companies, AppUserRepository users,
                             ReconciliationService reconciliation, TaxPaymentService taxes,
                             PayrollService payroll, ReportService reports,
                             ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks) {

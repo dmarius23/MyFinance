@@ -32,7 +32,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
 | **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
 | **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S10, S11, S13 ✅ done**; S12 not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ✅ **Done** — S9, S10, S11, S12, S13 |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
 
@@ -386,7 +386,16 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   resulting unit >~400 LOC.
 - **Size:** M. **Depends-on:** none (do after S10 so shared helpers exist).
 
-### S12. Reduce cross-module coupling to `company` persistence
+### S12. Reduce cross-module coupling to `company` persistence — ✅ **DONE**
+- **Delivered:** new `company/application/CompanyDirectory` (read-only `@Service`, RLS-scoped) exposes
+  `findById` / `findAll` / `findAllById` over `CompanyRepository`. All 15 non-`company` consumers now inject
+  `CompanyDirectory` instead of importing `company.adapter.persistence.CompanyRepository` — a pure DI swap
+  (method names kept identical, so call sites and the 10 consumer unit-test mocks changed only by type).
+  Acceptance met: `grep company.adapter.persistence` in non-`company` main code = 0. Writes stay in
+  `CompanyService`; `existsByCui*` stays module-internal. Validated: unit suite green (252) + HarnessSmokeIT
+  boots the full context (DI wiring good). **Not done (deferred):** the same smell in `access`
+  (`AppUserRepository` / `RepresentativeLinkRepository` injected by tasks/dashboard/portal/notifications,
+  4 sites) — left for a follow-up / S14 ArchUnit to flag, since it spans two repos with more query methods.
 - **Goal:** modules depend on `company`'s **application** layer, not its repository.
 - **Why:** 11 non-`company` classes import `company.adapter.persistence.CompanyRepository` directly —
   reaching across a module boundary into another module's persistence adapter.

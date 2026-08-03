@@ -20,7 +20,7 @@ import ro.myfinance.access.domain.RepresentativeLink;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.portal.application.PortalService;
 
@@ -36,14 +36,14 @@ class PortalServiceCompanyResolutionTest {
     private static final UUID COMPANY_B = UUID.randomUUID();
     private static final UUID OUTSIDER = UUID.randomUUID(); // a company the rep is NOT linked to
 
-    private CompanyRepository companies;
+    private CompanyDirectory companies;
     private RepresentativeLinkRepository repLinks;
     private AppUserRepository users;
     private HttpServletRequest request;
 
     @BeforeEach
     void setup() {
-        companies = mock(CompanyRepository.class);
+        companies = mock(CompanyDirectory.class);
         repLinks = mock(RepresentativeLinkRepository.class);
         users = mock(AppUserRepository.class);
         request = mock(HttpServletRequest.class);

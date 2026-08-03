@@ -38,14 +38,14 @@ public class ReportService {
     private final EmailHistoryRepository emails;
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
-    private final ro.myfinance.company.adapter.persistence.CompanyRepository companies;
+    private final ro.myfinance.company.application.CompanyDirectory companies;
     private final DocumentRepository documents;
     private final DocumentStorage storage;
     private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public ReportService(ReportSnapshotRepository snapshots, EmailHistoryRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
-                         ro.myfinance.company.adapter.persistence.CompanyRepository companies,
+                         ro.myfinance.company.application.CompanyDirectory companies,
                          DocumentRepository documents, DocumentStorage storage,
                          ro.myfinance.notifications.application.NotificationService notifications) {
         this.snapshots = snapshots;

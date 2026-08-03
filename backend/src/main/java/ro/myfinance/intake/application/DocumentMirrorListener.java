@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import ro.myfinance.common.async.AsyncConfig;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
@@ -34,11 +34,11 @@ public class DocumentMirrorListener {
 
     private final DriveStorageTarget storageTarget;
     private final DriveDocumentWriter driveWriter;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final DocumentRepository documents;
 
     public DocumentMirrorListener(DriveStorageTarget storageTarget, DriveDocumentWriter driveWriter,
-                                  CompanyRepository companies, DocumentRepository documents) {
+                                  CompanyDirectory companies, DocumentRepository documents) {
         this.storageTarget = storageTarget;
         this.driveWriter = driveWriter;
         this.companies = companies;

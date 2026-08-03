@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import ro.myfinance.access.adapter.persistence.AppUserRepository;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.dashboard.application.DashboardService;
 import ro.myfinance.dashboard.application.DashboardService.StatusFilter;
@@ -34,7 +34,7 @@ import ro.myfinance.taxpayments.domain.TaxPaymentRow;
 /** Status rules, tile tallies, open-requests / overdue / NA, and the status filters. */
 class DashboardServiceTest {
 
-    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final ReconciliationService reconciliation = mock(ReconciliationService.class);
     private final TaxPaymentService taxes = mock(TaxPaymentService.class);

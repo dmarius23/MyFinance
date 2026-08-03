@@ -13,7 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.intake.application.DocumentService;
@@ -43,7 +43,7 @@ public class TaxPaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(TaxPaymentService.class);
 
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final DocumentService documents;
     private final PlatformTreasuryService treasury;
     private final TaxDeclarationRepository declarations;
@@ -52,7 +52,7 @@ public class TaxPaymentService {
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
 
-    public TaxPaymentService(CompanyRepository companies, DocumentService documents,
+    public TaxPaymentService(CompanyDirectory companies, DocumentService documents,
                              PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
                              EmailHistoryRepository emails, AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder) {

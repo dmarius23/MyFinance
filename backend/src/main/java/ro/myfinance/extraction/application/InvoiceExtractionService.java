@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.extraction.adapter.external.ReceiptProperties;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.extraction.domain.Invoice;
@@ -21,11 +21,11 @@ public class InvoiceExtractionService {
     private final ReceiptProperties receiptProps;
     private final InvoiceRepository invoices;
     private final ReconciliationService reconciliation;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
 
     public InvoiceExtractionService(InvoiceExtractor extractor, ReceiptExtractor receipts,
                                     ReceiptProperties receiptProps, InvoiceRepository invoices,
-                                    ReconciliationService reconciliation, CompanyRepository companies) {
+                                    ReconciliationService reconciliation, CompanyDirectory companies) {
         this.extractor = extractor;
         this.receipts = receipts;
         this.receiptProps = receiptProps;

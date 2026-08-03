@@ -20,7 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.application.DocumentStorage;
@@ -43,7 +43,7 @@ class ReportServiceTest {
 
     @Mock ReportSnapshotRepository snapshots;
     @Mock EmailHistoryRepository emails;
-    @Mock CompanyRepository companies;
+    @Mock CompanyDirectory companies;
     @Mock DocumentRepository documents;
     @Mock DocumentStorage storage;
     @Mock ro.myfinance.notifications.application.NotificationService notifications;

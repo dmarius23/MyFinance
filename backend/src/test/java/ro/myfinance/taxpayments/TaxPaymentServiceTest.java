@@ -19,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
@@ -48,7 +48,7 @@ class TaxPaymentServiceTest {
     private static final String CAM_IBAN = "RO54TREZ21620A470300XXXX";
     private static final LocalDate MONTH = LocalDate.of(2026, 3, 1);
 
-    @Mock CompanyRepository companies;
+    @Mock CompanyDirectory companies;
     @Mock DocumentService documentService;
     @Mock PlatformTreasuryService treasury;
     @Mock TaxDeclarationRepository declarations;

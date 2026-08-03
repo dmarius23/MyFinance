@@ -18,7 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.reports.application.PeriodReportService.PeriodReportResult;
 
@@ -48,7 +48,7 @@ class PeriodReportWarmerTest {
     @Test
     void warmsTheClosedQuarterHalfAndYearForEachCompanyThenClearsContext() {
         JdbcTemplate admin = mock(JdbcTemplate.class);
-        CompanyRepository companies = mock(CompanyRepository.class);
+        CompanyDirectory companies = mock(CompanyDirectory.class);
         PeriodReportService periodReports = mock(PeriodReportService.class);
         when(admin.query(anyString(), ArgumentMatchers.<RowMapper<UUID>>any())).thenReturn(List.of(TENANT));
         Company c = mock(Company.class);
@@ -67,7 +67,7 @@ class PeriodReportWarmerTest {
     @Test
     void aCompanyPeriodWithNoDataIsSkippedWithoutAbortingTheRest() {
         JdbcTemplate admin = mock(JdbcTemplate.class);
-        CompanyRepository companies = mock(CompanyRepository.class);
+        CompanyDirectory companies = mock(CompanyDirectory.class);
         PeriodReportService periodReports = mock(PeriodReportService.class);
         when(admin.query(anyString(), ArgumentMatchers.<RowMapper<UUID>>any())).thenReturn(List.of(TENANT));
         Company c = mock(Company.class);

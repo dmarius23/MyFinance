@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
@@ -33,7 +33,7 @@ public class DocumentService {
                     "application/xml", "text/xml", "text/plain");
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("yyyy-MM");
 
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final DocumentRepository documents;
     private final DocumentStorage storage;
     private final DocumentClassifier classifier;
@@ -41,7 +41,7 @@ public class DocumentService {
     private final AuditRecorder audit;
     private final ApplicationEventPublisher events;
 
-    public DocumentService(CompanyRepository companies, DocumentRepository documents,
+    public DocumentService(CompanyDirectory companies, DocumentRepository documents,
                            DocumentStorage storage, DocumentClassifier classifier,
                            DocumentReclassifier ocr, AuditRecorder audit,
                            ApplicationEventPublisher events) {

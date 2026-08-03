@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.extraction.adapter.persistence.BankTransactionRepository;
 import ro.myfinance.extraction.adapter.persistence.TransactionRuleRepository;
 import ro.myfinance.extraction.domain.BankTransaction;
@@ -29,11 +29,11 @@ public class RequirementClassifier {
     private final TransactionClassifier classifier;
     private final TransactionRuleRepository rules;
     private final BankTransactionRepository transactions;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final AuditRecorder audit;
 
     public RequirementClassifier(TransactionClassifier classifier, TransactionRuleRepository rules,
-                                 BankTransactionRepository transactions, CompanyRepository companies,
+                                 BankTransactionRepository transactions, CompanyDirectory companies,
                                  AuditRecorder audit) {
         this.classifier = classifier;
         this.rules = rules;

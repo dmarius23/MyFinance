@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 
 /**
@@ -36,11 +36,11 @@ public class PeriodReportWarmer {
     private static final List<Granularity> GRAINS = List.of(Granularity.QUARTER, Granularity.HALF, Granularity.YEAR);
 
     private final JdbcTemplate admin;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final PeriodReportService periodReports;
 
     public PeriodReportWarmer(@Qualifier("adminJdbcTemplate") JdbcTemplate admin,
-                              CompanyRepository companies, PeriodReportService periodReports) {
+                              CompanyDirectory companies, PeriodReportService periodReports) {
         this.admin = admin;
         this.companies = companies;
         this.periodReports = periodReports;

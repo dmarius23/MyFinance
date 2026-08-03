@@ -12,7 +12,7 @@ import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.domain.Notification;
@@ -33,14 +33,14 @@ public class NotificationService {
     private static final String DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED";
 
     private final NotificationRepository notifications;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final AppUserRepository users;
     private final EmailEnvelopeService envelopes;
     private final EmailDispatchService dispatch;
     private final ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks;
     private final PushNotificationService push;
 
-    public NotificationService(NotificationRepository notifications, CompanyRepository companies,
+    public NotificationService(NotificationRepository notifications, CompanyDirectory companies,
                                AppUserRepository users, EmailEnvelopeService envelopes, EmailDispatchService dispatch,
                                ro.myfinance.access.adapter.persistence.RepresentativeLinkRepository repLinks,
                                PushNotificationService push) {

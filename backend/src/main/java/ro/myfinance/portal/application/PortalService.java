@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.extraction.application.ReconciliationService;
 import ro.myfinance.intake.application.DocumentService;
@@ -38,7 +38,7 @@ public class PortalService {
     /** Header the PWA sends to pick which of the rep's companies a request operates on. */
     public static final String COMPANY_HEADER = "X-Company-Id";
 
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final DocumentService documents;
     private final NotificationService notifications;
     private final ReconciliationService reconciliation;
@@ -51,7 +51,7 @@ public class PortalService {
     private final ro.myfinance.access.adapter.persistence.AppUserRepository users;
     private final jakarta.servlet.http.HttpServletRequest request;
 
-    public PortalService(CompanyRepository companies, DocumentService documents, NotificationService notifications,
+    public PortalService(CompanyDirectory companies, DocumentService documents, NotificationService notifications,
                          ReconciliationService reconciliation, ReportService reports,
                          PeriodReportService periodReports, ReportPdfGenerator reportPdf,
                          PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes,

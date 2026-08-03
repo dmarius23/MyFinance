@@ -20,7 +20,7 @@ import ro.myfinance.access.adapter.persistence.AppUserRepository;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.adapter.persistence.NotificationRepository;
 import ro.myfinance.notifications.application.NotificationService;
@@ -33,7 +33,7 @@ import ro.myfinance.common.email.EmailSender;
 class NotificationServiceTest {
 
     private final NotificationRepository notifications = mock(NotificationRepository.class);
-    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final EmailEnvelopeService envelopes = mock(EmailEnvelopeService.class);
     private final EmailDispatchService dispatch = mock(EmailDispatchService.class);

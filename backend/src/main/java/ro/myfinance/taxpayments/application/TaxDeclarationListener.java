@@ -11,7 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.LocalDate;
 import ro.myfinance.common.async.AsyncConfig;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentDeletedEvent;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
@@ -34,10 +34,10 @@ public class TaxDeclarationListener {
 
     private final AnafDeclarationExtractor extractor;
     private final TaxDeclarationRepository declarations;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
 
     public TaxDeclarationListener(AnafDeclarationExtractor extractor, TaxDeclarationRepository declarations,
-                                  CompanyRepository companies) {
+                                  CompanyDirectory companies) {
         this.extractor = extractor;
         this.declarations = declarations;
         this.companies = companies;

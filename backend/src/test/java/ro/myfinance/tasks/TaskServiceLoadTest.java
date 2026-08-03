@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import ro.myfinance.access.adapter.persistence.AppUserRepository;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.tasks.adapter.persistence.TaskRepository;
 import ro.myfinance.tasks.application.TaskService;
@@ -22,7 +22,7 @@ class TaskServiceLoadTest {
 
     private final TaskRepository tasks = mock(TaskRepository.class);
     private final TaskService service = new TaskService(tasks, mock(AppUserRepository.class),
-            mock(CompanyRepository.class), mock(NotificationService.class));
+            mock(CompanyDirectory.class), mock(NotificationService.class));
 
     private final UUID a = UUID.randomUUID();
     private final UUID b = UUID.randomUUID();

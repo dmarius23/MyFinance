@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.ingestion.adapter.persistence.ImportFileRepository;
 import ro.myfinance.ingestion.adapter.persistence.SourceConnectionRepository;
@@ -41,7 +41,7 @@ class IngestionServiceTest {
 
     private final SourceConnectionRepository connections = mock(SourceConnectionRepository.class);
     private final ImportFileRepository ledger = mock(ImportFileRepository.class);
-    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final DocumentService documents = mock(DocumentService.class);
     private final ConnectorRegistry registry = mock(ConnectorRegistry.class);
     private final AuditRecorder audit = mock(AuditRecorder.class);

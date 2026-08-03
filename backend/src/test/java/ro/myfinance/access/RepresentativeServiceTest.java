@@ -21,7 +21,7 @@ import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 
 /**
@@ -30,7 +30,7 @@ import ro.myfinance.company.domain.Company;
  */
 class RepresentativeServiceTest {
 
-    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final AppUserRepository users = mock(AppUserRepository.class);
     private final RepresentativeLinkRepository links = mock(RepresentativeLinkRepository.class);
     private final UserInviter inviter = mock(UserInviter.class);

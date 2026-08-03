@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.ingestion.adapter.persistence.ImportFileRepository;
 import ro.myfinance.ingestion.adapter.persistence.SourceConnectionRepository;
@@ -40,14 +40,14 @@ public class IngestionService {
 
     private final SourceConnectionRepository connections;
     private final ImportFileRepository ledger;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final DocumentService documents;
     private final ConnectorRegistry registry;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
 
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
-                            CompanyRepository companies, DocumentService documents,
+                            CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications) {
         this.connections = connections;

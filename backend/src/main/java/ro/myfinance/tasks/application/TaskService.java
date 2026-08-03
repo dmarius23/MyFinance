@@ -14,7 +14,7 @@ import ro.myfinance.access.adapter.persistence.AppUserRepository;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.tasks.adapter.persistence.TaskRepository;
@@ -30,10 +30,10 @@ public class TaskService {
 
     private final TaskRepository tasks;
     private final AppUserRepository users;
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final NotificationService notifications;
 
-    public TaskService(TaskRepository tasks, AppUserRepository users, CompanyRepository companies,
+    public TaskService(TaskRepository tasks, AppUserRepository users, CompanyDirectory companies,
                        NotificationService notifications) {
         this.tasks = tasks;
         this.users = users;

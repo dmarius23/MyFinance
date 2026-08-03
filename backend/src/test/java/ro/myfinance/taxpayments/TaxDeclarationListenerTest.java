@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
@@ -33,7 +33,7 @@ import ro.myfinance.taxpayments.domain.TaxDeclaration;
 class TaxDeclarationListenerTest {
 
     private final TaxDeclarationRepository declarations = mock(TaxDeclarationRepository.class);
-    private final CompanyRepository companies = mock(CompanyRepository.class);
+    private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final TaxDeclarationListener listener =
             new TaxDeclarationListener(new AnafDeclarationExtractor(), declarations, companies);
 

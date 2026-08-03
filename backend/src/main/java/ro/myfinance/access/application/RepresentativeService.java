@@ -15,7 +15,7 @@ import ro.myfinance.access.application.UserInviter.InviteClaims;
 import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.access.domain.RepresentativeLink;
 import ro.myfinance.access.domain.UserStatus;
-import ro.myfinance.company.adapter.persistence.CompanyRepository;
+import ro.myfinance.company.application.CompanyDirectory;
 
 /**
  * MOD-02 — managing a company's representatives. Invites go through the {@link UserInviter}
@@ -27,14 +27,14 @@ public class RepresentativeService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(RepresentativeService.class);
 
-    private final CompanyRepository companies;
+    private final CompanyDirectory companies;
     private final AppUserRepository users;
     private final RepresentativeLinkRepository links;
     private final UserInviter inviter;
     private final AuthUserCleanup authCleanup;
     private final AuditRecorder audit;
 
-    public RepresentativeService(CompanyRepository companies, AppUserRepository users,
+    public RepresentativeService(CompanyDirectory companies, AppUserRepository users,
                                  RepresentativeLinkRepository links, UserInviter inviter,
                                  AuthUserCleanup authCleanup, AuditRecorder audit) {
         this.companies = companies;
