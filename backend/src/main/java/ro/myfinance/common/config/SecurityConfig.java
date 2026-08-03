@@ -28,6 +28,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ro.myfinance.common.security.SupabaseJwtAuthoritiesConverter;
 import ro.myfinance.common.security.TenantContextFilter;
+import ro.myfinance.common.web.RateLimitFilter;
+import ro.myfinance.common.web.RateLimiter;
 
 /**
  * Stateless resource-server security. The app validates Supabase-issued JWTs (JWKS configured via
@@ -40,7 +42,7 @@ import ro.myfinance.common.security.TenantContextFilter;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, RateLimiter rateLimiter) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             // Resolves the bean named "corsConfigurationSource" by name, avoiding ambiguity with
@@ -64,7 +66,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
-            .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class);
+            .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
+            // After the tenant identity is bound, so upload/email limits are keyed per tenant+user.
+            .addFilterAfter(new RateLimitFilter(rateLimiter), TenantContextFilter.class);
         return http.build();
     }
 

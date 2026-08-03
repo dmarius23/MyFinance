@@ -1,6 +1,7 @@
 package ro.myfinance.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -34,6 +35,15 @@ class ArchitectureTest {
         production = new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                 .importPackages("ro.myfinance");
+    }
+
+    @Test
+    void actuallyImportedTheProductionClasses() {
+        // Guard against a silent vacuous pass: if the importer skips our classes (e.g. an ArchUnit version
+        // too old for the compiled bytecode — 0.22.0 could not parse Java 21 v65), every noClasses() rule
+        // trivially "passes". Fail loudly instead. ArchUnit must be new enough for the target bytecode.
+        assertThat(production.size()).isGreaterThan(300);
+        assertThat(production.contain("ro.myfinance.company.application.CompanyDirectory")).isTrue();
     }
 
     @Test

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
@@ -40,17 +41,20 @@ public class DocumentService {
     private final DocumentReclassifier ocr;
     private final AuditRecorder audit;
     private final ApplicationEventPublisher events;
+    private final ro.myfinance.tenant.application.TenantDirectory tenants;
 
     public DocumentService(CompanyDirectory companies, DocumentRepository documents,
                            DocumentStorage storage, DocumentClassifier classifier,
                            DocumentReclassifier ocr, AuditRecorder audit,
-                           ApplicationEventPublisher events) {
+                           ApplicationEventPublisher events,
+                           ro.myfinance.tenant.application.TenantDirectory tenants) {
         this.companies = companies;
         this.documents = documents;
         this.storage = storage;
         this.classifier = classifier;
         this.ocr = ocr;
         this.audit = audit;
+        this.tenants = tenants;
         this.events = events;
     }
 
@@ -85,6 +89,7 @@ public class DocumentService {
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
         LocalDate period = periodMonth.withDayOfMonth(1);
+        enforceDocumentQuota(companyId, period);
         DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
         // Company-ownership check: for PAYROLL and TRIAL_BALANCE the PDF must belong to this company.
         // Run after classification so the check fires regardless of whether the type was forced or
@@ -104,6 +109,19 @@ public class DocumentService {
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
         events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));
         return saved;
+    }
+
+    /**
+     * Enforce the tenant plan limit on documents per company/period, if one is configured. A missing or
+     * non-positive {@code maxDocumentsPerCompanyMonth} means no limit, so existing tenants are unaffected.
+     */
+    private void enforceDocumentQuota(UUID companyId, LocalDate period) {
+        long limit = tenants.maxDocumentsPerCompanyMonth();
+        if (limit >= 0 && documents.countByCompanyIdAndPeriodMonth(companyId, period) >= limit) {
+            throw new ConflictException(
+                    "Document limit reached for this company and period (max " + limit + "). "
+                            + "Remove a document or upgrade the plan to add more.");
+        }
     }
 
     @Transactional(readOnly = true)
