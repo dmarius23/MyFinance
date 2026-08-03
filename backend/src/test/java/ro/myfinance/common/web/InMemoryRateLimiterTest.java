@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-class RateLimiterTest {
+class InMemoryRateLimiterTest {
 
     @Test
     void allowsUpToTheLimitThenBlocks() {
-        RateLimiter limiter = new RateLimiter(true, 3, 3);
+        RateLimiter limiter = new InMemoryRateLimiter(true, 3, 3);
         assertThat(limiter.allowUpload("t:u")).isTrue();
         assertThat(limiter.allowUpload("t:u")).isTrue();
         assertThat(limiter.allowUpload("t:u")).isTrue();
@@ -18,7 +18,7 @@ class RateLimiterTest {
 
     @Test
     void limitsArePerCallerAndPerCategory() {
-        RateLimiter limiter = new RateLimiter(true, 1, 1);
+        RateLimiter limiter = new InMemoryRateLimiter(true, 1, 1);
         assertThat(limiter.allowUpload("tenantA:userA")).isTrue();
         assertThat(limiter.allowUpload("tenantA:userA")).isFalse();
         // A different caller has its own bucket.
@@ -30,11 +30,11 @@ class RateLimiterTest {
 
     @Test
     void disabledOrNonPositiveLimitAlwaysAllows() {
-        RateLimiter disabled = new RateLimiter(false, 1, 1);
+        RateLimiter disabled = new InMemoryRateLimiter(false, 1, 1);
         assertThat(disabled.allowUpload("t:u")).isTrue();
         assertThat(disabled.allowUpload("t:u")).isTrue();
 
-        RateLimiter unlimited = new RateLimiter(true, 0, 0);
+        RateLimiter unlimited = new InMemoryRateLimiter(true, 0, 0);
         assertThat(unlimited.allowEmail("t:u")).isTrue();
         assertThat(unlimited.allowEmail("t:u")).isTrue();
     }

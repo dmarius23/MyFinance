@@ -169,3 +169,13 @@ myfinance:
       public-key: ${VAPID_PUBLIC_KEY:}
       private-key: ${VAPID_PRIVATE_KEY:}
       subject: ${VAPID_SUBJECT:mailto:noreply@myfinance.local}
+  # Per-user rate limits (tenant+user keyed) on document-upload and email POSTs; excess → HTTP 429.
+  # distributed=false → in-memory per-instance buckets (limit multiplies by instance count).
+  # distributed=true  → one shared limit across all instances via Redis (spring.data.redis above must be
+  #                     reachable); if Redis is down the check FAILS OPEN (allows the request). Enable in
+  #                     production, where Redis runs. A non-positive limit or enabled=false turns it off.
+  ratelimit:
+    enabled: ${RATELIMIT_ENABLED:true}
+    distributed: ${RATELIMIT_DISTRIBUTED:false}
+    uploads-per-minute: ${RATELIMIT_UPLOADS_PER_MINUTE:60}
+    emails-per-minute: ${RATELIMIT_EMAILS_PER_MINUTE:30}
