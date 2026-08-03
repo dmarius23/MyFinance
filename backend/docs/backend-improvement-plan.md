@@ -32,7 +32,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | **P0** | Security correctness (cheap, high-value) | S1, S2, S3 | ✅ **Done** — PR [#3](https://github.com/dmarius23/MyFinance/pull/3) (branch `chore/backend-improvements`) |
 | **P1** | Reliability & correctness of core flows | S4, S5, S6 | ✅ **Done** — S4, S5, S6 |
 | **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
-| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S10, S13 ✅ done**; S11–S12 not started |
+| **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | 🟡 In progress — **S9, S10, S11, S13 ✅ done**; S12 not started |
 | **P4** | Documentation & guardrails | S14 | ⬜ Not started |
 | **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
 
@@ -359,7 +359,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   normalization; behavior unchanged.
 - **Size:** M. **Depends-on:** none.
 
-### S11. Split `ReconciliationService` (902 LOC) into focused collaborators  *(LOC-neutral; maintainability)*
+### S11. Split `ReconciliationService` (957 LOC) into focused collaborators  *(LOC-neutral; maintainability)* — ✅ **DONE**
+- **Delivered:** the 957-LOC service is now a thin facade (`ReconciliationService`, ~200 LOC) that owns the
+  public API + view records and delegates to four focused `@Service` collaborators, all in
+  `extraction/application`: `RequirementClassifier` (document-requirement rules + shareholder heuristic +
+  accountant `applyOverride`), `TransactionMatcher` (3-tier auto-match + manual link/unlink allocations),
+  `ReconciliationView` (completeness, read views, open-item lists, `documentStatuses`, dup detection), and
+  `MatchSuggester` (EXACT/SPLIT/INSTALLMENT subset-sum proposals). Shared `TOLERANCE`/
+  `DATE_BACK_TOLERANCE_DAYS` live in `ReconThresholds`. All method bodies moved **verbatim** (behavior-
+  preserving); public records/enums stay nested on `ReconciliationService` so consumers keep referencing
+  `ReconciliationService.X`. Sizes: facade 200, Classifier 142, Matcher 254, View 436, Suggester 168.
+  Validated by the full green suite (252) plus new `ReconciliationReadViewsIT` characterization tests for
+  `suggestions` + `documentStatuses` (kept in their own IT class to avoid perturbing the order-sensitive,
+  commit-without-rollback `ReconciliationServiceIT`). `coreName`-style dup left out of scope.
 - **Goal:** separate the three responsibilities currently mixed in one class.
 - **Why:** 902 LOC and 25+ public methods spanning (a) transaction↔invoice matching + allocations,
   (b) document-requirement classification (rule engine + learned `transaction_rule` overrides), and
