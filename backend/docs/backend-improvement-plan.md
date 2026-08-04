@@ -599,7 +599,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   don't duplicate.
 - **Size:** M. **Depends-on:** pairs with S1, S9, S11; unblocks S15 (failsafe in CI).
 
-### S19. *(Later)* GDPR endpoints + defense-in-depth rep→company RLS — 🟡 **GDPR DONE; rep-RLS deferred**
+### S19. *(Later)* GDPR endpoints + defense-in-depth rep→company RLS — ✅ **DONE**
 - **Delivered:** **GDPR subject-rights** for a platform user — `access/application/GdprService` +
   `GdprController` (TENANT_ADMIN, under `/api/v1/users/{userId}/gdpr/…` since `/api/v1/admin/**` is the
   SUPER_ADMIN surface). `GET …/export` returns everything held about the user (profile + company links +
@@ -609,11 +609,15 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   invisible. Added `AuditRepository.findByActorIdOrderByAtDesc`, `AuditEntry` getters, `AppUser.setEmail`.
 - **Already done earlier:** the `USING`-only → `WITH CHECK` normalization for `source_connection` /
   `import_file` was fixed by **V30** (`outbox_rls_and_policy_with_check`).
-- **Deferred → own task:** the **rep→company RLS** defense-in-depth. It needs `app.user_id` in the RLS
-  session (`RlsDataSource` sets only `app.tenant_id`/`app.role` today) and a *RESTRICTIVE* policy on every
-  company-scoped table reps read (Postgres ORs permissive policies, so a second permissive policy widens,
-  not narrows) keyed on `representative_link` + role. Broad + touches the #1 isolation invariant; the app
-  already enforces rep scoping app-layer, so this is defense-in-depth. Filed separately.
+- **rep→company RLS — DONE (Option A):** `RlsDataSource` now also sets `app.user_id`; migration **V49**
+  adds a `rep_company_scope` **RESTRICTIVE** policy to every `company_id` base table (discovered from
+  `information_schema`, so it self-maintains; `representative_link` excluded to avoid recursing on the
+  policy's own subquery) plus the `company` table (keyed on `id`). It AND-combines with the permissive
+  `tenant_isolation`: `role <> 'REPRESENTATIVE'` (staff/super-admin/system) passes trivially, a rep is
+  narrowed to `company_id IN (their representative_link companies)`. USING-only, so rep uploads + the
+  post-upload pipeline (which write rows for the rep's own company) aren't blocked. `RepCompanyRlsIT`
+  proves a rep sees only their linked company's documents/company and staff see all; full `mvn verify`
+  green (staff paths + extraction pipeline unaffected).
 - **Why:** there are no data export/delete endpoints (review §11, MOD-12); company-level rep scoping is
   app-layer only — a rep→company RLS policy keyed on `representative_link` would be defense-in-depth; and
   `source_connection` / `import_file` declare only `USING` (should also spell out `WITH CHECK`).

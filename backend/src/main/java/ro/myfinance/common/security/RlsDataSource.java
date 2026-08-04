@@ -49,10 +49,13 @@ public class RlsDataSource extends DelegatingDataSource {
         var identity = TenantContext.current().orElse(null);
         String tenantId = identity != null && identity.tenantId() != null ? identity.tenantId().toString() : "";
         String role = identity != null && identity.role() != null ? identity.role().name() : "";
+        // user_id feeds the rep→company RLS policy (a representative is narrowed to their linked companies).
+        String userId = identity != null && identity.userId() != null ? identity.userId().toString() : "";
         // set_config(..., false) = session scope; survives until reset on connection return.
         try (Statement st = connection.createStatement()) {
             st.execute("SELECT set_config('app.tenant_id', " + quote(tenantId) + ", false), "
-                    + "set_config('app.role', " + quote(role) + ", false)");
+                    + "set_config('app.role', " + quote(role) + ", false), "
+                    + "set_config('app.user_id', " + quote(userId) + ", false)");
         }
     }
 
@@ -68,7 +71,8 @@ public class RlsDataSource extends DelegatingDataSource {
                 if (!delegate.isClosed()) {
                     try (Statement st = delegate.createStatement()) {
                         st.execute("SELECT set_config('app.tenant_id', '', false), "
-                                + "set_config('app.role', '', false)");
+                                + "set_config('app.role', '', false), "
+                                + "set_config('app.user_id', '', false)");
                     } catch (SQLException ignored) {
                         // best effort; closing anyway
                     }

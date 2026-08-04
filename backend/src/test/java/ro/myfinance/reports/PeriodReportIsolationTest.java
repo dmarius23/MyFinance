@@ -117,9 +117,11 @@ class PeriodReportIsolationTest {
     }
 
     private static void setTenant(Connection conn, String tenantId) throws Exception {
+        // EMPLOYEE: a non-privileged, RLS-subject staff role — tenant-scoped but not company-scoped, so
+        // this exercises tenant_isolation without the V49 rep→company RESTRICTIVE policy also narrowing it.
         try (Statement st = conn.createStatement()) {
             st.execute("SELECT set_config('app.tenant_id', '" + tenantId + "', false), "
-                    + "set_config('app.role', 'REPRESENTATIVE', false)");
+                    + "set_config('app.role', 'EMPLOYEE', false)");
         }
     }
 
