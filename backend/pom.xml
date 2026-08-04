@@ -203,6 +203,27 @@
                     <mainClass>ro.myfinance.MyFinanceApplication</mainClass>
                 </configuration>
             </plugin>
+            <!-- Run the Testcontainers integration tests (*IT) in the verify phase, so CI's `mvn verify`
+                 actually exercises them (surefire only runs *Test). Version is managed by the Boot parent. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <!-- A fresh JVM (and thus a fresh Testcontainers Postgres) per IT class. This keeps only
+                         one class's Spring contexts alive at a time, so the accumulated connection pools
+                         never exhaust Postgres, and it isolates each class's committed data (the *IT tests
+                         commit without rollback). Slower than reusing a fork, but reliable in CI. -->
+                    <reuseForks>false</reuseForks>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

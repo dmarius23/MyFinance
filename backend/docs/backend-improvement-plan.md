@@ -488,9 +488,9 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   dependency-review are free): `.github/dependabot.yml` (maven/npm/actions weekly + security updates);
   `dependency-review` job in `ci.yml` (fails a PR that adds a high/critical-advisory dep);
   `.github/workflows/codeql.yml` (Java + JS SAST on push/PR/weekly).
-- **Deferred (gated on S18):** wiring the `*IT` suite into CI via maven-failsafe — the ITs fail wholesale
-  when run together (Hikari pool exhaustion + cross-IT data bleed), so flipping failsafe on now turns CI
-  red. Do it with the S18 isolation fixes (or forked JVMs / pool tuning). Task already filed.
+- **~~Deferred~~ DONE in S18:** the `*IT` suite is now wired into CI via maven-failsafe (`reuseForks=false`
+  → fresh JVM+container per class, so no pool exhaustion / no cross-class bleed). `mvn verify` runs all 21
+  ITs green. See S18.
 - **Why:** CI runs only `gitleaks` (review §9). PDFBox 3.0.3 parses untrusted PDFs (check
   CVE-2024-50379 OOM and any newer advisories).
 - **Evidence:** `.github/workflows/ci.yml`; `backend/pom.xml` (PDFBox 3.0.3).
@@ -561,7 +561,22 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** no PII/secret in logs; container runs non-root; audit rows carry before/after.
 - **Size:** M. **Depends-on:** none (do the log-masking part alongside S7).
 
-### S18. Test coverage for thin modules + negative-authZ tests
+### S18. Test coverage for thin modules + negative-authZ tests — 🟡 **IT SUITE NOW RUNS IN CI** (coverage additions deferred)
+- **Delivered (the linchpin):** the `*IT` Testcontainers suite is now runnable as a suite and **wired into
+  CI**. Added the **maven-failsafe** plugin (integration-test/verify) with **`reuseForks=false`** — a fresh
+  JVM + Postgres container per IT class, so accumulated Spring-context pools never exhaust Postgres and each
+  class's committed rows can't bleed into the next. Fixed the two long-broken `ReconciliationServiceIT`
+  tests (they only ever ran when named explicitly, so nobody noticed): `overrideCreatesLearnedRule…` — the
+  fixed stub emitted **June-dated** rows for every upload, so a "July" statement deduped against June and
+  was never created (statements file by txn month); the stub is now period-aware via a `YYYY-MM` marker.
+  `manualLinkSupportsManyInvoices…` — a scale-sensitive `BigDecimal.equals(stripTrailingZeros)` assertion,
+  now compared numerically. **Root cause of the pool exhaustion documented:** `DataSourceConfig` builds
+  Hikari via a custom `@Bean` (`initializeDataSourceBuilder()`), which ignores `spring.datasource.hikari.*`
+  — so the yaml pool size was never applied (pool = Hikari default 10); `reuseForks=false` sidesteps it.
+  This completes S15's deferred item (failsafe in CI) and the "wire *IT into CI" task.
+- **Deferred → own task:** the extra *coverage* — Testcontainers ITs for the 4 thin modules (payroll,
+  notifications, portal, dashboard, which today have one mostly-mocked test each) and extending
+  `UrlAuthorizationBackstopIT` with rep→other-company / rep→staff negative-authZ assertions.
 - **Why:** `payroll`, `notifications`, `portal`, and `dashboard` have a single, often-mocked test each;
   `extraction`, `taxpayments`, and `access` are well covered; `CrossTenantIsolationTest` is the real,
   mandatory isolation test.

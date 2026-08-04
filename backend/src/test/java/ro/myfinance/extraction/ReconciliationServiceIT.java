@@ -57,13 +57,20 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
             return new BankStatementParser() {
                 @Override public boolean supports(String text) { return text.contains("RECONSTUB"); }
                 @Override public ParsedStatement parse(String t) {
+                    // An optional YYYY-MM in the marker lets a test produce a statement in another month
+                    // (default June 2026) with otherwise-identical transactions — so a genuinely different
+                    // month isn't deduped away by the (date, amount, ref) key.
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("(20\\d{2})-(\\d{2})").matcher(t);
+                    int year = 2026, month = 6;
+                    if (m.find()) { year = Integer.parseInt(m.group(1)); month = Integer.parseInt(m.group(2)); }
+                    LocalDate d3 = LocalDate.of(year, month, 3);
                     return new ParsedStatement("STUB", "RO00OWN", new BigDecimal("1000.00"),
                             new BigDecimal("1170.00"), List.of(
-                            new ParsedTransaction(LocalDate.of(2026, 6, 3), new BigDecimal("-200.00"),
+                            new ParsedTransaction(d3, new BigDecimal("-200.00"),
                                     "SELGROS", "RO21SUPP", "achizitie marfa", "r1", new BigDecimal("800.00")),
-                            new ParsedTransaction(LocalDate.of(2026, 6, 4), new BigDecimal("-30.00"),
+                            new ParsedTransaction(d3.plusDays(1), new BigDecimal("-30.00"),
                                     "Trezoreria Cluj", "RO54TREZ21620A470300", "CAM", "r2", new BigDecimal("770.00")),
-                            new ParsedTransaction(LocalDate.of(2026, 6, 5), new BigDecimal("400.00"),
+                            new ParsedTransaction(d3.plusDays(2), new BigDecimal("400.00"),
                                     "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))));
                 }
             };
@@ -137,7 +144,9 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         assertThat(after.getDecisionSource()).isEqualTo(DecisionSource.ACCOUNTANT_SET);
 
         // A second statement for July with the same counterparty+description inherits the learned rule.
-        documents.upload(companyId, LocalDate.of(2026, 7, 1), "iulie.pdf", "application/pdf", pdf("RECONSTUB"));
+        // The "2026-07" marker makes the stub emit July-dated transactions, so this is a genuinely new
+        // statement (not deduped against June's identical rows).
+        documents.upload(companyId, LocalDate.of(2026, 7, 1), "iulie.pdf", "application/pdf", pdf("RECONSTUB 2026-07"));
         List<UUID> julyIds = statements.findByCompanyIdAndPeriodMonth(companyId, LocalDate.of(2026, 7, 1))
                 .stream().map(BankStatement::getId).toList();
         BankTransaction julySupplier = txns.findByStatementIdInOrderByTxnDateDesc(julyIds).stream()
@@ -319,9 +328,9 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         var links = matchRepo.findByTransactionIdIn(List.of(supplier.getId()));
         assertThat(links).hasSize(2); // m:n — one payment settles two invoices
         // Default allocation fills each invoice to its total (120 + 80 = 200, the payment amount).
-        assertThat(links.stream().map(m -> m.getAllocatedAmount().stripTrailingZeros())
-                .collect(java.util.stream.Collectors.toSet()))
-                .containsExactlyInAnyOrder(new java.math.BigDecimal("120"), new java.math.BigDecimal("80"));
+        // Compare numerically — BigDecimal.equals is scale-sensitive (120.00 != 120), so use doubleValue.
+        assertThat(links.stream().map(m -> m.getAllocatedAmount().doubleValue()).toList())
+                .containsExactlyInAnyOrder(120.0, 80.0);
     }
 
     @Test
