@@ -69,8 +69,9 @@ public class SmtpEmailSender {
                 }
 
                 mail.send(mime);
-                log.info("[email:smtp] sent to={} subject={} attachments={}",
-                        EmailAddresses.mask(message.to()), message.subject(), message.attachments().size());
+                log.info("[email:smtp] sent to={} subjectChars={} attachments={}",
+                        EmailAddresses.mask(message.to()),
+                        message.subject() == null ? 0 : message.subject().length(), message.attachments().size());
             } catch (RuntimeException e) {
                 throw e; // MailException from the transport — let the relay see the real failure
             } catch (Exception e) {

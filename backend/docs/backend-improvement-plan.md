@@ -536,7 +536,19 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 - **Acceptance:** list endpoints paginated; no `findAll()` in per-item loops; upload/email rate-limited.
 - **Size:** M. **Depends-on:** none.
 
-### S17. Operational hardening: PII log masking, non-root container, actuator, audit, temp files
+### S17. Operational hardening: PII log masking, non-root container, actuator, audit, temp files — 🟡 **MOSTLY DONE** (audit before/after deferred)
+- **Delivered:** (1) **PII out of logs** — the 3 `EmailSender` adapters (logging/SMTP/SES) no longer log the
+  subject text (client name + period) or attachment filenames (payslips carry employee names); they log
+  `subjectChars`/attachment count, and the dev logger masks the sender address too (recipient was already
+  masked). (2) **Non-root container** — Dockerfile adds an unprivileged `appuser` (uid 10001) + `USER`.
+  (3) **Actuator** — `health` (permitAll for probes) now `show-details/show-components: never`, so it can't
+  leak DB/disk status to anonymous callers; only `health,info` are exposed. (4) **Secure OCR temp** — the
+  Tesseract temp PNG (receipt image = PII) is created owner-only (POSIX 0600, atomically) + overwritten
+  before delete.
+- **Deferred → own task:** populating audit **before/after** — the `audit_entry.before/after jsonb` columns
+  exist but `AuditEntry`/`AuditRecorder` don't map/write them. Doing it right (an overload that snapshots
+  old+new state as PII-masked JSON, wired at every mutation site) is a sizeable cross-cutting feature, filed
+  separately.
 - **Why:** `LoggingEmailSender` logs recipient + subject (PII); the backend `Dockerfile` sets no `USER`
   (runs as root); actuator `health`/`info` are `permitAll`; the audit `before/after` jsonb columns exist
   but are likely unpopulated; OCR temp files are deleted but not securely erased.

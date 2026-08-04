@@ -78,8 +78,9 @@ public class SesEmailSender {
                 }
                 // SES derives From / To from the MIME headers for a raw send.
                 client.sendEmail(req.build());
-                log.info("[email:ses] sent to={} subject={} attachments={}",
-                        EmailAddresses.mask(message.to()), message.subject(), message.attachments().size());
+                log.info("[email:ses] sent to={} subjectChars={} attachments={}",
+                        EmailAddresses.mask(message.to()),
+                        message.subject() == null ? 0 : message.subject().length(), message.attachments().size());
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {

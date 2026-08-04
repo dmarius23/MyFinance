@@ -101,7 +101,8 @@ public class OcrReclassifier implements DocumentReclassifier {
     private String tesseract(byte[] png) {
         Path tmp = null;
         try {
-            tmp = Files.createTempFile("ocr", ".png");
+            // The receipt image is PII: keep the temp file owner-only, and overwrite it before deleting.
+            tmp = createSecureTempFile("ocr", ".png");
             Files.write(tmp, png);
             Process p = new ProcessBuilder(props.tesseractCmd(), tmp.toString(), "stdout", "-l", props.tesseractLang())
                     .redirectErrorStream(false).start();
@@ -113,8 +114,38 @@ public class OcrReclassifier implements DocumentReclassifier {
             return "";
         } finally {
             if (tmp != null) {
-                try { Files.deleteIfExists(tmp); } catch (Exception ignored) { /* temp cleanup */ }
+                secureDelete(tmp);
             }
+        }
+    }
+
+    /** A temp file readable/writable only by the owner (POSIX 0600 where supported, atomically at create). */
+    private static Path createSecureTempFile(String prefix, String suffix) throws java.io.IOException {
+        var ownerOnly = java.util.Set.of(
+                java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                java.nio.file.attribute.PosixFilePermission.OWNER_WRITE);
+        try {
+            return Files.createTempFile(prefix, suffix,
+                    java.nio.file.attribute.PosixFilePermissions.asFileAttribute(ownerOnly));
+        } catch (UnsupportedOperationException nonPosix) {
+            return Files.createTempFile(prefix, suffix);
+        }
+    }
+
+    /** Overwrite the file's bytes before deleting so the PII image doesn't linger in a freed block. */
+    private static void secureDelete(Path file) {
+        try {
+            long size = Files.size(file);
+            if (size > 0) {
+                Files.write(file, new byte[(int) Math.min(size, Integer.MAX_VALUE)]);
+            }
+        } catch (java.io.IOException ignored) {
+            // best-effort scrub
+        }
+        try {
+            Files.deleteIfExists(file);
+        } catch (java.io.IOException ignored) {
+            // best-effort delete
         }
     }
 

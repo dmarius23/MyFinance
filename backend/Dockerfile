@@ -19,6 +19,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /build/target/myfinance-backend-*.jar app.jar
+
+# Run as an unprivileged user (created after the root-only apt install). The app writes only to the OS
+# temp dir (OCR) and — for local storage mode — under its home /app, both owned by this user.
+RUN useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin appuser \
+ && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
 
 # Default: web entrypoint. Run the worker by overriding the command:

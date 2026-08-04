@@ -101,6 +101,10 @@ management:
     health:
       probes:
         enabled: true
+      # Health is permitAll for LB/k8s probes, so never leak component details (DB, disk, …) to
+      # unauthenticated callers — expose only UP/DOWN.
+      show-details: never
+      show-components: never
   health:
     # Don't let the readiness/liveness probe open an SMTP connection on every check (provider=smtp).
     mail:

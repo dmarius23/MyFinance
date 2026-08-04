@@ -22,13 +22,12 @@ public class LoggingEmailSender {
     @ConditionalOnMissingBean(EmailSender.class)
     @ConditionalOnProperty(name = "myfinance.email.provider", havingValue = "logging", matchIfMissing = true)
     public EmailSender defaultEmailSender() {
-        return message -> {
-            String names = message.attachments().isEmpty() ? "none"
-                    : message.attachments().stream().map(EmailSender.Attachment::filename)
-                        .collect(java.util.stream.Collectors.joining(", "));
-            log.info("[email:dev] from=\"{}\" <{}> to={} subject={} ({} chars) attachments=[{}] — not actually sent",
-                    message.fromName(), message.fromEmail(), EmailAddresses.mask(message.to()),
-                    message.subject(), message.body() == null ? 0 : message.body().length(), names);
-        };
+        return message -> log.info(
+                // No PII: recipient + sender masked; subject/body/attachment names omitted (they carry
+                // client and employee names) — only their sizes/count are logged.
+                "[email:dev] from=\"{}\" <{}> to={} subjectChars={} bodyChars={} attachments={} — not actually sent",
+                message.fromName(), EmailAddresses.mask(message.fromEmail()), EmailAddresses.mask(message.to()),
+                message.subject() == null ? 0 : message.subject().length(),
+                message.body() == null ? 0 : message.body().length(), message.attachments().size());
     }
 }
