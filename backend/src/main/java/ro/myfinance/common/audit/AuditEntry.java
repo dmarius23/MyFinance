@@ -55,4 +55,20 @@ public class AuditEntry {
     public UUID getId() {
         return id;
     }
+
+    public String getAction() {
+        return action;
+    }
+
+    public String getEntity() {
+        return entity;
+    }
+
+    public UUID getEntityId() {
+        return entityId;
+    }
+
+    public Instant getAt() {
+        return at;
+    }
 }

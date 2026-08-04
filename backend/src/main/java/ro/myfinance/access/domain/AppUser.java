@@ -82,6 +82,11 @@ public class AppUser {
         this.name = name;
     }
 
+    /** Only for GDPR anonymization — the email is otherwise immutable (it is the login identity). */
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public String getPhone() {
         return phone;
     }

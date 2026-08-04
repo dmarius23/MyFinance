@@ -34,7 +34,7 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
 | **P2** | Production blockers (stubbed features) | S7, S8 | ✅ **Done** — S7, S8 |
 | **P3** | Architecture & code reduction (*less code*) | S9, S10, S11, S12, S13 | ✅ **Done** — S9, S10, S11, S12, S13 |
 | **P4** | Documentation & guardrails | S14 | ✅ **Done** — S14 |
-| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | ⬜ Not started |
+| **P5** | Optimizations, hardening & hygiene | S15, S16, S17, S18, S19 | 🟡 In progress — S18 ✅; S15/S17/S19 mostly done; S16 partial (see each) |
 
 > **Per-step status:** S1 ✅ done · S2 ✅ done (scope reduced — multipart limits + allowlist/magic-byte guard
 > already existed; only the 413 mapping was missing) · S3 ✅ done (issuer pinning, issuer derived from the
@@ -599,7 +599,21 @@ rules in [`CLAUDE.md`](../../CLAUDE.md).
   don't duplicate.
 - **Size:** M. **Depends-on:** pairs with S1, S9, S11; unblocks S15 (failsafe in CI).
 
-### S19. *(Later)* GDPR endpoints + defense-in-depth rep→company RLS
+### S19. *(Later)* GDPR endpoints + defense-in-depth rep→company RLS — 🟡 **GDPR DONE; rep-RLS deferred**
+- **Delivered:** **GDPR subject-rights** for a platform user — `access/application/GdprService` +
+  `GdprController` (TENANT_ADMIN, under `/api/v1/users/{userId}/gdpr/…` since `/api/v1/admin/**` is the
+  SUPER_ADMIN surface). `GET …/export` returns everything held about the user (profile + company links +
+  audit trail) as JSON; `DELETE …/gdpr` **anonymizes** (scrubs name/email/phone, deactivates) rather than
+  hard-deleting, so audit/FK rows survive for statutory retention. All tenant-scoped by RLS. New
+  `GdprServiceIT` (runs in CI now — S18) proves export, anonymize and that a user of another tenant is
+  invisible. Added `AuditRepository.findByActorIdOrderByAtDesc`, `AuditEntry` getters, `AppUser.setEmail`.
+- **Already done earlier:** the `USING`-only → `WITH CHECK` normalization for `source_connection` /
+  `import_file` was fixed by **V30** (`outbox_rls_and_policy_with_check`).
+- **Deferred → own task:** the **rep→company RLS** defense-in-depth. It needs `app.user_id` in the RLS
+  session (`RlsDataSource` sets only `app.tenant_id`/`app.role` today) and a *RESTRICTIVE* policy on every
+  company-scoped table reps read (Postgres ORs permissive policies, so a second permissive policy widens,
+  not narrows) keyed on `representative_link` + role. Broad + touches the #1 isolation invariant; the app
+  already enforces rep scoping app-layer, so this is defense-in-depth. Filed separately.
 - **Why:** there are no data export/delete endpoints (review §11, MOD-12); company-level rep scoping is
   app-layer only — a rep→company RLS policy keyed on `representative_link` would be defense-in-depth; and
   `source_connection` / `import_file` declare only `USING` (should also spell out `WITH CHECK`).
