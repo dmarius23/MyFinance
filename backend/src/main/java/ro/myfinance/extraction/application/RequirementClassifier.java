@@ -111,6 +111,9 @@ public class RequirementClassifier {
     public BankTransaction applyOverride(UUID txnId, boolean requiresDocument, String reason) {
         BankTransaction t = transactions.findById(txnId)
                 .orElseThrow(() -> new NotFoundException("Transaction not found: " + txnId));
+        java.util.Map<String, Object> before = new java.util.LinkedHashMap<>();
+        before.put("requiresDocument", t.isRequiresDocument());
+        before.put("decisionSource", t.getDecisionSource() == null ? null : t.getDecisionSource().name());
         t.setRequiresDocument(requiresDocument);
         t.setDecisionSource(DecisionSource.ACCOUNTANT_SET);
         t.setOverrideReason(reason);
@@ -128,7 +131,11 @@ public class RequirementClassifier {
             rules.save(new TransactionRule(tenantId, t.getCompanyId(), t.getPartnerIban(),
                     descNorm, requiresDocument, userId));
         }
-        audit.record("TXN_REQUIREMENT_SET", "bank_transaction", txnId);
+        java.util.Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("requiresDocument", requiresDocument);
+        after.put("decisionSource", DecisionSource.ACCOUNTANT_SET.name());
+        after.put("reason", reason);
+        audit.record("TXN_REQUIREMENT_SET", "bank_transaction", txnId, before, after);
         return t;
     }
 

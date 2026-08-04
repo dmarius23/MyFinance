@@ -193,9 +193,12 @@ public class DocumentService {
         if (!doc.getCompanyId().equals(companyId)) {
             throw new NotFoundException("Document not found: " + id);
         }
+        LocalDate oldPeriod = doc.getPeriodMonth();
         LocalDate target = newPeriod.withDayOfMonth(1);
         doc.setPeriodMonth(target);
-        audit.record("DOCUMENT_PERIOD_MOVED", "document", id);
+        audit.record("DOCUMENT_PERIOD_MOVED", "document", id,
+                java.util.Map.of("periodMonth", String.valueOf(oldPeriod)),
+                java.util.Map.of("periodMonth", target.toString()));
         byte[] bytes = storage.retrieve(doc.getStorageKey());
         events.publishEvent(new DocumentUploadedEvent(id, companyId, target, doc.getType(),
                 doc.getOriginalFilename(), bytes));
@@ -208,8 +211,11 @@ public class DocumentService {
         if (!doc.getCompanyId().equals(companyId)) {
             throw new NotFoundException("Document not found: " + id);
         }
+        DocumentType oldType = doc.getType();
         doc.setType(newType);
-        audit.record("DOCUMENT_TYPE_CHANGED", "document", id);
+        audit.record("DOCUMENT_TYPE_CHANGED", "document", id,
+                java.util.Map.of("type", String.valueOf(oldType)),
+                java.util.Map.of("type", newType.name()));
         byte[] bytes = storage.retrieve(doc.getStorageKey());
         events.publishEvent(new DocumentUploadedEvent(id, companyId, doc.getPeriodMonth(), newType,
                 doc.getOriginalFilename(), bytes));
