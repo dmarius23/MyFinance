@@ -21,7 +21,7 @@
         <!-- Spec targets Java 21 (LTS). Compiles on a newer JDK via release=21. -->
         <java.version>21</java.version>
         <maven.compiler.release>21</maven.compiler.release>
-        <springdoc.version>2.8.6</springdoc.version>
+        <springdoc.version>3.0.3</springdoc.version>
         <shedlock.version>5.16.0</shedlock.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
