@@ -24,13 +24,26 @@ public class DataSourceConfig {
         return new DataSourceProperties();
     }
 
+    /**
+     * The pooled application datasource. {@code @ConfigurationProperties("spring.datasource.hikari")}
+     * binds the pool tuning (size, name, timeouts, …) onto the built {@link HikariDataSource} —
+     * {@code initializeDataSourceBuilder()} alone only carries the core connection props (url/user/
+     * password/driver), so without this the {@code spring.datasource.hikari.*} yaml/env settings would
+     * be silently ignored and the pool would run on Hikari defaults. Not {@code @Primary}: the wrapping
+     * {@link RlsDataSource} is the primary {@link DataSource} the app injects.
+     */
     @Bean
-    @Primary
-    DataSource dataSource(DataSourceProperties properties) {
-        HikariDataSource hikari = properties.initializeDataSourceBuilder()
+    @ConfigurationProperties("spring.datasource.hikari")
+    HikariDataSource appHikariDataSource(DataSourceProperties properties) {
+        return properties.initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
-        return new RlsDataSource(hikari);
+    }
+
+    @Bean
+    @Primary
+    DataSource dataSource(HikariDataSource appHikariDataSource) {
+        return new RlsDataSource(appHikariDataSource);
     }
 
     /**
