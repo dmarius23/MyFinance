@@ -40,7 +40,8 @@ export interface UserTaskLoad {
 }
 
 export const tasksApi = {
-  list: () => api<Task[]>("/api/v1/tasks"),
+  /** Board tasks. By default the DONE column is capped to the 50 most recent; allDone loads the rest. */
+  list: (allDone = false) => api<Task[]>(`/api/v1/tasks${allDone ? "?allDone=true" : ""}`),
   create: (input: TaskInput) => api<Task>("/api/v1/tasks", { method: "POST", body: JSON.stringify(input) }),
   update: (id: string, input: TaskInput) => api<Task>(`/api/v1/tasks/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   changeStatus: (id: string, status: TaskStatus) =>

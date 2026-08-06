@@ -43,8 +43,21 @@ export const representativesApi = {
   listAll: () => api<CompanyRepEntry[]>("/api/v1/representatives"),
 };
 
+/** Stable paged envelope returned by paginated list endpoints (mirrors backend PageResponse). */
+export interface Page<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+}
+
 export const companiesApi = {
   list: () => api<Company[]>("/api/v1/companies"),
+  /** Paged directory for the Companies screen (infinite scroll). Pickers keep using list(). */
+  listPage: (page: number, size = 25) =>
+    api<Page<Company>>(`/api/v1/companies/page?page=${page}&size=${size}`),
   get: (id: string) => api<Company>(`/api/v1/companies/${id}`),
   create: (input: CreateCompanyInput) =>
     api<Company>("/api/v1/companies", { method: "POST", body: JSON.stringify(input) }),

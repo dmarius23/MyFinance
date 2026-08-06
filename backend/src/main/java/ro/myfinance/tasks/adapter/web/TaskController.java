@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.tasks.application.TaskService;
@@ -32,8 +33,8 @@ public class TaskController {
     }
 
     @GetMapping
-    public List<TaskView> list() {
-        return tasks.list();
+    public List<TaskView> list(@RequestParam(value = "allDone", defaultValue = "false") boolean allDone) {
+        return tasks.list(allDone);
     }
 
     /** Per-user task load — admin oversight of who has what. Admin only. */

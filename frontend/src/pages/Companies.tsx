@@ -1,20 +1,46 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { companiesApi, representativesApi, taxRegimeKey } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
 import { vatStatusKey } from "../domain/vat";
 
-/** MOD-03 — manage companies: list + add; rows link to detail. */
+/** MOD-03 — manage companies: list + add; rows link to detail. Paged with infinite scroll. */
 export function Companies() {
   const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["companies"],
-    queryFn: companiesApi.list,
+  const {
+    data: pages,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["companies-page"],
+    queryFn: ({ pageParam }) => companiesApi.listPage(pageParam, 25),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
+
+  const data = pages?.pages.flatMap((p) => p.content);
+
+  // Auto-load the next page when the sentinel row scrolls near the viewport.
+  const sentinel = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const { data: repsData } = useQuery({
     queryKey: ["representatives-all"],
@@ -99,6 +125,11 @@ export function Companies() {
               </tr>
               );
             })}
+            <tr ref={sentinel}>
+              <td colSpan={9} style={{ padding: 8, textAlign: "center", color: "var(--text-muted)" }}>
+                {isFetchingNextPage ? t("common.loading") : !hasNextPage && data.length > 0 ? "—" : ""}
+              </td>
+            </tr>
           </tbody>
         </table>
       )}

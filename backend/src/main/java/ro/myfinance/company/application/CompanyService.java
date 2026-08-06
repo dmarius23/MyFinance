@@ -2,6 +2,9 @@ package ro.myfinance.company.application;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
@@ -25,9 +28,27 @@ public class CompanyService {
         this.companies = companies;
     }
 
+    /** Max page size a client can request; larger requests are clamped to this. */
+    private static final int MAX_PAGE_SIZE = 100;
+
+    /** Full list — used by pickers/dropdowns across modules that need every company at once. */
     @Transactional(readOnly = true)
     public List<Company> list() {
         return companies.findAll();
+    }
+
+    /**
+     * Paged list for the Companies directory screen (infinite scroll). A deterministic sort
+     * (legal name, then id as tiebreaker) keeps paging stable across requests. RLS scopes rows to the
+     * tenant, including the count query.
+     */
+    @Transactional(readOnly = true)
+    public Page<Company> listPage(int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int safePage = Math.max(page, 0);
+        var pageable = PageRequest.of(safePage, safeSize,
+                Sort.by(Sort.Order.asc("legalName"), Sort.Order.asc("id")));
+        return companies.findAll(pageable);
     }
 
     @Transactional(readOnly = true)

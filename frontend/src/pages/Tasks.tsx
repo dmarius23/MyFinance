@@ -14,8 +14,9 @@ export function Tasks() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [edit, setEdit] = useState<Partial<Task> | null>(null);
+  const [allDone, setAllDone] = useState(false);
 
-  const tasks = useQuery({ queryKey: ["tasks"], queryFn: tasksApi.list });
+  const tasks = useQuery({ queryKey: ["tasks", allDone], queryFn: () => tasksApi.list(allDone) });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["tasks"] });
   const move = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TaskStatus }) => tasksApi.changeStatus(id, status),
@@ -31,9 +32,15 @@ export function Tasks() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("tasks.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("tasks.title")}</h2>
         </div>
-        <button className="primary" onClick={() => setEdit({ status: "TODO" })}>
-          <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 4, transform: "rotate(0)" }} />{t("tasks.add")}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-secondary)", cursor: "pointer" }}>
+            <input type="checkbox" checked={allDone} onChange={(e) => setAllDone(e.target.checked)} />
+            {t("tasks.showAllDone")}
+          </label>
+          <button className="primary" onClick={() => setEdit({ status: "TODO" })}>
+            <Icon name="upload" size={13} style={{ verticalAlign: "-2px", marginRight: 4, transform: "rotate(0)" }} />{t("tasks.add")}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, alignItems: "start" }}>

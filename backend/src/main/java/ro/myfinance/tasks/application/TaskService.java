@@ -74,9 +74,20 @@ public class TaskService {
                 .toList();
     }
 
+    /**
+     * Board tasks. By default the DONE column is bounded to the 50 most recent (completed work
+     * accumulates forever), while TODO/IN_PROGRESS stay complete — they are self-limiting to active
+     * work. {@code allDone=true} returns the full DONE history for the "show all" view.
+     */
     @Transactional(readOnly = true)
-    public List<TaskView> list() {
-        List<TaskItem> all = tasks.findAllByOrderByCreatedAtDesc();
+    public List<TaskView> list(boolean allDone) {
+        List<TaskItem> all;
+        if (allDone) {
+            all = tasks.findAllByOrderByCreatedAtDesc();
+        } else {
+            all = new java.util.ArrayList<>(tasks.findByStatusNotOrderByCreatedAtDesc(TaskItem.Status.DONE));
+            all.addAll(tasks.findTop50ByStatusOrderByCreatedAtDesc(TaskItem.Status.DONE));
+        }
         Map<UUID, String> userNames = users.findAllById(all.stream().map(TaskItem::getAssigneeId)
                 .filter(Objects::nonNull).distinct().toList()).stream()
                 .collect(Collectors.toMap(AppUser::getId, AppUser::getName));

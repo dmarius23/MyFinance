@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ro.myfinance.common.web.PageResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.CompanyResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.CreateCompanyRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.SetStatusRequest;
@@ -35,6 +37,13 @@ public class CompanyController {
     @GetMapping
     public List<CompanyResponse> list() {
         return service.list().stream().map(CompanyResponse::from).toList();
+    }
+
+    /** Paged variant for the Companies directory (infinite scroll). Full list above stays for pickers. */
+    @GetMapping("/page")
+    public PageResponse<CompanyResponse> listPage(@RequestParam(defaultValue = "0") int page,
+                                                  @RequestParam(defaultValue = "25") int size) {
+        return PageResponse.from(service.listPage(page, size).map(CompanyResponse::from));
     }
 
     @GetMapping("/{id}")
