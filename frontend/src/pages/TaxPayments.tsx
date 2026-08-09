@@ -6,13 +6,13 @@ import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
+import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
 import { DeclarationsModal } from "../components/DeclarationsModal";
 import { EmailPreviewModal, type PreviewTarget } from "../components/EmailPreviewModal";
 import { NotificationLogModal } from "../components/NotificationLogModal";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
-const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
 const cellFor = (row: TaxPaymentRow, type: string) => row.declarations.find((d) => d.type === type);
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
@@ -92,13 +92,15 @@ export function TaxPayments() {
         {isLoading && <p style={{ padding: 14 }}>{t("common.loading")}</p>}
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
-        <div style={{ minWidth: 880 }}>
+        <div style={{ minWidth: 1020 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>
             {DECLARATION_TYPES.map((ty) => <div key={ty} style={{ textAlign: "right" }}>{ty}</div>)}
             <div style={{ textAlign: "right" }}>{t("taxes.toPayCol")}</div>
-            <div>{t("taxes.lastSent")}</div>
+            <div>{t("channel.lastEmail")}</div>
+            <div>{t("channel.lastWhatsapp")}</div>
+            <div style={{ textAlign: "right" }}>{t("channel.actions")}</div>
           </div>
 
           {rows.map((row) => {
@@ -113,28 +115,27 @@ export function TaxPayments() {
                 </div>
                 {DECLARATION_TYPES.map((ty) => {
                   const c = cellFor(row, ty);
-                  const openDecl = () => setDeclFor({ id: row.companyId, name: row.companyName });
                   return (
                     <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
                       {c
-                        ? <button type="button" className="row-open" onClick={openDecl} title={t("taxes.manageDeclarations")}
-                            style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer", color: "var(--text)" }}>
+                        ? <span title={c.mismatch ? t("taxes.mismatch") : ty}>
                             {money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
-                          </button>
-                        : <button type="button" className="pill round danger" onClick={openDecl} title={t("taxes.uploadDeclaration")}
-                            style={{ cursor: "pointer" }}>{t("taxes.missing")}</button>}
+                          </span>
+                        : <span className="pill round danger" title={t("taxes.missing")}>{t("taxes.missing")}</span>}
                     </div>
                   );
                 })}
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
                   {total > 0 ? money(total) : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
+                <div><LastEmailCell lastSentAt={row.lastEmailAt} count={row.emailCount} onOpen={() => setLogFor({ id: row.companyId, name: row.companyName })} /></div>
+                <div><LastWhatsAppCell /></div>
                 <div>
-                  {row.lastEmailAt
-                    ? <button className="pill teal round" style={pillBtn} onClick={() => setLogFor({ id: row.companyId, name: row.companyName })}>
-                        <Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(row.lastEmailAt)}{row.emailCount > 1 ? ` · ${row.emailCount}` : ""}
-                      </button>
-                    : <button style={neverBtn} onClick={() => setLogFor({ id: row.companyId, name: row.companyName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
+                  <RowActions>
+                    <ActionBtn icon="upload" title={t("channel.upload")} onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })} />
+                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })} />
+                    <WhatsAppAction />
+                  </RowActions>
                 </div>
               </div>
             );
@@ -160,9 +161,7 @@ function Dot({ c }: { c: string }) {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(220px,1.6fr) 92px 92px 92px 104px 140px",
+  gridTemplateColumns: "30px minmax(200px,1.4fr) 80px 80px 80px 100px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
-const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };
