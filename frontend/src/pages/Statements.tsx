@@ -7,11 +7,9 @@ import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../ap
 import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
-import { FilesModal } from "../components/FilesModal";
+import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
-
-const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -27,12 +25,10 @@ function rowStatus(s: CompanyDocSummary | undefined, payment: Payment): { kind: 
   return hasBank ? { kind: "red", key: "statements.dot.unmatched" } : { kind: "orange", key: "statements.dot.waiting" };
 }
 
-function ClickPill({ label, kind, title, onClick }:
-  { label: React.ReactNode; kind: "ok" | "danger" | "muted" | "warn"; title: string; onClick?: () => void }) {
-  const cls = `pill round ${kind}`;
-  return onClick
-    ? <button type="button" className={cls} title={title} onClick={onClick} style={{ cursor: "pointer", marginRight: 4 }}>{label}</button>
-    : <span className={cls} title={title} style={{ marginRight: 4 }}>{label}</span>;
+/** Display-only status pill (no link — actions live in the Actions column). */
+function StatusPill({ label, kind, title }:
+  { label: React.ReactNode; kind: "ok" | "danger" | "muted" | "warn"; title: string }) {
+  return <span className={`pill round ${kind}`} title={title} style={{ marginRight: 4 }}>{label}</span>;
 }
 
 /** Statements & invoices — monthly hub list, Console (B) skin. */
@@ -41,7 +37,6 @@ export function Statements() {
   const { period } = usePeriod();
   const navigate = useNavigate();
   const goReconcile = (id: string) => navigate(`/statements/${id}/reconcile`);
-  const [filesFor, setFilesFor] = useState<{ id: string; name: string; cui: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
@@ -105,15 +100,17 @@ export function Statements() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 900 }}>
+        <div style={{ minWidth: 1040 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
             <div>{t("documents.company")}</div>
             <div>{t("statements.bankStatement")}</div>
             <div>{t("statements.invoices")}</div>
-            <div>{t("statements.completeness")}</div>
-            <div>{t("statements.lastSent")}</div>
+            <div>{t("statements.reconciliation")}</div>
+            <div>{t("channel.lastEmail")}</div>
+            <div>{t("channel.lastWhatsapp")}</div>
+            <div style={{ textAlign: "right" }}>{t("channel.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -125,26 +122,23 @@ export function Statements() {
             const present = s?.invoiceReceiptCount ?? 0;
             const missing = missingTxnBy.get(c.id) ?? 0;
             const noMatch = unmatchedBy.get(c.id) ?? 0;
-            const openFiles = () => setFilesFor({ id: c.id, name: c.legalName, cui: c.cui });
+            const r = reminderBy.get(c.id);
             return (
               <div key={c.id} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: selected.has(c.id) ? "var(--row-active)" : undefined }}>
                 <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div><span role="img" aria-label={t(st.key)} title={t(st.key)} style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: DOT_COLOR[st.kind] }} /></div>
                 <div>
-                  <button className="row-open" onClick={() => goReconcile(c.id)} title={t("statements.viewTransactions")}
-                    style={{ fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", font: "inherit", textAlign: "left" }}>
-                    {c.legalName}
-                  </button>
+                  <div style={{ fontWeight: 600 }}>{c.legalName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
                 </div>
                 <div>
                   {hasBank
-                    ? <ClickPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} onClick={openFiles} />
-                    : <ClickPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} onClick={openFiles} />}
+                    ? <StatusPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} />
+                    : <StatusPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} />}
                 </div>
                 <div>
                   {present > 0
-                    ? <ClickPill kind="ok" label={present} title={t("statements.chip.present")} onClick={openFiles} />
+                    ? <StatusPill kind="ok" label={present} title={t("statements.chip.present")} />
                     : <span style={{ color: "var(--text-faint)" }}>—</span>}
                 </div>
                 <div>
@@ -154,22 +148,21 @@ export function Statements() {
                       ? <span className="pill round ok">{t("statements.cpl.complete")}</span>
                       : missing > 0 || noMatch > 0
                         ? <>
-                            {missing > 0 && <ClickPill kind="danger" label={missing} title={t("statements.chip.missing")} onClick={openFiles} />}
-                            {noMatch > 0 && <ClickPill kind="muted" label={noMatch} title={t("statements.chip.noMatch")} onClick={openFiles} />}
+                            {missing > 0 && <StatusPill kind="danger" label={missing} title={t("statements.chip.missing")} />}
+                            {noMatch > 0 && <StatusPill kind="muted" label={noMatch} title={t("statements.chip.noMatch")} />}
                           </>
                         : cpl === "PARTIAL"
                           ? <span className="pill round warn">{t("statements.cpl.partial")}</span>
                           : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
                 </div>
+                <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.count} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
+                <div><LastWhatsAppCell /></div>
                 <div>
-                  {(() => {
-                    const r = reminderBy.get(c.id);
-                    return r?.lastSentAt
-                      ? <button className="pill teal round" style={pillBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>
-                          <Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(r.lastSentAt)}{r.count > 1 ? ` · ${r.count}` : ""}
-                        </button>
-                      : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>;
-                  })()}
+                  <RowActions>
+                    <ActionBtn icon="reconcile" title={t("channel.reconcile")} onClick={() => goReconcile(c.id)} />
+                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
+                    <WhatsAppAction />
+                  </RowActions>
                 </div>
               </div>
             );
@@ -177,7 +170,6 @@ export function Statements() {
         </div>
       </div>
 
-      {filesFor && <FilesModal companyId={filesFor.id} companyName={filesFor.name} companyCui={filesFor.cui} period={period} onClose={() => setFilesFor(null)} />}
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
@@ -188,9 +180,7 @@ export function Statements() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 24px minmax(220px,1.6fr) 110px 110px 160px 130px",
+  gridTemplateColumns: "30px 24px minmax(200px,1.4fr) 84px 96px 150px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
-const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

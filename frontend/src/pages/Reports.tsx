@@ -6,6 +6,7 @@ import { reportsApi, type ReportRow } from "../api/reports";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
+import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
 import { ReportLogModal } from "../components/ReportLogModal";
@@ -68,14 +69,16 @@ export function Reports() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 840 }}>
+        <div style={{ minWidth: 900 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
             <div>{t("documents.company")}</div>
             <div>{t("reports.trialBalance")}</div>
             <div>{t("reports.report")}</div>
-            <div>{t("statements.lastSent")}</div>
+            <div>{t("channel.lastEmail")}</div>
+            <div>{t("channel.lastWhatsapp")}</div>
+            <div style={{ textAlign: "right" }}>{t("channel.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -92,17 +95,21 @@ export function Reports() {
                 </div>
                 <div>
                   {up
-                    ? <button className="pill round ok" style={chipBtn} title={t("files.manage")} onClick={manage}>{dmy(r!.uploadedAt!)}{r!.version > 1 ? ` · v${r!.version}` : ""}</button>
-                    : <button className="pill round danger" style={{ ...chipBtn, border: "1px solid var(--danger-bd, #fecaca)" }} onClick={manage}>{t("reports.missing")}</button>}
+                    ? <span className="pill round ok" title={t("reports.balanced")}>{dmy(r!.uploadedAt!)}{r!.version > 1 ? ` · v${r!.version}` : ""}</span>
+                    : <span className="pill round danger">{t("reports.missing")}</span>}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button style={{ ...iconBtn, opacity: up ? 1 : 0.4 }} title={t("reports.download")} disabled={!up} onClick={() => reportsApi.downloadPdf(c.id, period)}><Icon name="download" size={14} /></button>
                   <button style={{ ...iconBtn, opacity: up ? 1 : 0.4 }} title={t("reports.charts")} disabled={!up} onClick={() => setChartsFor({ id: c.id, name: c.legalName })}>📊</button>
                 </div>
+                <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
+                <div><LastWhatsAppCell /></div>
                 <div>
-                  {r?.lastSentAt
-                    ? <button className="pill teal round" style={pillBtn} onClick={() => setLogFor({ id: c.id, name: c.legalName })}><Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(r.lastSentAt)}{r.sentCount > 1 ? ` · ${r.sentCount}` : ""}</button>
-                    : <button style={neverBtn} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
+                  <RowActions>
+                    <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
+                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
+                    <WhatsAppAction />
+                  </RowActions>
                 </div>
               </div>
             );
@@ -123,11 +130,8 @@ export function Reports() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px 22px minmax(220px,1.6fr) 130px 96px 130px",
+  gridTemplateColumns: "30px 22px minmax(200px,1.4fr) 120px 90px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const iconBtn: React.CSSProperties = { width: 28, height: 28, display: "grid", placeItems: "center", padding: 0, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "#52605d", cursor: "pointer", fontSize: 13 };
-const chipBtn: React.CSSProperties = { cursor: "pointer" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
-const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };

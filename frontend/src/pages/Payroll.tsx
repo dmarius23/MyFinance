@@ -6,11 +6,10 @@ import { payrollApi, type PayrollRow } from "../api/payroll";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
+import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
-
-const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
 /** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
  *  standard email with attachments, track email status. Salary data is firm-staff only. */
@@ -66,12 +65,14 @@ export function Payroll() {
       )}
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ minWidth: 820 }}>
+        <div style={{ minWidth: 880 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div>{t("documents.company")}</div>
             <div>{t("payroll.documents")}</div>
-            <div>{t("statements.lastSent")}</div>
+            <div>{t("channel.lastEmail")}</div>
+            <div>{t("channel.lastWhatsapp")}</div>
+            <div style={{ textAlign: "right" }}>{t("channel.actions")}</div>
           </div>
 
           {rows.map((c) => {
@@ -88,20 +89,22 @@ export function Payroll() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                   {docs.length === 0
-                    ? <button className="pill round danger" style={chipBtn} onClick={manage}>{t("payroll.missing")}</button>
+                    ? <span className="pill round danger">{t("payroll.missing")}</span>
                     : docs.map((d) => (
-                        <button key={d.id} className="pill round muted" title={t("files.manage")} onClick={manage}
-                          style={{ ...chipBtn, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span key={d.id} className="pill round muted" title={d.filename}
+                          style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
-                        </button>
+                        </span>
                       ))}
                 </div>
+                <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
+                <div><LastWhatsAppCell /></div>
                 <div>
-                  {r?.lastSentAt
-                    ? <button className="pill teal round" style={pillBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>
-                        <Icon name="mail" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />{dmy(r.lastSentAt)}{r.sentCount > 1 ? ` · ${r.sentCount}` : ""}
-                      </button>
-                    : <button style={neverBtn} title={t("statements.lastSent")} onClick={() => setLogFor({ id: c.id, name: c.legalName })}>{t("taxes.neverSent")} · <u>{t("taxes.sendShort")}</u></button>}
+                  <RowActions>
+                    <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
+                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
+                    <WhatsAppAction />
+                  </RowActions>
                 </div>
               </div>
             );
@@ -124,10 +127,7 @@ export function Payroll() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(220px,1.6fr) minmax(240px,2fr) 150px",
+  gridTemplateColumns: "30px minmax(200px,1.4fr) minmax(220px,1.8fr) 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
-const chipBtn: React.CSSProperties = { cursor: "pointer" };
-const pillBtn: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--teal-chip-bd)" };
-const neverBtn: React.CSSProperties = { background: "none", border: "1px dashed var(--border)", borderRadius: 999, padding: "1px 8px", fontSize: 11, color: "var(--primary-dark)", cursor: "pointer" };
