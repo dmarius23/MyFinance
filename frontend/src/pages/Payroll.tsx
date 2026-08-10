@@ -7,6 +7,7 @@ import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
+import { InfoTip } from "../components/InfoTip";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
@@ -87,15 +88,14 @@ export function Payroll() {
                   <div style={{ fontWeight: 600 }}>{c.legalName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                <div>
                   {docs.length === 0
                     ? <span className="pill round danger">{t("payroll.missing")}</span>
-                    : docs.map((d) => (
-                        <span key={d.id} className="pill round muted" title={d.filename}
-                          style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />{d.filename}
+                    : <InfoTip lines={docs.map((d) => d.filename)}>
+                        <span className="pill round muted">
+                          <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 4 }} />{docs.length}
                         </span>
-                      ))}
+                      </InfoTip>}
                 </div>
                 <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
                 <div><LastWhatsAppCell /></div>
@@ -127,7 +127,7 @@ export function Payroll() {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(200px,1.4fr) minmax(220px,1.8fr) 120px 110px 120px",
+  gridTemplateColumns: "30px minmax(220px,2fr) 120px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };

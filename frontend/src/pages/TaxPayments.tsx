@@ -7,6 +7,7 @@ import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
+import { InfoTip } from "../components/InfoTip";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
 import { DeclarationsModal } from "../components/DeclarationsModal";
 import { EmailPreviewModal, type PreviewTarget } from "../components/EmailPreviewModal";
@@ -18,57 +19,6 @@ const cellsFor = (row: TaxPaymentRow, type: string) => row.declarations.filter((
 const otherCells = (row: TaxPaymentRow) =>
   row.declarations.filter((d) => !(DECLARATION_TYPES as readonly string[]).includes(d.type));
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
-
-/**
- * A lightweight hover tooltip: shows {@code lines} in a styled box that follows the cursor. Uses
- * position:fixed (from the pointer's viewport coords) so it is never clipped by the table's horizontal
- * scroll container, and appears instantly (unlike the native title attribute). The last line is
- * emphasised as a total when more than one line is given.
- */
-function InfoTip({ lines, children }: { lines: string[]; children: React.ReactNode }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  return (
-    <span
-      style={{ cursor: "help" }}
-      onMouseEnter={(e) => setPos({ x: e.clientX, y: e.clientY })}
-      onMouseMove={(e) => setPos({ x: e.clientX, y: e.clientY })}
-      onMouseLeave={() => setPos(null)}
-    >
-      {children}
-      {pos && (
-        <div
-          role="tooltip"
-          style={{
-            position: "fixed",
-            left: Math.min(pos.x + 14, window.innerWidth - 260),
-            top: pos.y + 16,
-            zIndex: 1000,
-            background: "var(--chrome-bg, #1f2a37)",
-            color: "var(--chrome-text, #f3f8f7)",
-            padding: "8px 11px",
-            borderRadius: 8,
-            fontSize: 12,
-            lineHeight: 1.55,
-            whiteSpace: "nowrap",
-            boxShadow: "0 8px 26px rgba(0,0,0,0.30)",
-            pointerEvents: "none",
-            display: "grid",
-            gap: 1,
-          }}
-        >
-          {lines.map((l, i) => {
-            const isTotal = lines.length > 1 && i === lines.length - 1;
-            return (
-              <div key={i} style={isTotal
-                ? { borderTop: "1px solid rgba(255,255,255,0.18)", marginTop: 3, paddingTop: 4, fontWeight: 700 }
-                : undefined}>{l}</div>
-            );
-          })}
-        </div>
-      )}
-    </span>
-  );
-}
 
 /** Build the breakdown lines (one per obligation, "code - label: amount RON") + a total when >1. */
 function breakdownLines(cells: DeclarationCell[], totalLabel: string): string[] {
@@ -99,7 +49,7 @@ function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingL
   const total = cells.reduce((s, c) => s + c.amount, 0);
   const anyMismatch = cells.some((c) => c.mismatch);
   return (
-    <InfoTip lines={breakdownLines(cells, t("taxes.total"))}>
+    <InfoTip lines={breakdownLines(cells, t("taxes.total"))} emphasizeLast>
       <span className="mono">
         {money(total)} RON{anyMismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
       </span>
@@ -215,7 +165,7 @@ export function TaxPayments() {
                 </div>
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
                   {total > 0
-                    ? <InfoTip lines={breakdownLines(row.declarations, t("taxes.total"))}><span>{money(total)} RON</span></InfoTip>
+                    ? <InfoTip lines={breakdownLines(row.declarations, t("taxes.total"))} emphasizeLast><span>{money(total)} RON</span></InfoTip>
                     : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
                 <div><LastEmailCell lastSentAt={row.lastEmailAt} count={row.emailCount} onOpen={() => setLogFor({ id: row.companyId, name: row.companyName })} /></div>
