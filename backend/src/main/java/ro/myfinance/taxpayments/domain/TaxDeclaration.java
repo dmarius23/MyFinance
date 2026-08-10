@@ -10,7 +10,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** A stored ANAF declaration: extracted summary kept per company/period, 1:1 with the uploaded PDF. */
 @Entity
@@ -60,6 +63,11 @@ public class TaxDeclaration {
     @Column(nullable = false)
     private boolean duplicate;
 
+    /** Itemized fiscal obligations (creanțe) parsed from the XML — code + amount, for per-line display. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<ObligationLine> obligations;
+
     protected TaxDeclaration() {
     }
 
@@ -71,7 +79,8 @@ public class TaxDeclaration {
     }
 
     public void apply(DeclarationType type, String cui, BigDecimal declaredTotal, BigDecimal computedTotal,
-                      boolean mismatch, LocalDate declPeriod, boolean wrongParty, boolean duplicate) {
+                      boolean mismatch, LocalDate declPeriod, boolean wrongParty, boolean duplicate,
+                      List<ObligationLine> obligations) {
         this.type = type;
         this.cui = cui;
         this.declaredTotal = declaredTotal;
@@ -80,6 +89,7 @@ public class TaxDeclaration {
         this.declPeriod = declPeriod;
         this.wrongParty = wrongParty;
         this.duplicate = duplicate;
+        this.obligations = obligations;
     }
 
     /** Outside the period it was filed under (its own period differs from the upload month). */
@@ -104,4 +114,5 @@ public class TaxDeclaration {
     public LocalDate getDeclPeriod() { return declPeriod; }
     public boolean isWrongParty() { return wrongParty; }
     public boolean isDuplicate() { return duplicate; }
+    public List<ObligationLine> getObligations() { return obligations; }
 }

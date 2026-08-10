@@ -35,7 +35,7 @@ class TaxDeclarationServiceTest {
     private TaxDeclaration decl(UUID companyId, UUID documentId) {
         TaxDeclaration d = new TaxDeclaration(UUID.randomUUID(), companyId, LocalDate.of(2026, 6, 1), documentId);
         d.apply(DeclarationType.D100, "49443957", new BigDecimal("884"), new BigDecimal("442"), true,
-                LocalDate.of(2026, 3, 1), false, false);
+                LocalDate.of(2026, 3, 1), false, false, java.util.List.of());
         return d;
     }
 

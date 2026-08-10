@@ -86,13 +86,26 @@ public class TaxPaymentService {
         List<ro.myfinance.taxpayments.domain.TaxPaymentRow> rows = new ArrayList<>();
         for (Company c : companies.findAll()) {
             List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
+            // Dedup fiscal obligations by (type + code + amount): there is only ever one creanță with the
+            // same amount and same code, so an accidental re-upload collapses while genuine different
+            // obligations (chirii vs dividende) both show.
+            java.util.Set<String> seen = new java.util.HashSet<>();
             for (TaxDeclaration d : declByCompany.getOrDefault(c.getId(), List.of())) {
                 if (d.isOutsidePeriod()) {
                     continue; // declaration belongs to a different month — omit from this period's view
                 }
-                // Every in-period declaration is shown, including several of the same type (no auto-dedup).
-                cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
-                        d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
+                List<ro.myfinance.taxpayments.domain.ObligationLine> obs = d.getObligations();
+                if (obs == null || obs.isEmpty()) {
+                    // Legacy declaration stored before obligations were persisted — show its document total.
+                    addCell(cells, seen, d.getId(), d.getType(), null, d.getComputedTotal(), d.isMismatch());
+                } else {
+                    for (ro.myfinance.taxpayments.domain.ObligationLine o : obs) {
+                        if (o.amount() == null || o.amount().signum() <= 0) {
+                            continue; // show payable obligations only (refunds are not "to pay")
+                        }
+                        addCell(cells, seen, d.getId(), d.getType(), o.cod(), o.amount(), d.isMismatch());
+                    }
+                }
             }
             List<EmailHistory> es = emailByCompany.getOrDefault(c.getId(), List.of());
             Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
@@ -101,6 +114,19 @@ public class TaxPaymentService {
         }
         rows.sort(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()));
         return rows;
+    }
+
+    /** Append one obligation cell unless an identical (type + code + amount) one was already added. */
+    private static void addCell(List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells,
+                                java.util.Set<String> seen, UUID declarationId,
+                                ro.myfinance.taxpayments.domain.DeclarationType type, String cod,
+                                java.math.BigDecimal amount, boolean mismatch) {
+        String key = type + "|" + (cod == null ? "" : cod.trim()) + "|" + amount.stripTrailingZeros().toPlainString();
+        if (!seen.add(key)) {
+            return; // same amount and same creanță already shown — collapse the accidental copy
+        }
+        cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
+                declarationId, type, cod, ObligationLabels.label(cod), amount, mismatch));
     }
 
     public TaxPaymentSummary summary(UUID companyId, LocalDate period) {

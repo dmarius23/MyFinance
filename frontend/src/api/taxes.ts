@@ -55,8 +55,10 @@ export interface EmailPreview {
 }
 
 export interface DeclarationCell {
-  id: string;
+  declarationId: string;
   type: "D100" | "D112" | "D300";
+  cod: string | null;
+  label: string | null;
   amount: number;
   mismatch: boolean;
 }

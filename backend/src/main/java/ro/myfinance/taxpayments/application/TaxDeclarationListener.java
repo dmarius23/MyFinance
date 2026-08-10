@@ -72,10 +72,14 @@ public class TaxDeclarationListener {
             // belongs to a different month is still stored flagged outside-period
             // ({@link TaxDeclaration#isOutsidePeriod()}, derived from declPeriod vs the slot): it shows with
             // a "Move to correct period" action and is excluded from this month's payment totals.
+            // Persist the itemized obligations (code + amount) so the list can show one line per creanță.
+            java.util.List<ro.myfinance.taxpayments.domain.ObligationLine> obligations = pd.obligations().stream()
+                    .map(o -> new ro.myfinance.taxpayments.domain.ObligationLine(o.codOblig(), o.amount()))
+                    .toList();
             TaxDeclaration row = new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
                     e.companyId(), storedMonth, e.documentId());
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
-                    declPeriod, wrongParty, false);
+                    declPeriod, wrongParty, false, obligations);
             declarations.save(row);
         } catch (RuntimeException ex) {
             log.warn("Failed to store tax declaration for document {}", e.documentId(), ex);

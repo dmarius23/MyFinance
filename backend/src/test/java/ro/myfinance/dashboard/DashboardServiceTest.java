@@ -87,7 +87,7 @@ class DashboardServiceTest {
                 new CompanyCompleteness(b, ReconciliationService.Completeness.PARTIAL, ReconciliationService.Payment.NONE, 2, 1)));
         when(taxes.list(any())).thenReturn(List.of(
                 new TaxPaymentRow(a, "A", "1", null,
-                        List.of(new TaxPaymentRow.DeclarationCell(UUID.randomUUID(), DeclarationType.D100, BigDecimal.TEN, false)),
+                        List.of(new TaxPaymentRow.DeclarationCell(UUID.randomUUID(), DeclarationType.D100, "121", "Impozit profit", BigDecimal.TEN, false)),
                         Instant.now(), 1)));
         when(payroll.summary(any())).thenReturn(List.of(
                 new PayrollService.PayrollRow(a, List.of(new PayrollService.PayrollDoc(UUID.randomUUID(), "stat.pdf")), Instant.now(), 1)));

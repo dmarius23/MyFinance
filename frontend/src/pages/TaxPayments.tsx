@@ -20,21 +20,27 @@ const otherCells = (row: TaxPaymentRow) =>
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
 
 /**
- * A declaration status cell — display-only. A company may file several declarations of the same type in
- * a month (separate D100s for chirii / dividende / impozit), so cells STACK. Empty renders a muted dash
- * (not every company files every type). {@code showType} labels each amount in the catch-all "Other"
- * column where the header doesn't name the type.
+ * A declaration status cell — display-only. Shows one line per fiscal obligation (creanță): the ANAF
+ * code + short label on top (e.g. "628 - Chirii") and the amount in RON below. Lines STACK, since a
+ * company may file several declarations of a type (chirii / dividende) or one document may carry several
+ * obligations (D112). Empty renders a muted dash — not every company files every type.
  */
-function DeclStack({ cells, showType }: { cells: DeclarationCell[]; showType?: boolean }) {
+function DeclStack({ cells }: { cells: DeclarationCell[] }) {
   const { t } = useTranslation();
   if (cells.length === 0) return <span style={{ color: "var(--text-faint)" }}>—</span>;
   return (
-    <div style={{ display: "grid", gap: 2, justifyItems: "end" }}>
-      {cells.map((c) => (
-        <span key={c.id} title={c.mismatch ? t("taxes.mismatch") : c.type}>
-          {showType && <span style={{ color: "var(--text-muted)", fontSize: 10, marginRight: 4 }}>{c.type}</span>}
-          {money(c.amount)}{c.mismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
-        </span>
+    <div style={{ display: "grid", gap: 5, justifyItems: "end" }}>
+      {cells.map((c, i) => (
+        <div key={`${c.declarationId}-${c.cod ?? ""}-${i}`} style={{ display: "grid", justifyItems: "end" }}>
+          {c.cod && (
+            <span style={{ color: "var(--text-muted)", fontSize: 10 }}>
+              {c.cod}{c.label ? ` - ${c.label}` : ""}
+            </span>
+          )}
+          <span title={c.mismatch ? t("taxes.mismatch") : undefined}>
+            {money(c.amount)} RON{c.mismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
+          </span>
+        </div>
       ))}
     </div>
   );
@@ -80,7 +86,8 @@ export function TaxPayments() {
   const refreshList = () => void qc.invalidateQueries({ queryKey: ["tax-list", period] });
   const openBulk = () => {
     const targets: PreviewTarget[] = rows.filter((r) => selected.has(r.companyId)).map((r) => ({
-      companyId: r.companyId, companyName: r.companyName, declarationIds: r.declarations.map((d) => d.id),
+      companyId: r.companyId, companyName: r.companyName,
+      declarationIds: [...new Set(r.declarations.map((d) => d.declarationId))],
     }));
     if (targets.length) setBulkTargets(targets);
   };
@@ -115,7 +122,7 @@ export function TaxPayments() {
         {isLoading && <p style={{ padding: 14 }}>{t("common.loading")}</p>}
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
-        <div style={{ minWidth: 1100 }}>
+        <div style={{ minWidth: 1300 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>
@@ -143,7 +150,7 @@ export function TaxPayments() {
                   </div>
                 ))}
                 <div className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
-                  <DeclStack cells={otherCells(row)} showType />
+                  <DeclStack cells={otherCells(row)} />
                 </div>
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
                   {total > 0 ? money(total) : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
@@ -181,7 +188,7 @@ function Dot({ c }: { c: string }) {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(200px,1.4fr) 80px 80px 80px 80px 100px 120px 110px 120px",
+  gridTemplateColumns: "30px minmax(190px,1.3fr) 120px 120px 120px 120px 100px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
