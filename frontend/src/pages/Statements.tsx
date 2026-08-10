@@ -8,6 +8,7 @@ import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
+import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
 
@@ -133,7 +134,9 @@ export function Statements() {
                 </div>
                 <div>
                   {hasBank
-                    ? <StatusPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} />
+                    ? <InfoTip lines={s?.bankStatementFiles ?? []}>
+                        <StatusPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} />
+                      </InfoTip>
                     : <StatusPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} />}
                 </div>
                 <div>

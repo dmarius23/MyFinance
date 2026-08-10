@@ -67,6 +67,7 @@ export interface CompanyDocSummary {
   fileCount: number;
   bankStatementCount: number;
   invoiceReceiptCount: number;
+  bankStatementFiles: string[];
 }
 
 export const documentsSummaryApi = {

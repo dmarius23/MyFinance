@@ -133,24 +133,38 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public java.util.List<CompanyDocSummary> summary(java.time.LocalDate periodMonth) {
-        java.util.Map<java.util.UUID, int[]> acc = new java.util.HashMap<>();
-        // int[]{fileCount, bankStatementCount, invoiceReceiptCount}
+        java.util.Map<java.util.UUID, DocAcc> acc = new java.util.HashMap<>();
         for (Document d : documents.findByPeriodMonth(periodMonth.withDayOfMonth(1))) {
-            int[] a = acc.computeIfAbsent(d.getCompanyId(), k -> new int[3]);
-            a[0]++;
-            if (d.getType() == ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT) a[1]++;
+            DocAcc a = acc.computeIfAbsent(d.getCompanyId(), k -> new DocAcc());
+            a.fileCount++;
+            if (d.getType() == ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT) {
+                a.bankStatements.add(d.getOriginalFilename());
+            }
             if (d.getType() == ro.myfinance.intake.domain.DocumentType.INVOICE
-                    || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) a[2]++;
+                    || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) {
+                a.invoiceReceipt++;
+            }
         }
         return acc.entrySet().stream()
-                .map(e -> new CompanyDocSummary(e.getKey(), e.getValue()[1] > 0, e.getValue()[2] > 0,
-                        e.getValue()[0], e.getValue()[1], e.getValue()[2]))
+                .map(e -> {
+                    DocAcc a = e.getValue();
+                    return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(), a.invoiceReceipt > 0,
+                            a.fileCount, a.bankStatements.size(), a.invoiceReceipt, a.bankStatements);
+                })
                 .toList();
+    }
+
+    /** Per-company accumulator for {@link #summary}: counts plus the bank-statement filenames (for tooltips). */
+    private static final class DocAcc {
+        int fileCount;
+        int invoiceReceipt;
+        final List<String> bankStatements = new java.util.ArrayList<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
                                     boolean hasInvoiceOrReceipt, int fileCount,
-                                    int bankStatementCount, int invoiceReceiptCount) {
+                                    int bankStatementCount, int invoiceReceiptCount,
+                                    List<String> bankStatementFiles) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */
