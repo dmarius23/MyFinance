@@ -65,36 +65,17 @@ public class TaxDeclarationListener {
             boolean wrongParty = differentCui(pd.cui(), ownCui);
             LocalDate declPeriod = pd.period() == null ? null : pd.period().atDay(1);
             LocalDate storedMonth = e.periodMonth().withDayOfMonth(1);
-            // A declaration whose own period (from the ANAF XML) belongs to a different month is stored
-            // flagged outside-period ({@link TaxDeclaration#isOutsidePeriod()} is derived from declPeriod
-            // vs the slot). It shows in the manager with a "Move to correct period" action and is excluded
-            // from this month's payment totals — but is kept so the accountant can see and fix it.
-            //
-            // Duplicate handling: the copy filed in its OWN month (period_month == declPeriod) is the
-            // canonical one; a copy uploaded into the wrong month is the duplicate — never the other way
-            // round. So the same declaration dropped into both the right and a wrong month still shows,
-            // and stays selectable, under its correct month.
-            boolean inPeriod = declPeriod != null && declPeriod.equals(storedMonth);
-            java.util.List<TaxDeclaration> copies = declPeriod == null ? java.util.List.of()
-                    : declarations.findByCompanyIdAndTypeAndDeclPeriod(e.companyId(), pd.type(), declPeriod).stream()
-                            .filter(s -> !e.documentId().equals(s.getDocumentId())).toList();
-            boolean duplicate;
-            if (inPeriod) {
-                // Canonical unless another copy is ALSO correctly filed in this month; a mis-filed copy is
-                // demoted to duplicate below instead of suppressing this one.
-                duplicate = copies.stream().anyMatch(s -> declPeriod.equals(s.getPeriodMonth()) && !s.isDuplicate());
-                if (!duplicate) {
-                    copies.stream().filter(s -> !declPeriod.equals(s.getPeriodMonth()) && !s.isDuplicate())
-                            .forEach(TaxDeclaration::markDuplicate);
-                }
-            } else {
-                // A copy filed in the wrong month is the duplicate whenever any other copy exists.
-                duplicate = !copies.isEmpty();
-            }
+            // No auto-dedup: every uploaded declaration is kept and shown. A company may legitimately file
+            // several of the same type in a month (e.g. separate D100s for chirii, dividende and impozit),
+            // so a second same-type upload is NOT a duplicate — accidental re-uploads are left for the
+            // accountant to delete in the manager. A declaration whose own period (from the ANAF XML)
+            // belongs to a different month is still stored flagged outside-period
+            // ({@link TaxDeclaration#isOutsidePeriod()}, derived from declPeriod vs the slot): it shows with
+            // a "Move to correct period" action and is excluded from this month's payment totals.
             TaxDeclaration row = new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
                     e.companyId(), storedMonth, e.documentId());
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
-                    declPeriod, wrongParty, duplicate);
+                    declPeriod, wrongParty, false);
             declarations.save(row);
         } catch (RuntimeException ex) {
             log.warn("Failed to store tax declaration for document {}", e.documentId(), ex);

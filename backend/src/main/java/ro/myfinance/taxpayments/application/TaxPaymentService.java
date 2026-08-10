@@ -87,12 +87,10 @@ public class TaxPaymentService {
         for (Company c : companies.findAll()) {
             List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
             for (TaxDeclaration d : declByCompany.getOrDefault(c.getId(), List.of())) {
-                if (d.isDuplicate()) {
-                    continue; // the list shows the canonical declaration per type
-                }
                 if (d.isOutsidePeriod()) {
                     continue; // declaration belongs to a different month — omit from this period's view
                 }
+                // Every in-period declaration is shown, including several of the same type (no auto-dedup).
                 cells.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell(
                         d.getId(), d.getType(), d.getComputedTotal(), d.isMismatch()));
             }
@@ -157,9 +155,6 @@ public class TaxPaymentService {
     private Computation compute(Company company, List<TaxDeclaration> decls) {
         List<ParsedDeclaration> parsed = new ArrayList<>();
         for (TaxDeclaration d : decls) {
-            if (d.isDuplicate()) {
-                continue; // never count a duplicate declaration in the payment total / email
-            }
             if (d.isWrongParty()) {
                 continue; // a declaration filed for a different CUI is not this company's liability
             }

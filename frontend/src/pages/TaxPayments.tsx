@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow } from "../api/taxes";
+import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow, type DeclarationCell } from "../api/taxes";
 import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
@@ -14,8 +14,31 @@ import { NotificationLogModal } from "../components/NotificationLogModal";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
-const cellFor = (row: TaxPaymentRow, type: string) => row.declarations.find((d) => d.type === type);
+const cellsFor = (row: TaxPaymentRow, type: string) => row.declarations.filter((d) => d.type === type);
+const otherCells = (row: TaxPaymentRow) =>
+  row.declarations.filter((d) => !(DECLARATION_TYPES as readonly string[]).includes(d.type));
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
+
+/**
+ * A declaration status cell — display-only. A company may file several declarations of the same type in
+ * a month (separate D100s for chirii / dividende / impozit), so cells STACK. Empty renders a muted dash
+ * (not every company files every type). {@code showType} labels each amount in the catch-all "Other"
+ * column where the header doesn't name the type.
+ */
+function DeclStack({ cells, showType }: { cells: DeclarationCell[]; showType?: boolean }) {
+  const { t } = useTranslation();
+  if (cells.length === 0) return <span style={{ color: "var(--text-faint)" }}>—</span>;
+  return (
+    <div style={{ display: "grid", gap: 2, justifyItems: "end" }}>
+      {cells.map((c) => (
+        <span key={c.id} title={c.mismatch ? t("taxes.mismatch") : c.type}>
+          {showType && <span style={{ color: "var(--text-muted)", fontSize: 10, marginRight: 4 }}>{c.type}</span>}
+          {money(c.amount)}{c.mismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 /** MOD-07 — Taxes & payments monthly list, Console (B) skin. */
 export function TaxPayments() {
@@ -92,11 +115,12 @@ export function TaxPayments() {
         {isLoading && <p style={{ padding: 14 }}>{t("common.loading")}</p>}
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
-        <div style={{ minWidth: 1020 }}>
+        <div style={{ minWidth: 1100 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>
             {DECLARATION_TYPES.map((ty) => <div key={ty} style={{ textAlign: "right" }}>{ty}</div>)}
+            <div style={{ textAlign: "right" }}>{t("taxes.otherType")}</div>
             <div style={{ textAlign: "right" }}>{t("taxes.toPayCol")}</div>
             <div>{t("channel.lastEmail")}</div>
             <div>{t("channel.lastWhatsapp")}</div>
@@ -113,18 +137,14 @@ export function TaxPayments() {
                   <div style={{ fontWeight: 600 }}>{row.companyName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{row.cui}{row.residence ? ` · ${row.residence}` : ""}</div>
                 </div>
-                {DECLARATION_TYPES.map((ty) => {
-                  const c = cellFor(row, ty);
-                  return (
-                    <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
-                      {c
-                        ? <span title={c.mismatch ? t("taxes.mismatch") : ty}>
-                            {money(c.amount)}{c.mismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
-                          </span>
-                        : <span className="pill round danger" title={t("taxes.missing")}>{t("taxes.missing")}</span>}
-                    </div>
-                  );
-                })}
+                {DECLARATION_TYPES.map((ty) => (
+                  <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
+                    <DeclStack cells={cellsFor(row, ty)} />
+                  </div>
+                ))}
+                <div className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
+                  <DeclStack cells={otherCells(row)} showType />
+                </div>
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
                   {total > 0 ? money(total) : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
@@ -161,7 +181,7 @@ function Dot({ c }: { c: string }) {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(200px,1.4fr) 80px 80px 80px 100px 120px 110px 120px",
+  gridTemplateColumns: "30px minmax(200px,1.4fr) 80px 80px 80px 80px 100px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
