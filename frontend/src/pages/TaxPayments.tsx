@@ -20,11 +20,10 @@ const otherCells = (row: TaxPaymentRow) =>
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
 
 /**
- * A declaration status cell — display-only. Shows one line per fiscal obligation (creanță): the ANAF
- * code + short label on top (e.g. "628 - Chirii") and the amount in RON below. Lines STACK, since a
- * company may file several declarations of a type (chirii / dividende) or one document may carry several
- * obligations (D112). Empty renders the {@code missingLabel} chip when given (a known declaration type
- * column), else a muted dash (the catch-all "Other" column).
+ * A declaration status cell — display-only and compact: shows just the type TOTAL (sum of the company's
+ * obligations of that type) on one line. Hovering reveals the breakdown — one line per obligation
+ * ("code - label: amount RON") plus the total — so the table stays dense without losing detail. Empty
+ * renders the {@code missingLabel} chip when given (a known declaration column), else a muted dash.
  */
 function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingLabel?: string }) {
   const { t } = useTranslation();
@@ -33,21 +32,17 @@ function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingL
       ? <span className="pill round danger">{missingLabel}</span>
       : <span style={{ color: "var(--text-faint)" }}>—</span>;
   }
+  const total = cells.reduce((s, c) => s + c.amount, 0);
+  const anyMismatch = cells.some((c) => c.mismatch);
+  const lines = cells.map((c) => {
+    const code = [c.cod, c.label].filter(Boolean).join(" - ");
+    return code ? `${code}: ${money(c.amount)} RON` : `${money(c.amount)} RON`;
+  });
+  const tip = (lines.length > 1 ? [...lines, `${t("taxes.total")}: ${money(total)} RON`] : lines).join("\n");
   return (
-    <div style={{ display: "grid", gap: 5, justifyItems: "end" }}>
-      {cells.map((c, i) => (
-        <div key={`${c.declarationId}-${c.cod ?? ""}-${i}`} style={{ display: "grid", justifyItems: "end" }}>
-          {c.cod && (
-            <span style={{ color: "var(--text-muted)", fontSize: 10 }}>
-              {c.cod}{c.label ? ` - ${c.label}` : ""}
-            </span>
-          )}
-          <span title={c.mismatch ? t("taxes.mismatch") : undefined}>
-            {money(c.amount)} RON{c.mismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
-          </span>
-        </div>
-      ))}
-    </div>
+    <span className="mono" title={tip} style={{ cursor: "help" }}>
+      {money(total)} RON{anyMismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
+    </span>
   );
 }
 
@@ -127,7 +122,7 @@ export function TaxPayments() {
         {isLoading && <p style={{ padding: 14 }}>{t("common.loading")}</p>}
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
-        <div style={{ minWidth: 1300 }}>
+        <div style={{ minWidth: 1120 }}>
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>
@@ -193,7 +188,7 @@ function Dot({ c }: { c: string }) {
 
 const gridRow: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "30px minmax(190px,1.3fr) 120px 120px 120px 120px 100px 120px 110px 120px",
+  gridTemplateColumns: "30px minmax(200px,1.5fr) 96px 96px 96px 96px 100px 120px 110px 120px",
   alignItems: "center", gap: 10, padding: "10px 16px",
 };
 const thText: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
