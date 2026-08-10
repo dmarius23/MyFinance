@@ -142,29 +142,30 @@ public class DocumentService {
             }
             if (d.getType() == ro.myfinance.intake.domain.DocumentType.INVOICE
                     || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) {
-                a.invoiceReceipt++;
+                a.invoiceReceipts.add(d.getOriginalFilename());
             }
         }
         return acc.entrySet().stream()
                 .map(e -> {
                     DocAcc a = e.getValue();
-                    return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(), a.invoiceReceipt > 0,
-                            a.fileCount, a.bankStatements.size(), a.invoiceReceipt, a.bankStatements);
+                    return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(),
+                            !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
+                            a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts);
                 })
                 .toList();
     }
 
-    /** Per-company accumulator for {@link #summary}: counts plus the bank-statement filenames (for tooltips). */
+    /** Per-company accumulator for {@link #summary}: counts plus the filenames (for tooltips). */
     private static final class DocAcc {
         int fileCount;
-        int invoiceReceipt;
         final List<String> bankStatements = new java.util.ArrayList<>();
+        final List<String> invoiceReceipts = new java.util.ArrayList<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
                                     boolean hasInvoiceOrReceipt, int fileCount,
                                     int bankStatementCount, int invoiceReceiptCount,
-                                    List<String> bankStatementFiles) {
+                                    List<String> bankStatementFiles, List<String> invoiceReceiptFiles) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */

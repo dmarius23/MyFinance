@@ -16,6 +16,13 @@ type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
 type Payment = "NONE" | "PARTIAL" | "COMPLETE";
 
+/** Filenames for a tooltip, capped so a company with many invoices doesn't produce a huge box. */
+const FILE_TIP_CAP = 25;
+const fileLines = (files: string[] | undefined): string[] => {
+  const f = files ?? [];
+  return f.length <= FILE_TIP_CAP ? f : [...f.slice(0, FILE_TIP_CAP), `+${f.length - FILE_TIP_CAP} …`];
+};
+
 /** Row health dot = payment/matching of the company's invoices/receipts for the period. */
 function rowStatus(s: CompanyDocSummary | undefined, payment: Payment): { kind: DotKind; key: string } {
   const inv = s?.invoiceReceiptCount ?? 0;
@@ -134,14 +141,16 @@ export function Statements() {
                 </div>
                 <div>
                   {hasBank
-                    ? <InfoTip lines={s?.bankStatementFiles ?? []}>
+                    ? <InfoTip lines={fileLines(s?.bankStatementFiles)}>
                         <StatusPill kind="ok" label={s?.bankStatementCount ?? 0} title={t("statements.chip.statements")} />
                       </InfoTip>
                     : <StatusPill kind="danger" label={t("statements.missing")} title={t("statements.chip.noStatement")} />}
                 </div>
                 <div>
                   {present > 0
-                    ? <StatusPill kind="ok" label={present} title={t("statements.chip.present")} />
+                    ? <InfoTip lines={fileLines(s?.invoiceReceiptFiles)}>
+                        <StatusPill kind="ok" label={present} title={t("statements.chip.present")} />
+                      </InfoTip>
                     : <span style={{ color: "var(--text-faint)" }}>—</span>}
                 </div>
                 <div>
