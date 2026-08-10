@@ -15,7 +15,8 @@ public final class ObligationLabels {
     private static final Map<String, String> LABELS = Map.ofEntries(
             Map.entry("628", "Chirii"),               // Impozit pe veniturile din cedarea folosinței bunurilor
             Map.entry("604", "Dividende"),            // Impozit pe veniturile din dividende
-            Map.entry("121", "Impozit profit"),       // Impozit pe profit / venitul microîntreprinderilor
+            Map.entry("103", "Impozit profit"),       // Impozit pe profit
+            Map.entry("121", "Impozit micro"),        // Impozit pe veniturile microîntreprinderilor
             Map.entry("602", "Impozit salarii"),      // Impozit pe veniturile din salarii
             Map.entry("412", "CAS"),                  // Contribuția de asigurări sociale
             Map.entry("432", "CASS"),                 // Contribuția de asigurări sociale de sănătate
