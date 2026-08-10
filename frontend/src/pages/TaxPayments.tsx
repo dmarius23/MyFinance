@@ -20,10 +20,74 @@ const otherCells = (row: TaxPaymentRow) =>
 const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.amount, 0);
 
 /**
+ * A lightweight hover tooltip: shows {@code lines} in a styled box that follows the cursor. Uses
+ * position:fixed (from the pointer's viewport coords) so it is never clipped by the table's horizontal
+ * scroll container, and appears instantly (unlike the native title attribute). The last line is
+ * emphasised as a total when more than one line is given.
+ */
+function InfoTip({ lines, children }: { lines: string[]; children: React.ReactNode }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  return (
+    <span
+      style={{ cursor: "help" }}
+      onMouseEnter={(e) => setPos({ x: e.clientX, y: e.clientY })}
+      onMouseMove={(e) => setPos({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setPos(null)}
+    >
+      {children}
+      {pos && (
+        <div
+          role="tooltip"
+          style={{
+            position: "fixed",
+            left: Math.min(pos.x + 14, window.innerWidth - 260),
+            top: pos.y + 16,
+            zIndex: 1000,
+            background: "var(--chrome-bg, #1f2a37)",
+            color: "var(--chrome-text, #f3f8f7)",
+            padding: "8px 11px",
+            borderRadius: 8,
+            fontSize: 12,
+            lineHeight: 1.55,
+            whiteSpace: "nowrap",
+            boxShadow: "0 8px 26px rgba(0,0,0,0.30)",
+            pointerEvents: "none",
+            display: "grid",
+            gap: 1,
+          }}
+        >
+          {lines.map((l, i) => {
+            const isTotal = lines.length > 1 && i === lines.length - 1;
+            return (
+              <div key={i} style={isTotal
+                ? { borderTop: "1px solid rgba(255,255,255,0.18)", marginTop: 3, paddingTop: 4, fontWeight: 700 }
+                : undefined}>{l}</div>
+            );
+          })}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** Build the breakdown lines (one per obligation, "code - label: amount RON") + a total when >1. */
+function breakdownLines(cells: DeclarationCell[], totalLabel: string): string[] {
+  const lines = cells.map((c) => {
+    const code = [c.cod, c.label].filter(Boolean).join(" - ");
+    return code ? `${code}: ${money(c.amount)} RON` : `${money(c.amount)} RON`;
+  });
+  if (lines.length > 1) {
+    const total = cells.reduce((s, c) => s + c.amount, 0);
+    lines.push(`${totalLabel}: ${money(total)} RON`);
+  }
+  return lines;
+}
+
+/**
  * A declaration status cell — display-only and compact: shows just the type TOTAL (sum of the company's
  * obligations of that type) on one line. Hovering reveals the breakdown — one line per obligation
- * ("code - label: amount RON") plus the total — so the table stays dense without losing detail. Empty
- * renders the {@code missingLabel} chip when given (a known declaration column), else a muted dash.
+ * ("code - label: amount RON") plus the total. Empty renders the {@code missingLabel} chip when given
+ * (a known declaration column), else a muted dash.
  */
 function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingLabel?: string }) {
   const { t } = useTranslation();
@@ -34,15 +98,12 @@ function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingL
   }
   const total = cells.reduce((s, c) => s + c.amount, 0);
   const anyMismatch = cells.some((c) => c.mismatch);
-  const lines = cells.map((c) => {
-    const code = [c.cod, c.label].filter(Boolean).join(" - ");
-    return code ? `${code}: ${money(c.amount)} RON` : `${money(c.amount)} RON`;
-  });
-  const tip = (lines.length > 1 ? [...lines, `${t("taxes.total")}: ${money(total)} RON`] : lines).join("\n");
   return (
-    <span className="mono" title={tip} style={{ cursor: "help" }}>
-      {money(total)} RON{anyMismatch && <span title={t("taxes.mismatch")} style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
-    </span>
+    <InfoTip lines={breakdownLines(cells, t("taxes.total"))}>
+      <span className="mono">
+        {money(total)} RON{anyMismatch && <span style={{ color: "#b45309", marginLeft: 4 }}>⚠</span>}
+      </span>
+    </InfoTip>
   );
 }
 
@@ -153,7 +214,9 @@ export function TaxPayments() {
                   <DeclStack cells={otherCells(row)} />
                 </div>
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
-                  {total > 0 ? `${money(total)} RON` : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
+                  {total > 0
+                    ? <InfoTip lines={breakdownLines(row.declarations, t("taxes.total"))}><span>{money(total)} RON</span></InfoTip>
+                    : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
                 <div><LastEmailCell lastSentAt={row.lastEmailAt} count={row.emailCount} onOpen={() => setLogFor({ id: row.companyId, name: row.companyName })} /></div>
                 <div><LastWhatsAppCell /></div>
