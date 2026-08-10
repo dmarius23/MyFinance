@@ -102,6 +102,11 @@ public class TaxDeclaration {
         this.duplicate = true;
     }
 
+    /** Backfill the itemized obligations for declarations stored before the column existed. */
+    public void setObligations(List<ObligationLine> obligations) {
+        this.obligations = obligations;
+    }
+
     public UUID getId() { return id; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }

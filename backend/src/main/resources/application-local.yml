@@ -18,3 +18,9 @@ management:
 logging:
   level:
     ro.myfinance: DEBUG
+
+myfinance:
+  taxpayments:
+    # One-off: re-extract declarations uploaded before the obligations column existed so the list shows
+    # per-creanță codes. Idempotent — no-op once every declaration has its obligations populated.
+    backfill-obligations: true

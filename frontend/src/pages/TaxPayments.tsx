@@ -23,11 +23,16 @@ const toPay = (row: TaxPaymentRow) => row.declarations.reduce((s, d) => s + d.am
  * A declaration status cell — display-only. Shows one line per fiscal obligation (creanță): the ANAF
  * code + short label on top (e.g. "628 - Chirii") and the amount in RON below. Lines STACK, since a
  * company may file several declarations of a type (chirii / dividende) or one document may carry several
- * obligations (D112). Empty renders a muted dash — not every company files every type.
+ * obligations (D112). Empty renders the {@code missingLabel} chip when given (a known declaration type
+ * column), else a muted dash (the catch-all "Other" column).
  */
-function DeclStack({ cells }: { cells: DeclarationCell[] }) {
+function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingLabel?: string }) {
   const { t } = useTranslation();
-  if (cells.length === 0) return <span style={{ color: "var(--text-faint)" }}>—</span>;
+  if (cells.length === 0) {
+    return missingLabel
+      ? <span className="pill round danger">{missingLabel}</span>
+      : <span style={{ color: "var(--text-faint)" }}>—</span>;
+  }
   return (
     <div style={{ display: "grid", gap: 5, justifyItems: "end" }}>
       {cells.map((c, i) => (
@@ -146,14 +151,14 @@ export function TaxPayments() {
                 </div>
                 {DECLARATION_TYPES.map((ty) => (
                   <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
-                    <DeclStack cells={cellsFor(row, ty)} />
+                    <DeclStack cells={cellsFor(row, ty)} missingLabel={t("taxes.missing")} />
                   </div>
                 ))}
                 <div className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
                   <DeclStack cells={otherCells(row)} />
                 </div>
                 <div className="mono" style={{ textAlign: "right", fontWeight: 700, fontSize: 13 }}>
-                  {total > 0 ? money(total) : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
+                  {total > 0 ? `${money(total)} RON` : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
                 <div><LastEmailCell lastSentAt={row.lastEmailAt} count={row.emailCount} onOpen={() => setLogFor({ id: row.companyId, name: row.companyName })} /></div>
                 <div><LastWhatsAppCell /></div>
