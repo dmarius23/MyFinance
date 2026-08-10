@@ -25,4 +25,9 @@ public class DocumentDirectory {
     public Optional<Document> findById(UUID id) {
         return documents.findById(id);
     }
+
+    /** All documents uploaded for a period (RLS-scoped) — callers filter by type as needed. */
+    public java.util.List<Document> findByPeriodMonth(java.time.LocalDate periodMonth) {
+        return documents.findByPeriodMonth(periodMonth);
+    }
 }

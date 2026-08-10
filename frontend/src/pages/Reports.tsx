@@ -7,12 +7,11 @@ import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
+import { InfoTip } from "../components/InfoTip";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
 import { ReportLogModal } from "../components/ReportLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
-
-const dmy = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
 export function Reports() {
@@ -94,8 +93,12 @@ export function Reports() {
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
                 </div>
                 <div>
-                  {up
-                    ? <span className="pill round ok" title={t("reports.balanced")}>{dmy(r!.uploadedAt!)}{r!.version > 1 ? ` · v${r!.version}` : ""}</span>
+                  {(r?.balanceCount ?? 0) > 0
+                    ? <InfoTip lines={r!.balanceFiles}>
+                        <span className="pill round ok">
+                          <Icon name="doc" size={10} style={{ verticalAlign: "-1px", marginRight: 4 }} />{r!.balanceCount}
+                        </span>
+                      </InfoTip>
                     : <span className="pill round danger">{t("reports.missing")}</span>}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>

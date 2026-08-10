@@ -60,7 +60,7 @@ public class ReportService {
 
     /** Per-company report status for the monthly list. */
     public record ReportRow(UUID companyId, Instant uploadedAt, int version, boolean balanced,
-                            Instant lastSentAt, int sentCount) {
+                            Instant lastSentAt, int sentCount, int balanceCount, List<String> balanceFiles) {
     }
 
     /**
@@ -192,20 +192,30 @@ public class ReportService {
         for (var e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.REPORT, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
+        // The uploaded trial-balance (balanță) files per company — for the count + filename tooltip.
+        Map<UUID, List<String>> balanceFilesByCompany = new LinkedHashMap<>();
+        for (var d : documents.findByPeriodMonth(month)) {
+            if (d.getType() == ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE) {
+                balanceFilesByCompany.computeIfAbsent(d.getCompanyId(), k -> new ArrayList<>())
+                        .add(d.getOriginalFilename());
+            }
+        }
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
         ids.addAll(byCompany.keySet());
         ids.addAll(emailsByCompany.keySet());
+        ids.addAll(balanceFilesByCompany.keySet());
 
         List<ReportRow> out = new ArrayList<>();
         for (UUID companyId : ids) {
             ReportSnapshot s = byCompany.get(companyId);
             var es = emailsByCompany.getOrDefault(companyId, List.of());
+            List<String> balanceFiles = balanceFilesByCompany.getOrDefault(companyId, List.of());
             out.add(new ReportRow(companyId,
                     s == null ? null : s.getUpdatedAt(),
                     s == null ? 0 : s.getVersion(),
                     s != null && s.isBalanced(),
                     es.isEmpty() ? null : es.get(0).getSentAt(),
-                    es.size()));
+                    es.size(), balanceFiles.size(), balanceFiles));
         }
         return out;
     }

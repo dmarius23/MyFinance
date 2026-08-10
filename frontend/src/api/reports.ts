@@ -48,6 +48,8 @@ export interface ReportRow {
   balanced: boolean;
   lastSentAt: string | null;
   sentCount: number;
+  balanceCount: number;
+  balanceFiles: string[];
 }
 
 export interface TrendPoint {

@@ -92,7 +92,7 @@ class DashboardServiceTest {
         when(payroll.summary(any())).thenReturn(List.of(
                 new PayrollService.PayrollRow(a, List.of(new PayrollService.PayrollDoc(UUID.randomUUID(), "stat.pdf")), Instant.now(), 1)));
         when(reports.summary(any())).thenReturn(List.of(
-                new ReportService.ReportRow(a, Instant.now(), 1, true, Instant.now(), 1)));
+                new ReportService.ReportRow(a, Instant.now(), 1, true, Instant.now(), 1, 1, List.of("balanta.pdf"))));
     }
 
     @Test
