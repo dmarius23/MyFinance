@@ -156,12 +156,18 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
   const reps = useQuery({ queryKey: ["reps", companyId], queryFn: () => representativesApi.list(companyId) });
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
+  const [editing, setEditing] = useState<{ id: string; name: string; phone: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["reps", companyId] }); setError(null); };
   const invite = useMutation({
     mutationFn: () => representativesApi.invite(companyId, { name: form.name, email: form.email, phone: form.phone || undefined }),
     onSuccess: () => { refresh(); setForm({ name: "", email: "", phone: "" }); },
+    onError: onErr,
+  });
+  const update = useMutation({
+    mutationFn: () => representativesApi.update(companyId, editing!.id, { name: editing!.name, phone: editing!.phone || undefined }),
+    onSuccess: () => { refresh(); setEditing(null); },
     onError: onErr,
   });
   const setActive = useMutation({
@@ -179,18 +185,36 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
         {(reps.data ?? []).map((r) => (
           <li key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, opacity: r.status === "INACTIVE" ? 0.55 : 1 }}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              {r.name ?? r.email} — {r.email}{r.phone ? ` — ${r.phone}` : ""}{" "}
-              <span style={pill}>{r.status}</span>
-            </span>
-            <button type="button" disabled={setActive.isPending}
-              onClick={() => setActive.mutate({ userId: r.id, active: r.status === "INACTIVE" })}>
-              {r.status === "INACTIVE" ? "Activate" : "Deactivate"}
-            </button>
-            <button type="button" style={{ color: "#dc2626" }} disabled={remove.isPending}
-              onClick={() => { if (window.confirm(`Remove ${r.name ?? r.email} from this company?`)) remove.mutate(r.id); }}>
-              Remove
-            </button>
+            {editing?.id === r.id ? (
+              <>
+                <input placeholder={t("company.namePlaceholder")} value={editing.name} autoFocus
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })} style={{ flex: 1, minWidth: 0 }} />
+                <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{r.email}</span>
+                <input type="tel" placeholder={t("company.phonePlaceholder")} value={editing.phone}
+                  onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
+                <button className="primary" type="button" disabled={update.isPending || !editing.name.trim()}
+                  onClick={() => update.mutate()}>{t("common.save")}</button>
+                <button type="button" disabled={update.isPending} onClick={() => setEditing(null)}>{t("common.cancel")}</button>
+              </>
+            ) : (
+              <>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {r.name ?? r.email} — {r.email}{r.phone ? ` — ${r.phone}` : ""}{" "}
+                  <span style={pill}>{r.status}</span>
+                </span>
+                <button type="button" onClick={() => setEditing({ id: r.id, name: r.name ?? "", phone: r.phone ?? "" })}>
+                  {t("common.edit")}
+                </button>
+                <button type="button" disabled={setActive.isPending}
+                  onClick={() => setActive.mutate({ userId: r.id, active: r.status === "INACTIVE" })}>
+                  {r.status === "INACTIVE" ? "Activate" : "Deactivate"}
+                </button>
+                <button type="button" style={{ color: "#dc2626" }} disabled={remove.isPending}
+                  onClick={() => { if (window.confirm(`Remove ${r.name ?? r.email} from this company?`)) remove.mutate(r.id); }}>
+                  Remove
+                </button>
+              </>
+            )}
           </li>
         ))}
         {reps.data?.length === 0 && (
