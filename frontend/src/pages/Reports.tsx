@@ -13,6 +13,7 @@ import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailMo
 import { ReportLogModal } from "../components/ReportLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
 export function Reports() {
@@ -130,7 +131,9 @@ export function Reports() {
       {logFor && <ReportLogModal companyId={logFor.id} companyName={logFor.name} period={period} onClose={() => setLogFor(null)} onCompose={() => setSendList([target(logFor.id)])} />}
       {sendList && <ReportEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="REPORT" period={period}
-        loadBody={() => reportsApi.emailBody(waFor.id, period).then((r) => r.body)}
+        loadBody={() => reportsApi.emailBody(waFor.id, period).then((r) =>
+          r.body + attachmentsNote(t("channel.attachments"),
+            rowBy.get(waFor.id)?.uploadedAt ? [t("channel.reportAttachment")] : []))}
         onClose={() => setWaFor(null)} />}
     </div>
   );

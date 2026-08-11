@@ -12,6 +12,7 @@ import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmai
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
  *  standard email with attachments, track email status. Salary data is firm-staff only. */
@@ -121,7 +122,8 @@ export function Payroll() {
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period}
-        loadBody={() => payrollApi.emailBody(waFor.id, period).then((r) => r.body)}
+        loadBody={() => payrollApi.emailBody(waFor.id, period).then((r) =>
+          r.body + attachmentsNote(t("channel.attachments"), (rowBy.get(waFor.id)?.documents ?? []).map((d) => d.filename)))}
         onClose={() => setWaFor(null)} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
