@@ -31,13 +31,17 @@ public class WhatsAppDispatchService {
     private final EmailHistoryRepository history;
     private final OutboxWriter outbox;
     private final WhatsAppOutboxHandler whatsappOutbox;
+    private final String defaultCountryCode;
 
     public WhatsAppDispatchService(EmailEnvelopeService envelopes, EmailHistoryRepository history,
-                                   OutboxWriter outbox, WhatsAppOutboxHandler whatsappOutbox) {
+                                   OutboxWriter outbox, WhatsAppOutboxHandler whatsappOutbox,
+                                   @org.springframework.beans.factory.annotation.Value(
+                                           "${myfinance.whatsapp.default-country-code:+40}") String defaultCountryCode) {
         this.envelopes = envelopes;
         this.history = history;
         this.outbox = outbox;
         this.whatsappOutbox = whatsappOutbox;
+        this.defaultCountryCode = defaultCountryCode;
     }
 
     /**
@@ -50,9 +54,10 @@ public class WhatsAppDispatchService {
         UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         LocalDate month = period.withDayOfMonth(1);
 
-        String toPhone = recipientOverride != null && !recipientOverride.isBlank()
+        String rawPhone = recipientOverride != null && !recipientOverride.isBlank()
                 ? recipientOverride.trim()
                 : envelopes.representativePhone(companyId);
+        String toPhone = ro.myfinance.common.whatsapp.PhoneNumbers.toE164(rawPhone, defaultCountryCode);
 
         EmailHistory row = history.save(new EmailHistory(tenantId, kind, MessageChannel.WHATSAPP, companyId,
                 month, relatedIds == null ? List.of() : relatedIds, toPhone, body, EmailStatus.QUEUED, null, userId));
