@@ -171,7 +171,7 @@ export function TaxPayments() {
                     : <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>—</span>}
                 </div>
                 <div><LastEmailCell lastSentAt={row.lastEmailAt} count={row.emailCount} onOpen={() => setLogFor({ id: row.companyId, name: row.companyName })} /></div>
-                <div><LastWhatsAppCell /></div>
+                <div><LastWhatsAppCell lastSentAt={row.lastWhatsappAt} count={row.whatsappCount} onOpen={() => setWaFor({ id: row.companyId, name: row.companyName })} /></div>
                 <div>
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })} />

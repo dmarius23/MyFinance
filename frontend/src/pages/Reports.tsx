@@ -109,7 +109,7 @@ export function Reports() {
                   <button style={{ ...iconBtn, opacity: up ? 1 : 0.4 }} title={t("reports.charts")} disabled={!up} onClick={() => setChartsFor({ id: c.id, name: c.legalName })}>📊</button>
                 </div>
                 <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
-                <div><LastWhatsAppCell /></div>
+                <div><LastWhatsAppCell lastSentAt={r?.lastWhatsappAt} count={r?.whatsappCount} onOpen={() => setWaFor({ id: c.id, name: c.legalName })} /></div>
                 <div>
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />

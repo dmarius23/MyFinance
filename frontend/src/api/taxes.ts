@@ -71,6 +71,8 @@ export interface TaxPaymentRow {
   declarations: DeclarationCell[];
   lastEmailAt: string | null;
   emailCount: number;
+  lastWhatsappAt: string | null;
+  whatsappCount: number;
 }
 
 /** Declaration columns shown in the monthly list, in order. */

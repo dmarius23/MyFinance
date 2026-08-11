@@ -101,7 +101,7 @@ export function Payroll() {
                       </InfoTip>}
                 </div>
                 <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
-                <div><LastWhatsAppCell /></div>
+                <div><LastWhatsAppCell lastSentAt={r?.lastWhatsappAt} count={r?.whatsappCount} onOpen={() => setWaFor({ id: c.id, name: c.legalName })} /></div>
                 <div>
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />

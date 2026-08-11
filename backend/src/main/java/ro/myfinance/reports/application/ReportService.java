@@ -60,7 +60,8 @@ public class ReportService {
 
     /** Per-company report status for the monthly list. */
     public record ReportRow(UUID companyId, Instant uploadedAt, int version, boolean balanced,
-                            Instant lastSentAt, int sentCount, int balanceCount, List<String> balanceFiles) {
+                            Instant lastSentAt, int sentCount, int balanceCount, List<String> balanceFiles,
+                            Instant lastWhatsappAt, int whatsappCount) {
     }
 
     /**
@@ -192,6 +193,11 @@ public class ReportService {
         for (var e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.REPORT, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
+        Map<UUID, List<ro.myfinance.common.email.EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
+        for (var e : emails.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
+                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.REPORT, month)) {
+            whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
         // The uploaded trial-balance (balanță) files per company — for the count + filename tooltip.
         Map<UUID, List<String>> balanceFilesByCompany = new LinkedHashMap<>();
         for (var d : documents.findByPeriodMonth(month)) {
@@ -203,19 +209,22 @@ public class ReportService {
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
         ids.addAll(byCompany.keySet());
         ids.addAll(emailsByCompany.keySet());
+        ids.addAll(whatsappByCompany.keySet());
         ids.addAll(balanceFilesByCompany.keySet());
 
         List<ReportRow> out = new ArrayList<>();
         for (UUID companyId : ids) {
             ReportSnapshot s = byCompany.get(companyId);
             var es = emailsByCompany.getOrDefault(companyId, List.of());
+            var ws = whatsappByCompany.getOrDefault(companyId, List.of());
             List<String> balanceFiles = balanceFilesByCompany.getOrDefault(companyId, List.of());
             out.add(new ReportRow(companyId,
                     s == null ? null : s.getUpdatedAt(),
                     s == null ? 0 : s.getVersion(),
                     s != null && s.isBalanced(),
                     es.isEmpty() ? null : es.get(0).getSentAt(),
-                    es.size(), balanceFiles.size(), balanceFiles));
+                    es.size(), balanceFiles.size(), balanceFiles,
+                    ws.isEmpty() ? null : ws.get(0).getSentAt(), ws.size()));
         }
         return out;
     }

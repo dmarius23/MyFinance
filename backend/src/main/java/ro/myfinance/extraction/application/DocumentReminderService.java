@@ -52,8 +52,9 @@ public class DocumentReminderService {
         }
     }
 
-    /** Per-company "last sent" summary for the Statements list. */
-    public record ReminderRow(UUID companyId, Instant lastSentAt, int count) {
+    /** Per-company "last sent" summary for the Statements list (email + WhatsApp). */
+    public record ReminderRow(UUID companyId, Instant lastSentAt, int count,
+                              Instant lastWhatsappAt, int whatsappCount) {
     }
 
     /** Full send history for a company + period (newest first). */
@@ -67,17 +68,32 @@ public class DocumentReminderService {
     /** Last-sent + count per company for a period (one row per company that has at least one send). */
     @Transactional(readOnly = true)
     public List<ReminderRow> listByPeriod(LocalDate period) {
-        java.util.Map<UUID, java.util.List<EmailHistory>> byCompany = new java.util.LinkedHashMap<>();
-        for (EmailHistory r : history.findByKindAndPeriodMonthOrderBySentAtDesc(
-                EmailKind.DOCUMENT_REMINDER, period.withDayOfMonth(1))) {
-            byCompany.computeIfAbsent(r.getCompanyId(), k -> new java.util.ArrayList<>()).add(r);
-        }
+        LocalDate month = period.withDayOfMonth(1);
+        java.util.Map<UUID, java.util.List<EmailHistory>> email = groupByCompany(
+                history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.DOCUMENT_REMINDER, month));
+        java.util.Map<UUID, java.util.List<EmailHistory>> whatsapp = groupByCompany(
+                history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
+                        ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.DOCUMENT_REMINDER, month));
+        java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
+        ids.addAll(email.keySet());
+        ids.addAll(whatsapp.keySet());
         List<ReminderRow> out = new java.util.ArrayList<>();
-        for (var e : byCompany.entrySet()) {
-            // List is sorted desc by sentAt, so the first element is the most recent.
-            out.add(new ReminderRow(e.getKey(), e.getValue().get(0).getSentAt(), e.getValue().size()));
+        for (UUID id : ids) {
+            var es = email.getOrDefault(id, List.of());
+            var ws = whatsapp.getOrDefault(id, List.of());
+            // Lists are sorted desc by sentAt, so the first element is the most recent.
+            out.add(new ReminderRow(id, es.isEmpty() ? null : es.get(0).getSentAt(), es.size(),
+                    ws.isEmpty() ? null : ws.get(0).getSentAt(), ws.size()));
         }
         return out;
+    }
+
+    private static java.util.Map<UUID, java.util.List<EmailHistory>> groupByCompany(List<EmailHistory> rows) {
+        java.util.Map<UUID, java.util.List<EmailHistory>> m = new java.util.LinkedHashMap<>();
+        for (EmailHistory r : rows) {
+            m.computeIfAbsent(r.getCompanyId(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        return m;
     }
 
     /**

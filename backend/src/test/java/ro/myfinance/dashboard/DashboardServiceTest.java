@@ -88,11 +88,11 @@ class DashboardServiceTest {
         when(taxes.list(any())).thenReturn(List.of(
                 new TaxPaymentRow(a, "A", "1", null,
                         List.of(new TaxPaymentRow.DeclarationCell(UUID.randomUUID(), DeclarationType.D100, "121", "Impozit profit", BigDecimal.TEN, false)),
-                        Instant.now(), 1)));
+                        Instant.now(), 1, null, 0)));
         when(payroll.summary(any())).thenReturn(List.of(
-                new PayrollService.PayrollRow(a, List.of(new PayrollService.PayrollDoc(UUID.randomUUID(), "stat.pdf")), Instant.now(), 1)));
+                new PayrollService.PayrollRow(a, List.of(new PayrollService.PayrollDoc(UUID.randomUUID(), "stat.pdf")), Instant.now(), 1, null, 0)));
         when(reports.summary(any())).thenReturn(List.of(
-                new ReportService.ReportRow(a, Instant.now(), 1, true, Instant.now(), 1, 1, List.of("balanta.pdf"))));
+                new ReportService.ReportRow(a, Instant.now(), 1, true, Instant.now(), 1, 1, List.of("balanta.pdf"), null, 0)));
     }
 
     @Test

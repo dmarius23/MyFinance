@@ -172,7 +172,7 @@ export function Statements() {
                           : <span className="pill round muted">{t("statements.cpl.notStarted")}</span>}
                 </div>
                 <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.count} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
-                <div><LastWhatsAppCell /></div>
+                <div><LastWhatsAppCell lastSentAt={r?.lastWhatsappAt} count={r?.whatsappCount} onOpen={() => setWaFor({ id: c.id, name: c.legalName })} /></div>
                 <div>
                   <RowActions>
                     <ActionBtn icon="reconcile" title={t("channel.reconcile")} onClick={() => goReconcile(c.id)} />

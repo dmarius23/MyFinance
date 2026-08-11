@@ -11,6 +11,8 @@ export interface PayrollRow {
   documents: PayrollDoc[];
   lastSentAt: string | null;
   sentCount: number;
+  lastWhatsappAt: string | null;
+  whatsappCount: number;
 }
 
 /** One payroll email send (notification log + resend). */

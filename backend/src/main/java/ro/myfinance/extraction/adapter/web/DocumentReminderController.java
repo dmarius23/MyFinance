@@ -56,9 +56,11 @@ public class DocumentReminderController {
     public record SendRequest(LocalDate period, String recipient, String body) {
     }
 
-    public record ReminderRowResponse(UUID companyId, Instant lastSentAt, int count) {
+    public record ReminderRowResponse(UUID companyId, Instant lastSentAt, int count,
+                                      Instant lastWhatsappAt, int whatsappCount) {
         static ReminderRowResponse from(ReminderRow r) {
-            return new ReminderRowResponse(r.companyId(), r.lastSentAt(), r.count());
+            return new ReminderRowResponse(r.companyId(), r.lastSentAt(), r.count(),
+                    r.lastWhatsappAt(), r.whatsappCount());
         }
     }
 

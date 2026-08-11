@@ -125,10 +125,12 @@ public class ReportController {
     }
 
     public record ReportRowResponse(UUID companyId, Instant uploadedAt, int version, boolean balanced,
-                                    Instant lastSentAt, int sentCount) {
+                                    Instant lastSentAt, int sentCount, int balanceCount, List<String> balanceFiles,
+                                    Instant lastWhatsappAt, int whatsappCount) {
         static ReportRowResponse from(ReportRow r) {
             return new ReportRowResponse(r.companyId(), r.uploadedAt(), r.version(), r.balanced(),
-                    r.lastSentAt(), r.sentCount());
+                    r.lastSentAt(), r.sentCount(), r.balanceCount(), r.balanceFiles(),
+                    r.lastWhatsappAt(), r.whatsappCount());
         }
     }
 

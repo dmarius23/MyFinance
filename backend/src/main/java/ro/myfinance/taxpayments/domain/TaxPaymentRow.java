@@ -11,7 +11,8 @@ import java.util.UUID;
  * was last sent.
  */
 public record TaxPaymentRow(UUID companyId, String companyName, String cui, String residence,
-                            List<DeclarationCell> declarations, Instant lastEmailAt, int emailCount) {
+                            List<DeclarationCell> declarations, Instant lastEmailAt, int emailCount,
+                            Instant lastWhatsappAt, int whatsappCount) {
 
     /**
      * One fiscal obligation (creanță) shown as a line in its declaration-type column: the ANAF budget

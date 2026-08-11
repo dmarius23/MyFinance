@@ -55,7 +55,8 @@ public class PayrollService {
     }
 
     /** Per-company payroll status for the monthly list. */
-    public record PayrollRow(UUID companyId, List<PayrollDoc> documents, Instant lastSentAt, int sentCount) {
+    public record PayrollRow(UUID companyId, List<PayrollDoc> documents, Instant lastSentAt, int sentCount,
+                             Instant lastWhatsappAt, int whatsappCount) {
     }
 
     /** One payroll email send (notification log + resend). */
@@ -80,16 +81,24 @@ public class PayrollService {
         for (EmailHistory e : history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.PAYROLL, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
+        Map<UUID, List<EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
+        for (EmailHistory e : history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
+                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.PAYROLL, month)) {
+            whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
         ids.addAll(docsByCompany.keySet());
         ids.addAll(emailsByCompany.keySet());
+        ids.addAll(whatsappByCompany.keySet());
 
         List<PayrollRow> out = new ArrayList<>();
         for (UUID companyId : ids) {
             List<PayrollDoc> docs = docsByCompany.getOrDefault(companyId, List.of());
             List<EmailHistory> es = emailsByCompany.getOrDefault(companyId, List.of());
+            List<EmailHistory> ws = whatsappByCompany.getOrDefault(companyId, List.of());
             Instant last = es.isEmpty() ? null : es.get(0).getSentAt(); // sorted desc
-            out.add(new PayrollRow(companyId, docs, last, es.size()));
+            Instant lastWa = ws.isEmpty() ? null : ws.get(0).getSentAt();
+            out.add(new PayrollRow(companyId, docs, last, es.size(), lastWa, ws.size()));
         }
         return out;
     }

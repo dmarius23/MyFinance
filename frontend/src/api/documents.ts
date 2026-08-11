@@ -81,6 +81,8 @@ export interface ReminderRow {
   companyId: string;
   lastSentAt: string | null;
   count: number;
+  lastWhatsappAt: string | null;
+  whatsappCount: number;
 }
 
 /** One reminder send (notification log + resend). */

@@ -82,6 +82,11 @@ public class TaxPaymentService {
         for (EmailHistory e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.TAX, month)) {
             emailByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
+        Map<UUID, List<EmailHistory>> whatsappByCompany = new java.util.HashMap<>();
+        for (EmailHistory e : emails.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
+                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.TAX, month)) {
+            whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
 
         List<ro.myfinance.taxpayments.domain.TaxPaymentRow> rows = new ArrayList<>();
         for (Company c : companies.findAll()) {
@@ -109,8 +114,10 @@ public class TaxPaymentService {
             }
             List<EmailHistory> es = emailByCompany.getOrDefault(c.getId(), List.of());
             Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
+            List<EmailHistory> ws = whatsappByCompany.getOrDefault(c.getId(), List.of());
+            Instant lastWa = ws.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
             rows.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
-                    c.getCui(), c.getLocality(), cells, last, es.size()));
+                    c.getCui(), c.getLocality(), cells, last, es.size(), lastWa, ws.size()));
         }
         rows.sort(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()));
         return rows;

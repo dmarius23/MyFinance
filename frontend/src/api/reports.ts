@@ -50,6 +50,8 @@ export interface ReportRow {
   sentCount: number;
   balanceCount: number;
   balanceFiles: string[];
+  lastWhatsappAt: string | null;
+  whatsappCount: number;
 }
 
 export interface TrendPoint {

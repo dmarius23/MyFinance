@@ -74,11 +74,12 @@ public class PayrollController {
     }
 
     public record PayrollRowResponse(UUID companyId, List<PayrollDocResponse> documents,
-                                     Instant lastSentAt, int sentCount) {
+                                     Instant lastSentAt, int sentCount,
+                                     Instant lastWhatsappAt, int whatsappCount) {
         static PayrollRowResponse from(PayrollRow r) {
             return new PayrollRowResponse(r.companyId(),
                     r.documents().stream().map(PayrollDocResponse::from).toList(),
-                    r.lastSentAt(), r.sentCount());
+                    r.lastSentAt(), r.sentCount(), r.lastWhatsappAt(), r.whatsappCount());
         }
     }
 
