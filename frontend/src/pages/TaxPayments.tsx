@@ -12,6 +12,7 @@ import { TaxPaymentModal } from "../components/TaxPaymentModal";
 import { DeclarationsModal } from "../components/DeclarationsModal";
 import { EmailPreviewModal, type PreviewTarget } from "../components/EmailPreviewModal";
 import { NotificationLogModal } from "../components/NotificationLogModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
@@ -66,6 +67,7 @@ export function TaxPayments() {
   const [emailFor, setEmailFor] = useState<{ id: string; name: string } | null>(null);
   const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
+  const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTargets, setBulkTargets] = useState<PreviewTarget[] | null>(null);
 
@@ -174,7 +176,7 @@ export function TaxPayments() {
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={() => setDeclFor({ id: row.companyId, name: row.companyName })} />
                     <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })} />
-                    <WhatsAppAction />
+                    <WhatsAppAction onClick={() => setWaFor({ id: row.companyId, name: row.companyName })} />
                   </RowActions>
                 </div>
               </div>
@@ -189,6 +191,7 @@ export function TaxPayments() {
       {logFor && <NotificationLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => { setLogFor(null); refreshList(); }}
         onCompose={() => setEmailFor({ id: logFor.id, name: logFor.name })} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="TAX" period={period} onClose={() => setWaFor(null)} />}
       {bulkTargets && <EmailPreviewModal targets={bulkTargets} period={period}
         onClose={() => setBulkTargets(null)} onSent={() => { setSelected(new Set()); refreshList(); }} />}
     </div>

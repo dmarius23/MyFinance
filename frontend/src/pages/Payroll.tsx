@@ -11,6 +11,7 @@ import { InfoTip } from "../components/InfoTip";
 import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmailModal";
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
 
 /** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
  *  standard email with attachments, track email status. Salary data is firm-staff only. */
@@ -23,6 +24,7 @@ export function Payroll() {
   const [sendList, setSendList] = useState<PayrollTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [manageFor, setManageFor] = useState<{ id: string; name: string } | null>(null);
+  const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
@@ -103,7 +105,7 @@ export function Payroll() {
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
                     <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction />
+                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>
@@ -118,6 +120,7 @@ export function Payroll() {
         accept="application/pdf,image/png,image/jpeg,image/webp"
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period} onClose={() => setWaFor(null)} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}

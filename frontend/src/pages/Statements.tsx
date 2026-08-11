@@ -11,6 +11,7 @@ import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell 
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -48,6 +49,7 @@ export function Statements() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
+  const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
@@ -173,7 +175,7 @@ export function Statements() {
                   <RowActions>
                     <ActionBtn icon="reconcile" title={t("channel.reconcile")} onClick={() => goReconcile(c.id)} />
                     <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction />
+                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>
@@ -183,6 +185,7 @@ export function Statements() {
       </div>
 
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period} onClose={() => setWaFor(null)} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}

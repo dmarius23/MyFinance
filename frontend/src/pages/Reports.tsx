@@ -12,6 +12,7 @@ import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
 import { ReportLogModal } from "../components/ReportLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
 export function Reports() {
@@ -24,6 +25,7 @@ export function Reports() {
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [sendList, setSendList] = useState<ReportTarget[] | null>(null);
   const [manageFor, setManageFor] = useState<{ id: string; name: string } | null>(null);
+  const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const reports = useQuery({ queryKey: ["reports", period], queryFn: () => reportsApi.list(period) });
@@ -111,7 +113,7 @@ export function Reports() {
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
                     <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction />
+                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>
@@ -127,6 +129,7 @@ export function Reports() {
       {chartsFor && <ReportChartsModal companyId={chartsFor.id} companyName={chartsFor.name} period={period} onClose={() => setChartsFor(null)} />}
       {logFor && <ReportLogModal companyId={logFor.id} companyName={logFor.name} period={period} onClose={() => setLogFor(null)} onCompose={() => setSendList([target(logFor.id)])} />}
       {sendList && <ReportEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="REPORT" period={period} onClose={() => setWaFor(null)} />}
     </div>
   );
 }

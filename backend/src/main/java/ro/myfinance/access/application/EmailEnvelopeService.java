@@ -67,6 +67,15 @@ public class EmailEnvelopeService {
 
     /** The email of the company's representative (the first REPRESENTATIVE linked to it), or null. */
     public String representativeEmail(UUID companyId) {
+        return representativeField(companyId, AppUser::getEmail);
+    }
+
+    /** The phone of the company's representative (for WhatsApp), or null when none is set. */
+    public String representativePhone(UUID companyId) {
+        return representativeField(companyId, AppUser::getPhone);
+    }
+
+    private String representativeField(UUID companyId, java.util.function.Function<AppUser, String> field) {
         List<UUID> userIds = links.findByCompanyId(companyId).stream()
                 .map(RepresentativeLink::getUserId).toList();
         if (userIds.isEmpty()) {
@@ -74,8 +83,8 @@ public class EmailEnvelopeService {
         }
         return users.findAllById(userIds).stream()
                 .filter(u -> u.getRole() == Role.REPRESENTATIVE)
-                .map(AppUser::getEmail)
-                .filter(e -> e != null && !e.isBlank())
+                .map(field)
+                .filter(v -> v != null && !v.isBlank())
                 .findFirst()
                 .orElse(null);
     }

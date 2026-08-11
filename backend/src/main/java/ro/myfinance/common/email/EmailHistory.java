@@ -38,6 +38,10 @@ public class EmailHistory {
     @Column(name = "kind", nullable = false)
     private EmailKind kind;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "channel", nullable = false)
+    private MessageChannel channel = MessageChannel.EMAIL;
+
     @Column(name = "company_id", nullable = false)
     private UUID companyId;
 
@@ -71,8 +75,16 @@ public class EmailHistory {
     public EmailHistory(UUID tenantId, EmailKind kind, UUID companyId, LocalDate periodMonth,
                         List<UUID> relatedIds, String recipient, String body, EmailStatus status,
                         String error, UUID sentBy) {
+        this(tenantId, kind, MessageChannel.EMAIL, companyId, periodMonth, relatedIds, recipient, body,
+                status, error, sentBy);
+    }
+
+    public EmailHistory(UUID tenantId, EmailKind kind, MessageChannel channel, UUID companyId,
+                        LocalDate periodMonth, List<UUID> relatedIds, String recipient, String body,
+                        EmailStatus status, String error, UUID sentBy) {
         this.tenantId = tenantId;
         this.kind = kind;
+        this.channel = channel;
         this.companyId = companyId;
         this.periodMonth = periodMonth;
         this.relatedIds = relatedIds == null ? List.of() : relatedIds;
@@ -97,6 +109,7 @@ public class EmailHistory {
 
     public UUID getId() { return id; }
     public EmailKind getKind() { return kind; }
+    public MessageChannel getChannel() { return channel; }
     public UUID getCompanyId() { return companyId; }
     public LocalDate getPeriodMonth() { return periodMonth; }
     public String getRecipient() { return recipient; }

@@ -30,11 +30,20 @@ export function ActionBtn({ icon, title, onClick, disabled, emphasis }:
 }
 
 /** WhatsApp send action — scaffolded, not yet wired to a backend channel. */
-export function WhatsAppAction() {
+/** WhatsApp send action. When {@code onClick} is given it's enabled; otherwise it renders as "soon". */
+export function WhatsAppAction({ onClick }: { onClick?: () => void }) {
   const { t } = useTranslation();
+  if (!onClick) {
+    return (
+      <button type="button" title={t("channel.whatsappSoon")} disabled
+        style={{ ...actionBtn, opacity: 0.45, cursor: "default" }}>
+        <Icon name="whatsapp" size={15} />
+      </button>
+    );
+  }
   return (
-    <button type="button" title={t("channel.whatsappSoon")} disabled
-      style={{ ...actionBtn, opacity: 0.45, cursor: "default" }}>
+    <button type="button" title={t("channel.whatsapp")} onClick={onClick}
+      style={{ ...actionBtn, borderColor: "#25D366", color: "#128C7E" }}>
       <Icon name="whatsapp" size={15} />
     </button>
   );
@@ -58,8 +67,14 @@ export function LastEmailCell({ lastSentAt, count, onOpen }:
   );
 }
 
-/** Last-WhatsApp status cell — placeholder until the channel exists (no data yet). */
-export function LastWhatsAppCell() {
-  const { t } = useTranslation();
-  return <span title={t("channel.whatsappSoon")} style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>;
+/** Last-WhatsApp status cell → opens the WhatsApp history when a message has been sent, else a dash. */
+export function LastWhatsAppCell({ lastSentAt, count, onOpen }:
+  { lastSentAt?: string | null; count?: number; onOpen?: () => void } = {}) {
+  if (!lastSentAt) return <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>;
+  return (
+    <button className="pill round" style={{ ...pillBtn, borderColor: "#25D366", color: "#128C7E" }} onClick={onOpen}>
+      <Icon name="whatsapp" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />
+      {dmy(lastSentAt)}{(count ?? 0) > 1 ? ` · ${count}` : ""}
+    </button>
+  );
 }
