@@ -120,7 +120,9 @@ export function Payroll() {
         accept="application/pdf,image/png,image/jpeg,image/webp"
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
-      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period} onClose={() => setWaFor(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period}
+        loadBody={() => payrollApi.emailBody(waFor.id, period).then((r) => r.body)}
+        onClose={() => setWaFor(null)} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}

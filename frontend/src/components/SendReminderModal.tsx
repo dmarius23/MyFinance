@@ -5,13 +5,12 @@ import { bankApi, type BankTransaction } from "../api/bank";
 import { remindersApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
+import { reminderBody } from "../lib/reminderBody";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 60,
 };
-
-const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export interface ReminderTarget {
   id: string;
@@ -67,24 +66,8 @@ export function SendReminderModal({ companies, period, onClose }:
     })),
   });
 
-  const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string => {
-    const lines = [t("email.greeting")];
-    if (!c.hasBankStatement) {
-      // (a) nothing uploaded yet — the standard "please send statement + documents" reminder.
-      lines.push("", t("email.needStatementAndDocs", { month }), "", t("email.uploadPortal"));
-    } else if (missing.length > 0) {
-      // (b) some transactions still lack a document — list them so the client knows exactly what to send.
-      lines.push("", t("email.needDocsForTxns", { month }));
-      for (const tx of missing) {
-        lines.push(`• ${tx.txnDate} — ${tx.partnerName ?? "—"} — ${fmt(Math.abs(tx.amount))} RON`);
-      }
-      lines.push("", t("email.uploadPortal"));
-    }
-    // (c) everything reconciled — no reminder text, just a courtesy greeting + sign-off the user can edit.
-    lines.push("", t("email.signoff"));
-    if (fromName) lines.push(fromName);
-    return lines.join("\n");
-  };
+  const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string =>
+    reminderBody(t, month, c.hasBankStatement, missing, fromName);
 
   // Populate each company's body once its transactions AND the envelope (sender name) have loaded,
   // so the signature carries the logged-in user's name.

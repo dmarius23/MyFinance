@@ -191,7 +191,11 @@ export function TaxPayments() {
       {logFor && <NotificationLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => { setLogFor(null); refreshList(); }}
         onCompose={() => setEmailFor({ id: logFor.id, name: logFor.name })} />}
-      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="TAX" period={period} onClose={() => setWaFor(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="TAX" period={period}
+        loadBody={() => taxPaymentsApi.previewEmail(waFor.id,
+          [...new Set((rows.find((r) => r.companyId === waFor.id)?.declarations ?? []).map((d) => d.declarationId))])
+          .then((r) => r.body ?? "")}
+        onClose={() => setWaFor(null)} />}
       {bulkTargets && <EmailPreviewModal targets={bulkTargets} period={period}
         onClose={() => setBulkTargets(null)} onSent={() => { setSelected(new Set()); refreshList(); }} />}
     </div>

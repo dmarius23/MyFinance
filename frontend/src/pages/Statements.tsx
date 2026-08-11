@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
-import { reconciliationApi } from "../api/bank";
+import { reconciliationApi, bankApi } from "../api/bank";
+import { emailApi } from "../api/email";
 import { usePeriod } from "../lib/period";
+import { reminderBody } from "../lib/reminderBody";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
@@ -185,7 +187,15 @@ export function Statements() {
       </div>
 
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
-      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period} onClose={() => setWaFor(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period}
+        loadBody={async () => {
+          const env = await emailApi.envelope(waFor.id).catch(() => null);
+          const hasBank = byCompany.get(waFor.id)?.hasBankStatement ?? false;
+          const txns = hasBank ? await bankApi.transactions(waFor.id, period) : [];
+          const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
+          return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
+        }}
+        onClose={() => setWaFor(null)} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}

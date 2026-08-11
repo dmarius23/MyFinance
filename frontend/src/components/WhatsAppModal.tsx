@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
@@ -13,12 +13,14 @@ const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2
  * edit the recipient + message, sends it, and shows the send timeline. Delivery is the backend stub for
  * now; a real provider (Twilio) plugs in behind the port later.
  */
-export function WhatsAppModal({ companyId, companyName, kind, period, onClose }:
-  { companyId: string; companyName: string; kind: WhatsAppKind; period: string; onClose: () => void }) {
+export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, onClose }:
+  { companyId: string; companyName: string; kind: WhatsAppKind; period: string;
+    loadBody?: () => Promise<string>; onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [phone, setPhone] = useState<string | null>(null);
   const [body, setBody] = useState("");
+  const [bodyEdited, setBodyEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const rk = ["whatsapp", companyId, kind, period];
@@ -30,11 +32,20 @@ export function WhatsAppModal({ companyId, companyName, kind, period, onClose }:
       return r;
     },
   });
+  // Pre-fill the message with the same body the email uses (module- and file-specific). Only until edited.
+  const draft = useQuery({
+    queryKey: ["whatsapp-body", companyId, kind, period],
+    queryFn: loadBody!,
+    enabled: !!loadBody,
+  });
+  useEffect(() => {
+    if (!bodyEdited && draft.data != null) setBody(draft.data);
+  }, [draft.data, bodyEdited]);
   const history = useQuery({ queryKey: rk, queryFn: () => whatsappApi.history(companyId, kind, period) });
 
   const send = useMutation({
     mutationFn: () => whatsappApi.send(companyId, { kind, period, recipient: phone ?? undefined, body }),
-    onSuccess: () => { setBody(""); setError(null); void qc.invalidateQueries({ queryKey: rk }); },
+    onSuccess: () => { setBody(""); setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk }); },
     onError: (e) => setError(e instanceof ApiError ? e.message : t("channel.sendFailed")),
   });
 
@@ -55,7 +66,9 @@ export function WhatsAppModal({ companyId, companyName, kind, period, onClose }:
           <input type="tel" value={phone ?? ""} onChange={(e) => setPhone(e.target.value)}
             placeholder="+40…" style={input} />
           <label style={{ ...fieldLabel, marginTop: 10 }}>{t("channel.message")}</label>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
+          <textarea value={body} onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}
+            placeholder={loadBody && draft.isLoading ? t("common.loading") : undefined}
+            style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>}
           <div style={{ marginTop: 10 }}>
             <button className="primary" disabled={send.isPending || !body.trim() || !(phone ?? "").trim()}

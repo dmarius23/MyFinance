@@ -129,7 +129,9 @@ export function Reports() {
       {chartsFor && <ReportChartsModal companyId={chartsFor.id} companyName={chartsFor.name} period={period} onClose={() => setChartsFor(null)} />}
       {logFor && <ReportLogModal companyId={logFor.id} companyName={logFor.name} period={period} onClose={() => setLogFor(null)} onCompose={() => setSendList([target(logFor.id)])} />}
       {sendList && <ReportEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
-      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="REPORT" period={period} onClose={() => setWaFor(null)} />}
+      {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="REPORT" period={period}
+        loadBody={() => reportsApi.emailBody(waFor.id, period).then((r) => r.body)}
+        onClose={() => setWaFor(null)} />}
     </div>
   );
 }
