@@ -133,6 +133,19 @@ class FolderMapperTest {
     }
 
     @Test
+    void resolvesRealPayrollFilenameWithCuiAndNameAndPeriod() {
+        // Exact real filename from the firm's Drive: name carries both the legal name and "c.f. <CUI>".
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
+        String path = "7. Iulie 2026/State de plata";
+        String name = "fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf";
+        assertThat(FolderMapper.resolveCompany(file(path, name), cos)).contains(id);
+        assertThat(FolderMapper.resolvePeriod(file(path, name))).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(FolderMapper.resolveType(file(path, name)))
+                .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
+    }
+
+    @Test
     void matchesCompanyWhenBalanceFolderIsAShortenedName() {
         UUID id = UUID.randomUUID();
         List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
