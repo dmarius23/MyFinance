@@ -51,6 +51,10 @@ class DriveDocLayoutTest {
                 .contains(DocumentType.DECLARATION);
         assertThat(DriveDocLayout.typeOfFileName("d112_35013518_2026_07.pdf"))
                 .contains(DocumentType.DECLARATION);
+        // Trial balance as a plain file; the full statement ("Bilant …") must NOT be typed as a balance.
+        assertThat(DriveDocLayout.typeOfFileName("balanta_de_verificare martie 2026.pdf"))
+                .contains(DocumentType.TRIAL_BALANCE);
+        assertThat(DriveDocLayout.typeOfFileName("Bilant interimar iunie 2026.pdf")).isEmpty();
         assertThat(DriveDocLayout.typeOfFileName("random-document.pdf")).isEmpty();
     }
 }

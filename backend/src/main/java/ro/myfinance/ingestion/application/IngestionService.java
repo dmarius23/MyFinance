@@ -416,7 +416,13 @@ public class IngestionService {
         return cfg != null && cfg.toLowerCase().contains("month_first");
     }
 
-    /** Only crawl the month folders and the interim-balance ("Bilant …/<company>/balanta de verificare") tree. */
+    /**
+     * Only crawl the month folders and the interim-balance ("Bilant interimar Tn an YYYY/&lt;company&gt;/…")
+     * tree. In a Bilant folder the trial balance is a plain file named "balanta_de_verificare …" sitting
+     * directly in the company folder (alongside the full statement, AGA decision, etc.), though some
+     * companies may instead use a "balanta de verificare" sub-folder — accept either. Everything that is
+     * not the trial balance (the "Bilant …" statement, "Hotarare AGA", profit proposal) is left out.
+     */
     private static boolean inMonthFirstScope(RemoteFile f) {
         List<String> segs = pathSegments(f.path());
         if (segs.isEmpty()) {
@@ -427,7 +433,7 @@ public class IngestionService {
             return true;
         }
         if (isBilantFolder(top)) {
-            return segs.stream().anyMatch(IngestionService::isBalantaFolder);
+            return segs.stream().anyMatch(IngestionService::isBalantaFolder) || isBalantaFolder(f.name());
         }
         return false;
     }

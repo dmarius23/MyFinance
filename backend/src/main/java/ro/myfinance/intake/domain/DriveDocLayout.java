@@ -75,6 +75,11 @@ public final class DriveDocLayout {
                 || (n.contains("stat") && (n.contains("salar") || n.contains("plata")))) {
             return Optional.of(DocumentType.PAYROLL);
         }
+        // Trial balance filed as a plain file in the company's balance folder: "balanta_de_verificare
+        // martie 2026.pdf". The full statement ("Bilant …") starts with "bilant", so it is NOT matched.
+        if (n.startsWith("balanta") || n.startsWith("balante")) {
+            return Optional.of(DocumentType.TRIAL_BALANCE);
+        }
         if (DECLARATION_FILE.matcher(fileName.trim()).find()) {
             return Optional.of(DocumentType.DECLARATION);
         }

@@ -77,7 +77,18 @@ public final class FolderMapper {
             return true;
         }
         String core = coreName(c.getLegalName());
-        return core != null && StringNormalizer.alnumUpper(segment).contains(core);
+        if (core == null) {
+            return false;
+        }
+        String seg = StringNormalizer.alnumUpper(segment);
+        // The usual case: the folder/file text contains the company's distinctive core.
+        if (seg.contains(core)) {
+            return true;
+        }
+        // Or the folder is a shortened form of the name (e.g. a balance folder "INNOVATECODE" for
+        // "INNOVATECODE IT SRL"): the core contains the segment. Guarded by a length floor so short
+        // tokens (e.g. "BIT IT") don't collide with an unrelated longer name.
+        return seg.length() >= 6 && core.contains(seg);
     }
 
     /**

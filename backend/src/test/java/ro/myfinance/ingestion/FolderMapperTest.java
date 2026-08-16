@@ -133,6 +133,24 @@ class FolderMapperTest {
     }
 
     @Test
+    void matchesCompanyWhenBalanceFolderIsAShortenedName() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
+        // Balance folder "INNOVATECODE" is shorter than the legal-name core "INNOVATECODEIT" — still matches.
+        assertThat(FolderMapper.resolveCompany(
+                file("Bilant interimar T1 an 2026/INNOVATECODE", "balanta_de_verificare martie 2026.pdf"), cos))
+                .contains(id);
+    }
+
+    @Test
+    void shortFolderTokenDoesNotCollideWithAnUnrelatedLongerName() {
+        // "BIT IT" (5 alnum chars) must NOT match "ORBIT ITALIA SRL" just because it is a substring.
+        List<Company> cos = List.of(company(UUID.randomUUID(), "ORBIT ITALIA SRL", "11112222"));
+        assertThat(FolderMapper.resolveCompany(file("Bilant interimar T1 an 2026/BIT IT", "b.pdf"), cos))
+                .isEmpty();
+    }
+
+    @Test
     void resolvesPeriodFromNumberedRomanianMonthFolder() {
         assertThat(FolderMapper.resolvePeriod(file("7. Iulie 2026/State de plata", "x.pdf")))
                 .isEqualTo(LocalDate.of(2026, 7, 1));

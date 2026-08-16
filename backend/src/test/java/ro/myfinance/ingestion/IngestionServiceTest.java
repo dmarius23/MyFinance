@@ -344,28 +344,28 @@ class IngestionServiceTest {
         lenient().when(co.getCui()).thenReturn("44570402");
         lenient().when(co.getLegalName()).thenReturn("STONEAGE INDUSTRY SRL");
         when(companies.findAll()).thenReturn(List.of(co));
+        // Real layout: the trial balance is a plain FILE directly in the company folder (no subfolder),
+        // alongside the full statement and AGA docs — only "balanta de verificare …" must be imported.
         fake.files = List.of(
-                // trial balance → imported (company by folder name, period by trimester T2→June, type by folder)
-                new CloudFolderConnector.RemoteFile("b1", "balanta_verificare.pdf",
-                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/balanta de verificare 2026",
-                        "application/pdf", 100, "e1", null),
-                // a sibling non-balance folder under the same company → out of scope, skipped
-                new CloudFolderConnector.RemoteFile("b2", "nota_contabila.pdf",
-                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/note contabile",
-                        "application/pdf", 100, "e2", null));
+                new CloudFolderConnector.RemoteFile("b1", "balanta_de_verificare iunie 2026.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("b2", "Bilant interimar iunie 2026.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("b3", "Hotararea AGA print pdf.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e3", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
         when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
                 eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
-        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_verificare.pdf"),
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_de_verificare iunie 2026.pdf"),
                 any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
         var r = service.sync(c.getId());
 
-        assertThat(r.imported()).isEqualTo(1);
+        assertThat(r.imported()).isEqualTo(1); // only the balanta de verificare, not the statement/AGA docs
         verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
-        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_verificare.pdf"),
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_de_verificare iunie 2026.pdf"),
                 any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE));
     }
 
