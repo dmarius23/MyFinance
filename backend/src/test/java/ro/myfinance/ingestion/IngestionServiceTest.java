@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -283,6 +284,89 @@ class IngestionServiceTest {
         // Only the company folder was crawled — the whole-drive list() was never used.
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"),
                 any(), any(), isNull(), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void monthFirstLayoutImportsDeclarationByCuiAndDropsNoiseReceiptsAndUnsignedTwins() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection c = new SourceConnection(TENANT, "FAKE", "Firm drive", "root", null); // general, mixed
+        c.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findById(c.getId())).thenReturn(Optional.of(c));
+        when(registry.forProvider("FAKE")).thenReturn(fake);
+        Company co = mock(Company.class);
+        lenient().when(co.getId()).thenReturn(COMPANY);
+        lenient().when(co.getCui()).thenReturn("44570402");
+        lenient().when(co.getLegalName()).thenReturn("MORARU TECH SRL");
+        when(companies.findAll()).thenReturn(List.of(co));
+        fake.files = List.of(
+                // signed declaration → imported (company by CUI-in-filename, type by folder, period by filename)
+                new CloudFolderConnector.RemoteFile("f1",
+                        "D700_44570402_2026_07 - trecere impozit profit_semnat.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e1", null),
+                // unsigned twin of the same declaration → skipped (superseded by the signed copy)
+                new CloudFolderConnector.RemoteFile("f2",
+                        "D700_44570402_2026_07 - trecere impozit profit.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e2", null),
+                // ANAF submission receipt → skipped
+                new CloudFolderConnector.RemoteFile("f3",
+                        "D700_44570402_2026_07_recipisa_118.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e3", null),
+                // valid declaration name but in a non-month top folder → out of scope, skipped
+                new CloudFolderConnector.RemoteFile("f4",
+                        "D700_44570402_2026_07 - x.pdf", "D060", "application/pdf", 100, "e4", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("D700_44570402_2026_07 - trecere impozit profit_semnat.pdf"), any(), any(),
+                eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("D700_44570402_2026_07 - trecere impozit profit_semnat.pdf"), any(), any(),
+                eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void monthFirstLayoutImportsInterimBalanceByCompanyFolderAndTrimester() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection c = new SourceConnection(TENANT, "FAKE", "Firm drive", "root", null);
+        c.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findById(c.getId())).thenReturn(Optional.of(c));
+        when(registry.forProvider("FAKE")).thenReturn(fake);
+        Company co = mock(Company.class);
+        lenient().when(co.getId()).thenReturn(COMPANY);
+        lenient().when(co.getCui()).thenReturn("44570402");
+        lenient().when(co.getLegalName()).thenReturn("STONEAGE INDUSTRY SRL");
+        when(companies.findAll()).thenReturn(List.of(co));
+        fake.files = List.of(
+                // trial balance → imported (company by folder name, period by trimester T2→June, type by folder)
+                new CloudFolderConnector.RemoteFile("b1", "balanta_verificare.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/balanta de verificare 2026",
+                        "application/pdf", 100, "e1", null),
+                // a sibling non-balance folder under the same company → out of scope, skipped
+                new CloudFolderConnector.RemoteFile("b2", "nota_contabila.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/note contabile",
+                        "application/pdf", 100, "e2", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_verificare.pdf"),
+                any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_verificare.pdf"),
+                any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE));
     }
 
     /** In-memory connector — feeds the pipeline a controlled file list. */

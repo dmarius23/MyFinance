@@ -172,7 +172,9 @@ public class IngestionService {
         Company company = companies.findById(companyId).orElse(null);
         String startFolder = conn.getRootFolderId();
         boolean companyKnown = false;
-        String companyFolderId = company == null ? null : findCompanyFolder(conn, company);
+        // The month-first layout has no per-company folder under the root (the company lives in the
+        // filename or a Bilant sub-folder), so always full-crawl and resolve the company per file.
+        String companyFolderId = (company == null || monthFirstLayout(conn)) ? null : findCompanyFolder(conn, company);
         if (companyFolderId != null) {
             startFolder = companyFolderId;
             companyKnown = true;
@@ -245,16 +247,54 @@ public class IngestionService {
         log.info("doSync connection={} startFolder={} companyKnown={} → {} file(s) listed",
                 conn.getId(), startFolderId, companyKnown, listing.files().size());
 
+        // A "month-first" layout (e.g. Declaratii <year>/<month>/State de plata|D-forms, plus Bilant
+        // interimar <trimester>/<company>/balanta de verificare) needs extra guards the generic
+        // company-first layout doesn't: only crawl month/balance folders, drop ANAF receipts, and keep
+        // only the signed copy when both signed & unsigned exist. Off by default (opt-in via config).
+        boolean monthFirst = monthFirstLayout(conn);
+        java.util.Set<String> supersededBySigned = monthFirst
+                ? signedSupersededKeys(listing.files()) : java.util.Set.of();
+
         for (RemoteFile f : listing.files()) {
             try {
                 if (!isSupported(f) || f.size() > MAX_BYTES) {
                     if (onlyCompany == null) skipped++;
                     continue;
                 }
+                // Month-first layout guards (opt-in): ignore anything outside the month/balance subtrees,
+                // drop ANAF "recipisa" receipts, and skip an unsigned copy when a "…semnat" one exists.
+                if (monthFirst) {
+                    if (!inMonthFirstScope(f) || isRecipisa(f.name())
+                            || (!isSigned(f.name()) && supersededBySigned.contains(dedupKey(f)))) {
+                        if (onlyCompany == null) skipped++;
+                        continue;
+                    }
+                }
                 Optional<UUID> companyId = companyKnown
                         ? Optional.of(onlyCompany)
                         : FolderMapper.resolveCompany(f, tenantCompanies);
+                // Type up front (it can refine the period): a connection-level forced type wins; else the
+                // type sub-folder; else — only in the month-first layout — the filename (loose files with
+                // no type folder); else the screen's type for a per-type sync; else the classifier decides.
+                DocumentType fileType;
+                if (forced != null) {
+                    fileType = forced;
+                } else {
+                    Optional<DocumentType> folderType = FolderMapper.resolveType(f);
+                    if (folderType.isPresent()) {
+                        fileType = folderType.get();
+                    } else if (monthFirst) {
+                        fileType = ro.myfinance.intake.domain.DriveDocLayout.typeOfFileName(f.name()).orElse(fallbackType);
+                    } else {
+                        fileType = fallbackType;
+                    }
+                }
+                // Period from the folder path, but for declarations/balances the filename's own YYYY_MM is
+                // authoritative (a file prepared in one month may be filed under the next month's folder).
                 LocalDate period = FolderMapper.resolvePeriod(f);
+                if (monthFirst && (fileType == DocumentType.DECLARATION || fileType == DocumentType.TRIAL_BALANCE)) {
+                    period = FolderMapper.periodFromText(f.name()).orElse(period);
+                }
                 // Scoped sync: silently pass over files outside the requested company/month.
                 if (onlyCompany != null && (companyId.isEmpty() || !companyId.get().equals(onlyCompany))) {
                     continue;
@@ -277,11 +317,6 @@ public class IngestionService {
                     review++;
                     continue;
                 }
-
-                // Type: a connection-level forced type wins; else the type sub-folder (payrolls /
-                // declarations / reports / …); else the screen's type (fallbackType) for a per-type sync;
-                // else null → let the classifier decide.
-                DocumentType fileType = forced != null ? forced : FolderMapper.resolveType(f).orElse(fallbackType);
 
                 // For a payroll document: it must be one of the three payroll files and for the folder's
                 // month, otherwise it is flagged (unclassified / wrong period), not imported.
@@ -366,6 +401,103 @@ public class IngestionService {
                 .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
         return n.contains("pontaj") || n.contains("fluturas")
                 || (n.contains("stat") && (n.contains("salar") || n.contains("plata")));
+    }
+
+    // ---- month-first layout helpers (opt-in via connection config "month_first") ------------------
+
+    /** RO month names used to recognise a month folder such as "1. Ianuarie 2026" / "7. Iulie 2026". */
+    private static final List<String> RO_MONTH_TOKENS = List.of(
+            "ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
+            "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie");
+
+    /** Whether this connection uses the month-first layout (month/type folders + a Bilant balance tree). */
+    private static boolean monthFirstLayout(SourceConnection conn) {
+        String cfg = conn.getConfig();
+        return cfg != null && cfg.toLowerCase().contains("month_first");
+    }
+
+    /** Only crawl the month folders and the interim-balance ("Bilant …/<company>/balanta de verificare") tree. */
+    private static boolean inMonthFirstScope(RemoteFile f) {
+        List<String> segs = pathSegments(f.path());
+        if (segs.isEmpty()) {
+            return false;
+        }
+        String top = segs.get(0);
+        if (isMonthFolder(top)) {
+            return true;
+        }
+        if (isBilantFolder(top)) {
+            return segs.stream().anyMatch(IngestionService::isBalantaFolder);
+        }
+        return false;
+    }
+
+    private static boolean isMonthFolder(String seg) {
+        String n = normalizeSeg(seg);
+        if (!n.matches(".*20\\d{2}.*")) {   // a month folder always carries its year
+            return false;
+        }
+        return RO_MONTH_TOKENS.stream().anyMatch(n::contains);
+    }
+
+    private static boolean isBilantFolder(String seg) {
+        return normalizeSeg(seg).startsWith("bilant");
+    }
+
+    private static boolean isBalantaFolder(String seg) {
+        String n = normalizeSeg(seg);
+        return n.startsWith("balanta") || n.startsWith("balante");
+    }
+
+    /** An ANAF submission receipt ("…_recipisa_<nr>.pdf") — proof of filing, not the declaration itself. */
+    private static boolean isRecipisa(String name) {
+        return name != null && normalizeSeg(name).contains("recipisa");
+    }
+
+    /** A signed copy ("…_semnat.pdf") — preferred over the unsigned original when both are present. */
+    private static boolean isSigned(String name) {
+        return name != null && normalizeSeg(name).contains("semnat");
+    }
+
+    /** Dedup keys of the documents that have a signed ("…semnat") copy — their unsigned twins are skipped. */
+    private static java.util.Set<String> signedSupersededKeys(List<RemoteFile> files) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (RemoteFile f : files) {
+            if (isSigned(f.name())) {
+                keys.add(dedupKey(f));
+            }
+        }
+        return keys;
+    }
+
+    /** A stable identity for a document independent of the "semnat" marker, so signed & unsigned collide. */
+    private static String dedupKey(RemoteFile f) {
+        String name = f.name() == null ? "" : stripDiacritics(f.name()).toLowerCase().trim();
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            name = name.substring(0, dot);
+        }
+        name = name.replaceAll("[ _-]*semnat", "").replaceAll("\\s+", " ").trim();
+        String path = f.path() == null ? "" : f.path().toLowerCase();
+        return path + "|" + name;
+    }
+
+    private static List<String> pathSegments(String path) {
+        if (path == null || path.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(path.split("/")).filter(s -> !s.isBlank()).toList();
+    }
+
+    private static String stripDiacritics(String s) {
+        String t = s.replace('ș', 's').replace('ț', 't').replace('Ș', 'S').replace('Ț', 'T');
+        return java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+    }
+
+    /** Lowercase, diacritics dropped, non-alphanumerics removed — for tolerant folder/marker matching. */
+    private static String normalizeSeg(String s) {
+        return s == null ? "" : stripDiacritics(s).toLowerCase().replaceAll("[^a-z0-9]", "");
     }
 
     private static String ym(LocalDate d) {
