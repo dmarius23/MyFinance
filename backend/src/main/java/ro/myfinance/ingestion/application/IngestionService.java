@@ -322,6 +322,12 @@ public class IngestionService {
         boolean rootCrawl = startFolderId != null && startFolderId.equals(conn.getRootFolderId());
         java.util.Set<String> supersededBySigned = monthFirst
                 ? signedSupersededKeys(listing.files()) : java.util.Set.of();
+        // The firm stores each declaration under two filenames: the ANAF original "D<code>_<CUI>_<YYYY>_<MM>"
+        // and a renamed copy "<Company>_D<code>_<MMYYYY>_<CUI>". Both import as separate documents. Collect
+        // the (company + folder + form) identities that have an ANAF-named original, so the renamed copy is
+        // dropped below and only one document per declaration is created.
+        java.util.Set<String> anafNamedDeclKeys = monthFirst
+                ? anafDeclarationKeys(listing.files(), tenantCompanies) : java.util.Set.of();
 
         for (RemoteFile f : listing.files()) {
             try {
@@ -361,6 +367,16 @@ public class IngestionService {
                 // subtree (e.g. a payroll sync ignores the D-form declarations in the same month folder).
                 if (onlyType != null && fileType != onlyType) {
                     continue;
+                }
+                // Declaration dedup: drop the renamed copy ("<Company>_D<code>_…") when the ANAF original
+                // ("D<code>_<CUI>_…") of the same declaration is in this crawl — avoids importing it twice.
+                if (monthFirst && fileType == DocumentType.DECLARATION && companyId.isPresent()
+                        && !isAnafNamedDeclaration(f.name())) {
+                    String form = declarationFormCode(f.name());
+                    if (form != null && anafNamedDeclKeys.contains(declarationKey(companyId.get(), f, form))) {
+                        if (onlyCompany == null) skipped++;
+                        continue;
+                    }
                 }
                 // Period: forced by a module-month sync (we already scoped to that month's subtree, whose
                 // name is no longer in the relative path); otherwise from the folder path, with the
@@ -564,6 +580,47 @@ public class IngestionService {
             if (isSigned(f.name())) {
                 keys.add(dedupKey(f));
             }
+        }
+        return keys;
+    }
+
+    /** A declaration form code ("D112", "D300", "D406" …) found in a filename, in either the ANAF format
+     *  {@code D<code>_<CUI>_…} or the renamed {@code <Company>_D<code>_…}; null if none. */
+    private static final java.util.regex.Pattern DECL_FORM_CODE =
+            java.util.regex.Pattern.compile("(?i)(?<![a-z0-9])d\\s?(\\d{2,4})(?![0-9])");
+    /** An ANAF-generated declaration filename: starts with the form code then the CUI ({@code D112_49443957_…}). */
+    private static final java.util.regex.Pattern ANAF_NAMED_DECL =
+            java.util.regex.Pattern.compile("(?i)^\\s*d\\s?\\d{2,4}[_ ]\\d{5,}");
+
+    private static String declarationFormCode(String name) {
+        if (name == null) {
+            return null;
+        }
+        java.util.regex.Matcher m = DECL_FORM_CODE.matcher(name);
+        return m.find() ? "D" + m.group(1) : null;
+    }
+
+    private static boolean isAnafNamedDeclaration(String name) {
+        return name != null && ANAF_NAMED_DECL.matcher(name.trim()).find();
+    }
+
+    /** Identity of a declaration for dedup: company + its folder + form code (A/B copies share all three). */
+    private static String declarationKey(UUID companyId, RemoteFile f, String form) {
+        return companyId + "|" + (f.path() == null ? "" : f.path().toLowerCase()) + "|" + form;
+    }
+
+    /** (company + folder + form) identities that have an ANAF-named original in this crawl. */
+    private static java.util.Set<String> anafDeclarationKeys(List<RemoteFile> files, List<Company> companies) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (RemoteFile f : files) {
+            if (!isAnafNamedDeclaration(f.name())) {
+                continue;
+            }
+            String form = declarationFormCode(f.name());
+            if (form == null) {
+                continue;
+            }
+            FolderMapper.resolveCompany(f, companies).ifPresent(co -> keys.add(declarationKey(co, f, form)));
         }
         return keys;
     }

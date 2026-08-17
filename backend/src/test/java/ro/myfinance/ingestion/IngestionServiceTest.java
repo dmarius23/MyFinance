@@ -410,6 +410,43 @@ class IngestionServiceTest {
         verify(documents, never()).upload(any(), any(), any(), any(), any(), eq(DocumentType.DECLARATION), any());
     }
 
+    @Test
+    void syncModuleMonthDedupsTheRenamedDeclarationCopy() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.folders = List.of(new CloudFolderConnector.Folder("month6", "6. Iunie 2026"));
+        // The SAME D112 declaration under both filenames the firm keeps, in the same D112 folder.
+        fake.filesByFolder.put("month6", List.of(
+                new CloudFolderConnector.RemoteFile("f1", "D112_49443957_2026_06.pdf", "D112",
+                        "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("f2", "INNOVATECODE IT SRL_D112_062026_49443957.PDF", "D112",
+                        "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
+                any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("DECLARATION", LocalDate.of(2026, 6, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the ANAF original; the renamed copy is dropped
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
+                any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), eq("INNOVATECODE IT SRL_D112_062026_49443957.PDF"),
+                any(), any(), any(), any());
+    }
+
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
         List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)
