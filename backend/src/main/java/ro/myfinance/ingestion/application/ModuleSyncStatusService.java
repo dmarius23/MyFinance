@@ -1,5 +1,6 @@
 package ro.myfinance.ingestion.application;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -51,6 +52,16 @@ public class ModuleSyncStatusService {
     public boolean tryStart(String module, LocalDate period, UUID startedBy) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         return repo.tryAcquire(tenantId, module, period, startedBy, STALE_AFTER_MINUTES) > 0;
+    }
+
+    /** Whether a month-wide sync for this (module, month) is running right now (ignoring a stale/crashed
+     *  flag) — used to reject a per-company sync while the bulk one runs. */
+    @Transactional(readOnly = true)
+    public boolean isRunning(String module, LocalDate period) {
+        Instant fresh = Instant.now().minus(Duration.ofMinutes(STALE_AFTER_MINUTES));
+        return repo.findByModuleAndPeriodMonth(module, period)
+                .map(s -> s.isRunning() && s.getStartedAt() != null && s.getStartedAt().isAfter(fresh))
+                .orElse(false);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

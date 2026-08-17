@@ -169,6 +169,13 @@ public class IngestionService {
     public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
         SourceConnection conn = findDriveConnection(forcedType)
                 .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
+        // Reject a per-company sync while a month-wide sync (all companies) for the same module/month runs,
+        // so the two don't process the same company at once (the bulk sync holds the shared slot).
+        DocumentType syncModule = parseForcedType(forcedType);
+        if (syncModule != null && syncStatus.isRunning(syncModule.name(), statusPeriod(syncModule, period))) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "A month-wide sync for " + syncModule + " is already running — try again once it finishes.");
+        }
         // Fast path: crawl only this company's folder under the root instead of the whole drive. Falls
         // back to a full crawl when the company folder can't be located (then the file paths still carry
         // the company name for per-file resolution).

@@ -1,6 +1,7 @@
 package ro.myfinance.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -452,6 +453,18 @@ class IngestionServiceTest {
                 any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
         verify(documents, never()).upload(any(), any(), eq("INNOVATECODE IT SRL_D112_062026_49443957.PDF"),
                 any(), any(), any(), any());
+    }
+
+    @Test
+    void syncCompanyMonthRejectedWhileAMonthWideSyncRuns() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "D", "root", "PAYROLL");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(syncStatus.isRunning(eq("PAYROLL"), any())).thenReturn(true); // a month-wide sync holds the slot
+
+        assertThatThrownBy(() -> service.syncCompanyMonth("PAYROLL", COMPANY, LocalDate.of(2026, 7, 1)))
+                .isInstanceOf(ro.myfinance.common.web.ConflictException.class);
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
     }
 
     static class FakeConnector implements CloudFolderConnector {

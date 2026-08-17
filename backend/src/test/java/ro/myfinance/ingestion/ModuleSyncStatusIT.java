@@ -79,4 +79,17 @@ class ModuleSyncStatusIT extends AbstractPostgresIT {
         jdbc.update("update module_sync_status set started_at = now() - interval '30 minutes' where module = 'TRIAL_BALANCE'");
         assertThat(status.tryStart("TRIAL_BALANCE", PERIOD, null)).isTrue(); // stale → reclaimed
     }
+
+    @Test
+    void isRunningReflectsTheClaimAndIgnoresStaleOrFinished() {
+        asTenant(TENANT_A);
+        assertThat(status.isRunning("PAYROLL", PERIOD)).isFalse();       // nothing running
+        status.tryStart("PAYROLL", PERIOD, null);
+        assertThat(status.isRunning("PAYROLL", PERIOD)).isTrue();        // a bulk sync holds the slot
+        jdbc.update("update module_sync_status set started_at = now() - interval '30 minutes' where module = 'PAYROLL'");
+        assertThat(status.isRunning("PAYROLL", PERIOD)).isFalse();       // stale flag is not "running"
+        jdbc.update("update module_sync_status set started_at = now() where module = 'PAYROLL'");
+        status.markFinish("PAYROLL", PERIOD, "done");
+        assertThat(status.isRunning("PAYROLL", PERIOD)).isFalse();       // finished
+    }
 }
