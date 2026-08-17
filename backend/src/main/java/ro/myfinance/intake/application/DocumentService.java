@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
@@ -81,7 +82,14 @@ public class DocumentService {
         return upload(companyId, periodMonth, filename, contentType, bytes, forcedType, DocumentSource.EMPLOYEE);
     }
 
-    /** As {@link #upload(UUID, LocalDate, String, String, byte[], DocumentType)}, recording who supplied it. */
+    /**
+     * As {@link #upload(UUID, LocalDate, String, String, byte[], DocumentType)}, recording who supplied it.
+     * Runs in its OWN transaction ({@code REQUIRES_NEW}) so that when a bulk sync imports many files, one
+     * file's rejection (wrong-party payslip, quota, an unreadable PDF) rolls back only that file and cannot
+     * poison the whole sync's transaction. (The shorter overloads self-invoke this one, so a single manual
+     * upload keeps the caller's transaction.)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
                            String contentType, byte[] bytes, DocumentType forcedType, DocumentSource source) {
         validate(contentType, bytes);
@@ -91,10 +99,10 @@ public class DocumentService {
         LocalDate period = periodMonth.withDayOfMonth(1);
         enforceDocumentQuota(companyId, period);
         DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
-        // Company-ownership check: for PAYROLL and TRIAL_BALANCE the PDF must belong to this company.
-        // Run after classification so the check fires regardless of whether the type was forced or
-        // auto-detected by the classifier.
-        if (type == DocumentType.PAYROLL || type == DocumentType.TRIAL_BALANCE) {
+        // Company-ownership check for PAYROLL: the payslip must carry this company's CUI/name. NOT applied
+        // to TRIAL_BALANCE — a balanță de verificare is a table of accounts that often doesn't print the
+        // CUI, so the text check produced false rejects; the balance's company comes from its folder.
+        if (type == DocumentType.PAYROLL) {
             verifyBelongsToCompany(company.getLegalName(), company.getCui(), contentType, bytes);
         }
         String safeName = sanitize(filename);
@@ -188,6 +196,9 @@ public class DocumentService {
         return new DocumentContent(doc, storage.retrieve(doc.getStorageKey()));
     }
 
+    /** Own transaction ({@code REQUIRES_NEW}) so replacing a superseded document during a bulk sync can't
+     *  poison the sync's transaction (and a manual delete is independent too). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void delete(UUID id) {
         Document doc = require(id);
         storage.delete(doc.getStorageKey());
