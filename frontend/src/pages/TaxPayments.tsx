@@ -13,6 +13,7 @@ import { DeclarationsModal } from "../components/DeclarationsModal";
 import { EmailPreviewModal, type PreviewTarget } from "../components/EmailPreviewModal";
 import { NotificationLogModal } from "../components/NotificationLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { SyncMonthButton } from "../components/SyncMonthButton";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
@@ -113,9 +114,12 @@ export function TaxPayments() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("taxes.subtitle")} · {monthLabel}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("taxes.title")}</h2>
         </div>
-        <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-secondary)" }}>
-          {mismatchCount > 0 && <span><Dot c="var(--dot-red)" /> {mismatchCount} {t("taxes.legendMismatch")}</span>}
-          {notEmailed > 0 && <span><Dot c="var(--dot-orange)" /> {notEmailed} {t("taxes.legendNotEmailed")}</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
+          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-secondary)" }}>
+            {mismatchCount > 0 && <span><Dot c="var(--dot-red)" /> {mismatchCount} {t("taxes.legendMismatch")}</span>}
+            {notEmailed > 0 && <span><Dot c="var(--dot-orange)" /> {notEmailed} {t("taxes.legendNotEmailed")}</span>}
+          </div>
         </div>
       </div>
 

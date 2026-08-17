@@ -48,6 +48,11 @@ public final class IngestionDtos {
                                      @jakarta.validation.constraints.NotBlank String type) {
     }
 
+    /** Sync one module (type) for a whole month across all companies — the firm's monthly bulk pull. */
+    public record SyncMonthRequest(@jakarta.validation.constraints.NotNull java.time.LocalDate period,
+                                   @jakarta.validation.constraints.NotBlank String type) {
+    }
+
     public record ImportView(UUID id, String filename, String sourcePath, String status, String detail,
                              UUID documentId, Instant createdAt) {
         public static ImportView from(ImportFile f) {

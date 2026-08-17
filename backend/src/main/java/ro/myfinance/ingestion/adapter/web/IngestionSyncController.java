@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.ingestion.adapter.web.IngestionDtos.SourceStatus;
 import ro.myfinance.ingestion.adapter.web.IngestionDtos.SyncCompanyRequest;
+import ro.myfinance.ingestion.adapter.web.IngestionDtos.SyncMonthRequest;
 import ro.myfinance.ingestion.adapter.web.IngestionDtos.SyncResponse;
 import ro.myfinance.ingestion.application.IngestionService;
 
@@ -31,6 +32,11 @@ public class IngestionSyncController {
     public SourceStatus source(@RequestParam("type") String type) {
         var s = ingestion.driveStatusFor(type);
         return new SourceStatus(s.enabled(), s.write());
+    }
+
+    @PostMapping("/api/v1/ingestion/sync-month")
+    public SyncResponse syncMonth(@Valid @RequestBody SyncMonthRequest req) {
+        return SyncResponse.from(ingestion.syncModuleMonth(req.type(), req.period()));
     }
 
     @PostMapping("/api/v1/ingestion/sync-company")

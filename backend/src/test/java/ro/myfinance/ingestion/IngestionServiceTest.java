@@ -370,6 +370,46 @@ class IngestionServiceTest {
     }
 
     /** In-memory connector — feeds the pipeline a controlled file list. */
+    @Test
+    void syncModuleMonthImportsOnlyThatModuleAcrossAllCompanies() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        // Root subfolders: the month folder is located by name for the requested month.
+        fake.folders = List.of(new CloudFolderConnector.Folder("month7", "7. Iulie 2026"),
+                new CloudFolderConnector.Folder("bilantT2", "Bilant interimar T2 an 2026"));
+        // The month folder holds BOTH payroll (State de plata) and a declaration (D 112) for July.
+        fake.filesByFolder.put("month7", List.of(
+                new CloudFolderConnector.RemoteFile("p", "fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf",
+                        "State de plata", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("d", "D112_49443957_2026_07.pdf",
+                        "D 112", "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 7, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the payroll, not the D112 declaration in the same folder
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), eq(DocumentType.DECLARATION), any());
+    }
+
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
         List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)

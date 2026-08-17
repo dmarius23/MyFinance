@@ -12,6 +12,7 @@ import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmai
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
@@ -53,9 +54,12 @@ export function Payroll() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div>
-        <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
-        <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
+          <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
+        </div>
+        <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
       </div>
 
       {selected.size > 0 && (

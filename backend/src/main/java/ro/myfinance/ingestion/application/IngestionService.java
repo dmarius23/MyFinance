@@ -144,7 +144,7 @@ public class IngestionService {
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
-        return doSync(conn, null, null, null, previousMonth(), true, conn.getRootFolderId(), false);
+        return doSync(conn, null, null, null, previousMonth(), true, conn.getRootFolderId(), false, null, null);
     }
 
     /**
@@ -156,7 +156,7 @@ public class IngestionService {
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false);
+        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false, null, null);
     }
 
     /**
@@ -184,10 +184,71 @@ public class IngestionService {
         // Synced from a type-specific screen (payroll/reports/declarations): files not filed in a type
         // sub-folder default to that type, so a document dropped straight in the month folder is still typed.
         SyncResult r = doSync(conn, companyId, java.util.Set.of(period.withDayOfMonth(1)), parseForcedType(forcedType),
-                previousMonth(), false, startFolder, companyKnown);
+                previousMonth(), false, startFolder, companyKnown, null, null);
         log.info("syncCompanyMonth done company={} period={} → imported={} review={} skipped={} failed={}",
                 companyId, period, r.imported(), r.needsReview(), r.skipped(), r.failed());
         return r;
+    }
+
+    /**
+     * Sync ONE module (payroll / declarations / trial balance) for a whole month across ALL companies —
+     * the firm's monthly bulk pull. Scopes the crawl to that module's month subtree (fast: one month
+     * folder, not the whole drive) and imports only that module's type, so a payroll sync does not pull
+     * the same month's declarations. Requires the month-first layout.
+     */
+    public SyncResult syncModuleMonth(String moduleType, LocalDate period) {
+        DocumentType module = parseForcedType(moduleType);
+        if (module == null) {
+            throw new IllegalArgumentException("Unknown module type: " + moduleType);
+        }
+        SourceConnection conn = findDriveConnection(moduleType)
+                .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + moduleType));
+        LocalDate month = period.withDayOfMonth(1);
+        String startFolder;
+        LocalDate targetPeriod;
+        if (module == DocumentType.TRIAL_BALANCE) {
+            int quarter = (month.getMonthValue() - 1) / 3 + 1;
+            targetPeriod = LocalDate.of(month.getYear(), quarter * 3, 1); // interim balance is keyed to quarter-end
+            startFolder = findBilantFolder(conn, month.getYear(), quarter);
+        } else {
+            targetPeriod = month;
+            startFolder = findMonthFolder(conn, month);
+        }
+        log.info("syncModuleMonth module={} period={} connection={} startFolder={}",
+                module, targetPeriod, conn.getId(), startFolder);
+        if (startFolder == null) {
+            log.warn("syncModuleMonth: no {} folder found under root for {} — nothing to sync", module, targetPeriod);
+            return new SyncResult(0, 0, 0, 0, List.of());
+        }
+        SyncResult r = doSync(conn, null, java.util.Set.of(targetPeriod), module, previousMonth(),
+                false, startFolder, false, module, targetPeriod);
+        log.info("syncModuleMonth done module={} period={} → imported={} review={} skipped={} failed={}",
+                module, targetPeriod, r.imported(), r.needsReview(), r.skipped(), r.failed());
+        return r;
+    }
+
+    /** The root subfolder that is the month folder for {@code month} (e.g. "7. Iulie 2026"), or null. */
+    private String findMonthFolder(SourceConnection conn, LocalDate month) {
+        try {
+            return registry.forProvider(conn.getProvider()).subfolders(conn, conn.getRootFolderId()).stream()
+                    .filter(sf -> isMonthFolderFor(sf.name(), month))
+                    .map(CloudFolderConnector.Folder::id).findFirst().orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Could not list root subfolders for connection {}", conn.getId(), e);
+            return null;
+        }
+    }
+
+    /** The root subfolder that is the interim-balance folder for a quarter (e.g. "Bilant interimar T2 an 2026"). */
+    private String findBilantFolder(SourceConnection conn, int year, int quarter) {
+        try {
+            return registry.forProvider(conn.getProvider()).subfolders(conn, conn.getRootFolderId()).stream()
+                    .filter(sf -> isBilantFolderFor(sf.name(), year, quarter))
+                    .map(CloudFolderConnector.Folder::id).findFirst().orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Could not list root subfolders for connection {}", conn.getId(), e);
+            return null;
+        }
     }
 
     /** The Drive folder id for {@code company} directly under the connection root, or null if not found. */
@@ -223,7 +284,8 @@ public class IngestionService {
      */
     private SyncResult doSync(SourceConnection conn, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
                              DocumentType fallbackType, LocalDate notifyMonth, boolean persistStatus,
-                             String startFolderId, boolean companyKnown) {
+                             String startFolderId, boolean companyKnown, DocumentType onlyType,
+                             LocalDate forcedPeriod) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         CloudFolderConnector connector = registry.forProvider(conn.getProvider());
         List<Company> tenantCompanies = companies.findAll();
@@ -251,7 +313,13 @@ public class IngestionService {
         // interimar <trimester>/<company>/balanta de verificare) needs extra guards the generic
         // company-first layout doesn't: only crawl month/balance folders, drop ANAF receipts, and keep
         // only the signed copy when both signed & unsigned exist. Off by default (opt-in via config).
-        boolean monthFirst = monthFirstLayout(conn);
+        // The module-month sync ({@code onlyType} set) targets one module's subtree for the whole firm; it
+        // is inherently a month-first operation, so apply those guards even if the config flag is absent.
+        boolean monthFirst = monthFirstLayout(conn) || onlyType != null;
+        // The root-subtree scope check (only month/balance folders) only applies to a full crawl FROM the
+        // root. When we start below the root (a company or a scoped module subtree), the paths are already
+        // inside the wanted subtree and carry no top month/Bilant segment, so that check would drop them.
+        boolean rootCrawl = startFolderId != null && startFolderId.equals(conn.getRootFolderId());
         java.util.Set<String> supersededBySigned = monthFirst
                 ? signedSupersededKeys(listing.files()) : java.util.Set.of();
 
@@ -264,7 +332,7 @@ public class IngestionService {
                 // Month-first layout guards (opt-in): ignore anything outside the month/balance subtrees,
                 // drop ANAF "recipisa" receipts, and skip an unsigned copy when a "…semnat" one exists.
                 if (monthFirst) {
-                    if (!inMonthFirstScope(f) || isRecipisa(f.name())
+                    if ((rootCrawl && !inMonthFirstScope(f)) || isRecipisa(f.name())
                             || (!isSigned(f.name()) && supersededBySigned.contains(dedupKey(f)))) {
                         if (onlyCompany == null) skipped++;
                         continue;
@@ -289,11 +357,22 @@ public class IngestionService {
                         fileType = fallbackType;
                     }
                 }
-                // Period from the folder path, but for declarations/balances the filename's own YYYY_MM is
-                // authoritative (a file prepared in one month may be filed under the next month's folder).
-                LocalDate period = FolderMapper.resolvePeriod(f);
-                if (monthFirst && (fileType == DocumentType.DECLARATION || fileType == DocumentType.TRIAL_BALANCE)) {
-                    period = FolderMapper.periodFromText(f.name()).orElse(period);
+                // Module-month sync: import only this module's type; silently pass over the rest of the
+                // subtree (e.g. a payroll sync ignores the D-form declarations in the same month folder).
+                if (onlyType != null && fileType != onlyType) {
+                    continue;
+                }
+                // Period: forced by a module-month sync (we already scoped to that month's subtree, whose
+                // name is no longer in the relative path); otherwise from the folder path, with the
+                // filename's own YYYY_MM winning for declarations/balances (filed under a later month).
+                LocalDate period;
+                if (forcedPeriod != null) {
+                    period = forcedPeriod;
+                } else {
+                    period = FolderMapper.resolvePeriod(f);
+                    if (monthFirst && (fileType == DocumentType.DECLARATION || fileType == DocumentType.TRIAL_BALANCE)) {
+                        period = FolderMapper.periodFromText(f.name()).orElse(period);
+                    }
                 }
                 // Scoped sync: silently pass over files outside the requested company/month.
                 if (onlyCompany != null && (companyId.isEmpty() || !companyId.get().equals(onlyCompany))) {
@@ -448,6 +527,19 @@ public class IngestionService {
 
     private static boolean isBilantFolder(String seg) {
         return normalizeSeg(seg).startsWith("bilant");
+    }
+
+    /** Whether a root subfolder is the month folder for {@code month} — carries the year and RO month name. */
+    private static boolean isMonthFolderFor(String seg, LocalDate month) {
+        String n = normalizeSeg(seg);
+        return n.contains(String.valueOf(month.getYear()))
+                && n.contains(RO_MONTH_TOKENS.get(month.getMonthValue() - 1));
+    }
+
+    /** Whether a root subfolder is the interim-balance folder for a given year + trimester. */
+    private static boolean isBilantFolderFor(String seg, int year, int quarter) {
+        String n = normalizeSeg(seg);
+        return n.startsWith("bilant") && n.contains("t" + quarter) && n.contains(String.valueOf(year));
     }
 
     private static boolean isBalantaFolder(String seg) {

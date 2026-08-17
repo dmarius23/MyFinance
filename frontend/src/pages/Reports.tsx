@@ -13,6 +13,7 @@ import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailMo
 import { ReportLogModal } from "../components/ReportLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
@@ -55,9 +56,12 @@ export function Reports() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div>
-        <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
-        <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
+          <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
+        </div>
+        <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
       </div>
 
       {selected.size > 0 && (

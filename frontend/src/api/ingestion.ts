@@ -47,4 +47,7 @@ export const ingestionApi = {
   source: (type: string) => api<{ driveEnabled: boolean; driveWrite: boolean }>(`/api/v1/ingestion/source?type=${type}`),
   syncCompany: (input: { companyId: string; period: string; type: string }) =>
     api<SyncResult>(`/api/v1/ingestion/sync-company`, { method: "POST", body: JSON.stringify(input) }),
+  // Bulk: sync one module (type) for a whole month across ALL companies.
+  syncMonth: (input: { period: string; type: string }) =>
+    api<SyncResult>(`/api/v1/ingestion/sync-month`, { method: "POST", body: JSON.stringify(input) }),
 };
