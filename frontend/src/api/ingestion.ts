@@ -21,6 +21,15 @@ export interface SyncResult {
   issues?: { filename: string; reason: string }[];
 }
 
+/** Shared per (module + month) sync state — an in-progress sync is visible to every user. */
+export interface SyncStatus {
+  running: boolean;
+  startedBy: string | null;
+  startedAt: string | null;
+  lastSyncedAt: string | null;
+  lastResult: string | null;
+}
+
 export interface ImportRow {
   id: string;
   filename: string | null;
@@ -50,4 +59,7 @@ export const ingestionApi = {
   // Bulk: sync one module (type) for a whole month across ALL companies.
   syncMonth: (input: { period: string; type: string }) =>
     api<SyncResult>(`/api/v1/ingestion/sync-month`, { method: "POST", body: JSON.stringify(input) }),
+  // Shared sync state for a module + month (last synced + whether a sync is running now).
+  syncStatus: (type: string, period: string) =>
+    api<SyncStatus>(`/api/v1/ingestion/sync-status?type=${type}&period=${period}`),
 };

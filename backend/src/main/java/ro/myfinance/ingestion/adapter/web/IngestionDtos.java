@@ -53,6 +53,15 @@ public final class IngestionDtos {
                                    @jakarta.validation.constraints.NotBlank String type) {
     }
 
+    /** Shared sync state for a module + month: whether a sync is running now (and who/when), plus the
+     *  last completed sync — so an in-progress sync is visible to every user of the tenant. */
+    public record SyncStatusView(boolean running, String startedBy, Instant startedAt,
+                                 Instant lastSyncedAt, String lastResult) {
+        public static SyncStatusView from(ro.myfinance.ingestion.application.ModuleSyncStatusService.View v) {
+            return new SyncStatusView(v.running(), v.startedBy(), v.startedAt(), v.lastSyncedAt(), v.lastResult());
+        }
+    }
+
     public record ImportView(UUID id, String filename, String sourcePath, String status, String detail,
                              UUID documentId, Instant createdAt) {
         public static ImportView from(ImportFile f) {

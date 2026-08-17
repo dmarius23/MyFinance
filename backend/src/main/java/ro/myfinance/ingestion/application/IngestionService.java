@@ -45,11 +45,13 @@ public class IngestionService {
     private final ConnectorRegistry registry;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
+    private final ModuleSyncStatusService syncStatus;
 
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
                             CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry, AuditRecorder audit,
-                            ro.myfinance.notifications.application.NotificationService notifications) {
+                            ro.myfinance.notifications.application.NotificationService notifications,
+                            ModuleSyncStatusService syncStatus) {
         this.connections = connections;
         this.ledger = ledger;
         this.companies = companies;
@@ -57,6 +59,7 @@ public class IngestionService {
         this.registry = registry;
         this.audit = audit;
         this.notifications = notifications;
+        this.syncStatus = syncStatus;
     }
 
     /** The previous calendar month (first of month) — the month reps are notified about. */
@@ -216,15 +219,45 @@ public class IngestionService {
         }
         log.info("syncModuleMonth module={} period={} connection={} startFolder={}",
                 module, targetPeriod, conn.getId(), startFolder);
-        if (startFolder == null) {
-            log.warn("syncModuleMonth: no {} folder found under root for {} — nothing to sync", module, targetPeriod);
-            return new SyncResult(0, 0, 0, 0, List.of());
+        // Record "running" in its own committed transaction so every user sees the in-progress sync, and
+        // stamp the result/last-synced time when it ends (even on failure or an empty folder).
+        UUID startedBy = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        syncStatus.markStart(module.name(), targetPeriod, startedBy);
+        SyncResult r = new SyncResult(0, 0, 0, 0, List.of());
+        try {
+            if (startFolder == null) {
+                log.warn("syncModuleMonth: no {} folder found under root for {} — nothing to sync", module, targetPeriod);
+                return r;
+            }
+            r = doSync(conn, null, java.util.Set.of(targetPeriod), module, previousMonth(),
+                    false, startFolder, false, module, targetPeriod);
+            log.info("syncModuleMonth done module={} period={} → imported={} review={} skipped={} failed={}",
+                    module, targetPeriod, r.imported(), r.needsReview(), r.skipped(), r.failed());
+            return r;
+        } finally {
+            syncStatus.markFinish(module.name(), targetPeriod, r.summary());
         }
-        SyncResult r = doSync(conn, null, java.util.Set.of(targetPeriod), module, previousMonth(),
-                false, startFolder, false, module, targetPeriod);
-        log.info("syncModuleMonth done module={} period={} → imported={} review={} skipped={} failed={}",
-                module, targetPeriod, r.imported(), r.needsReview(), r.skipped(), r.failed());
-        return r;
+    }
+
+    /** The status key period for a module + requested month: interim balances are keyed to the quarter-end
+     *  month (T2 → June), everything else to the month itself — matching {@link #syncModuleMonth}. */
+    public static LocalDate statusPeriod(DocumentType module, LocalDate period) {
+        LocalDate month = period.withDayOfMonth(1);
+        if (module == DocumentType.TRIAL_BALANCE) {
+            int quarter = (month.getMonthValue() - 1) / 3 + 1;
+            return LocalDate.of(month.getYear(), quarter * 3, 1);
+        }
+        return month;
+    }
+
+    /** The shared sync state for a module + month (last synced, and whether a sync is running now). */
+    @Transactional(readOnly = true)
+    public ModuleSyncStatusService.View syncStatusFor(String type, LocalDate period) {
+        DocumentType module = parseForcedType(type);
+        if (module == null) {
+            return new ModuleSyncStatusService.View(false, null, null, null, null);
+        }
+        return syncStatus.get(module.name(), statusPeriod(module, period));
     }
 
     /** The root subfolder that is the month folder for {@code month} (e.g. "7. Iulie 2026"), or null. */

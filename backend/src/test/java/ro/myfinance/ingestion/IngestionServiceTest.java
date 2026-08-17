@@ -49,8 +49,10 @@ class IngestionServiceTest {
 
     private final ro.myfinance.notifications.application.NotificationService notifications =
             mock(ro.myfinance.notifications.application.NotificationService.class);
+    private final ro.myfinance.ingestion.application.ModuleSyncStatusService syncStatus =
+            mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications);
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications, syncStatus);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
