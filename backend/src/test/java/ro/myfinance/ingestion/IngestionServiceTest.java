@@ -467,6 +467,66 @@ class IngestionServiceTest {
         verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void reImportOfAnUpdatedFileReplacesThePreviousDocument() {
+        SourceConnection c = conn();
+        bind();
+        fake.files = List.of(new CloudFolderConnector.RemoteFile("f1", "stat_salarii.pdf",
+                "INNOVATECODE IT SRL/2026-05", "application/pdf", 200, "NEW-etag", Instant.now()));
+        UUID oldDoc = UUID.randomUUID();
+        ImportFile prior = new ImportFile(TENANT, c.getId(), "f1", "OLD-etag", "oldsha", "stat_salarii.pdf",
+                "INNOVATECODE IT SRL/2026-05", COMPANY, LocalDate.of(2026, 5, 1), oldDoc, ImportFile.Status.IMPORTED, null);
+        when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.of(prior));
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document newDoc = mock(Document.class);
+        when(newDoc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("stat_salarii.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(newDoc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents).delete(oldDoc); // the superseded old version is removed on re-import
+    }
+
+    @Test
+    void syncModuleMonthPrefersTheFinalPayrollOverTheInitial() {
+        UUID evtimia = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(evtimia);
+        lenient().when(a.getCui()).thenReturn("12345678");
+        lenient().when(a.getLegalName()).thenReturn("EVTIMIA SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.folders = List.of(new CloudFolderConnector.Folder("month4", "4. Aprilie 2026"));
+        fake.filesByFolder.put("month4", List.of(
+                new CloudFolderConnector.RemoteFile("i", "Fluturasi_EVTIMIA SRL_2026_04_Initial.pdf",
+                        "State de plata", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("f", "Fluturasi_EVTIMIA SRL_2026_04_final.pdf",
+                        "State de plata", "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
+                any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 4, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the final, the Initial is dropped
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
+                any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), eq("Fluturasi_EVTIMIA SRL_2026_04_Initial.pdf"),
+                any(), any(), any(), any());
+    }
+
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
         List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)

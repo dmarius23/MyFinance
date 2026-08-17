@@ -372,6 +372,10 @@ public class IngestionService {
         // dropped below and only one document per declaration is created.
         java.util.Set<String> anafNamedDeclKeys = monthFirst
                 ? anafDeclarationKeys(listing.files(), tenantCompanies) : java.util.Set.of();
+        // Payroll kept as draft + final ("…_Initial.pdf" and "…_final.pdf"): when a final version exists for
+        // the same company + folder + payroll doc-kind, drop the non-final one so only the final imports.
+        java.util.Set<String> finalPayrollKeys = monthFirst
+                ? finalPayrollKeys(listing.files(), tenantCompanies) : java.util.Set.of();
 
         for (RemoteFile f : listing.files()) {
             try {
@@ -418,6 +422,15 @@ public class IngestionService {
                         && !isAnafNamedDeclaration(f.name())) {
                     String form = declarationFormCode(f.name());
                     if (form != null && anafNamedDeclKeys.contains(declarationKey(companyId.get(), f, form))) {
+                        if (onlyCompany == null) skipped++;
+                        continue;
+                    }
+                }
+                // Payroll dedup: drop a non-final copy ("…_Initial") when a "…_final" of the same company +
+                // folder + payroll doc-kind (fluturaș / stat / pontaj) is present in this crawl.
+                if (monthFirst && fileType == DocumentType.PAYROLL && companyId.isPresent() && !isFinalVariant(f.name())) {
+                    String kind = payrollDocKind(f.name());
+                    if (kind != null && finalPayrollKeys.contains(payrollKey(companyId.get(), f, kind))) {
                         if (onlyCompany == null) skipped++;
                         continue;
                     }
@@ -491,6 +504,16 @@ public class IngestionService {
 
                 var doc = documents.upload(companyId.get(), period, f.name(),
                         mime(f), bytes, fileType, DocumentSource.DRIVE);
+                // Re-import of a file whose Drive content changed (etag differs, bytes differ): the file was
+                // updated in place, so replace the previously imported version rather than leaving a duplicate.
+                if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
+                        && prior.getDocumentId() != null && !prior.getDocumentId().equals(doc.getId())) {
+                    try {
+                        documents.delete(prior.getDocumentId());
+                    } catch (RuntimeException e) {
+                        log.warn("Could not remove superseded document {} on re-import of {}", prior.getDocumentId(), f.name(), e);
+                    }
+                }
                 writeLedger(prior, tenantId, conn, f, sha, companyId.get(), period, doc.getId(), ImportFile.Status.IMPORTED, null);
                 imported++;
                 if (fileType == DocumentType.PAYROLL && period.equals(notifyMonth)) {
@@ -665,6 +688,53 @@ public class IngestionService {
                 continue;
             }
             FolderMapper.resolveCompany(f, companies).ifPresent(co -> keys.add(declarationKey(co, f, form)));
+        }
+        return keys;
+    }
+
+    /** Whether a filename marks a "final" version ("…final" / "…finala"). */
+    private static boolean isFinalVariant(String name) {
+        return name != null && normalizeSeg(name).contains("final");
+    }
+
+    /** The payroll doc-kind in a filename (fluturas / stat / pontaj / tichete), else null. */
+    private static String payrollDocKind(String name) {
+        if (name == null) {
+            return null;
+        }
+        String n = normalizeSeg(name);
+        if (n.contains("pontaj")) {
+            return "pontaj";
+        }
+        if (n.contains("fluturas")) {
+            return "fluturas";
+        }
+        if (n.contains("stat") && (n.contains("salar") || n.contains("plata"))) {
+            return "stat";
+        }
+        if (n.contains("tichet")) {
+            return "tichete";
+        }
+        return null;
+    }
+
+    /** Identity of a payroll document for prefer-final dedup: company + its folder + doc-kind. */
+    private static String payrollKey(UUID companyId, RemoteFile f, String kind) {
+        return companyId + "|" + (f.path() == null ? "" : f.path().toLowerCase()) + "|" + kind;
+    }
+
+    /** (company + folder + payroll doc-kind) identities that have a "…final" version in this crawl. */
+    private static java.util.Set<String> finalPayrollKeys(List<RemoteFile> files, List<Company> companies) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (RemoteFile f : files) {
+            if (!isFinalVariant(f.name())) {
+                continue;
+            }
+            String kind = payrollDocKind(f.name());
+            if (kind == null) {
+                continue;
+            }
+            FolderMapper.resolveCompany(f, companies).ifPresent(co -> keys.add(payrollKey(co, f, kind)));
         }
         return keys;
     }
