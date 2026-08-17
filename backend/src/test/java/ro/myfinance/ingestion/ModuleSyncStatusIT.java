@@ -60,4 +60,23 @@ class ModuleSyncStatusIT extends AbstractPostgresIT {
         assertThat(other.lastSyncedAt()).isNull();
         assertThat(other.lastResult()).isNull();
     }
+
+    @Test
+    void rejectsASecondConcurrentSyncThenAllowsAfterFinish() {
+        asTenant(TENANT_A);
+        assertThat(status.tryStart("DECLARATION", PERIOD, null)).isTrue();  // first claims the slot
+        assertThat(status.tryStart("DECLARATION", PERIOD, null)).isFalse(); // second rejected while running
+        status.markFinish("DECLARATION", PERIOD, "done");
+        assertThat(status.tryStart("DECLARATION", PERIOD, null)).isTrue();  // released → can run again
+    }
+
+    @Test
+    void aStaleRunningFlagFromACrashedSyncIsReclaimed() {
+        asTenant(TENANT_A);
+        assertThat(status.tryStart("TRIAL_BALANCE", PERIOD, null)).isTrue();
+        assertThat(status.tryStart("TRIAL_BALANCE", PERIOD, null)).isFalse(); // fresh → rejected
+        // Simulate a crashed sync that never released the flag (started well beyond the stale window).
+        jdbc.update("update module_sync_status set started_at = now() - interval '30 minutes' where module = 'TRIAL_BALANCE'");
+        assertThat(status.tryStart("TRIAL_BALANCE", PERIOD, null)).isTrue(); // stale → reclaimed
+    }
 }

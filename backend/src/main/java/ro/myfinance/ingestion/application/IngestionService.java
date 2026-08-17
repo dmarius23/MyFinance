@@ -219,10 +219,14 @@ public class IngestionService {
         }
         log.info("syncModuleMonth module={} period={} connection={} startFolder={}",
                 module, targetPeriod, conn.getId(), startFolder);
-        // Record "running" in its own committed transaction so every user sees the in-progress sync, and
-        // stamp the result/last-synced time when it ends (even on failure or an empty folder).
+        // Atomically claim the slot: reject a second concurrent sync of the same module/month. The claim
+        // commits immediately so every user sees the in-progress sync; it is released (with the result and
+        // last-synced time) when this run ends, even on failure or an empty folder.
         UUID startedBy = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
-        syncStatus.markStart(module.name(), targetPeriod, startedBy);
+        if (!syncStatus.tryStart(module.name(), targetPeriod, startedBy)) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "A sync for " + module + " / " + targetPeriod + " is already running.");
+        }
         SyncResult r = new SyncResult(0, 0, 0, 0, List.of());
         try {
             if (startFolder == null) {

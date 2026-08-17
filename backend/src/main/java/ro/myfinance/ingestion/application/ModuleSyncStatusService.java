@@ -39,6 +39,20 @@ public class ModuleSyncStatusService {
         repo.save(s);
     }
 
+    /** A month sync never runs this long — beyond it a still-"running" row is treated as a crashed sync. */
+    private static final int STALE_AFTER_MINUTES = 20;
+
+    /**
+     * Atomically claim the sync slot for a (module, month). Returns {@code true} if this call may run the
+     * sync, {@code false} if a fresh sync is already running (reject the concurrent request). Its own
+     * committed transaction so the claim is visible to the next caller immediately.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean tryStart(String module, LocalDate period, UUID startedBy) {
+        UUID tenantId = TenantContext.tenantId().orElseThrow();
+        return repo.tryAcquire(tenantId, module, period, startedBy, STALE_AFTER_MINUTES) > 0;
+    }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFinish(String module, LocalDate period, String result) {
         repo.findByModuleAndPeriodMonth(module, period).ifPresent(s -> {

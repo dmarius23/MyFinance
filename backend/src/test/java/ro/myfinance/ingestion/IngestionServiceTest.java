@@ -70,6 +70,11 @@ class IngestionServiceTest {
         when(companies.findAll()).thenReturn(List.of(co));
     }
 
+    @org.junit.jupiter.api.BeforeEach
+    void allowSyncStart() {
+        lenient().when(syncStatus.tryStart(any(), any(), any())).thenReturn(true);
+    }
+
     @AfterEach
     void clear() { TenantContext.clear(); }
 

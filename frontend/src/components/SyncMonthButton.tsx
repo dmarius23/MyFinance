@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type SyncResult, type SyncStatus } from "../api/ingestion";
+import { ApiError } from "../lib/apiClient";
 
 /**
  * Bulk "sync the whole month from Drive" for one module (PAYROLL / DECLARATION / TRIAL_BALANCE) across ALL
@@ -24,7 +25,8 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
       onDone?.();
       window.alert(t("ingest.syncDone", r as unknown as Record<string, number>));
     },
-    onError: () => window.alert(t("ingest.syncFailed")),
+    onError: (err: unknown) =>
+      window.alert(err instanceof ApiError && err.status === 409 ? t("ingest.syncBusy") : t("ingest.syncFailed")),
     onSettled: () => qc.invalidateQueries({ queryKey: ["ingestion-sync-status", type, period] }),
   });
 
