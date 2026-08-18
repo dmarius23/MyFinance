@@ -209,6 +209,26 @@ public class DocumentService {
     }
 
     /**
+     * Re-fire the document pipeline for the stored documents of a type in a month — a backfill that
+     * (re)builds reports/extractions from documents that are already imported (e.g. after ingest logic
+     * changed), without re-importing. Publishes the same DocumentUploadedEvent a fresh upload would, so the
+     * downstream listeners re-run in their own isolated transactions. Returns how many documents were fired.
+     */
+    public int reprocess(LocalDate periodMonth, DocumentType type) {
+        LocalDate month = periodMonth.withDayOfMonth(1);
+        int n = 0;
+        for (Document d : documents.findByPeriodMonth(month)) {
+            if (type != null && d.getType() != type) {
+                continue;
+            }
+            events.publishEvent(new DocumentUploadedEvent(d.getId(), d.getCompanyId(), d.getPeriodMonth(),
+                    d.getType(), d.getOriginalFilename(), storage.retrieve(d.getStorageKey())));
+            n++;
+        }
+        return n;
+    }
+
+    /**
      * Move a document to a different period slot (e.g. a trial balance uploaded to the wrong month).
      * Updates {@code periodMonth} in the database and re-publishes the event so the report /
      * declaration index is rebuilt for the correct period. The old period's snapshot/declaration is

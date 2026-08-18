@@ -98,6 +98,12 @@ export interface ReportWithCoverage {
 
 export const reportsApi = {
   list: (period: string) => api<ReportRow[]>(`/api/v1/reports?period=${period}`),
+  // Rebuild reports for the month from already-imported trial balances (re-runs extraction, no re-import).
+  rebuild: (period: string) =>
+    api<{ reprocessed: number }>(`/api/v1/documents/reprocess`, {
+      method: "POST",
+      body: JSON.stringify({ period, type: "TRIAL_BALANCE" }),
+    }),
   report: (companyId: string, period: string, granularity: Granularity = "MONTH") =>
     api<ReportWithCoverage>(`/api/v1/companies/${companyId}/report?period=${period}&granularity=${granularity}`),
   trend: (companyId: string, period: string, months = 12, forecast = 0) =>

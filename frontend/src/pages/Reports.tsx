@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { reportsApi, type ReportRow } from "../api/reports";
 import { usePeriod } from "../lib/period";
@@ -54,6 +54,16 @@ export function Reports() {
   const target = (id: string): ReportTarget => ({ companyId: id, companyName: nameOf(id) });
   const dot = (r?: ReportRow) => !r?.uploadedAt ? "var(--dot-red)" : r.balanced ? "var(--dot-green)" : "var(--dot-orange)";
 
+  const rebuild = useMutation({
+    mutationFn: () => reportsApi.rebuild(period),
+    onSuccess: (r) => {
+      // Reports regenerate asynchronously after the pipeline re-fires — refresh a few times.
+      [800, 3000, 6000].forEach((ms) => window.setTimeout(() => qc.invalidateQueries({ queryKey: ["reports", period] }), ms));
+      window.alert(t("reports.rebuildDone", { n: r.reprocessed }));
+    },
+    onError: () => window.alert(t("reports.rebuildFailed")),
+  });
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
@@ -61,7 +71,13 @@ export function Reports() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
         </div>
-        <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => rebuild.mutate()} disabled={rebuild.isPending} title={t("reports.rebuildHint")}
+            style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>
+            {rebuild.isPending ? t("ingest.syncing") : t("reports.rebuild")}
+          </button>
+          <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
+        </div>
       </div>
 
       {selected.size > 0 && (
