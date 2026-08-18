@@ -43,6 +43,9 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/dmarius23/myfinance-backend:latest}
     restart: unless-stopped
     env_file: ./.env      # DB, Supabase, CORS, storage, email, redis, etc. (prod = default profile)
+    environment:
+      JAVA_OPTS: "-Xmx512m"   # bound the heap so two JVMs fit comfortably on a 4 GB VM
+    mem_limit: 1300m
     expose:
       - "8080"
     depends_on:
@@ -56,7 +59,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: worker    # overrides env_file; NEVER set this to "local" in .env
       SPRING_FLYWAY_ENABLED: "false"    # the backend (web) container owns migrations
-    command: ["sh", "-c", "java -Dspring.main.web-application-type=none -jar app.jar"]
+    mem_limit: 1000m
+    command: ["sh", "-c", "java -Xmx384m -Dspring.main.web-application-type=none -jar app.jar"]
     depends_on:
       redis:
         condition: service_healthy
