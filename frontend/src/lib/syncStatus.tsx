@@ -52,5 +52,5 @@ export function SyncStatusLine({ status, scope, style }: { status?: SyncStatus; 
     ? new Date(status.lastSyncedAt).toLocaleString(i18n.language === "ro" ? "ro-RO" : "en-US",
         { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
     : t("ingest.never");
-  return <div style={base}>{prefix}{t("ingest.lastSynced")}: {when}</div>;
+  return <div style={base} title={status.lastResult ?? undefined}>{prefix}{t("ingest.lastSynced")}: {when}</div>;
 }

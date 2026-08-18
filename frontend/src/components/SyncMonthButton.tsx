@@ -49,7 +49,7 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
             {prefix}{st?.startedBy ? t("ingest.syncingBy", { name: st.startedBy }) : t("ingest.syncing")}
           </span>
         ) : st?.lastSyncedAt ? (
-          <>{prefix}{t("ingest.lastSynced")}: {fmt(st.lastSyncedAt)}{st.lastResult ? ` · ${st.lastResult}` : ""}</>
+          <span title={st.lastResult ?? undefined}>{prefix}{t("ingest.lastSynced")}: {fmt(st.lastSyncedAt)}</span>
         ) : (
           <>{prefix}{t("ingest.lastSynced")}: {t("ingest.never")}</>
         )}
