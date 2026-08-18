@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document as Doc } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
-import { useSyncStatus, SyncStatusLine } from "../lib/syncStatus";
+import { useSyncStatus, SyncStatusLine, syncScopeLabel } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
 import { Icon } from "./Icon";
@@ -151,7 +151,7 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
                     <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
                     {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
                   </button>
-                  <SyncStatusLine status={syncStatus} style={{ color: "var(--chrome-muted)" }} />
+                  <SyncStatusLine status={syncStatus} scope={syncScopeLabel(type, period, i18n.language)} style={{ color: "var(--chrome-muted)" }} />
                 </div>
               )}
               <input ref={fileRef} type="file" accept={accept ?? "application/pdf"} multiple={multiple} onChange={onFile} style={{ display: "none" }} />

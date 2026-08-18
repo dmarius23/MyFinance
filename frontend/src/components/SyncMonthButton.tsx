@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type SyncResult, type SyncStatus } from "../api/ingestion";
+import { syncScopeLabel } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 
 /**
@@ -34,6 +35,8 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
 
   const st: SyncStatus | undefined = status.data;
   const running = !!st?.running || sync.isPending;
+  const scope = syncScopeLabel(type, period, i18n.language); // "T2 2026" for balances, else null
+  const prefix = scope ? `${scope} · ` : "";
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(i18n.language === "ro" ? "ro-RO" : "en-US",
       { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -43,12 +46,12 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
       <div style={{ fontSize: 11.5, color: "var(--text-secondary)", textAlign: "right", lineHeight: 1.3, maxWidth: 260 }}>
         {running ? (
           <span style={{ color: "var(--primary)" }}>
-            {st?.startedBy ? t("ingest.syncingBy", { name: st.startedBy }) : t("ingest.syncing")}
+            {prefix}{st?.startedBy ? t("ingest.syncingBy", { name: st.startedBy }) : t("ingest.syncing")}
           </span>
         ) : st?.lastSyncedAt ? (
-          <>{t("ingest.lastSynced")}: {fmt(st.lastSyncedAt)}{st.lastResult ? ` · ${st.lastResult}` : ""}</>
+          <>{prefix}{t("ingest.lastSynced")}: {fmt(st.lastSyncedAt)}{st.lastResult ? ` · ${st.lastResult}` : ""}</>
         ) : (
-          <>{t("ingest.lastSynced")}: {t("ingest.never")}</>
+          <>{prefix}{t("ingest.lastSynced")}: {t("ingest.never")}</>
         )}
       </div>
       <button
