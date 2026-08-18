@@ -14,7 +14,7 @@ import { NotificationLogModal } from "../components/NotificationLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
+import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
@@ -99,8 +99,6 @@ export function TaxPayments() {
     DECLARATION_TYPES.map((ty) => [ty, rows.filter((r) => cellsFor(r, ty).length === 0).length]));
   const toEmail = rows.filter((r) => r.declarations.length > 0 && !r.lastEmailAt).length;
   const toWa = rows.filter((r) => r.declarations.length > 0 && !r.lastWhatsappAt).length;
-  const missingDeclTotal = DECLARATION_TYPES.reduce((s, ty) => s + missingByType[ty], 0);
-  const anySummary = mismatchCount + toEmail + toWa + missingDeclTotal > 0;
 
   const selectable = rows.filter((r) => r.declarations.length > 0).map((r) => r.companyId);
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
@@ -129,7 +127,15 @@ export function TaxPayments() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("taxes.subtitle")} · {monthLabel}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("taxes.title")}</h2>
         </div>
-        <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <HeaderSummary items={[
+            ...DECLARATION_TYPES.map((ty) => ({ n: missingByType[ty], label: `${ty} ${t("summary.missing")}` })),
+            { n: mismatchCount, label: t("summary.mismatch") },
+            { n: toEmail, label: t("summary.toSendEmail") },
+            { n: toWa, label: t("summary.toSendWhatsapp") },
+          ]} />
+          <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
+        </div>
       </div>
 
       {/* Floating bulk bar */}
@@ -142,22 +148,6 @@ export function TaxPayments() {
         {error && <p style={{ padding: 14, color: "var(--danger-fg)" }}>{error instanceof ApiError ? error.message : "Failed to load"}</p>}
 
         <div style={{ minWidth: 1120 }}>
-          {anySummary && (
-            <div style={{ ...gridRow, ...summaryStrip }}>
-              <div />
-              <div style={summaryLabel}>{t("summary.toResolve")}</div>
-              {DECLARATION_TYPES.map((ty) => (
-                <div key={ty} style={{ textAlign: "right" }}>
-                  <MissingCount n={missingByType[ty]} label={`${ty} ${t("summary.missing")}`} />
-                </div>
-              ))}
-              <div />
-              <div style={{ textAlign: "right" }}><MissingCount n={mismatchCount} label={t("summary.mismatch")} /></div>
-              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
-              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
-              <div />
-            </div>
-          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectable.length === 0} onChange={toggleAll} /></div>
             <div>{t("documents.company")}</div>

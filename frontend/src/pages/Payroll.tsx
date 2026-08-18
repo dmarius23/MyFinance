@@ -14,7 +14,7 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
+import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -45,7 +45,6 @@ export function Payroll() {
   const missingDocs = rows.filter((c) => docsN(c.id) === 0).length;
   const toEmail = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastSentAt).length;
   const toWa = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastWhatsappAt).length;
-  const anySummary = missingDocs + toEmail + toWa > 0;
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
@@ -72,7 +71,14 @@ export function Payroll() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
         </div>
-        <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <HeaderSummary items={[
+            { n: missingDocs, label: t("summary.missingDocs") },
+            { n: toEmail, label: t("summary.toSendEmail") },
+            { n: toWa, label: t("summary.toSendWhatsapp") },
+          ]} />
+          <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
+        </div>
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -82,16 +88,6 @@ export function Payroll() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 880 }}>
-          {anySummary && (
-            <div style={{ ...gridRow, ...summaryStrip }}>
-              <div />
-              <div style={summaryLabel}>{t("summary.toResolve")}</div>
-              <div><MissingCount n={missingDocs} label={t("summary.missing")} /></div>
-              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
-              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
-              <div />
-            </div>
-          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div>{t("documents.company")}</div>

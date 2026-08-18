@@ -15,7 +15,7 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
+import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -65,7 +65,6 @@ export function Reports() {
   const missingReport = rows.filter((c) => !rowBy.get(c.id)?.uploadedAt).length;
   const toEmail = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastSentAt).length;
   const toWa = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastWhatsappAt).length;
-  const anySummary = missingBalance + missingReport + toEmail + toWa > 0;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -74,7 +73,15 @@ export function Reports() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
         </div>
-        <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <HeaderSummary items={[
+            { n: missingBalance, label: t("summary.missingBalance") },
+            { n: missingReport, label: t("summary.missingReport") },
+            { n: toEmail, label: t("summary.toSendEmail") },
+            { n: toWa, label: t("summary.toSendWhatsapp") },
+          ]} />
+          <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
+        </div>
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -84,18 +91,6 @@ export function Reports() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 900 }}>
-          {anySummary && (
-            <div style={{ ...gridRow, ...summaryStrip }}>
-              <div />
-              <div />
-              <div style={summaryLabel}>{t("summary.toResolve")}</div>
-              <div><MissingCount n={missingBalance} label={t("summary.missing")} /></div>
-              <div><MissingCount n={missingReport} label={t("summary.missing")} /></div>
-              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
-              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
-              <div />
-            </div>
-          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
