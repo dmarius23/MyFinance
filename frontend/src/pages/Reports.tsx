@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { reportsApi, type ReportRow } from "../api/reports";
 import { usePeriod } from "../lib/period";
@@ -15,6 +15,7 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
+import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -59,15 +60,12 @@ export function Reports() {
     r.body + attachmentsNote(t("channel.attachments"), rowBy.get(id)?.uploadedAt ? [t("channel.reportAttachment")] : []));
   const dot = (r?: ReportRow) => !r?.uploadedAt ? "var(--dot-red)" : r.balanced ? "var(--dot-green)" : "var(--dot-orange)";
 
-  const rebuild = useMutation({
-    mutationFn: () => reportsApi.rebuild(period),
-    onSuccess: (r) => {
-      // Reports regenerate asynchronously after the pipeline re-fires — refresh a few times.
-      [800, 3000, 6000].forEach((ms) => window.setTimeout(() => qc.invalidateQueries({ queryKey: ["reports", period] }), ms));
-      window.alert(t("reports.rebuildDone", { n: r.reprocessed }));
-    },
-    onError: () => window.alert(t("reports.rebuildFailed")),
-  });
+  // Column-aligned "to resolve this month" counts for the strip on top of the table.
+  const missingBalance = rows.filter((c) => (rowBy.get(c.id)?.balanceCount ?? 0) === 0).length;
+  const missingReport = rows.filter((c) => !rowBy.get(c.id)?.uploadedAt).length;
+  const toEmail = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastSentAt).length;
+  const toWa = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastWhatsappAt).length;
+  const anySummary = missingBalance + missingReport + toEmail + toWa > 0;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -76,13 +74,7 @@ export function Reports() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={() => rebuild.mutate()} disabled={rebuild.isPending} title={t("reports.rebuildHint")}
-            style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>
-            {rebuild.isPending ? t("ingest.syncing") : t("reports.rebuild")}
-          </button>
-          <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
-        </div>
+        <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -92,6 +84,18 @@ export function Reports() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 900 }}>
+          {anySummary && (
+            <div style={{ ...gridRow, ...summaryStrip }}>
+              <div />
+              <div />
+              <div style={summaryLabel}>{t("summary.toResolve")}</div>
+              <div><MissingCount n={missingBalance} label={t("summary.missing")} /></div>
+              <div><MissingCount n={missingReport} label={t("summary.missing")} /></div>
+              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
+              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
+              <div />
+            </div>
+          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />

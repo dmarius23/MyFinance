@@ -14,6 +14,7 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
+import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -38,6 +39,13 @@ export function Payroll() {
   const rows = companies.data ?? [];
   const selectableIds = rows.filter((c) => (rowBy.get(c.id)?.documents.length ?? 0) > 0).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+
+  // Column-aligned "to resolve this month" counts, shown in a strip on top of the table.
+  const docsN = (id: string) => rowBy.get(id)?.documents.length ?? 0;
+  const missingDocs = rows.filter((c) => docsN(c.id) === 0).length;
+  const toEmail = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastSentAt).length;
+  const toWa = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastWhatsappAt).length;
+  const anySummary = missingDocs + toEmail + toWa > 0;
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
@@ -74,6 +82,16 @@ export function Payroll() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 880 }}>
+          {anySummary && (
+            <div style={{ ...gridRow, ...summaryStrip }}>
+              <div />
+              <div style={summaryLabel}>{t("summary.toResolve")}</div>
+              <div><MissingCount n={missingDocs} label={t("summary.missing")} /></div>
+              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
+              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
+              <div />
+            </div>
+          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div>{t("documents.company")}</div>

@@ -15,6 +15,7 @@ import { ReminderLogModal } from "../components/ReminderLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
+import { MissingCount, summaryStrip, summaryLabel } from "../components/MissingCount";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -77,7 +78,13 @@ export function Statements() {
   const rows = companies.data ?? [];
   const selectableIds = rows.filter((c) => needsReminder(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
-  const incomplete = selectableIds.length;
+
+  // Column-aligned "to resolve this month" counts for the strip on top of the table.
+  const missingBank = rows.filter((c) => !(byCompany.get(c.id)?.hasBankStatement ?? false)).length;
+  const incompleteRecon = rows.filter((c) => (completenessBy.get(c.id) ?? "NOT_STARTED") !== "COMPLETE").length;
+  const toEmail = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastSentAt).length;
+  const toWa = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastWhatsappAt).length;
+  const anySummary = missingBank + incompleteRecon + toEmail + toWa > 0;
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
@@ -103,12 +110,6 @@ export function Statements() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("documents.title")}</h2>
         </div>
-        {incomplete > 0 && (
-          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--dot-orange)", marginRight: 5 }} />
-            {incomplete} {t("statements.legendIncomplete")}
-          </div>
-        )}
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -118,6 +119,19 @@ export function Statements() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1040 }}>
+          {anySummary && (
+            <div style={{ ...gridRow, ...summaryStrip }}>
+              <div />
+              <div />
+              <div style={summaryLabel}>{t("summary.toResolve")}</div>
+              <div><MissingCount n={missingBank} label={t("summary.missingBank")} /></div>
+              <div />
+              <div><MissingCount n={incompleteRecon} label={t("summary.incomplete")} /></div>
+              <div><MissingCount n={toEmail} label={t("summary.toSendEmail")} /></div>
+              <div><MissingCount n={toWa} label={t("summary.toSendWhatsapp")} /></div>
+              <div />
+            </div>
+          )}
           <div style={{ ...gridRow, background: "var(--th-bg)", ...thText }}>
             <div><input type="checkbox" checked={allSelected} disabled={selectableIds.length === 0} onChange={toggleAll} title={t("email.selectAll")} /></div>
             <div />
