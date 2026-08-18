@@ -81,7 +81,9 @@ export function Statements() {
 
   // Column-aligned "to resolve this month" counts for the strip on top of the table.
   const missingBank = rows.filter((c) => !(byCompany.get(c.id)?.hasBankStatement ?? false)).length;
-  const incompleteRecon = rows.filter((c) => (completenessBy.get(c.id) ?? "NOT_STARTED") !== "COMPLETE").length;
+  // Companies that have a bank statement for the month but whose reconciliation isn't COMPLETE.
+  const notReconciled = rows.filter((c) =>
+    (byCompany.get(c.id)?.hasBankStatement ?? false) && (completenessBy.get(c.id) ?? "NOT_STARTED") !== "COMPLETE").length;
   const toEmail = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastSentAt).length;
   const toWa = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastWhatsappAt).length;
 
@@ -111,7 +113,7 @@ export function Statements() {
         </div>
         <HeaderSummary items={[
           { n: missingBank, label: t("summary.missingBank") },
-          { n: incompleteRecon, label: t("summary.incomplete") },
+          { n: notReconciled, label: t("summary.notReconciled") },
           { n: toEmail, label: t("summary.toSendEmail") },
           { n: toWa, label: t("summary.toSendWhatsapp") },
         ]} />
