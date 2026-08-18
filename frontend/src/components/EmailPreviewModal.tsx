@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
-import { taxPaymentsApi } from "../api/taxes";
+import { taxPaymentsApi, type Unconfigured } from "../api/taxes";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
+import { MissingInfoWarning } from "./MissingInfoWarning";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
@@ -14,7 +15,7 @@ export interface PreviewTarget {
   declarationIds: string[];
 }
 
-interface Draft { recipient: string; body: string; total: number; loading: boolean; sent: boolean; error?: string }
+interface Draft { recipient: string; body: string; total: number; loading: boolean; sent: boolean; error?: string; unconfigured: Unconfigured[] }
 
 /** Bulk email preview before sending — one card per company, generated from its declarations. */
 export function EmailPreviewModal({ targets, period, onClose, onSent }:
@@ -26,10 +27,10 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
   // Generate each company's body once on open.
   useEffect(() => {
     let cancelled = false;
-    setDrafts(Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", total: 0, loading: true, sent: false }])));
+    setDrafts(Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", total: 0, loading: true, sent: false, unconfigured: [] }])));
     targets.forEach((x) => {
       Promise.all([taxPaymentsApi.previewEmail(x.companyId, x.declarationIds), emailApi.envelope(x.companyId)])
-        .then(([p, env]) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body ?? "", total: p.total, recipient: env.recipient ?? "", loading: false } })); })
+        .then(([p, env]) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], body: p.body ?? "", total: p.total, recipient: env.recipient ?? "", unconfigured: p.unconfigured ?? [], loading: false } })); })
         .catch((e) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], loading: false, error: e instanceof ApiError ? e.message : "Failed" } })); });
     });
     return () => { cancelled = true; };
@@ -91,6 +92,10 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
                   {d?.error && <p style={{ color: "var(--danger-fg)" }}>{d.error}</p>}
                   {d && !d.loading && (
                     <>
+                      <MissingInfoWarning problems={[
+                        ...(d.recipient.trim() ? [] : [t("warn.noEmail")]),
+                        ...(d.unconfigured.length ? [t("warn.noIban", { cats: d.unconfigured.map((u) => u.category).join(", ") })] : []),
+                      ]} />
                       <input placeholder={t("taxes.recipient")} value={d.recipient}
                         onChange={(e) => setDrafts((p) => ({ ...p, [x.companyId]: { ...p[x.companyId], recipient: e.target.value } }))}
                         style={input} disabled={d.sent} />

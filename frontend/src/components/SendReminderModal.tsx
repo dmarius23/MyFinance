@@ -6,6 +6,7 @@ import { remindersApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { reminderBody } from "../lib/reminderBody";
+import { MissingInfoWarning } from "./MissingInfoWarning";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
@@ -144,6 +145,7 @@ export function SendReminderModal({ companies, period, onClose }:
                         ? <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{t("common.loading")}</div>
                         : (
                           <>
+                            <MissingInfoWarning problems={(d?.recipient ?? "").trim() ? [] : [t("warn.noEmail")]} />
                             <input
                               placeholder={t("taxes.recipient")} value={d?.recipient ?? ""} disabled={d?.sent}
                               onChange={(e) => patch(c.id, { recipient: e.target.value })}

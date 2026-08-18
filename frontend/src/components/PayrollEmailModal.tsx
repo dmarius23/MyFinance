@@ -5,6 +5,7 @@ import { payrollApi, type PayrollDoc } from "../api/payroll";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
+import { MissingInfoWarning } from "./MissingInfoWarning";
 
 export interface PayrollTarget {
   companyId: string;
@@ -102,6 +103,7 @@ export function PayrollEmailModal({ targets, period, onClose }:
                   {d?.loading && <p style={{ color: "var(--text-muted)" }}>{t("common.loading")}</p>}
                   {d && !d.loading && (
                     <>
+                      <MissingInfoWarning problems={d.recipient.trim() ? [] : [t("warn.noEmail")]} />
                       <input placeholder={t("taxes.recipient")} value={d.recipient}
                         onChange={(e) => patch(x.companyId, { recipient: e.target.value })}
                         style={input} disabled={d.sent} />

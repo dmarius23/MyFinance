@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
+import { MissingInfoWarning } from "./MissingInfoWarning";
 
 export interface WhatsAppTarget {
   companyId: string;
@@ -101,6 +102,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
                   {d?.loading && <p style={{ color: "var(--text-muted)" }}>{t("common.loading")}</p>}
                   {d && !d.loading && (
                     <>
+                      <MissingInfoWarning problems={d.phone.trim() ? [] : [t("warn.noPhone")]} />
                       <input type="tel" placeholder="+40…" value={d.phone}
                         onChange={(e) => patch(x.companyId, { phone: e.target.value })}
                         style={input} disabled={d.sent} />
