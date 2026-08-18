@@ -37,13 +37,18 @@ Create an account, verify a sender address/domain, and grab the SMTP host/port/u
 
 ### 3. Hetzner VM
 - Create a small EU VM (e.g. **CX22**, Ubuntu 24.04). Add your SSH key. Note its public IP.
-- Install Docker + the compose plugin, create the app dir, and a deploy user with SSH access:
+- Generate a dedicated **CD SSH keypair** (its private key becomes the `DEPLOY_SSH_KEY` GitHub secret):
   ```bash
-  curl -fsSL https://get.docker.com | sh
-  sudo mkdir -p /opt/myfinance
-  # put your CD SSH public key in the deploy user's ~/.ssh/authorized_keys
+  ssh-keygen -t ed25519 -f deploy_ci -C "cd@myfinance" -N ""
   ```
-- Open ports **80** and **443** (Hetzner firewall).
+- Copy `deploy/provision-vm.sh` to the VM and run it as root — it installs Docker + compose, creates the
+  `deploy` user (with the CD public key), sets up `/opt/myfinance`, a firewall (SSH/HTTP/HTTPS only),
+  fail2ban, unattended security upgrades, and a swapfile:
+  ```bash
+  scp deploy/provision-vm.sh deploy_ci.pub root@<IP>:/root/
+  ssh root@<IP> 'DEPLOY_PUBKEY="$(cat /root/deploy_ci.pub)" bash /root/provision-vm.sh'
+  ```
+  (Re-runnable/idempotent. Override `DEPLOY_USER`, `APP_DIR`, `SWAP_GB` via env if needed.)
 
 ### 4. DNS (no domain yet → sslip.io)
 Use the VM IP directly as a hostname:
