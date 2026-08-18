@@ -1,0 +1,22 @@
+# Caddy edge config for MyFinance. Hostnames + ACME email come from the environment (set in ./.env via
+# docker-compose.prod.yml). Caddy fetches and renews Let's Encrypt certs automatically for both hosts.
+#
+# To move to a real domain later: change APP_HOST / API_HOST in ./.env (e.g. app.myfinance.ro /
+# api.myfinance.ro), point their DNS A records at this VM, rebuild the frontend image with the new
+# VITE_API_BASE_URL, update CORS_ALLOWED_ORIGINS, then `docker compose up -d`.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Frontend SPA (served by the frontend container's nginx on :80)
+{$APP_HOST} {
+	encode zstd gzip
+	reverse_proxy frontend:80
+}
+
+# Backend REST API
+{$API_HOST} {
+	encode zstd gzip
+	reverse_proxy backend:8080
+}
