@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi, bankApi } from "../api/bank";
 import { emailApi } from "../api/email";
 import { usePeriod } from "../lib/period";
 import { reminderBody } from "../lib/reminderBody";
-import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
+import { BulkActionBar } from "../components/BulkActionBar";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -47,11 +48,13 @@ export function Statements() {
   const { t } = useTranslation();
   const { period } = usePeriod();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const goReconcile = (id: string) => navigate(`/statements/${id}/reconcile`);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
+  const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
@@ -85,6 +88,13 @@ export function Statements() {
     const s = byCompany.get(id);
     return { id, name: nameOf(id), hasBankStatement: s?.hasBankStatement ?? false, hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false };
   };
+  const waBody = async (id: string) => {
+    const env = await emailApi.envelope(id).catch(() => null);
+    const hasBank = byCompany.get(id)?.hasBankStatement ?? false;
+    const txns = hasBank ? await bankApi.transactions(id, period) : [];
+    const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
+    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
+  };
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -101,15 +111,10 @@ export function Statements() {
         )}
       </div>
 
-      {selected.size > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", borderRadius: 10, padding: "9px 14px" }}>
-          <span style={{ fontSize: 13.5, color: "var(--chrome-text)" }}><b style={{ color: "var(--primary)" }}>{selected.size}</b> {t("email.selected", { n: selected.size })}</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
-            <button className="primary" onClick={() => setSendList([...selected].map(target))}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
-          </div>
-        </div>
-      )}
+      <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
+        onClear={() => setSelected(new Set())}
+        onEmail={() => setSendList([...selected].map(target))}
+        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1040 }}>
@@ -188,14 +193,10 @@ export function Statements() {
 
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period}
-        loadBody={async () => {
-          const env = await emailApi.envelope(waFor.id).catch(() => null);
-          const hasBank = byCompany.get(waFor.id)?.hasBankStatement ?? false;
-          const txns = hasBank ? await bankApi.transactions(waFor.id, period) : [];
-          const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
-          return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
-        }}
+        loadBody={() => waBody(waFor.id)}
         onClose={() => setWaFor(null)} />}
+      {waBulk && <WhatsAppBulkModal targets={waBulk} kind="DOCUMENT_REMINDER" period={period} loadBody={waBody}
+        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); qc.invalidateQueries({ queryKey: ["doc-reminders", period] }); }} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}

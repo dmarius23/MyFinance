@@ -5,7 +5,6 @@ import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow, type Declaration
 import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
-import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
@@ -13,6 +12,8 @@ import { DeclarationsModal } from "../components/DeclarationsModal";
 import { EmailPreviewModal, type PreviewTarget } from "../components/EmailPreviewModal";
 import { NotificationLogModal } from "../components/NotificationLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
+import { BulkActionBar } from "../components/BulkActionBar";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
@@ -69,6 +70,7 @@ export function TaxPayments() {
   const [declFor, setDeclFor] = useState<{ id: string; name: string } | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
+  const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTargets, setBulkTargets] = useState<PreviewTarget[] | null>(null);
 
@@ -105,6 +107,11 @@ export function TaxPayments() {
     }));
     if (targets.length) setBulkTargets(targets);
   };
+  const waBody = (id: string) => taxPaymentsApi.previewEmail(id,
+    [...new Set((rows.find((r) => r.companyId === id)?.declarations ?? []).map((d) => d.declarationId))])
+    .then((r) => r.body ?? "");
+  const openWaBulk = () =>
+    setWaBulk(rows.filter((r) => selected.has(r.companyId)).map((r) => ({ companyId: r.companyId, companyName: r.companyName })));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -123,16 +130,9 @@ export function TaxPayments() {
         </div>
       </div>
 
-      {/* Bulk bar */}
-      {selected.size > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", borderRadius: 10, padding: "9px 14px" }}>
-          <span style={{ fontSize: 13.5, color: "var(--chrome-text)" }}><b style={{ color: "var(--primary)" }}>{selected.size}</b> {t("taxes.companiesSelected")}</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
-            <button className="primary" onClick={openBulk}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
-          </div>
-        </div>
-      )}
+      {/* Floating bulk bar */}
+      <BulkActionBar count={selected.size} label={t("taxes.companiesSelected")}
+        onClear={() => setSelected(new Set())} onEmail={openBulk} onWhatsapp={openWaBulk} />
 
       {/* List */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -196,10 +196,10 @@ export function TaxPayments() {
         onClose={() => { setLogFor(null); refreshList(); }}
         onCompose={() => setEmailFor({ id: logFor.id, name: logFor.name })} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="TAX" period={period}
-        loadBody={() => taxPaymentsApi.previewEmail(waFor.id,
-          [...new Set((rows.find((r) => r.companyId === waFor.id)?.declarations ?? []).map((d) => d.declarationId))])
-          .then((r) => r.body ?? "")}
+        loadBody={() => waBody(waFor.id)}
         onClose={() => setWaFor(null)} />}
+      {waBulk && <WhatsAppBulkModal targets={waBulk} kind="TAX" period={period} loadBody={waBody}
+        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); refreshList(); }} />}
       {bulkTargets && <EmailPreviewModal targets={bulkTargets} period={period}
         onClose={() => setBulkTargets(null)} onSent={() => { setSelected(new Set()); refreshList(); }} />}
     </div>

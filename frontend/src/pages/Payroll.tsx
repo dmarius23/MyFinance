@@ -12,6 +12,8 @@ import { PayrollEmailModal, type PayrollTarget } from "../components/PayrollEmai
 import { PayrollLogModal } from "../components/PayrollLogModal";
 import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
+import { BulkActionBar } from "../components/BulkActionBar";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -27,6 +29,7 @@ export function Payroll() {
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [manageFor, setManageFor] = useState<{ id: string; name: string } | null>(null);
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
+  const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
@@ -51,6 +54,8 @@ export function Payroll() {
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): PayrollTarget =>
     ({ companyId: id, companyName: nameOf(id), documents: rowBy.get(id)?.documents ?? [] });
+  const waBody = (id: string) => payrollApi.emailBody(id, period).then((r) =>
+    r.body + attachmentsNote(t("channel.attachments"), (rowBy.get(id)?.documents ?? []).map((d) => d.filename)));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -62,15 +67,10 @@ export function Payroll() {
         <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
       </div>
 
-      {selected.size > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", borderRadius: 10, padding: "9px 14px" }}>
-          <span style={{ fontSize: 13.5, color: "var(--chrome-text)" }}><b style={{ color: "var(--primary)" }}>{selected.size}</b> {t("email.selected", { n: selected.size })}</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
-            <button className="primary" onClick={() => setSendList([...selected].map(target))}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
-          </div>
-        </div>
-      )}
+      <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
+        onClear={() => setSelected(new Set())}
+        onEmail={() => setSendList([...selected].map(target))}
+        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 880 }}>
@@ -126,9 +126,10 @@ export function Payroll() {
         onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period}
-        loadBody={() => payrollApi.emailBody(waFor.id, period).then((r) =>
-          r.body + attachmentsNote(t("channel.attachments"), (rowBy.get(waFor.id)?.documents ?? []).map((d) => d.filename)))}
+        loadBody={() => waBody(waFor.id)}
         onClose={() => setWaFor(null)} />}
+      {waBulk && <WhatsAppBulkModal targets={waBulk} kind="PAYROLL" period={period} loadBody={waBody}
+        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); qc.invalidateQueries({ queryKey: ["payroll", period] }); }} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}
