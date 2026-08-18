@@ -97,8 +97,9 @@ export function TaxPayments() {
   // Column-aligned "to resolve this month" counts for the strip on top of the table.
   const missingByType: Record<string, number> = Object.fromEntries(
     DECLARATION_TYPES.map((ty) => [ty, rows.filter((r) => cellsFor(r, ty).length === 0).length]));
-  const toEmail = rows.filter((r) => r.declarations.length > 0 && !r.lastEmailAt).length;
-  const toWa = rows.filter((r) => r.declarations.length > 0 && !r.lastWhatsappAt).length;
+  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
+  const noEmail = rows.filter((r) => !r.lastEmailAt).length;
+  const noWa = rows.filter((r) => !r.lastWhatsappAt).length;
 
   const selectable = rows.filter((r) => r.declarations.length > 0).map((r) => r.companyId);
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
@@ -131,8 +132,8 @@ export function TaxPayments() {
           <HeaderSummary items={[
             ...DECLARATION_TYPES.map((ty) => ({ n: missingByType[ty], label: `${ty} ${t("summary.missing")}` })),
             { n: mismatchCount, label: t("summary.mismatch") },
-            { n: toEmail, label: t("summary.toSendEmail") },
-            { n: toWa, label: t("summary.toSendWhatsapp") },
+            { n: noEmail, label: t("summary.noEmail") },
+            { n: noWa, label: t("summary.noWhatsapp") },
           ]} />
           <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
         </div>

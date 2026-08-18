@@ -63,8 +63,9 @@ export function Reports() {
   // Column-aligned "to resolve this month" counts for the strip on top of the table.
   const missingBalance = rows.filter((c) => (rowBy.get(c.id)?.balanceCount ?? 0) === 0).length;
   const missingReport = rows.filter((c) => !rowBy.get(c.id)?.uploadedAt).length;
-  const toEmail = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastSentAt).length;
-  const toWa = rows.filter((c) => rowBy.get(c.id)?.uploadedAt && !rowBy.get(c.id)?.lastWhatsappAt).length;
+  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
+  const noEmail = rows.filter((c) => !rowBy.get(c.id)?.lastSentAt).length;
+  const noWa = rows.filter((c) => !rowBy.get(c.id)?.lastWhatsappAt).length;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -77,8 +78,8 @@ export function Reports() {
           <HeaderSummary items={[
             { n: missingBalance, label: t("summary.missingBalance") },
             { n: missingReport, label: t("summary.missingReport") },
-            { n: toEmail, label: t("summary.toSendEmail") },
-            { n: toWa, label: t("summary.toSendWhatsapp") },
+            { n: noEmail, label: t("summary.noEmail") },
+            { n: noWa, label: t("summary.noWhatsapp") },
           ]} />
           <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
         </div>

@@ -43,8 +43,9 @@ export function Payroll() {
   // Column-aligned "to resolve this month" counts, shown in a strip on top of the table.
   const docsN = (id: string) => rowBy.get(id)?.documents.length ?? 0;
   const missingDocs = rows.filter((c) => docsN(c.id) === 0).length;
-  const toEmail = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastSentAt).length;
-  const toWa = rows.filter((c) => docsN(c.id) > 0 && !rowBy.get(c.id)?.lastWhatsappAt).length;
+  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
+  const noEmail = rows.filter((c) => !rowBy.get(c.id)?.lastSentAt).length;
+  const noWa = rows.filter((c) => !rowBy.get(c.id)?.lastWhatsappAt).length;
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
@@ -74,8 +75,8 @@ export function Payroll() {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <HeaderSummary items={[
             { n: missingDocs, label: t("summary.missingDocs") },
-            { n: toEmail, label: t("summary.toSendEmail") },
-            { n: toWa, label: t("summary.toSendWhatsapp") },
+            { n: noEmail, label: t("summary.noEmail") },
+            { n: noWa, label: t("summary.noWhatsapp") },
           ]} />
           <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
         </div>
