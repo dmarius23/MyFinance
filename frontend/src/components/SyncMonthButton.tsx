@@ -42,8 +42,16 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
       { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", textAlign: "right", lineHeight: 1.3, maxWidth: 260 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+      <button
+        onClick={() => sync.mutate()}
+        disabled={running}
+        title={t("ingest.syncMonthHint")}
+        style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}
+      >
+        {running ? t("ingest.syncing") : t("ingest.syncMonth")}
+      </button>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", textAlign: "right", lineHeight: 1.3, maxWidth: 260 }}>
         {running ? (
           <span style={{ color: "var(--primary)" }}>
             {prefix}{st?.startedBy ? t("ingest.syncingBy", { name: st.startedBy }) : t("ingest.syncing")}
@@ -54,14 +62,6 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
           <>{prefix}{t("ingest.lastSynced")}: {t("ingest.never")}</>
         )}
       </div>
-      <button
-        onClick={() => sync.mutate()}
-        disabled={running}
-        title={t("ingest.syncMonthHint")}
-        style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}
-      >
-        {running ? t("ingest.syncing") : t("ingest.syncMonth")}
-      </button>
     </div>
   );
 }
