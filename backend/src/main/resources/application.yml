@@ -53,6 +53,11 @@ spring:
     user: ${DB_ADMIN_USER:postgres}
     password: ${DB_ADMIN_PASSWORD:postgres}
     locations: classpath:db/migration
+    # Managed Supabase ships objects in `public` (e.g. the access-token hook), so the schema is never
+    # truly empty on first deploy. Baseline at v0 so Flyway initializes its history and still runs V1+.
+    # Safe on an empty local DB too (Flyway skips baselining when the schema is empty).
+    baseline-on-migrate: true
+    baseline-version: 0
 
   data:
     redis:
