@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthProvider";
+import { meApi } from "../api/me";
 import i18n from "../i18n";
 import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
@@ -58,6 +60,7 @@ function crumbFor(path: string, t: (k: string) => string): string {
 export function FirmLayout() {
   const { t } = useTranslation();
   const { role, signOut } = useAuth();
+  const me = useQuery({ queryKey: ["me"], queryFn: meApi.get, enabled: role !== "SUPER_ADMIN", staleTime: 5 * 60_000 });
 
   return (
     <PeriodProvider>
@@ -67,7 +70,7 @@ export function FirmLayout() {
             <div className="mark">M</div>
             <div>
               <div className="brand-name">MyFinance</div>
-              <div className="brand-sub">{role === "SUPER_ADMIN" ? t("nav.platformAdmin") : "ContaZone SRL"}</div>
+              <div className="brand-sub">{role === "SUPER_ADMIN" ? t("nav.platformAdmin") : (me.data?.tenantName ?? "")}</div>
             </div>
           </div>
           <nav>
