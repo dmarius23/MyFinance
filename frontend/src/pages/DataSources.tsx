@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ingestionApi, type Connection, type SyncResult } from "../api/ingestion";
+import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 
 /**
@@ -13,23 +13,23 @@ export function DataSources() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const conns = useQuery({ queryKey: ["ingestion-connections"], queryFn: ingestionApi.list });
-  const [form, setForm] = useState({ displayName: "", rootFolderId: "", writeEnabled: true });
+  const [form, setForm] = useState<{ displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose }>({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS" });
   const [error, setError] = useState<string | null>(null);
   const [openImports, setOpenImports] = useState<string | null>(null);
-  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose } | null>(null);
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["ingestion-connections"] }); setError(null); };
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
 
   const create = useMutation({
     // Connect the Drive root for all documents (auto-classified), read + write.
-    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled }),
-    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true }); },
+    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled, purpose: form.purpose }),
+    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS" }); },
     onError: onErr,
   });
   const save = useMutation({
     // Editing a connection clears forcedType (null) → a general root connection that resolves type per sub-folder.
-    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, forcedType: null }),
+    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, purpose: edit!.purpose, forcedType: null }),
     onSuccess: () => { refresh(); setEdit(null); },
     onError: onErr,
   });
@@ -41,11 +41,10 @@ export function DataSources() {
   });
   // Inline write toggle straight from the row (keeps name/root; a general root connection has no forced type).
   const toggleWrite = useMutation({
-    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, forcedType: null }),
+    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, purpose: c.purpose, forcedType: null }),
     onSuccess: refresh,
     onError: onErr,
   });
-  const hasConnection = (conns.data ?? []).length > 0;
 
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
@@ -85,7 +84,7 @@ export function DataSources() {
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c.id)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
-                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled })}>{t("ingest.edit")}</button>
+                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled, purpose: c.purpose })}>{t("ingest.edit")}</button>
                 <button onClick={() => setOpenImports(openImports === c.id ? null : c.id)}>{t("ingest.imports")}</button>
                 <button style={{ color: "#dc2626" }} onClick={() => { if (window.confirm(t("ingest.confirmDelete", { name: c.displayName }))) remove.mutate(c.id); }}>✕</button>
               </div>
@@ -101,6 +100,15 @@ export function DataSources() {
                   <input type="checkbox" checked={edit.writeEnabled} onChange={(e) => setEdit({ ...edit, writeEnabled: e.target.checked })} />
                   {t("ingest.writeAccess")}
                 </label>
+                {edit.writeEnabled && (
+                  <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                    {t("ingest.purposeLabel")}
+                    <select value={edit.purpose} onChange={(e) => setEdit({ ...edit, purpose: e.target.value as DrivePurpose })} style={input}>
+                      <option value="DECLARATIONS">{t("ingest.purposeDeclarations")}</option>
+                      <option value="ACCOUNTING">{t("ingest.purposeAccounting")}</option>
+                    </select>
+                  </label>
+                )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="primary" type="submit" disabled={save.isPending}>{save.isPending ? "…" : t("common.save")}</button>
                   <button type="button" onClick={() => setEdit(null)}>{t("common.cancel")}</button>
@@ -112,8 +120,8 @@ export function DataSources() {
         ))}
       </div>
 
-      {/* add connection — only when none exists yet (one root connection is enough) */}
-      {!hasConnection && (
+      {/* add connection — a tenant may have up to two: a DECLARATIONS drive and an ACCOUNTING drive */}
+      {(conns.data ?? []).length < 2 && (
       <div className="card">
         <h3 style={{ marginTop: 0, fontSize: 15 }}>{t("ingest.addTitle")}</h3>
         <p style={{ color: "var(--text-muted)", fontSize: 12.5, marginTop: 2 }}>{t("ingest.addHint")}</p>
@@ -127,6 +135,15 @@ export function DataSources() {
               onChange={(e) => setForm({ ...form, writeEnabled: e.target.checked })} />
             {t("ingest.writeAccess")}
           </label>
+          {form.writeEnabled && (
+            <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
+              {t("ingest.purposeLabel")}
+              <select value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value as DrivePurpose })} style={input}>
+                <option value="DECLARATIONS">{t("ingest.purposeDeclarations")}</option>
+                <option value="ACCOUNTING">{t("ingest.purposeAccounting")}</option>
+              </select>
+            </label>
+          )}
           <button className="primary" type="submit" disabled={create.isPending} style={{ justifySelf: "start" }}>
             {create.isPending ? "…" : t("ingest.connect")}
           </button>

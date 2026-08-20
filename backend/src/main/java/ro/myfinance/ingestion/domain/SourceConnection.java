@@ -42,6 +42,10 @@ public class SourceConnection {
     @Column(nullable = false)
     private String config = "{}";
 
+    /** Which Drive-filing structure this connection writes into: DECLARATIONS | ACCOUNTING. */
+    @Column(nullable = false)
+    private String purpose = "DECLARATIONS";
+
     private String cursor;
 
     @Column(nullable = false)
@@ -83,6 +87,8 @@ public class SourceConnection {
     public void setWriteEnabled(boolean v) { this.writeEnabled = v; }
     public String getConfig() { return config; }
     public void setConfig(String v) { this.config = v == null ? "{}" : v; }
+    public String getPurpose() { return purpose; }
+    public void setPurpose(String v) { this.purpose = (v == null || v.isBlank()) ? "DECLARATIONS" : v; }
     public String getCursor() { return cursor; }
     public void setCursor(String v) { this.cursor = v; }
     public String getStatus() { return status; }

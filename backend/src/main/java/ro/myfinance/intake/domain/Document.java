@@ -66,6 +66,11 @@ public class Document {
     @Column(name = "drive_file_id")
     private String driveFileId;
 
+    /** Invoice filing direction (INVOICE only), resolved from the e-Factura XML. Null for non-invoices. */
+    @Column(name = "invoice_direction")
+    @Enumerated(EnumType.STRING)
+    private InvoiceDirection invoiceDirection;
+
     @CreationTimestamp
     @Column(name = "uploaded_at", nullable = false, updatable = false)
     private Instant uploadedAt;
@@ -107,5 +112,7 @@ public class Document {
     public void setStorageBackend(String storageBackend) { this.storageBackend = storageBackend; }
     public String getDriveFileId() { return driveFileId; }
     public void setDriveFileId(String driveFileId) { this.driveFileId = driveFileId; }
+    public InvoiceDirection getInvoiceDirection() { return invoiceDirection; }
+    public void setInvoiceDirection(InvoiceDirection invoiceDirection) { this.invoiceDirection = invoiceDirection; }
 }
 

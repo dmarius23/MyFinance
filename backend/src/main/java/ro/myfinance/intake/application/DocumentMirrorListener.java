@@ -1,7 +1,5 @@
 package ro.myfinance.intake.application;
 
-import java.time.format.DateTimeFormatter;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -15,22 +13,25 @@ import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
-import ro.myfinance.intake.domain.DriveDocLayout;
+import ro.myfinance.intake.domain.DriveFilingRouter;
 
 /**
- * Mirrors uploaded documents into the tenant's write-enabled Google Drive source connection (MOD-15), so
- * the firm keeps a browsable copy in its own Drive. Best-effort: any failure is logged and the document
- * stays fully usable from Supabase (the canonical store). Runs after the upload commits and off the
- * request thread ({@code AFTER_COMMIT} + {@code @Async}), in its own transaction — the network round-trip
- * to Drive no longer blocks the HTTP response. Cleans up the mirror copy on delete. No-op when the tenant
- * has no write-enabled Drive connection or the service account is not configured.
+ * Files uploaded documents into the tenant's write-enabled Google Drive connection(s) using the firm's real
+ * structure (Drive Filing v2 — see {@code docs/MyFinance-drive-filing-v2-design-v1.md}), so the firm keeps a
+ * browsable copy in its own Drive. Best-effort: any failure is logged and the document stays fully usable
+ * from Supabase (the canonical store). Runs after the upload commits and off the request thread
+ * ({@code AFTER_COMMIT} + {@code @Async}), in its own transaction. Cleans up the mirror copy on delete.
+ *
+ * <p>Handles the types whose filing metadata is known at upload time (payroll, bank statement, report).
+ * Declarations (need the extracted obligation) and invoices (need the parsed direction) are filed by
+ * dedicated listeners once that metadata is resolved — {@link DriveFilingRouter} returns empty here for
+ * those until then. No-op when the tenant has no write-enabled Drive connection for the resolved purpose or
+ * the service account is not configured.
  */
 @Component
 public class DocumentMirrorListener {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentMirrorListener.class);
-    private static final DateTimeFormatter YEAR = DateTimeFormatter.ofPattern("yyyy");
-    private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM");
 
     private final DriveStorageTarget storageTarget;
     private final DriveDocumentWriter driveWriter;
@@ -52,23 +53,25 @@ public class DocumentMirrorListener {
         if (!driveWriter.isEnabled()) {
             return;
         }
-        DriveStorageTarget.Target target = storageTarget.currentWriteTarget().orElse(null);
-        if (target == null) {
-            return; // no write-enabled Drive connection for this tenant
-        }
         try {
             Document doc = documents.findById(e.documentId()).orElse(null);
             Company company = companies.findById(e.companyId()).orElse(null);
             if (doc == null || company == null) {
                 return;
             }
-            List<String> segments = List.of(
-                    companyFolder(company),
-                    e.periodMonth().format(YEAR),
-                    e.periodMonth().format(MONTH),
-                    DriveDocLayout.typeFolder(doc.getType()));
+            DriveFilingRouter.FilingRequest request = new DriveFilingRouter.FilingRequest(
+                    doc.getType(), doc.getPeriodMonth(), companyFolder(company),
+                    null, null, doc.getInvoiceDirection());
+            DriveFilingRouter.Filing filing = DriveFilingRouter.route(request).orElse(null);
+            if (filing == null) {
+                return; // receipts/unclassified, or a declaration/invoice whose metadata is resolved later
+            }
+            DriveStorageTarget.Target target = storageTarget.writeTargetFor(filing.purpose()).orElse(null);
+            if (target == null) {
+                return; // no write-enabled Drive connection for this purpose
+            }
             String fileId = driveWriter.put(target.sharedDriveId(), target.rootFolderId(),
-                    segments, doc.getOriginalFilename(), doc.getContentType(), e.bytes(), e.documentId());
+                    filing.segments(), doc.getOriginalFilename(), doc.getContentType(), e.bytes(), e.documentId());
             doc.setDriveFileId(fileId); // managed within this transaction → flushed on commit
         } catch (RuntimeException ex) {
             log.warn("Drive mirror failed for document {} — kept in Supabase", e.documentId(), ex);

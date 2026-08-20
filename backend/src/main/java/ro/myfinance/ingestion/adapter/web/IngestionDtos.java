@@ -13,19 +13,20 @@ public final class IngestionDtos {
 
     public record CreateConnectionRequest(@NotBlank String provider, @NotBlank String displayName,
                                           @NotBlank String rootFolderId, String forcedType,
-                                          boolean writeEnabled, String config) {
+                                          boolean writeEnabled, String purpose, String config) {
     }
 
     public record UpdateConnectionRequest(String displayName, String rootFolderId, String forcedType,
-                                          Boolean writeEnabled, String config, String status) {
+                                          Boolean writeEnabled, String purpose, String config, String status) {
     }
 
     public record ConnectionView(UUID id, String provider, String displayName, String rootFolderId,
-                                 String forcedType, boolean writeEnabled, String status,
+                                 String forcedType, boolean writeEnabled, String purpose, String status,
                                  Instant lastSyncedAt, String lastResult) {
         public static ConnectionView from(SourceConnection c) {
             return new ConnectionView(c.getId(), c.getProvider(), c.getDisplayName(), c.getRootFolderId(),
-                    c.getForcedType(), c.isWriteEnabled(), c.getStatus(), c.getLastSyncedAt(), c.getLastResult());
+                    c.getForcedType(), c.isWriteEnabled(), c.getPurpose(), c.getStatus(), c.getLastSyncedAt(),
+                    c.getLastResult());
         }
     }
 

@@ -11,4 +11,7 @@ public interface SourceConnectionRepository extends JpaRepository<SourceConnecti
 
     /** The current tenant's write-enabled connections for a provider (RLS scopes to the tenant). */
     List<SourceConnection> findByProviderAndWriteEnabledTrue(String provider);
+
+    /** The current tenant's write-enabled connections for a provider + filing purpose (RLS-scoped). */
+    List<SourceConnection> findByProviderAndPurposeAndWriteEnabledTrue(String provider, String purpose);
 }
