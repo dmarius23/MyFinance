@@ -22,11 +22,12 @@ public final class DriveFilingRouter {
      * Inputs needed to route a document. {@code companyName} is the sanitized company folder name (legal
      * name or CUI). {@code declKind} is the declaration code ("D100"/"D112"/"D300", DECLARATION only).
      * {@code dominantObligationCod} is the largest-amount obligation budget code (D100 sub-routing).
-     * {@code invoiceDirection} places an INVOICE (null/UNKNOWN → not mirrored).
+     * {@code invoiceDirection} places an INVOICE (null/UNKNOWN → not mirrored). {@code rootIsYearFolder}
+     * (DECLARATIONS drive) → the target root already IS the "Declaratii {year}" folder, so skip that level.
      */
     public record FilingRequest(DocumentType type, LocalDate periodMonth, String companyName,
                                 String declKind, String dominantObligationCod,
-                                InvoiceDirection invoiceDirection) {
+                                InvoiceDirection invoiceDirection, boolean rootIsYearFolder) {
     }
 
     /** Title-case Romanian month names, index 1..12. */
@@ -37,15 +38,24 @@ public final class DriveFilingRouter {
     private DriveFilingRouter() {
     }
 
+    /** The target drive a document type files into, or empty when the type is never mirrored. */
+    public static Optional<DrivePurpose> purposeFor(DocumentType type) {
+        return switch (type) {
+            case PAYROLL, DECLARATION, TRIAL_BALANCE -> Optional.of(DrivePurpose.DECLARATIONS);
+            case BANK_STATEMENT, INVOICE -> Optional.of(DrivePurpose.ACCOUNTING);
+            case RECEIPT, UNCLASSIFIED -> Optional.empty();
+        };
+    }
+
     public static Optional<Filing> route(FilingRequest r) {
         return switch (r.type()) {
             case PAYROLL -> Optional.of(new Filing(DrivePurpose.DECLARATIONS,
-                    List.of(yearFolder(r.periodMonth()), monthFolder(r.periodMonth()), "State de plata")));
+                    declSegments(r, monthFolder(r.periodMonth()), "State de plata")));
             case DECLARATION -> declarationFolder(r.declKind(), r.dominantObligationCod())
                     .map(leaf -> new Filing(DrivePurpose.DECLARATIONS,
-                            List.of(yearFolder(r.periodMonth()), monthFolder(r.periodMonth()), leaf)));
+                            declSegments(r, monthFolder(r.periodMonth()), leaf)));
             case TRIAL_BALANCE -> Optional.of(new Filing(DrivePurpose.DECLARATIONS,
-                    List.of(yearFolder(r.periodMonth()), trimesterFolder(r.periodMonth()), r.companyName())));
+                    declSegments(r, trimesterFolder(r.periodMonth()), r.companyName())));
             case BANK_STATEMENT -> Optional.of(new Filing(DrivePurpose.ACCOUNTING,
                     List.of(companyAccountingFolder(r.companyName()), "Extrase de cont")));
             case INVOICE -> invoiceFolder(r.invoiceDirection())
@@ -53,6 +63,16 @@ public final class DriveFilingRouter {
                             List.of(companyAccountingFolder(r.companyName()), leaf)));
             case RECEIPT, UNCLASSIFIED -> Optional.empty();
         };
+    }
+
+    /** DECLARATIONS-drive segments under the root, prepending "Declaratii {year}" unless the root already is it. */
+    private static List<String> declSegments(FilingRequest r, String... rest) {
+        List<String> segs = new java.util.ArrayList<>();
+        if (!r.rootIsYearFolder()) {
+            segs.add(yearFolder(r.periodMonth()));
+        }
+        segs.addAll(List.of(rest));
+        return List.copyOf(segs);
     }
 
     /** "Declaratii {year}" — the per-year subfolder under the all-years declarations root. */

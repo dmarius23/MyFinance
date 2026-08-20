@@ -46,6 +46,10 @@ public class SourceConnection {
     @Column(nullable = false)
     private String purpose = "DECLARATIONS";
 
+    /** DECLARATIONS drive: true → root already IS the "Declaratii {year}" folder (skip that level). */
+    @Column(name = "root_is_year_folder", nullable = false)
+    private boolean rootIsYearFolder = false;
+
     private String cursor;
 
     @Column(nullable = false)
@@ -89,6 +93,8 @@ public class SourceConnection {
     public void setConfig(String v) { this.config = v == null ? "{}" : v; }
     public String getPurpose() { return purpose; }
     public void setPurpose(String v) { this.purpose = (v == null || v.isBlank()) ? "DECLARATIONS" : v; }
+    public boolean isRootIsYearFolder() { return rootIsYearFolder; }
+    public void setRootIsYearFolder(boolean v) { this.rootIsYearFolder = v; }
     public String getCursor() { return cursor; }
     public void setCursor(String v) { this.cursor = v; }
     public String getStatus() { return status; }

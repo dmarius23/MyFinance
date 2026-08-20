@@ -72,12 +72,14 @@ public class IngestionService {
     }
 
     public SourceConnection create(String provider, String displayName, String rootFolderId,
-                                   String forcedType, boolean writeEnabled, String purpose, String config) {
+                                   String forcedType, boolean writeEnabled, String purpose,
+                                   boolean rootIsYearFolder, String config) {
         UUID tenantId = TenantContext.tenantId().orElseThrow();
         registry.forProvider(provider); // fail fast if the provider has no connector
         SourceConnection c = new SourceConnection(tenantId, provider.toUpperCase(), displayName, rootFolderId, forcedType);
         c.setWriteEnabled(writeEnabled);
         c.setPurpose(purpose);
+        c.setRootIsYearFolder(rootIsYearFolder);
         if (config != null) {
             c.setConfig(config);
         }
@@ -87,7 +89,8 @@ public class IngestionService {
     }
 
     public SourceConnection update(UUID id, String displayName, String rootFolderId, String forcedType,
-                                   Boolean writeEnabled, String purpose, String config, String status) {
+                                   Boolean writeEnabled, String purpose, Boolean rootIsYearFolder,
+                                   String config, String status) {
         SourceConnection c = connections.findById(id)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + id));
         if (displayName != null) c.setDisplayName(displayName);
@@ -95,6 +98,7 @@ public class IngestionService {
         c.setForcedType(forcedType);
         if (writeEnabled != null) c.setWriteEnabled(writeEnabled);
         if (purpose != null) c.setPurpose(purpose);
+        if (rootIsYearFolder != null) c.setRootIsYearFolder(rootIsYearFolder);
         if (config != null) c.setConfig(config);
         if (status != null) c.setStatus(status);
         audit.record("SOURCE_CONNECTION_UPDATED", "source_connection", id);

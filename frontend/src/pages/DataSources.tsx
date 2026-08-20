@@ -13,23 +13,23 @@ export function DataSources() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const conns = useQuery({ queryKey: ["ingestion-connections"], queryFn: ingestionApi.list });
-  const [form, setForm] = useState<{ displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose }>({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS" });
+  const [form, setForm] = useState<{ displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean }>({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS", rootIsYearFolder: false });
   const [error, setError] = useState<string | null>(null);
   const [openImports, setOpenImports] = useState<string | null>(null);
-  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean } | null>(null);
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["ingestion-connections"] }); setError(null); };
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
 
   const create = useMutation({
     // Connect the Drive root for all documents (auto-classified), read + write.
-    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled, purpose: form.purpose }),
-    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS" }); },
+    mutationFn: () => ingestionApi.create({ provider: "GOOGLE_DRIVE", displayName: form.displayName, rootFolderId: form.rootFolderId, writeEnabled: form.writeEnabled, purpose: form.purpose, rootIsYearFolder: form.purpose === "DECLARATIONS" && form.rootIsYearFolder }),
+    onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS", rootIsYearFolder: false }); },
     onError: onErr,
   });
   const save = useMutation({
     // Editing a connection clears forcedType (null) → a general root connection that resolves type per sub-folder.
-    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, purpose: edit!.purpose, forcedType: null }),
+    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, purpose: edit!.purpose, rootIsYearFolder: edit!.purpose === "DECLARATIONS" && edit!.rootIsYearFolder, forcedType: null }),
     onSuccess: () => { refresh(); setEdit(null); },
     onError: onErr,
   });
@@ -41,7 +41,7 @@ export function DataSources() {
   });
   // Inline write toggle straight from the row (keeps name/root; a general root connection has no forced type).
   const toggleWrite = useMutation({
-    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, purpose: c.purpose, forcedType: null }),
+    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, purpose: c.purpose, rootIsYearFolder: c.rootIsYearFolder, forcedType: null }),
     onSuccess: refresh,
     onError: onErr,
   });
@@ -84,7 +84,7 @@ export function DataSources() {
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c.id)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
-                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled, purpose: c.purpose })}>{t("ingest.edit")}</button>
+                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled, purpose: c.purpose, rootIsYearFolder: c.rootIsYearFolder })}>{t("ingest.edit")}</button>
                 <button onClick={() => setOpenImports(openImports === c.id ? null : c.id)}>{t("ingest.imports")}</button>
                 <button style={{ color: "#dc2626" }} onClick={() => { if (window.confirm(t("ingest.confirmDelete", { name: c.displayName }))) remove.mutate(c.id); }}>✕</button>
               </div>
@@ -107,6 +107,12 @@ export function DataSources() {
                       <option value="DECLARATIONS">{t("ingest.purposeDeclarations")}</option>
                       <option value="ACCOUNTING">{t("ingest.purposeAccounting")}</option>
                     </select>
+                  </label>
+                )}
+                {edit.writeEnabled && edit.purpose === "DECLARATIONS" && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)" }}>
+                    <input type="checkbox" checked={edit.rootIsYearFolder} onChange={(e) => setEdit({ ...edit, rootIsYearFolder: e.target.checked })} />
+                    {t("ingest.rootIsYearFolder")}
                   </label>
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
@@ -142,6 +148,12 @@ export function DataSources() {
                 <option value="DECLARATIONS">{t("ingest.purposeDeclarations")}</option>
                 <option value="ACCOUNTING">{t("ingest.purposeAccounting")}</option>
               </select>
+            </label>
+          )}
+          {form.writeEnabled && form.purpose === "DECLARATIONS" && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)" }}>
+              <input type="checkbox" checked={form.rootIsYearFolder} onChange={(e) => setForm({ ...form, rootIsYearFolder: e.target.checked })} />
+              {t("ingest.rootIsYearFolder")}
             </label>
           )}
           <button className="primary" type="submit" disabled={create.isPending} style={{ justifySelf: "start" }}>

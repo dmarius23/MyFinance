@@ -13,6 +13,7 @@ import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
+import ro.myfinance.intake.domain.DrivePurpose;
 import ro.myfinance.intake.domain.DriveFilingRouter;
 
 /**
@@ -59,16 +60,21 @@ public class DocumentMirrorListener {
             if (doc == null || company == null) {
                 return;
             }
-            DriveFilingRouter.FilingRequest request = new DriveFilingRouter.FilingRequest(
-                    doc.getType(), doc.getPeriodMonth(), companyFolder(company),
-                    null, null, doc.getInvoiceDirection());
-            DriveFilingRouter.Filing filing = DriveFilingRouter.route(request).orElse(null);
-            if (filing == null) {
-                return; // receipts/unclassified, or a declaration/invoice whose metadata is resolved later
+            // Resolve the target first (it carries the connection's rootIsYearFolder), then route with it.
+            DrivePurpose purpose = DriveFilingRouter.purposeFor(doc.getType()).orElse(null);
+            if (purpose == null) {
+                return; // receipts / unclassified — never mirrored
             }
-            DriveStorageTarget.Target target = storageTarget.writeTargetFor(filing.purpose()).orElse(null);
+            DriveStorageTarget.Target target = storageTarget.writeTargetFor(purpose).orElse(null);
             if (target == null) {
                 return; // no write-enabled Drive connection for this purpose
+            }
+            DriveFilingRouter.FilingRequest request = new DriveFilingRouter.FilingRequest(
+                    doc.getType(), doc.getPeriodMonth(), companyFolder(company),
+                    null, null, doc.getInvoiceDirection(), target.rootIsYearFolder());
+            DriveFilingRouter.Filing filing = DriveFilingRouter.route(request).orElse(null);
+            if (filing == null) {
+                return; // a declaration/invoice whose metadata (obligation/direction) is resolved later
             }
             String fileId = driveWriter.put(target.sharedDriveId(), target.rootFolderId(),
                     filing.segments(), doc.getOriginalFilename(), doc.getContentType(), e.bytes(), e.documentId());

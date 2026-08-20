@@ -20,7 +20,7 @@ class DriveFilingRouterTest {
 
     private static Filing route(DocumentType type, LocalDate period, String company,
                                 String declKind, String cod, InvoiceDirection dir) {
-        Optional<Filing> f = DriveFilingRouter.route(new FilingRequest(type, period, company, declKind, cod, dir));
+        Optional<Filing> f = DriveFilingRouter.route(new FilingRequest(type, period, company, declKind, cod, dir, false));
         assertThat(f).isPresent();
         return f.get();
     }
@@ -57,7 +57,7 @@ class DriveFilingRouterTest {
     @Test
     void declaration_unknown_kind_is_not_mirrored() {
         assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.DECLARATION, JUNE, "ACME", null, null, null))).isEmpty();
+                new FilingRequest(DocumentType.DECLARATION, JUNE, "ACME", null, null, null, false))).isEmpty();
     }
 
     @Test
@@ -91,17 +91,39 @@ class DriveFilingRouterTest {
     @Test
     void invoice_without_resolved_direction_is_not_mirrored() {
         assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, null))).isEmpty();
+                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, null, false))).isEmpty();
         assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, InvoiceDirection.UNKNOWN))).isEmpty();
+                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, InvoiceDirection.UNKNOWN, false))).isEmpty();
+    }
+
+    @Test
+    void rootIsYearFolder_omits_the_declaratii_year_level() {
+        // Connection root already points at "Declaratii 2026" → the year level must not be re-created.
+        Filing f = DriveFilingRouter.route(
+                new FilingRequest(DocumentType.PAYROLL, JUNE, "ACME", null, null, null, true)).orElseThrow();
+        assertThat(f.segments()).containsExactly("6. Iunie 2026", "State de plata");
+        Filing r = DriveFilingRouter.route(
+                new FilingRequest(DocumentType.TRIAL_BALANCE, JUNE, "ACME SRL", null, null, null, true)).orElseThrow();
+        assertThat(r.segments()).containsExactly("Bilant Interimar T2 an 2026", "ACME SRL");
+    }
+
+    @Test
+    void purposeFor_maps_types_to_drives() {
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.PAYROLL)).contains(DrivePurpose.DECLARATIONS);
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.DECLARATION)).contains(DrivePurpose.DECLARATIONS);
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.TRIAL_BALANCE)).contains(DrivePurpose.DECLARATIONS);
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.BANK_STATEMENT)).contains(DrivePurpose.ACCOUNTING);
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.INVOICE)).contains(DrivePurpose.ACCOUNTING);
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.RECEIPT)).isEmpty();
+        assertThat(DriveFilingRouter.purposeFor(DocumentType.UNCLASSIFIED)).isEmpty();
     }
 
     @Test
     void receipts_and_unclassified_are_not_mirrored() {
         assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.RECEIPT, JUNE, "ACME", null, null, null))).isEmpty();
+                new FilingRequest(DocumentType.RECEIPT, JUNE, "ACME", null, null, null, false))).isEmpty();
         assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.UNCLASSIFIED, JUNE, "ACME", null, null, null))).isEmpty();
+                new FilingRequest(DocumentType.UNCLASSIFIED, JUNE, "ACME", null, null, null, false))).isEmpty();
     }
 
     private static String last(Filing f) {

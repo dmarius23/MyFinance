@@ -33,7 +33,6 @@ public class SourceConnectionDriveTarget implements DriveStorageTarget {
                 .filter(c -> "ACTIVE".equals(c.getStatus()))
                 .filter(c -> c.getRootFolderId() != null && !c.getRootFolderId().isBlank())
                 .findFirst()
-                .map(SourceConnection::getRootFolderId)
-                .map(root -> new Target(root, root));
+                .map(c -> new Target(c.getRootFolderId(), c.getRootFolderId(), c.isRootIsYearFolder()));
     }
 }

@@ -11,8 +11,12 @@ import ro.myfinance.intake.domain.DrivePurpose;
  */
 public interface DriveStorageTarget {
 
-    /** A Shared Drive write target: {@code sharedDriveId} is the drive, {@code rootFolderId} the base folder. */
-    record Target(String sharedDriveId, String rootFolderId) {
+    /**
+     * A Shared Drive write target: {@code sharedDriveId} is the drive, {@code rootFolderId} the base folder.
+     * {@code rootIsYearFolder} (DECLARATIONS only) → the root already IS the "Declaratii {year}" folder, so
+     * the filing must not create that level.
+     */
+    record Target(String sharedDriveId, String rootFolderId, boolean rootIsYearFolder) {
     }
 
     /** The tenant's write-enabled Drive connection for {@code purpose} as a target, or empty when none. */

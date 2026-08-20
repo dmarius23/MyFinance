@@ -10,6 +10,8 @@ export interface Connection {
   writeEnabled: boolean;
   /** Which Drive-filing structure this connection writes into (for write-enabled connections). */
   purpose: DrivePurpose;
+  /** DECLARATIONS drive: true → root already IS the "Declaratii {year}" folder (skip that level). */
+  rootIsYearFolder: boolean;
   status: string;
   lastSyncedAt: string | null;
   lastResult: string | null;
@@ -40,9 +42,9 @@ const base = "/api/v1/ingestion/connections";
 
 export const ingestionApi = {
   list: () => api<Connection[]>(base),
-  create: (input: { provider: string; displayName: string; rootFolderId: string; forcedType?: string | null; writeEnabled?: boolean; purpose?: DrivePurpose }) =>
+  create: (input: { provider: string; displayName: string; rootFolderId: string; forcedType?: string | null; writeEnabled?: boolean; purpose?: DrivePurpose; rootIsYearFolder?: boolean }) =>
     api<Connection>(base, { method: "POST", body: JSON.stringify(input) }),
-  update: (id: string, input: Partial<{ displayName: string; rootFolderId: string; forcedType: string | null; writeEnabled: boolean; purpose: DrivePurpose; status: string }>) =>
+  update: (id: string, input: Partial<{ displayName: string; rootFolderId: string; forcedType: string | null; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean; status: string }>) =>
     api<Connection>(`${base}/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   remove: (id: string) => api<void>(`${base}/${id}`, { method: "DELETE" }),
   sync: (id: string) => api<SyncResult>(`${base}/${id}/sync`, { method: "POST" }),
