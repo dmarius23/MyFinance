@@ -52,6 +52,41 @@ class SupabaseUserInviterTest {
     }
 
     @Test
+    void reusesExistingUserWhenEmailAlreadyRegistered() {
+        UUID existingId = UUID.fromString("77777777-7777-7777-7777-777777777777");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+
+        // 1) GoTrue rejects the invite: the email already belongs to an auth user.
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/invite"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
+                        .body("{\"code\":\"email_exists\",\"msg\":\"A user with this email address has already been registered\"}")
+                        .contentType(MediaType.APPLICATION_JSON));
+
+        // 2) We page the admin user list to resolve the email to its existing id.
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://proj.supabase.co/auth/v1/admin/users?page=")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"users\":[{\"id\":\"" + existingId + "\",\"email\":\"rep@client.ro\"}]}",
+                        MediaType.APPLICATION_JSON));
+
+        // 3) The tenant/role/company claims are (re)applied to that existing user.
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users/" + existingId))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.app_metadata.role").value("REPRESENTATIVE"))
+                .andRespond(withSuccess());
+
+        var result = inviter(builder).invite("rep@client.ro",
+                new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));
+
+        assertThat(result.externalUserId()).isEqualTo(existingId);
+        assertThat(result.created()).isFalse();   // reused, not created → caller must not delete it
+        server.verify();
+    }
+
+    @Test
     void deletesViaGoTrueAdmin() {
         UUID id = UUID.fromString("11111111-2222-3333-4444-555555555555");
         RestClient.Builder builder = RestClient.builder();

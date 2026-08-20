@@ -84,11 +84,14 @@ public class RepresentativeService {
             audit.record("REPRESENTATIVE_INVITED", "company", companyId);
             return rep;
         } catch (RuntimeException e) {
-            try {
-                authCleanup.scheduleDelete(invited.externalUserId());
-            } catch (RuntimeException cleanupEx) {
-                log.error("Persist failed AND could not schedule cleanup of orphaned auth user {}",
-                        invited.externalUserId(), cleanupEx);
+            // Only compensate for an auth user WE created — never delete a pre-existing one we reused.
+            if (invited.created()) {
+                try {
+                    authCleanup.scheduleDelete(invited.externalUserId());
+                } catch (RuntimeException cleanupEx) {
+                    log.error("Persist failed AND could not schedule cleanup of orphaned auth user {}",
+                            invited.externalUserId(), cleanupEx);
+                }
             }
             throw e;
         }

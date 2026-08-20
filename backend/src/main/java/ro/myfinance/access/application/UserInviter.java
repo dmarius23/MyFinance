@@ -23,5 +23,7 @@ public interface UserInviter {
     /** {@code companyId} is null for firm staff (admin/employee); set only for representatives. */
     record InviteClaims(UUID tenantId, Role role, UUID companyId) {}
 
-    record InvitedUser(UUID externalUserId) {}
+    /** {@code created} is true when this invite created a NEW auth user, false when it reused an
+     *  already-registered one — the caller must only compensate-delete users it actually created. */
+    record InvitedUser(UUID externalUserId, boolean created) {}
 }

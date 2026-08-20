@@ -48,7 +48,7 @@ class RepresentativeServiceTest {
         TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         when(companies.findById(companyId)).thenReturn(Optional.of(mock(Company.class)));
         when(users.findByEmail("rep@client.ro")).thenReturn(Optional.empty()); // new invite path
-        when(inviter.invite(any(), any())).thenReturn(new UserInviter.InvitedUser(externalId));
+        when(inviter.invite(any(), any())).thenReturn(new UserInviter.InvitedUser(externalId, true));
     }
 
     @AfterEach
