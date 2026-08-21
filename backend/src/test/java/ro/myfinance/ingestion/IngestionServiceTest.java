@@ -1,12 +1,14 @@
 package ro.myfinance.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,8 +50,10 @@ class IngestionServiceTest {
 
     private final ro.myfinance.notifications.application.NotificationService notifications =
             mock(ro.myfinance.notifications.application.NotificationService.class);
+    private final ro.myfinance.ingestion.application.ModuleSyncStatusService syncStatus =
+            mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications);
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications, syncStatus);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
@@ -65,6 +69,11 @@ class IngestionServiceTest {
         lenient().when(co.getCui()).thenReturn("49443957");
         lenient().when(co.getLegalName()).thenReturn("INNOVATECODE IT SRL");
         when(companies.findAll()).thenReturn(List.of(co));
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void allowSyncStart() {
+        lenient().when(syncStatus.tryStart(any(), any(), any())).thenReturn(true);
     }
 
     @AfterEach
@@ -285,7 +294,239 @@ class IngestionServiceTest {
                 any(), any(), isNull(), eq(DocumentSource.DRIVE));
     }
 
+    @Test
+    void monthFirstLayoutImportsDeclarationByCuiAndDropsNoiseReceiptsAndUnsignedTwins() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection c = new SourceConnection(TENANT, "FAKE", "Firm drive", "root", null); // general, mixed
+        c.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findById(c.getId())).thenReturn(Optional.of(c));
+        when(registry.forProvider("FAKE")).thenReturn(fake);
+        Company co = mock(Company.class);
+        lenient().when(co.getId()).thenReturn(COMPANY);
+        lenient().when(co.getCui()).thenReturn("44570402");
+        lenient().when(co.getLegalName()).thenReturn("MORARU TECH SRL");
+        when(companies.findAll()).thenReturn(List.of(co));
+        fake.files = List.of(
+                // signed declaration → imported (company by CUI-in-filename, type by folder, period by filename)
+                new CloudFolderConnector.RemoteFile("f1",
+                        "D700_44570402_2026_07 - trecere impozit profit_semnat.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e1", null),
+                // unsigned twin of the same declaration → skipped (superseded by the signed copy)
+                new CloudFolderConnector.RemoteFile("f2",
+                        "D700_44570402_2026_07 - trecere impozit profit.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e2", null),
+                // ANAF submission receipt → skipped
+                new CloudFolderConnector.RemoteFile("f3",
+                        "D700_44570402_2026_07_recipisa_118.pdf", "7. Iulie 2026/D700",
+                        "application/pdf", 100, "e3", null),
+                // valid declaration name but in a non-month top folder → out of scope, skipped
+                new CloudFolderConnector.RemoteFile("f4",
+                        "D700_44570402_2026_07 - x.pdf", "D060", "application/pdf", 100, "e4", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("D700_44570402_2026_07 - trecere impozit profit_semnat.pdf"), any(), any(),
+                eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("D700_44570402_2026_07 - trecere impozit profit_semnat.pdf"), any(), any(),
+                eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void monthFirstLayoutImportsInterimBalanceByCompanyFolderAndTrimester() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection c = new SourceConnection(TENANT, "FAKE", "Firm drive", "root", null);
+        c.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findById(c.getId())).thenReturn(Optional.of(c));
+        when(registry.forProvider("FAKE")).thenReturn(fake);
+        Company co = mock(Company.class);
+        lenient().when(co.getId()).thenReturn(COMPANY);
+        lenient().when(co.getCui()).thenReturn("44570402");
+        lenient().when(co.getLegalName()).thenReturn("STONEAGE INDUSTRY SRL");
+        when(companies.findAll()).thenReturn(List.of(co));
+        // Real layout: the trial balance is a plain FILE directly in the company folder (no subfolder),
+        // alongside the full statement and AGA docs — only "balanta de verificare …" must be imported.
+        fake.files = List.of(
+                new CloudFolderConnector.RemoteFile("b1", "balanta_de_verificare iunie 2026.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("b2", "Bilant interimar iunie 2026.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("b3", "Hotararea AGA print pdf.pdf",
+                        "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e3", null));
+        when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_de_verificare iunie 2026.pdf"),
+                any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1); // only the balanta de verificare, not the statement/AGA docs
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_de_verificare iunie 2026.pdf"),
+                any(), any(), eq(DocumentType.TRIAL_BALANCE), eq(DocumentSource.DRIVE));
+    }
+
     /** In-memory connector — feeds the pipeline a controlled file list. */
+    @Test
+    void syncModuleMonthImportsOnlyThatModuleAcrossAllCompanies() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        // Root subfolders: the month folder is located by name for the requested month.
+        fake.folders = List.of(new CloudFolderConnector.Folder("month7", "7. Iulie 2026"),
+                new CloudFolderConnector.Folder("bilantT2", "Bilant interimar T2 an 2026"));
+        // The month folder holds BOTH payroll (State de plata) and a declaration (D 112) for July.
+        fake.filesByFolder.put("month7", List.of(
+                new CloudFolderConnector.RemoteFile("p", "fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf",
+                        "State de plata", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("d", "D112_49443957_2026_07.pdf",
+                        "D 112", "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 7, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the payroll, not the D112 declaration in the same folder
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
+                eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), eq(DocumentType.DECLARATION), any());
+    }
+
+    @Test
+    void syncModuleMonthDedupsTheRenamedDeclarationCopy() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("INNOVATECODE IT SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.folders = List.of(new CloudFolderConnector.Folder("month6", "6. Iunie 2026"));
+        // The SAME D112 declaration under both filenames the firm keeps, in the same D112 folder.
+        fake.filesByFolder.put("month6", List.of(
+                new CloudFolderConnector.RemoteFile("f1", "D112_49443957_2026_06.pdf", "D112",
+                        "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("f2", "INNOVATECODE IT SRL_D112_062026_49443957.PDF", "D112",
+                        "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
+                any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("DECLARATION", LocalDate.of(2026, 6, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the ANAF original; the renamed copy is dropped
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
+                any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), eq("INNOVATECODE IT SRL_D112_062026_49443957.PDF"),
+                any(), any(), any(), any());
+    }
+
+    @Test
+    void syncCompanyMonthRejectedWhileAMonthWideSyncRuns() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "D", "root", "PAYROLL");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(syncStatus.isRunning(eq("PAYROLL"), any())).thenReturn(true); // a month-wide sync holds the slot
+
+        assertThatThrownBy(() -> service.syncCompanyMonth("PAYROLL", COMPANY, LocalDate.of(2026, 7, 1)))
+                .isInstanceOf(ro.myfinance.common.web.ConflictException.class);
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void reImportOfAnUpdatedFileReplacesThePreviousDocument() {
+        SourceConnection c = conn();
+        bind();
+        fake.files = List.of(new CloudFolderConnector.RemoteFile("f1", "stat_salarii.pdf",
+                "INNOVATECODE IT SRL/2026-05", "application/pdf", 200, "NEW-etag", Instant.now()));
+        UUID oldDoc = UUID.randomUUID();
+        ImportFile prior = new ImportFile(TENANT, c.getId(), "f1", "OLD-etag", "oldsha", "stat_salarii.pdf",
+                "INNOVATECODE IT SRL/2026-05", COMPANY, LocalDate.of(2026, 5, 1), oldDoc, ImportFile.Status.IMPORTED, null);
+        when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.of(prior));
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document newDoc = mock(Document.class);
+        when(newDoc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("stat_salarii.pdf"), any(), any(),
+                eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(newDoc);
+
+        var r = service.sync(c.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents).delete(oldDoc); // the superseded old version is removed on re-import
+    }
+
+    @Test
+    void syncModuleMonthPrefersTheFinalPayrollOverTheInitial() {
+        UUID evtimia = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection drive = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Firm", "root", null);
+        drive.setConfig("{\"layout\":\"month_first\"}");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(drive));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(evtimia);
+        lenient().when(a.getCui()).thenReturn("12345678");
+        lenient().when(a.getLegalName()).thenReturn("EVTIMIA SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.folders = List.of(new CloudFolderConnector.Folder("month4", "4. Aprilie 2026"));
+        fake.filesByFolder.put("month4", List.of(
+                new CloudFolderConnector.RemoteFile("i", "Fluturasi_EVTIMIA SRL_2026_04_Initial.pdf",
+                        "State de plata", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("f", "Fluturasi_EVTIMIA SRL_2026_04_final.pdf",
+                        "State de plata", "application/pdf", 100, "e2", null)));
+        when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
+                any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 4, 1));
+
+        assertThat(r.imported()).isEqualTo(1); // only the final, the Initial is dropped
+        verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents).upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
+                any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), eq("Fluturasi_EVTIMIA SRL_2026_04_Initial.pdf"),
+                any(), any(), any(), any());
+    }
+
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
         List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)

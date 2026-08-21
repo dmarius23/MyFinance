@@ -98,21 +98,23 @@ public class ReportService {
             return;
         }
 
-        // Guard 2 — wrong period: the date range printed in the trial-balance header must fall in the
-        // same month as the accounting slot it was uploaded into. If the PDF has no parseable date range
-        // (tb.periodStart() == null) we refuse to ingest rather than silently accepting a document whose
-        // period is unknown — a trial balance without a readable period cannot be verified.
+        // Guard 2 — wrong period: when the trial-balance header prints a date range, it must fall in the
+        // same month as the accounting slot it was filed under. Many balanțe (esp. interim ones) don't
+        // print a parseable range — rather than drop the report, fall back to the filing month (which for
+        // a Drive import comes from the folder, and for a manual upload is chosen by the user).
         LocalDate storedMonth = periodMonth.withDayOfMonth(1);
-        if (tb.periodStart() == null) {
-            log.warn("Skipping report ingest for doc {} (company {}): trial-balance period not parseable",
-                    documentId, companyId);
-            return;
-        }
-        LocalDate tbMonth = tb.periodStart().withDayOfMonth(1);
-        if (!tbMonth.equals(storedMonth)) {
-            log.warn("Skipping report ingest for doc {} (company {}): TB period {} != stored period {}",
-                    documentId, companyId, tbMonth, storedMonth);
-            return;
+        LocalDate tbMonth;
+        if (tb.periodStart() != null) {
+            tbMonth = tb.periodStart().withDayOfMonth(1);
+            if (!tbMonth.equals(storedMonth)) {
+                log.warn("Skipping report ingest for doc {} (company {}): TB period {} != stored period {}",
+                        documentId, companyId, tbMonth, storedMonth);
+                return;
+            }
+        } else {
+            log.info("Trial-balance period not parseable for doc {} (company {}) — using the filing month {}",
+                    documentId, companyId, storedMonth);
+            tbMonth = storedMonth;
         }
 
         ReportData data = ReportCalculator.compute(tb);

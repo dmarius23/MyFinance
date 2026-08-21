@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document as Doc } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
+import { useSyncStatus, SyncStatusLine, syncScopeLabel } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
 import { Icon } from "./Icon";
@@ -95,6 +96,9 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
   const driveQ = useQuery({ queryKey: ["ingestion-source", type], queryFn: () => ingestionApi.source(type) });
   const driveMode = driveQ.data?.driveEnabled === true;   // a Drive connection covers this type → offer Sync
   const driveWrite = driveQ.data?.driveWrite === true;    // write-enabled → uploads also land in Drive
+  // Shared month/module sync state: while a month-wide sync (all companies) runs, block this per-company
+  // sync too, and show when it was last synced.
+  const { status: syncStatus, running: monthSyncRunning } = useSyncStatus(type, period, driveMode);
   const sync = useMutation({
     mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
     onSuccess: (r: SyncResult) => {
@@ -142,10 +146,13 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
           <div style={{ borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ padding: 12, display: "grid", gap: 8 }}>
               {driveMode && (
-                <button style={{ width: "100%" }} disabled={sync.isPending} onClick={() => sync.mutate()}>
-                  <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-                  {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
-                </button>
+                <div style={{ display: "grid", gap: 4 }}>
+                  <button style={{ width: "100%" }} disabled={sync.isPending || monthSyncRunning} onClick={() => sync.mutate()}>
+                    <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
+                    {sync.isPending ? t("payroll.syncing") : t("payroll.syncFromDrive")}
+                  </button>
+                  <SyncStatusLine status={syncStatus} scope={syncScopeLabel(type, period, i18n.language)} style={{ color: "var(--chrome-muted)" }} />
+                </div>
               )}
               <input ref={fileRef} type="file" accept={accept ?? "application/pdf"} multiple={multiple} onChange={onFile} style={{ display: "none" }} />
               <button className="primary" style={{ width: "100%" }} disabled={upload.isPending} onClick={() => fileRef.current?.click()}>

@@ -31,8 +31,7 @@ jobs:
           node-version: "20"
       - name: Install
         working-directory: frontend
-        # Switch to `npm ci` once package-lock.json is committed (after the first `npm install`).
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Lint
         working-directory: frontend
         run: npm run lint

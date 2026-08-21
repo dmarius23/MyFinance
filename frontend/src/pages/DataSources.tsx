@@ -78,9 +78,8 @@ export function DataSources() {
                 </label>
               </div>
               <div className="mono" style={{ fontSize: 11.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.rootFolderId}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }} title={c.lastResult ?? undefined}>
                 {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : t("ingest.never")}
-                {c.lastResult && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{c.lastResult}</div>}
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c.id)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>

@@ -1,0 +1,85 @@
+# MyFinance — PRODUCTION stack for a single Hetzner VM.
+#
+#   Runtime secrets/config come from ./.env (gitignored; copy from env.prod.example and fill in).
+#   Images are built + pushed to GHCR by .github/workflows/deploy.yml; here we only pull + run.
+#
+#   First run / redeploy (from /opt/myfinance on the VM):
+#     docker compose -f docker-compose.prod.yml pull
+#     docker compose -f docker-compose.prod.yml up -d
+#   Logs:
+#     docker compose -f docker-compose.prod.yml logs -f backend worker
+#
+# The DB + document storage live in Supabase (no local Postgres). Redis is self-hosted here for the
+# job queue + distributed rate limiting. Caddy terminates TLS (auto Let's Encrypt) and routes hosts.
+
+name: myfinance
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_HOST: ${APP_HOST}       # e.g. 1.2.3.4.sslip.io      -> frontend
+      API_HOST: ${API_HOST}       # e.g. api.1.2.3.4.sslip.io  -> backend
+      ACME_EMAIL: ${ACME_EMAIL}   # Let's Encrypt account email
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/dmarius23/myfinance-frontend:latest}
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/dmarius23/myfinance-backend:latest}
+    restart: unless-stopped
+    env_file: ./.env      # DB, Supabase, CORS, storage, email, redis, etc. (prod = default profile)
+    environment:
+      JAVA_OPTS: "-Xmx512m"   # bound the heap so two JVMs fit comfortably on a 4 GB VM
+    mem_limit: 1300m
+    expose:
+      - "8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    image: ${BACKEND_IMAGE:-ghcr.io/dmarius23/myfinance-backend:latest}
+    restart: unless-stopped
+    env_file: ./.env
+    environment:
+      SPRING_PROFILES_ACTIVE: worker    # overrides env_file; NEVER set this to "local" in .env
+      SPRING_FLYWAY_ENABLED: "false"    # the backend (web) container owns migrations
+    mem_limit: 1000m
+    command: ["sh", "-c", "java -Xmx384m -Dspring.main.web-application-type=none -jar app.jar"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:

@@ -43,7 +43,7 @@ class AccessServiceTest {
             UUID externalId = UUID.randomUUID();
             when(users.existsByEmail("nou@firma.ro")).thenReturn(false);
             when(inviter.invite(org.mockito.ArgumentMatchers.eq("nou@firma.ro"), org.mockito.ArgumentMatchers.any()))
-                    .thenReturn(new ro.myfinance.access.application.UserInviter.InvitedUser(externalId));
+                    .thenReturn(new ro.myfinance.access.application.UserInviter.InvitedUser(externalId, true));
             when(users.save(org.mockito.ArgumentMatchers.any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
 
             AppUser u = service.inviteUser("nou@firma.ro", "Nou Contabil", Role.EMPLOYEE);

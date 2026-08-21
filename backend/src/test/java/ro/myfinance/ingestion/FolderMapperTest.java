@@ -28,6 +28,11 @@ class FolderMapperTest {
                 Instant.parse("2026-06-10T00:00:00Z"));
     }
 
+    private RemoteFile file(String path, String name) {
+        return new RemoteFile("f1", name, path, "application/pdf", 100, "e1",
+                Instant.parse("2026-06-10T00:00:00Z"));
+    }
+
     @Test
     void matchesCompanyByCuiInFolder() {
         UUID id = UUID.randomUUID();
@@ -73,12 +78,9 @@ class FolderMapperTest {
                 .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
         assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/D100 Chirie")))
                 .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
-        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/SAF-T")))
-                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
         assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/State de plata")))
                 .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
-        assertThat(FolderMapper.resolveType(named("x.pdf", "Bilant interimar T2 an 2026/ACME")))
-                .contains(ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE);
+        // (Bilanț files get their type from the module context on sync, not the folder name.)
     }
 
     @Test
@@ -140,5 +142,97 @@ class FolderMapperTest {
             assertThat(FolderMapper.resolveType(file("Firma SRL/2026/06/" + folder)))
                     .as("round-trip for %s (folder=%s)", t, folder).contains(t);
         }
+    }
+
+    // ---- month-first layout (accounting-firm Drive: declarations by CUI, payroll by name in filename) ----
+
+    @Test
+    void matchesCompanyByCuiInDeclarationFilename() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "MORARU TECH SRL", "44570402"),
+                company(UUID.randomUUID(), "Lumina Verde SRL", "39112764"));
+        // Declaration filed straight in a month folder — the company is the CUI in the filename.
+        assertThat(FolderMapper.resolveCompany(
+                file("7. Iulie 2026/D700", "D700_44570402_2026_07 - trecere impozit profit.pdf"), cos))
+                .contains(id);
+    }
+
+    @Test
+    void matchesCompanyByNameInPayrollFilename() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "STONEAGE INDUSTRY SRL", "12345678"));
+        // Payroll files carry the company NAME (no CUI) in the filename.
+        assertThat(FolderMapper.resolveCompany(
+                file("7. Iulie 2026/State de plata", "fluturas#_STONEAGE INDUSTRY SRL_2026_07.pdf"), cos))
+                .contains(id);
+    }
+
+    @Test
+    void resolvesRealPayrollFilenameWithCuiAndNameAndPeriod() {
+        // Exact real filename from the firm's Drive: name carries both the legal name and "c.f. <CUI>".
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
+        String path = "7. Iulie 2026/State de plata";
+        String name = "fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf";
+        assertThat(FolderMapper.resolveCompany(file(path, name), cos)).contains(id);
+        assertThat(FolderMapper.resolvePeriod(file(path, name))).isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(FolderMapper.resolveType(file(path, name)))
+                .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
+    }
+
+    @Test
+    void matchesCompanyWhenBalanceFolderIsAShortenedName() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
+        // Balance folder "INNOVATECODE" is shorter than the legal-name core "INNOVATECODEIT" — still matches.
+        assertThat(FolderMapper.resolveCompany(
+                file("Bilant interimar T1 an 2026/INNOVATECODE", "balanta_de_verificare martie 2026.pdf"), cos))
+                .contains(id);
+    }
+
+    @Test
+    void shortFolderTokenDoesNotCollideWithAnUnrelatedLongerName() {
+        // "BIT IT" (5 alnum chars) must NOT match "ORBIT ITALIA SRL" just because it is a substring.
+        List<Company> cos = List.of(company(UUID.randomUUID(), "ORBIT ITALIA SRL", "11112222"));
+        assertThat(FolderMapper.resolveCompany(file("Bilant interimar T1 an 2026/BIT IT", "b.pdf"), cos))
+                .isEmpty();
+    }
+
+    @Test
+    void resolvesPeriodFromNumberedRomanianMonthFolder() {
+        assertThat(FolderMapper.resolvePeriod(file("7. Iulie 2026/State de plata", "x.pdf")))
+                .isEqualTo(LocalDate.of(2026, 7, 1));
+        assertThat(FolderMapper.resolvePeriod(file("1. Ianuarie 2026/D 112", "x.pdf")))
+                .isEqualTo(LocalDate.of(2026, 1, 1));
+    }
+
+    @Test
+    void resolvesTrimesterPeriodToQuarterEndMonth() {
+        // Interim balance: T1→Mar, T2→Jun, T3→Sep, T4→Dec.
+        assertThat(FolderMapper.resolvePeriod(
+                file("Bilant interimar T1 an 2026/STONEAGE INDUSTRY SRL/balanta de verificare 2026", "b.pdf")))
+                .isEqualTo(LocalDate.of(2026, 3, 1));
+        assertThat(FolderMapper.resolvePeriod(
+                file("Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/balanta de verificare 2026", "b.pdf")))
+                .isEqualTo(LocalDate.of(2026, 6, 1));
+    }
+
+    @Test
+    void resolvesTypeForDeclarationFoldersPayrollFilenamesAndBalance() {
+        // Declaration form-code folders (with/without spaces).
+        assertThat(FolderMapper.resolveType(file("7. Iulie 2026/D700", "x.pdf")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(file("7. Iulie 2026/D 112", "x.pdf")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(file("7. Iulie 2026/D100 Chirie", "x.pdf")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        // Payroll folder resolves by folder name (statedeplata alias). Loose-filename typing is covered
+        // separately in DriveDocLayoutTest (resolveType is folder-only; the service adds filename typing).
+        assertThat(FolderMapper.resolveType(file("7. Iulie 2026/State de plata", "fluturas#_X SRL_2026_07.pdf")))
+                .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
+        // Trial balance from a descriptive "balanta de verificare" folder.
+        assertThat(FolderMapper.resolveType(
+                file("Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL/balanta de verificare 2026", "b.pdf")))
+                .contains(ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE);
     }
 }

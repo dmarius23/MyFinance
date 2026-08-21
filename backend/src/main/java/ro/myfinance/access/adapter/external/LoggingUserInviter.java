@@ -19,7 +19,7 @@ public class LoggingUserInviter implements UserInviter {
         UUID id = UUID.randomUUID();
         log.info("[DEV INVITE] would invite {} as {} (tenant {}, company {}) -> {}",
                 email, claims.role(), claims.tenantId(), claims.companyId(), id);
-        return new InvitedUser(id);
+        return new InvitedUser(id, true);
     }
 
     @Override

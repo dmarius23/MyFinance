@@ -63,9 +63,11 @@ public class DocumentFlagService {
                 continue;
             }
             String text = pdfText(d);
-            // Belongs to the company if its CUI or name is present; null = can't verify.
+            // Belongs to the company if its CUI or name is present; null = can't verify. A trial balance is
+            // a table of accounts that often doesn't print the CUI/name, so the text check gives false
+            // "wrong party" flags — its company comes from the folder, so don't flag balances.
             Boolean present = CompanyMatcher.present(text, cui, name);
-            Boolean wrongParty = present == null ? null : !present;
+            Boolean wrongParty = type == DocumentType.TRIAL_BALANCE || present == null ? null : !present;
             LocalDate docMonth = detectPeriod(text, d.getOriginalFilename());
             Boolean outsidePeriod = docMonth == null ? null : !docMonth.equals(month);
             out.add(new Flags(d.getId(), wrongParty, outsidePeriod, docMonth));

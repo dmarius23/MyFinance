@@ -26,6 +26,8 @@ public final class FolderMapper {
     private static final Pattern YEAR = Pattern.compile("(?<!\\d)(20\\d{2})(?!\\d)");
     /** A leading month number not part of a longer number, e.g. "04 Aprilie" → 04, "12" → 12. */
     private static final Pattern LEAD_MONTH = Pattern.compile("^\\s*(0?[1-9]|1[0-2])(?!\\d)");
+    /** A trimester marker in an interim-balance folder, e.g. "T1", "T 2" in "Bilant interimar T2 an 2026". */
+    private static final Pattern TRIMESTER = Pattern.compile("(?i)(?<![a-z0-9])T\\s?([1-4])(?![0-9])");
     private static final java.util.Map<String, Integer> RO_MONTHS = java.util.Map.ofEntries(
             java.util.Map.entry("IANUARIE", 1), java.util.Map.entry("FEBRUARIE", 2),
             java.util.Map.entry("MARTIE", 3), java.util.Map.entry("APRILIE", 4),
@@ -38,26 +40,16 @@ public final class FolderMapper {
     }
 
     /**
-     * Resolve the company a file belongs to — from its folder path first, then (for structures that file
-     * by type/month with all companies together, e.g. the Declaratii drive) from the filename, which
-     * carries the CUI or company name (e.g. {@code D112_49377250_2026_07.pdf}, {@code BARIUS DEV SRL_…}).
-     * A CUI match is tried across all candidates before any name match, since the CUI is unambiguous.
+     * Resolve the company a file belongs to. Folder-path segments are tried first (a company-named folder,
+     * as in {@code Bilant …/<Company>/…}), then the <em>filename</em> — which is where some layouts carry
+     * the identity: declarations embed the CUI ({@code D700_44570402_2026_07 …}) and payroll files embed
+     * the company name ({@code fluturas#_STONEAGE INDUSTRY SRL_2026_07 …}). Both are handled by
+     * {@link #matchesCompany} (CUI digits or a distinctive part of the legal name).
      */
     public static Optional<UUID> resolveCompany(RemoteFile file, List<Company> companies) {
-        List<String> candidates = new java.util.ArrayList<>(segments(file));
-        if (file.name() != null && !file.name().isBlank()) {
-            candidates.add(file.name());
-        }
-        for (String cand : candidates) {
+        for (String candidate : matchCandidates(file)) {
             for (Company c : companies) {
-                if (matchesCui(cand, c)) {
-                    return Optional.of(c.getId());
-                }
-            }
-        }
-        for (String cand : candidates) {
-            for (Company c : companies) {
-                if (matchesName(cand, c)) {
+                if (matchesCompany(candidate, c)) {
                     return Optional.of(c.getId());
                 }
             }
@@ -65,16 +57,13 @@ public final class FolderMapper {
         return Optional.empty();
     }
 
-    /** Whether {@code segment} carries {@code c}'s CUI (≥4 digits, contained). */
-    public static boolean matchesCui(String segment, Company c) {
-        String cuiDigits = digits(c.getCui());
-        return cuiDigits.length() >= 4 && digits(segment).contains(cuiDigits);
-    }
-
-    /** Whether {@code segment} contains {@code c}'s distinctive legal-name core (≥4 chars). */
-    public static boolean matchesName(String segment, Company c) {
-        String core = coreName(c.getLegalName());
-        return core != null && StringNormalizer.alnumUpper(segment).contains(core);
+    /** Folder-path segments (outermost first) plus the filename — the strings we try to identify a company in. */
+    private static List<String> matchCandidates(RemoteFile file) {
+        List<String> candidates = new java.util.ArrayList<>(segments(file));
+        if (file.name() != null && !file.name().isBlank()) {
+            candidates.add(file.name());
+        }
+        return candidates;
     }
 
     /**
@@ -83,7 +72,23 @@ public final class FolderMapper {
      * root for a scoped crawl.
      */
     public static boolean matchesCompany(String segment, Company c) {
-        return matchesCui(segment, c) || matchesName(segment, c);
+        String cuiDigits = digits(c.getCui());
+        if (cuiDigits.length() >= 4 && digits(segment).contains(cuiDigits)) {
+            return true;
+        }
+        String core = coreName(c.getLegalName());
+        if (core == null) {
+            return false;
+        }
+        String seg = StringNormalizer.alnumUpper(segment);
+        // The usual case: the folder/file text contains the company's distinctive core.
+        if (seg.contains(core)) {
+            return true;
+        }
+        // Or the folder is a shortened form of the name (e.g. a balance folder "INNOVATECODE" for
+        // "INNOVATECODE IT SRL"): the core contains the segment. Guarded by a length floor so short
+        // tokens (e.g. "BIT IT") don't collide with an unrelated longer name.
+        return seg.length() >= 6 && core.contains(seg);
     }
 
     /**
@@ -120,6 +125,16 @@ public final class FolderMapper {
         }
         if (year != null && month != null) {
             return ym(year, month);
+        }
+        // 2b) Interim-balance folders carry a trimester, not a calendar month: "Bilant interimar T2 an 2026".
+        //     Map the quarter to its end month (T1→Mar, T2→Jun, T3→Sep, T4→Dec).
+        if (year != null) {
+            for (String s : segs) {
+                Integer quarter = quarterOf(s);
+                if (quarter != null) {
+                    return ym(year, quarter * 3);
+                }
+            }
         }
         // 3) Fallback: the file's modified month.
         LocalDate d = file.modifiedTime() != null
@@ -187,6 +202,15 @@ public final class FolderMapper {
             }
         }
         return null;
+    }
+
+    /** The trimester number (1–4) named in a segment, else null. */
+    private static Integer quarterOf(String segment) {
+        if (segment == null) {
+            return null;
+        }
+        Matcher m = TRIMESTER.matcher(segment);
+        return m.find() ? Integer.parseInt(m.group(1)) : null;
     }
 
     private static List<String> segments(RemoteFile file) {

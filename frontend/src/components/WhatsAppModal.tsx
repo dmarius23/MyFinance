@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { Icon } from "./Icon";
+import { MissingInfoWarning } from "./MissingInfoWarning";
 
 const dt = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
@@ -62,6 +63,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
         </div>
 
         <div style={{ padding: 16, overflowY: "auto" }}>
+          <MissingInfoWarning problems={phone !== null && !phone.trim() ? [t("warn.noPhone")] : []} />
           <label style={fieldLabel}>{t("channel.phone")}</label>
           <input type="tel" value={phone ?? ""} onChange={(e) => setPhone(e.target.value)}
             placeholder="+40…" style={input} />

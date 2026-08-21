@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi, bankApi } from "../api/bank";
 import { emailApi } from "../api/email";
 import { usePeriod } from "../lib/period";
 import { reminderBody } from "../lib/reminderBody";
-import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
+import { BulkActionBar } from "../components/BulkActionBar";
+import { HeaderSummary } from "../components/HeaderSummary";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -47,11 +49,13 @@ export function Statements() {
   const { t } = useTranslation();
   const { period } = usePeriod();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const goReconcile = (id: string) => navigate(`/statements/${id}/reconcile`);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sendList, setSendList] = useState<ReminderTarget[] | null>(null);
   const [logFor, setLogFor] = useState<{ id: string; name: string } | null>(null);
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
+  const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
   const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
   const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
@@ -74,7 +78,14 @@ export function Statements() {
   const rows = companies.data ?? [];
   const selectableIds = rows.filter((c) => needsReminder(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
-  const incomplete = selectableIds.length;
+
+  // Column-aligned "to resolve this month" counts for the strip on top of the table.
+  const missingBank = rows.filter((c) => !(byCompany.get(c.id)?.hasBankStatement ?? false)).length;
+  // Companies that have a bank statement for the month but whose reconciliation isn't COMPLETE.
+  const notReconciled = rows.filter((c) =>
+    (byCompany.get(c.id)?.hasBankStatement ?? false) && (completenessBy.get(c.id) ?? "NOT_STARTED") !== "COMPLETE").length;
+  const toEmail = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastSentAt).length;
+  const toWa = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastWhatsappAt).length;
 
   useEffect(() => { setSelected(new Set()); }, [period]);
 
@@ -85,6 +96,13 @@ export function Statements() {
     const s = byCompany.get(id);
     return { id, name: nameOf(id), hasBankStatement: s?.hasBankStatement ?? false, hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false };
   };
+  const waBody = async (id: string) => {
+    const env = await emailApi.envelope(id).catch(() => null);
+    const hasBank = byCompany.get(id)?.hasBankStatement ?? false;
+    const txns = hasBank ? await bankApi.transactions(id, period) : [];
+    const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
+    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
+  };
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -93,23 +111,18 @@ export function Statements() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("documents.title")}</h2>
         </div>
-        {incomplete > 0 && (
-          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--dot-orange)", marginRight: 5 }} />
-            {incomplete} {t("statements.legendIncomplete")}
-          </div>
-        )}
+        <HeaderSummary items={[
+          { n: missingBank, label: t("summary.missingBank") },
+          { n: notReconciled, label: t("summary.notReconciled") },
+          { n: toEmail, label: t("summary.toSendEmail") },
+          { n: toWa, label: t("summary.toSendWhatsapp") },
+        ]} />
       </div>
 
-      {selected.size > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--chrome-bg)", borderRadius: 10, padding: "9px 14px" }}>
-          <span style={{ fontSize: 13.5, color: "var(--chrome-text)" }}><b style={{ color: "var(--primary)" }}>{selected.size}</b> {t("email.selected", { n: selected.size })}</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setSelected(new Set())} style={{ background: "var(--chrome-active)", color: "var(--chrome-text)", border: "1px solid #2a3a37" }}>{t("email.clear")}</button>
-            <button className="primary" onClick={() => setSendList([...selected].map(target))}><Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: selected.size })}</button>
-          </div>
-        </div>
-      )}
+      <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
+        onClear={() => setSelected(new Set())}
+        onEmail={() => setSendList([...selected].map(target))}
+        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1040 }}>
@@ -188,14 +201,10 @@ export function Statements() {
 
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period}
-        loadBody={async () => {
-          const env = await emailApi.envelope(waFor.id).catch(() => null);
-          const hasBank = byCompany.get(waFor.id)?.hasBankStatement ?? false;
-          const txns = hasBank ? await bankApi.transactions(waFor.id, period) : [];
-          const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
-          return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
-        }}
+        loadBody={() => waBody(waFor.id)}
         onClose={() => setWaFor(null)} />}
+      {waBulk && <WhatsAppBulkModal targets={waBulk} kind="DOCUMENT_REMINDER" period={period} loadBody={waBody}
+        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); qc.invalidateQueries({ queryKey: ["doc-reminders", period] }); }} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}
