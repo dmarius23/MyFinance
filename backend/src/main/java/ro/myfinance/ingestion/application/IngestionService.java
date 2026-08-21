@@ -146,23 +146,48 @@ public class IngestionService {
     public record DriveStatus(boolean enabled, boolean write) {
     }
 
-    /** Full sync of a whole connection (admin "Sync now" on the Data sources screen). */
+    /**
+     * Admin "Sync now" on the Data sources screen. For a DECLARATIONS drive (the "Declaratii {year}" tree,
+     * which holds every client's files and can be tens of thousands of files) this is scoped to the recent
+     * months' folders so we never crawl+download the whole year; other drives get a full crawl.
+     */
     public SyncResult sync(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
-        return doSync(conn, null, null, null, previousMonth(), true, conn.getRootFolderId(), false);
+        LocalDate prev = previousMonth();
+        java.util.Set<LocalDate> recent = recentMonths();
+        List<String> scope = declarationScopeFolders(conn, recent);
+        if (!scope.isEmpty()) {
+            log.info("sync (DECLARATIONS) connection={} scoped to {} month/trimester folder(s) for {}",
+                    conn.getId(), scope.size(), recent);
+            return doSyncFolders(conn, null, recent, null, prev, true, scope, false);
+        }
+        // ACCOUNTING / general / structure-not-found: full crawl (bounded to recent months for DECLARATIONS
+        // so a huge tree still can't download the whole year).
+        java.util.Set<LocalDate> periods = "DECLARATIONS".equals(conn.getPurpose()) ? recent : null;
+        return doSync(conn, null, periods, null, prev, true, conn.getRootFolderId(), false);
     }
 
     /**
-     * Sync ONLY the current and previous month for every company (the scheduled poll). One folder
-     * listing per run; new previous-month payroll triggers a notification to the company's reps.
+     * Sync ONLY the current and previous month for every company (the scheduled poll). For a DECLARATIONS
+     * drive the crawl is scoped to those months' folders; new previous-month payroll notifies the reps.
      */
     public SyncResult syncRecent(UUID connectionId) {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
+        java.util.Set<LocalDate> recent = recentMonths();
+        List<String> scope = declarationScopeFolders(conn, recent);
+        if (!scope.isEmpty()) {
+            return doSyncFolders(conn, null, recent, null, prev, true, scope, false);
+        }
+        return doSync(conn, null, recent, null, prev, true, conn.getRootFolderId(), false);
+    }
+
+    /** The current month + previous month (period = first-of-month), the default recent-sync window. */
+    private static java.util.Set<LocalDate> recentMonths() {
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false);
+        return java.util.Set.of(current, previousMonth());
     }
 
     /**
@@ -172,6 +197,19 @@ public class IngestionService {
     public SyncResult syncCompanyMonth(String forcedType, UUID companyId, LocalDate period) {
         SourceConnection conn = findDriveConnection(forcedType)
                 .orElseThrow(() -> new NotFoundException("No Drive folder configured for " + forcedType));
+        LocalDate month = period.withDayOfMonth(1);
+        // DECLARATIONS drive: files are filed by month/type with all companies together (no per-company
+        // folder), so crawl the month folder(s) and resolve the company per file from its name.
+        List<String> declScope = declarationScopeFolders(conn, java.util.Set.of(month));
+        if (!declScope.isEmpty()) {
+            log.info("syncCompanyMonth (DECLARATIONS scoped) type={} company={} period={} folders={}",
+                    forcedType, companyId, period, declScope.size());
+            SyncResult sc = doSyncFolders(conn, companyId, java.util.Set.of(month), parseForcedType(forcedType),
+                    previousMonth(), false, declScope, false);
+            log.info("syncCompanyMonth done company={} period={} → imported={} review={} skipped={} failed={}",
+                    companyId, period, sc.imported(), sc.needsReview(), sc.skipped(), sc.failed());
+            return sc;
+        }
         // Fast path: crawl only this company's folder under the root instead of the whole drive. Falls
         // back to a full crawl when the company folder can't be located (then the file paths still carry
         // the company name for per-file resolution).
@@ -205,6 +243,112 @@ public class IngestionService {
             log.warn("Could not list root subfolders for connection {} — full crawl", conn.getId(), e);
             return null;
         }
+    }
+
+    /**
+     * The month + trimester folder ids to crawl on a DECLARATIONS drive for the given months, so we scope
+     * to a handful of folders instead of the whole "Declaratii {year}" tree (tens of thousands of files).
+     * Resolves, per year: the "Declaratii {year}" folder (or the root itself when it already IS that folder),
+     * then its "{m}. {LunăRo} {year}" month folders and "Bilant Interimar T{q} an {year}" trimester folders.
+     * Empty for non-DECLARATIONS connections or when the structure can't be located (caller falls back).
+     */
+    private List<String> declarationScopeFolders(SourceConnection conn, java.util.Set<LocalDate> months) {
+        if (!"DECLARATIONS".equals(conn.getPurpose())) {
+            return List.of();
+        }
+        CloudFolderConnector connector = registry.forProvider(conn.getProvider());
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        try {
+            java.util.Set<Integer> years = new java.util.HashSet<>();
+            for (LocalDate m : months) {
+                years.add(m.getYear());
+            }
+            for (int year : years) {
+                String yearFolderId = conn.isRootIsYearFolder()
+                        ? conn.getRootFolderId()
+                        : firstFolder(connector.subfolders(conn, conn.getRootFolderId()), n -> matchesYearFolder(n, year));
+                if (yearFolderId == null) {
+                    continue;
+                }
+                List<CloudFolderConnector.Folder> subs = connector.subfolders(conn, yearFolderId);
+                for (LocalDate m : months) {
+                    if (m.getYear() != year) {
+                        continue;
+                    }
+                    String monthId = firstFolder(subs, n -> matchesMonthFolder(n, m));
+                    if (monthId != null) {
+                        out.add(monthId);
+                    }
+                    String triId = firstFolder(subs, n -> matchesTrimesterFolder(n, m));
+                    if (triId != null) {
+                        out.add(triId);
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            log.warn("Could not resolve DECLARATIONS scope folders for connection {} — full crawl", conn.getId(), e);
+            return List.of();
+        }
+        return List.copyOf(out);
+    }
+
+    /** Run {@link #doSync} over several start folders and aggregate; persists connection status once. */
+    private SyncResult doSyncFolders(SourceConnection conn, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
+                                     DocumentType fallbackType, LocalDate notifyMonth, boolean persistStatus,
+                                     List<String> startFolders, boolean companyKnown) {
+        int imported = 0, review = 0, skipped = 0, failed = 0;
+        List<SyncResult.Issue> issues = new java.util.ArrayList<>();
+        for (String sf : startFolders) {
+            SyncResult r = doSync(conn, onlyCompany, onlyPeriods, fallbackType, notifyMonth, false, sf, companyKnown);
+            imported += r.imported();
+            review += r.needsReview();
+            skipped += r.skipped();
+            failed += r.failed();
+            issues.addAll(r.issues());
+        }
+        SyncResult result = new SyncResult(imported, review, skipped, failed, List.copyOf(issues));
+        if (persistStatus) {
+            conn.setStatus("ACTIVE");
+            conn.setLastResult(result.summary());
+        }
+        return result;
+    }
+
+    private static String firstFolder(List<CloudFolderConnector.Folder> folders,
+                                      java.util.function.Predicate<String> nameMatches) {
+        return folders.stream().filter(f -> nameMatches.test(f.name()))
+                .map(CloudFolderConnector.Folder::id).findFirst().orElse(null);
+    }
+
+    /** Lowercase + strip Romanian diacritics, for tolerant folder-name matching. */
+    private static String norm(String s) {
+        if (s == null) {
+            return "";
+        }
+        String t = s.replace('ș', 's').replace('ț', 't').replace('Ș', 's').replace('Ț', 't')
+                .replace('ă', 'a').replace('â', 'a').replace('î', 'i').replace('Ă', 'a').replace('Â', 'a').replace('Î', 'i');
+        t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        return t.toLowerCase();
+    }
+
+    private static boolean matchesYearFolder(String name, int year) {
+        String n = norm(name);
+        return n.contains("declaratii") && n.contains(String.valueOf(year));
+    }
+
+    /** A "{m}. {LunăRo} {year}" month folder (e.g. "6. Iunie 2026"); tolerant of the firm's own naming. */
+    private static boolean matchesMonthFolder(String name, LocalDate m) {
+        String n = norm(name);
+        return n.contains(RO_MONTHS[m.getMonthValue() - 1]) && n.contains(String.valueOf(m.getYear()))
+                && !n.contains("interimar");
+    }
+
+    /** A "Bilant Interimar T{q} an {year}" trimester folder for the month's trimester. */
+    private static boolean matchesTrimesterFolder(String name, LocalDate m) {
+        String n = norm(name);
+        int q = (m.getMonthValue() - 1) / 3 + 1;
+        return n.contains("interimar") && n.contains("t" + q) && n.contains(String.valueOf(m.getYear()));
     }
 
     private Optional<SourceConnection> findDriveConnection(String forcedType) {
