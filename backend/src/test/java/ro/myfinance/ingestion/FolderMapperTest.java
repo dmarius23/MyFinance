@@ -43,6 +43,44 @@ class FolderMapperTest {
         assertThat(FolderMapper.resolveCompany(file("INNOVATECODE IT SRL/2026-05"), cos)).contains(id);
     }
 
+    private RemoteFile named(String name, String path) {
+        return new RemoteFile("f1", name, path, "application/pdf", 100, "e1", Instant.parse("2026-07-10T00:00:00Z"));
+    }
+
+    @Test
+    void resolvesCompanyFromFilenameCuiWhenPathHasNone() {
+        // Declaratii drive: files sit in a type folder with no company folder; the CUI is in the filename.
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "SOME OTHER SRL", "49443957"),
+                company(UUID.randomUUID(), "Lumina Verde SRL", "39112764"));
+        assertThat(FolderMapper.resolveCompany(named("D112_49443957_2026_07.pdf", "7. Iulie 2026/D 112"), cos))
+                .contains(id);
+    }
+
+    @Test
+    void resolvesCompanyFromFilenameNameWhenPathHasNone() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "BARIUS DEV SRL", "48000111"));
+        assertThat(FolderMapper.resolveCompany(
+                named("BARIUS DEV SRL_RECIPISA_D112_072026_49234675.PDF", "7. Iulie 2026/D 112"), cos)).contains(id);
+    }
+
+    @Test
+    void recognisesFirmDeclarationAndPayrollTypeFolders() {
+        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/D 112")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/D300")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/D100 Chirie")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/SAF-T")))
+                .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
+        assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/State de plata")))
+                .contains(ro.myfinance.intake.domain.DocumentType.PAYROLL);
+        assertThat(FolderMapper.resolveType(named("x.pdf", "Bilant interimar T2 an 2026/ACME")))
+                .contains(ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE);
+    }
+
     @Test
     void returnsEmptyWhenNoCompanyMatches() {
         List<Company> cos = List.of(company(UUID.randomUUID(), "INNOVATECODE IT SRL", "49443957"));

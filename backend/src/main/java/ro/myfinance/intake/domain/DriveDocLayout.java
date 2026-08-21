@@ -39,6 +39,15 @@ public final class DriveDocLayout {
                 return Optional.of(t);
             }
         }
+        // Firm-specific declaration foldering (Declaratii drive): an ANAF form code ("D112", "D 300",
+        // "D100 Chirie", "D100 dividende", "D406", "D700", …) or a SAF-T folder → DECLARATION; a
+        // "Bilant interimar T{q} …" folder → TRIAL_BALANCE. Kept as patterns so we don't enumerate every code.
+        if (n.matches("d\\d{2,4}.*") || n.startsWith("saft")) {
+            return Optional.of(DocumentType.DECLARATION);
+        }
+        if (n.startsWith("bilant")) {
+            return Optional.of(DocumentType.TRIAL_BALANCE);
+        }
         return Optional.empty();
     }
 

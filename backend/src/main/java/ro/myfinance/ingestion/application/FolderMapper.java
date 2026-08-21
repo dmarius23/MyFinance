@@ -37,16 +37,44 @@ public final class FolderMapper {
     private FolderMapper() {
     }
 
-    /** Resolve the company a file belongs to from its folder path, against the tenant's companies. */
+    /**
+     * Resolve the company a file belongs to — from its folder path first, then (for structures that file
+     * by type/month with all companies together, e.g. the Declaratii drive) from the filename, which
+     * carries the CUI or company name (e.g. {@code D112_49377250_2026_07.pdf}, {@code BARIUS DEV SRL_…}).
+     * A CUI match is tried across all candidates before any name match, since the CUI is unambiguous.
+     */
     public static Optional<UUID> resolveCompany(RemoteFile file, List<Company> companies) {
-        for (String segment : segments(file)) {
+        List<String> candidates = new java.util.ArrayList<>(segments(file));
+        if (file.name() != null && !file.name().isBlank()) {
+            candidates.add(file.name());
+        }
+        for (String cand : candidates) {
             for (Company c : companies) {
-                if (matchesCompany(segment, c)) {
+                if (matchesCui(cand, c)) {
+                    return Optional.of(c.getId());
+                }
+            }
+        }
+        for (String cand : candidates) {
+            for (Company c : companies) {
+                if (matchesName(cand, c)) {
                     return Optional.of(c.getId());
                 }
             }
         }
         return Optional.empty();
+    }
+
+    /** Whether {@code segment} carries {@code c}'s CUI (≥4 digits, contained). */
+    public static boolean matchesCui(String segment, Company c) {
+        String cuiDigits = digits(c.getCui());
+        return cuiDigits.length() >= 4 && digits(segment).contains(cuiDigits);
+    }
+
+    /** Whether {@code segment} contains {@code c}'s distinctive legal-name core (≥4 chars). */
+    public static boolean matchesName(String segment, Company c) {
+        String core = coreName(c.getLegalName());
+        return core != null && StringNormalizer.alnumUpper(segment).contains(core);
     }
 
     /**
@@ -55,12 +83,7 @@ public final class FolderMapper {
      * root for a scoped crawl.
      */
     public static boolean matchesCompany(String segment, Company c) {
-        String cuiDigits = digits(c.getCui());
-        if (cuiDigits.length() >= 4 && digits(segment).contains(cuiDigits)) {
-            return true;
-        }
-        String core = coreName(c.getLegalName());
-        return core != null && StringNormalizer.alnumUpper(segment).contains(core);
+        return matchesCui(segment, c) || matchesName(segment, c);
     }
 
     /**
