@@ -26,6 +26,9 @@ public class AsyncConfig {
     /** Bean name of the (single-threaded) ANAF treasury-IBAN sync executor. */
     public static final String ANAF_SYNC = "anafSyncExecutor";
 
+    /** Bean name of the (single-threaded) Drive module-sync executor (crawl + import off the request thread). */
+    public static final String MODULE_SYNC = "moduleSyncExecutor";
+
     @Bean(name = DOCUMENT_PIPELINE)
     public Executor documentPipelineExecutor(
             @Value("${myfinance.async.inline:false}") boolean inline) {
@@ -61,6 +64,30 @@ public class AsyncConfig {
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(10);
         executor.setThreadNamePrefix("anaf-sync-");
+        executor.setTaskDecorator(new TenantContextTaskDecorator());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * Runs a Drive module-sync (crawl a month/bilanț folder + import) off the request thread, so a big
+     * first sync never blocks (or times out) the triggering HTTP request. Single-threaded — the
+     * {@code module_sync_status} row already serialises per (module, month) and one crawl at a time is
+     * plenty. Tenant context is propagated to the worker thread. Honors {@code myfinance.async.inline=true}
+     * so tests run the sync synchronously and deterministically.
+     */
+    @Bean(name = MODULE_SYNC)
+    public Executor moduleSyncExecutor(@Value("${myfinance.async.inline:false}") boolean inline) {
+        if (inline) {
+            return new SyncTaskExecutor();
+        }
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("module-sync-");
         executor.setTaskDecorator(new TenantContextTaskDecorator());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);

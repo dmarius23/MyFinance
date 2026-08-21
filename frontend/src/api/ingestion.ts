@@ -63,9 +63,10 @@ export const ingestionApi = {
   source: (type: string) => api<{ driveEnabled: boolean; driveWrite: boolean }>(`/api/v1/ingestion/source?type=${type}`),
   syncCompany: (input: { companyId: string; period: string; type: string }) =>
     api<SyncResult>(`/api/v1/ingestion/sync-company`, { method: "POST", body: JSON.stringify(input) }),
-  // Bulk: sync one module (type) for a whole month across ALL companies.
+  // Bulk: start a module (type) sync for a whole month across ALL companies. Runs in the background;
+  // returns the shared status immediately (running=true) — poll syncStatus for progress + final result.
   syncMonth: (input: { period: string; type: string }) =>
-    api<SyncResult>(`/api/v1/ingestion/sync-month`, { method: "POST", body: JSON.stringify(input) }),
+    api<SyncStatus>(`/api/v1/ingestion/sync-month`, { method: "POST", body: JSON.stringify(input) }),
   // Shared sync state for a module + month (last synced + whether a sync is running now).
   syncStatus: (type: string, period: string) =>
     api<SyncStatus>(`/api/v1/ingestion/sync-status?type=${type}&period=${period}`),

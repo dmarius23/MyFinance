@@ -1,11 +1,13 @@
 package ro.myfinance.ingestion.adapter.web;
 
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -37,9 +39,12 @@ public class IngestionSyncController {
         return new SourceStatus(s.enabled(), s.write());
     }
 
+    /** Start a module-month sync (runs off the request thread) and return its shared status immediately;
+     *  the module screens poll {@code /sync-status} for progress and the final result. */
     @PostMapping("/api/v1/ingestion/sync-month")
-    public SyncResponse syncMonth(@Valid @RequestBody SyncMonthRequest req) {
-        return SyncResponse.from(ingestion.syncModuleMonth(req.type(), req.period()));
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public SyncStatusView syncMonth(@Valid @RequestBody SyncMonthRequest req) {
+        return SyncStatusView.from(ingestion.syncModuleMonth(req.type(), req.period()));
     }
 
     /** Shared sync state for a module + month — read by every module screen to show "last synced" and,

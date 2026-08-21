@@ -46,12 +46,15 @@ public class IngestionService {
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ModuleSyncStatusService syncStatus;
+    private final java.util.concurrent.Executor moduleSyncExecutor;
 
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
                             CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications,
-                            ModuleSyncStatusService syncStatus) {
+                            ModuleSyncStatusService syncStatus,
+                            @org.springframework.beans.factory.annotation.Qualifier(
+                                    ro.myfinance.common.async.AsyncConfig.MODULE_SYNC) java.util.concurrent.Executor moduleSyncExecutor) {
         this.connections = connections;
         this.ledger = ledger;
         this.companies = companies;
@@ -60,6 +63,7 @@ public class IngestionService {
         this.audit = audit;
         this.notifications = notifications;
         this.syncStatus = syncStatus;
+        this.moduleSyncExecutor = moduleSyncExecutor;
     }
 
     /** The previous calendar month (first of month) — the month reps are notified about. */
@@ -212,7 +216,7 @@ public class IngestionService {
      * folder, not the whole drive) and imports only that module's type, so a payroll sync does not pull
      * the same month's declarations. Requires the month-first layout.
      */
-    public SyncResult syncModuleMonth(String moduleType, LocalDate period) {
+    public ModuleSyncStatusService.View syncModuleMonth(String moduleType, LocalDate period) {
         DocumentType module = parseForcedType(moduleType);
         if (module == null) {
             throw new IllegalArgumentException("Unknown module type: " + moduleType);
@@ -240,17 +244,31 @@ public class IngestionService {
             throw new ro.myfinance.common.web.ConflictException(
                     "A sync for " + module + " / " + targetPeriod + " is already running.");
         }
+        // Run the crawl + import off the request thread so a big first sync never blocks/times out the HTTP
+        // call. Progress is shared via module_sync_status (polled by every module screen). Tenant context is
+        // propagated to the worker. In tests (myfinance.async.inline=true) this runs inline before returning.
+        LocalDate finalTargetPeriod = targetPeriod;
+        String finalStartFolder = startFolder;
+        moduleSyncExecutor.execute(() -> runModuleSync(conn, module, finalTargetPeriod, finalStartFolder));
+        // Return the current shared state: RUNNING on a background thread (prod), or the finished result (tests).
+        return syncStatus.get(module.name(), targetPeriod);
+    }
+
+    /** The crawl + import for a claimed (module, month) slot; always releases the slot via markFinish. */
+    private void runModuleSync(SourceConnection conn, DocumentType module, LocalDate targetPeriod, String startFolder) {
         SyncResult r = new SyncResult(0, 0, 0, 0, List.of());
         try {
             if (startFolder == null) {
                 log.warn("syncModuleMonth: no {} folder found under root for {} — nothing to sync", module, targetPeriod);
-                return r;
+                return;
             }
             r = doSync(conn, null, java.util.Set.of(targetPeriod), module, previousMonth(),
                     false, startFolder, false, module, targetPeriod);
             log.info("syncModuleMonth done module={} period={} → imported={} review={} skipped={} failed={}",
                     module, targetPeriod, r.imported(), r.needsReview(), r.skipped(), r.failed());
-            return r;
+        } catch (RuntimeException e) {
+            log.error("syncModuleMonth failed module={} period={}: {}", module, targetPeriod, e.getMessage(), e);
+            r = new SyncResult(r.imported(), r.needsReview(), r.skipped(), r.failed() + 1, r.issues());
         } finally {
             syncStatus.markFinish(module.name(), targetPeriod, r.summary());
         }

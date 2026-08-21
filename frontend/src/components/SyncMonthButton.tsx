@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ingestionApi, type SyncResult, type SyncStatus } from "../api/ingestion";
+import { ingestionApi, type SyncStatus } from "../api/ingestion";
 import { syncScopeLabel } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 
@@ -21,11 +21,10 @@ export function SyncMonthButton({ type, period, onDone }: { type: string; period
     refetchInterval: (q) => (q.state.data?.running ? 3000 : 20000),
   });
   const sync = useMutation({
+    // Fire-and-forget: the sync runs in the background. We don't block for counts — the shared status
+    // (polled below) flips to running, then to the finished result, visible to every user.
     mutationFn: () => ingestionApi.syncMonth({ period, type }),
-    onSuccess: (r: SyncResult) => {
-      onDone?.();
-      window.alert(t("ingest.syncDone", r as unknown as Record<string, number>));
-    },
+    onSuccess: () => { onDone?.(); },
     onError: (err: unknown) =>
       window.alert(err instanceof ApiError && err.status === 409 ? t("ingest.syncBusy") : t("ingest.syncFailed")),
     onSettled: () => qc.invalidateQueries({ queryKey: ["ingestion-sync-status", type, period] }),

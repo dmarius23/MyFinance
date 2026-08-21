@@ -53,7 +53,8 @@ class IngestionServiceTest {
     private final ro.myfinance.ingestion.application.ModuleSyncStatusService syncStatus =
             mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications, syncStatus);
+    // Inline executor: module-month syncs run synchronously in the test thread (deterministic).
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications, syncStatus, Runnable::run);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
@@ -408,9 +409,10 @@ class IngestionServiceTest {
                 eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
                 eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
-        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 7, 1));
+        service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 7, 1));
 
-        assertThat(r.imported()).isEqualTo(1); // only the payroll, not the D112 declaration in the same folder
+        // only the payroll imported, not the D112 declaration in the same folder (async runner finished inline)
+        verify(syncStatus).markFinish(eq("PAYROLL"), any(), org.mockito.ArgumentMatchers.contains("1 imported"));
         verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
                 eq("fluturas#_INNOVATECODE IT SRL c.f. 49443957_2026_07.pdf"), any(), any(),
@@ -445,9 +447,10 @@ class IngestionServiceTest {
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
                 any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
-        var r = service.syncModuleMonth("DECLARATION", LocalDate.of(2026, 6, 1));
+        service.syncModuleMonth("DECLARATION", LocalDate.of(2026, 6, 1));
 
-        assertThat(r.imported()).isEqualTo(1); // only the ANAF original; the renamed copy is dropped
+        // only the ANAF original imported; the renamed copy is dropped
+        verify(syncStatus).markFinish(eq("DECLARATION"), any(), org.mockito.ArgumentMatchers.contains("1 imported"));
         verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
                 any(), any(), eq(DocumentType.DECLARATION), eq(DocumentSource.DRIVE));
@@ -517,9 +520,10 @@ class IngestionServiceTest {
         when(documents.upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
                 any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
-        var r = service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 4, 1));
+        service.syncModuleMonth("PAYROLL", LocalDate.of(2026, 4, 1));
 
-        assertThat(r.imported()).isEqualTo(1); // only the final, the Initial is dropped
+        // only the final imported, the Initial is dropped
+        verify(syncStatus).markFinish(eq("PAYROLL"), any(), org.mockito.ArgumentMatchers.contains("1 imported"));
         verify(documents, times(1)).upload(any(), any(), any(), any(), any(), any(), any());
         verify(documents).upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),
                 any(), any(), eq(DocumentType.PAYROLL), eq(DocumentSource.DRIVE));
