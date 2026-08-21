@@ -44,8 +44,6 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
     if (active.length === 0 && finishedRef.current.length > 0) {
       setFinishedToast(finishedRef.current.slice());
       finishedRef.current = [];
-      const id = window.setTimeout(() => setFinishedToast(null), 9000);
-      return () => window.clearTimeout(id);
     }
   }, [active.length]);
 
@@ -63,7 +61,7 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
           </Card>
         )}
         {finishedToast && (
-          <Card tone="success">
+          <Card tone="success" onClose={() => setFinishedToast(null)}>
             <div style={titleStyle}>{t("ingest.syncFinished")}</div>
             <ul style={listStyle}>
               {finishedToast.map((f) => <li key={f.key}>{f.label}{f.result ? `: ${f.result}` : ""}</li>)}
@@ -98,15 +96,24 @@ function SyncPoll({ entry, onFinish }: { entry: Entry; onFinish: (key: string, l
   return null;
 }
 
-function Card({ tone, children }: { tone: "info" | "success"; children: ReactNode }) {
+function Card({ tone, children, onClose }: { tone: "info" | "success"; children: ReactNode; onClose?: () => void }) {
   const accent = tone === "success" ? "var(--primary, #16a34a)" : "var(--primary, #3b82f6)";
   return (
     <div role="status" aria-live="polite" style={{
+      position: "relative", pointerEvents: onClose ? "auto" : "none",
       background: "var(--chrome-bg, #0c1413)", color: "var(--chrome-text, #e8efed)",
       border: "1px solid var(--border, #2a3a37)", borderLeft: `3px solid ${accent}`,
-      borderRadius: 8, padding: "10px 14px", fontSize: 13, lineHeight: 1.4,
+      borderRadius: 8, padding: onClose ? "10px 30px 10px 14px" : "10px 14px", fontSize: 13, lineHeight: 1.4,
       boxShadow: "0 8px 24px rgba(0,0,0,0.28)", animation: "mf-toast-in 160ms ease-out",
-    }}>{children}</div>
+    }}>
+      {children}
+      {onClose && (
+        <button onClick={onClose} aria-label="Dismiss" style={{
+          position: "absolute", top: 6, right: 8, background: "none", border: "none", cursor: "pointer",
+          color: "var(--text-secondary, #9fb0ac)", fontSize: 16, lineHeight: 1, padding: 2,
+        }}>×</button>
+      )}
+    </div>
   );
 }
 
