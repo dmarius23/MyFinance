@@ -14,6 +14,7 @@ import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentDeletedEvent;
+import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
@@ -37,12 +38,14 @@ public class TaxDeclarationListener {
     private final AnafDeclarationExtractor extractor;
     private final TaxDeclarationRepository declarations;
     private final CompanyDirectory companies;
+    private final DocumentService documents;
 
     public TaxDeclarationListener(AnafDeclarationExtractor extractor, TaxDeclarationRepository declarations,
-                                  CompanyDirectory companies) {
+                                  CompanyDirectory companies, DocumentService documents) {
         this.extractor = extractor;
         this.declarations = declarations;
         this.companies = companies;
+        this.documents = documents;
     }
 
     @Async(AsyncConfig.DOCUMENT_PIPELINE)
@@ -79,18 +82,30 @@ public class TaxDeclarationListener {
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
                     declPeriod, wrongParty, false, obligations);
 
+            declarations.save(row);
+
             // Auto-dedup: keep ONE declaration per (company, form, month) — except D100, which a company may
             // legitimately file once per fiscal obligation (creanță 103 profit / 604 dividende / 618 chirii …),
-            // so D100s are keyed by their obligation code(s). A re-imported or regenerated copy arrives as a
-            // *different* document filling the same slot; it supersedes the older one (removed here) instead
-            // of piling up a duplicate.
+            // so D100s are keyed by their obligation code(s). A re-imported or regenerated copy of the same
+            // declaration arrives as a *different* document filling the same slot (e.g. an ANAF original vs a
+            // renamed copy pulled in separate crawls). Supersede those older copies: delete each one's
+            // underlying document too (removes its stored file + ledger + this-type declaration), so a
+            // re-import self-heals instead of piling up duplicate files.
             String slot = obligationSlot(pd.type(), obligations);
             declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(e.companyId(), storedMonth).stream()
                     .filter(prev -> prev.getType() == pd.type()
                             && !e.documentId().equals(prev.getDocumentId())
                             && obligationSlot(prev.getType(), prev.getObligations()).equals(slot))
-                    .forEach(declarations::delete);
-            declarations.save(row);
+                    .toList()
+                    .forEach(prev -> {
+                        declarations.delete(prev);
+                        try {
+                            documents.delete(prev.getDocumentId());
+                        } catch (RuntimeException ex) {
+                            log.warn("Could not remove superseded document {} during declaration dedup",
+                                    prev.getDocumentId(), ex);
+                        }
+                    });
         } catch (RuntimeException ex) {
             log.warn("Failed to store tax declaration for document {}", e.documentId(), ex);
         }

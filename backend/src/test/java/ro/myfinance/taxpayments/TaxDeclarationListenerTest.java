@@ -33,8 +33,10 @@ class TaxDeclarationListenerTest {
 
     private final TaxDeclarationRepository declarations = mock(TaxDeclarationRepository.class);
     private final CompanyDirectory companies = mock(CompanyDirectory.class);
+    private final ro.myfinance.intake.application.DocumentService documents =
+            mock(ro.myfinance.intake.application.DocumentService.class);
     private final TaxDeclarationListener listener =
-            new TaxDeclarationListener(new AnafDeclarationExtractor(), declarations, companies);
+            new TaxDeclarationListener(new AnafDeclarationExtractor(), declarations, companies, documents);
 
     @BeforeEach
     void setup() {
@@ -109,5 +111,26 @@ class TaxDeclarationListenerTest {
         assertThat(saved.getType()).isEqualTo(DeclarationType.D300);
         assertThat(saved.isWrongParty()).isTrue();        // 20464846 != 49443957
         assertThat(saved.isOutsidePeriod()).isFalse();    // D300 is for April, filed under April
+    }
+
+    @Test
+    void supersedesAnEarlierSameFormCopyAndDeletesItsDocument() throws IOException {
+        byte[] d300 = fixture("D300.pdf");
+        assumeTrue(d300 != null, "fixtures missing");
+        // An earlier import of the same form/month, from a DIFFERENT document (e.g. a renamed copy pulled
+        // in an earlier crawl), is on file.
+        UUID earlierDoc = UUID.randomUUID();
+        TaxDeclaration earlier = new TaxDeclaration(UUID.randomUUID(), UUID.randomUUID(),
+                LocalDate.of(2026, 4, 1), earlierDoc);
+        earlier.apply(DeclarationType.D300, "20464846", java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                false, null, false, false, java.util.List.of());
+        when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(any(), any()))
+                .thenReturn(java.util.List.of(earlier));
+
+        onUpload(d300, "D300.pdf", LocalDate.of(2026, 4, 1), "20464846");
+
+        // The new copy wins; the earlier one is superseded — its declaration AND its stored document removed.
+        verify(declarations).delete(earlier);
+        verify(documents).delete(earlierDoc);
     }
 }
