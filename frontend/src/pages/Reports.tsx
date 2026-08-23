@@ -17,6 +17,7 @@ import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBu
 import { BulkActionBar } from "../components/BulkActionBar";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { CompanySearch } from "../components/CompanySearch";
+import { loadAllPages } from "../lib/paging";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
@@ -71,7 +72,12 @@ export function Reports() {
   }, [openModal, focusCompany, companies.data]);
 
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
+  // Select-all covers EVERY matching company (loads all pages), not just those scrolled into view.
+  const toggleAll = async () => {
+    if (allSelected) { setSelected(new Set()); return; }
+    const all = await loadAllPages(companies);
+    setSelected(new Set(all.filter((c) => hasReport(c.id)).map((c) => c.id)));
+  };
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): ReportTarget => ({ companyId: id, companyName: nameOf(id) });
   const waBody = (id: string) => reportsApi.emailBody(id, period).then((r) =>

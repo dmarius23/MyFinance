@@ -16,6 +16,7 @@ import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBu
 import { BulkActionBar } from "../components/BulkActionBar";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { CompanySearch } from "../components/CompanySearch";
+import { loadAllPages } from "../lib/paging";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
@@ -111,7 +112,12 @@ export function TaxPayments() {
   const selectable = rows.filter((r) => r.declarations.length > 0).map((r) => r.companyId);
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable));
+  // Select-all covers EVERY matching company (loads all pages), not just the ones scrolled into view.
+  const toggleAll = async () => {
+    if (allSelected) { setSelected(new Set()); return; }
+    const all = await loadAllPages({ data, hasNextPage, fetchNextPage });
+    setSelected(new Set(all.filter((r) => r.declarations.length > 0).map((r) => r.companyId)));
+  };
 
   const refreshList = () => void qc.invalidateQueries({ queryKey: ["tax-list-page", period] });
   const openBulk = () => {

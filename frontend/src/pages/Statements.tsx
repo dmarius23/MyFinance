@@ -16,6 +16,7 @@ import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
 import { CompanySearch } from "../components/CompanySearch";
+import { loadAllPages } from "../lib/paging";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -100,7 +101,12 @@ export function Statements() {
   }, [companies.hasNextPage, companies.isFetchingNextPage, companies.fetchNextPage]);
 
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
+  // Select-all covers EVERY matching company (loads all pages), not just those scrolled into view.
+  const toggleAll = async () => {
+    if (allSelected) { setSelected(new Set()); return; }
+    const all = await loadAllPages(companies);
+    setSelected(new Set(all.filter((c) => needsReminder(c.id)).map((c) => c.id)));
+  };
   const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
   const target = (id: string): ReminderTarget => {
     const s = byCompany.get(id);
