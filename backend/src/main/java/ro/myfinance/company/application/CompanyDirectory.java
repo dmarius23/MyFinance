@@ -33,6 +33,17 @@ public class CompanyDirectory {
         return companies.findAll();
     }
 
+    /** A page of companies matching {@code q} (name or CUI, substring, diacritic-insensitive), name-sorted. */
+    public org.springframework.data.domain.Page<Company> search(
+            String q, org.springframework.data.domain.Pageable pageable) {
+        return companies.search(q == null ? "" : q.trim(), pageable);
+    }
+
+    /** The ids of all companies matching {@code q} — for server-side bulk actions over the whole filter. */
+    public List<UUID> searchIds(String q) {
+        return companies.searchIds(q == null ? "" : q.trim());
+    }
+
     /** The companies with the given ids that exist in the current tenant. */
     public List<Company> findAllById(Iterable<UUID> ids) {
         return companies.findAllById(ids);

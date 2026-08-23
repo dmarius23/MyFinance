@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow, type DeclarationCell } from "../api/taxes";
 import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
@@ -14,8 +14,8 @@ import { NotificationLogModal } from "../components/NotificationLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
+import { CompanySearch } from "../components/CompanySearch";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
 
@@ -75,38 +75,45 @@ export function TaxPayments() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTargets, setBulkTargets] = useState<PreviewTarget[] | null>(null);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["tax-list", period],
-    queryFn: () => taxPaymentsApi.list(period),
+  const [dq, setDq] = useState("");
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["tax-list-page", period, dq],
+    queryFn: ({ pageParam }) => taxPaymentsApi.listPage(period, dq, pageParam as number),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
-  const rows = data ?? [];
+  const rows = data?.pages.flatMap((p) => p.content) ?? [];
 
-  useEffect(() => { setSelected(new Set()); }, [period]);
+  useEffect(() => { setSelected(new Set()); }, [period, dq]);
 
-  // Deep-link from the dashboard (?company=&open=1): open that company's declarations manager once loaded.
+  // Auto-load the next page when the sentinel scrolls near the viewport.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !isFetchingNextPage) void fetchNextPage(); },
+      { rootMargin: "250px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // Deep-link from the dashboard (?company=&open=1): open that company's declarations if it's loaded.
   const autoOpened = useRef(false);
   useEffect(() => {
     if (!openModal || autoOpened.current) return;
-    const row = (data ?? []).find((r) => r.companyId === focusCompany);
+    const row = (data?.pages.flatMap((p) => p.content) ?? []).find((r) => r.companyId === focusCompany);
     if (row) { autoOpened.current = true; setDeclFor({ id: row.companyId, name: row.companyName }); }
   }, [openModal, focusCompany, data]);
 
   const monthLabel = new Date(period).toLocaleDateString(i18n.language === "ro" ? "ro-RO" : "en-US", { month: "long", year: "numeric" });
-  const mismatchCount = rows.filter((r) => r.declarations.some((d) => d.mismatch)).length;
-
-  // Column-aligned "to resolve this month" counts for the strip on top of the table.
-  const missingByType: Record<string, number> = Object.fromEntries(
-    DECLARATION_TYPES.map((ty) => [ty, rows.filter((r) => cellsFor(r, ty).length === 0).length]));
-  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
-  const noEmail = rows.filter((r) => !r.lastEmailAt).length;
-  const noWa = rows.filter((r) => !r.lastWhatsappAt).length;
 
   const selectable = rows.filter((r) => r.declarations.length > 0).map((r) => r.companyId);
   const allSelected = selectable.length > 0 && selectable.every((id) => selected.has(id));
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable));
 
-  const refreshList = () => void qc.invalidateQueries({ queryKey: ["tax-list", period] });
+  const refreshList = () => void qc.invalidateQueries({ queryKey: ["tax-list-page", period] });
   const openBulk = () => {
     const targets: PreviewTarget[] = rows.filter((r) => selected.has(r.companyId)).map((r) => ({
       companyId: r.companyId, companyName: r.companyName,
@@ -128,13 +135,8 @@ export function TaxPayments() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("taxes.subtitle")} · {monthLabel}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("taxes.title")}</h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <HeaderSummary items={[
-            ...DECLARATION_TYPES.map((ty) => ({ n: missingByType[ty], label: `${ty} ${t("summary.missing")}` })),
-            { n: mismatchCount, label: t("summary.mismatch") },
-            { n: noEmail, label: t("summary.noEmail") },
-            { n: noWa, label: t("summary.noWhatsapp") },
-          ]} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompanySearch onSearch={setDq} />
           <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
         </div>
       </div>
@@ -195,7 +197,9 @@ export function TaxPayments() {
               </div>
             );
           })}
-          {data && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          {!isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          <div ref={sentinel} style={{ height: 1 }} />
+          {isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>
       </div>
 

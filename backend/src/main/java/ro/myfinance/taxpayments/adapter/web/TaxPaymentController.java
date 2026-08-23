@@ -68,6 +68,16 @@ public class TaxPaymentController {
         return payments.list(period);
     }
 
+    /** Paged + fuzzy-searchable monthly list (name or CUI). Drives the module's infinite scroll + search. */
+    @GetMapping("/api/v1/tax-payments/page")
+    public ro.myfinance.common.web.PageResponse<ro.myfinance.taxpayments.domain.TaxPaymentRow> listPage(
+            @RequestParam("period") LocalDate period,
+            @RequestParam(name = "q", defaultValue = "") String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "25") int size) {
+        return ro.myfinance.common.web.PageResponse.from(payments.listPage(period, q, page, Math.min(size, 100)));
+    }
+
     @GetMapping("/api/v1/companies/{companyId}/tax-payments")
     public TaxPaymentSummary summary(@PathVariable UUID companyId,
                                      @RequestParam("period") LocalDate period) {

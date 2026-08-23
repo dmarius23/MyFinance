@@ -73,6 +73,33 @@ public class TaxPaymentService {
 
     /** The monthly list: one row per company with its uploaded declarations and last-email status. */
     public List<ro.myfinance.taxpayments.domain.TaxPaymentRow> list(LocalDate period) {
+        MonthCtx ctx = monthContext(period);
+        List<ro.myfinance.taxpayments.domain.TaxPaymentRow> rows = new ArrayList<>();
+        for (Company c : companies.findAll()) {
+            rows.add(buildRow(c, ctx));
+        }
+        rows.sort(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()));
+        return rows;
+    }
+
+    /**
+     * A page of the monthly list, filtered by a fuzzy company search (name or CUI). Companies are
+     * paged + name-sorted at the DB; each page row carries the same declaration/email/WhatsApp data.
+     */
+    public org.springframework.data.domain.Page<ro.myfinance.taxpayments.domain.TaxPaymentRow> listPage(
+            LocalDate period, String q, int page, int size) {
+        MonthCtx ctx = monthContext(period);
+        return companies.search(q, org.springframework.data.domain.PageRequest.of(page, size))
+                .map(c -> buildRow(c, ctx));
+    }
+
+    /** The month's declarations/emails/WhatsApp grouped by company (loaded once, shared across page rows). */
+    private record MonthCtx(Map<UUID, List<TaxDeclaration>> declByCompany,
+                            Map<UUID, List<EmailHistory>> emailByCompany,
+                            Map<UUID, List<EmailHistory>> whatsappByCompany) {
+    }
+
+    private MonthCtx monthContext(LocalDate period) {
         LocalDate month = period.withDayOfMonth(1);
         Map<UUID, List<TaxDeclaration>> declByCompany = new java.util.HashMap<>();
         for (TaxDeclaration d : declarations.findByPeriodMonth(month)) {
@@ -87,40 +114,38 @@ public class TaxPaymentService {
                 ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.TAX, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
+        return new MonthCtx(declByCompany, emailByCompany, whatsappByCompany);
+    }
 
-        List<ro.myfinance.taxpayments.domain.TaxPaymentRow> rows = new ArrayList<>();
-        for (Company c : companies.findAll()) {
-            List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
-            // Dedup fiscal obligations by (type + code + amount): there is only ever one creanță with the
-            // same amount and same code, so an accidental re-upload collapses while genuine different
-            // obligations (chirii vs dividende) both show.
-            java.util.Set<String> seen = new java.util.HashSet<>();
-            for (TaxDeclaration d : declByCompany.getOrDefault(c.getId(), List.of())) {
-                if (d.isOutsidePeriod()) {
-                    continue; // declaration belongs to a different month — omit from this period's view
-                }
-                List<ro.myfinance.taxpayments.domain.ObligationLine> obs = d.getObligations();
-                if (obs == null || obs.isEmpty()) {
-                    // Legacy declaration stored before obligations were persisted — show its document total.
-                    addCell(cells, seen, d.getId(), d.getType(), null, d.getComputedTotal(), d.isMismatch());
-                } else {
-                    for (ro.myfinance.taxpayments.domain.ObligationLine o : obs) {
-                        if (o.amount() == null || o.amount().signum() <= 0) {
-                            continue; // show payable obligations only (refunds are not "to pay")
-                        }
-                        addCell(cells, seen, d.getId(), d.getType(), o.cod(), o.amount(), d.isMismatch());
+    private ro.myfinance.taxpayments.domain.TaxPaymentRow buildRow(Company c, MonthCtx ctx) {
+        List<ro.myfinance.taxpayments.domain.TaxPaymentRow.DeclarationCell> cells = new ArrayList<>();
+        // Dedup fiscal obligations by (type + code + amount): there is only ever one creanță with the
+        // same amount and same code, so an accidental re-upload collapses while genuine different
+        // obligations (chirii vs dividende) both show.
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (TaxDeclaration d : ctx.declByCompany().getOrDefault(c.getId(), List.of())) {
+            if (d.isOutsidePeriod()) {
+                continue; // declaration belongs to a different month — omit from this period's view
+            }
+            List<ro.myfinance.taxpayments.domain.ObligationLine> obs = d.getObligations();
+            if (obs == null || obs.isEmpty()) {
+                // Legacy declaration stored before obligations were persisted — show its document total.
+                addCell(cells, seen, d.getId(), d.getType(), null, d.getComputedTotal(), d.isMismatch());
+            } else {
+                for (ro.myfinance.taxpayments.domain.ObligationLine o : obs) {
+                    if (o.amount() == null || o.amount().signum() <= 0) {
+                        continue; // show payable obligations only (refunds are not "to pay")
                     }
+                    addCell(cells, seen, d.getId(), d.getType(), o.cod(), o.amount(), d.isMismatch());
                 }
             }
-            List<EmailHistory> es = emailByCompany.getOrDefault(c.getId(), List.of());
-            Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
-            List<EmailHistory> ws = whatsappByCompany.getOrDefault(c.getId(), List.of());
-            Instant lastWa = ws.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
-            rows.add(new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
-                    c.getCui(), c.getLocality(), cells, last, es.size(), lastWa, ws.size()));
         }
-        rows.sort(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()));
-        return rows;
+        List<EmailHistory> es = ctx.emailByCompany().getOrDefault(c.getId(), List.of());
+        Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
+        List<EmailHistory> ws = ctx.whatsappByCompany().getOrDefault(c.getId(), List.of());
+        Instant lastWa = ws.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
+        return new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
+                c.getCui(), c.getLocality(), cells, last, es.size(), lastWa, ws.size());
     }
 
     /** Append one obligation cell unless an identical (type + code + amount) one was already added. */

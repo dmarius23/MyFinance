@@ -1,4 +1,5 @@
 import { api } from "../lib/apiClient";
+import { type Page } from "./companies";
 
 export interface DeclarationSummary {
   id: string;
@@ -124,6 +125,9 @@ export const declarationsApi = {
 
 export const taxPaymentsApi = {
   list: (period: string) => api<TaxPaymentRow[]>(`/api/v1/tax-payments?period=${period}`),
+  /** Paged + fuzzy-searchable (company name or CUI) monthly list — infinite scroll. */
+  listPage: (period: string, q: string, page: number, size = 25) =>
+    api<Page<TaxPaymentRow>>(`/api/v1/tax-payments/page?period=${period}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`),
 
   summary: (companyId: string, period: string) =>
     api<TaxPaymentSummary>(`/api/v1/companies/${companyId}/tax-payments?period=${period}`),
