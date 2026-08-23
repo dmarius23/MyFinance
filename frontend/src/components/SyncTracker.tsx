@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi } from "../api/ingestion";
+
+/** The module list query a finished sync should refresh, keyed by Drive module type. */
+const MODULE_QUERY_KEY: Record<string, string> = {
+  PAYROLL: "payroll",
+  DECLARATION: "tax-list",
+  TRIAL_BALANCE: "reports",
+};
 
 /**
  * Tracks in-progress Drive module-month syncs and surfaces them as ONE aggregated toast: each running
@@ -75,6 +82,7 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
 
 /** Hidden poller: watches one (module, month) sync status and reports when it finishes. */
 function SyncPoll({ entry, onFinish }: { entry: Entry; onFinish: (key: string, label: string, result?: string) => void }) {
+  const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["ingestion-sync-status", entry.type, entry.period],
     queryFn: () => ingestionApi.syncStatus(entry.type, entry.period),
@@ -90,9 +98,16 @@ function SyncPoll({ entry, onFinish }: { entry: Entry; onFinish: (key: string, l
     // running === false → finished if we saw it running, or (fast/already-finished fallback) after a few polls.
     if (sawRunning.current || polls.current >= 3) {
       done.current = true;
+      // The background sync imported new documents — refresh the module's list so the page updates
+      // without a manual reload (the mutation returned early when the job was only *started*).
+      const moduleKey = MODULE_QUERY_KEY[entry.type];
+      if (moduleKey) {
+        void qc.invalidateQueries({ queryKey: [moduleKey, entry.period] });
+      }
+      void qc.invalidateQueries({ queryKey: ["ingestion-connections"] });
       onFinish(entry.key, entry.label, data.lastResult ?? undefined);
     }
-  }, [data, entry.key, entry.label, onFinish]);
+  }, [data, entry.key, entry.label, onFinish, qc]);
   return null;
 }
 
