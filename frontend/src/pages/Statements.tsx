@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
 import { reconciliationApi, bankApi } from "../api/bank";
@@ -15,7 +15,7 @@ import { ReminderLogModal } from "../components/ReminderLogModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { HeaderSummary } from "../components/HeaderSummary";
+import { CompanySearch } from "../components/CompanySearch";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -57,7 +57,13 @@ export function Statements() {
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
   const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
-  const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
+  const [dq, setDq] = useState("");
+  const companies = useInfiniteQuery({
+    queryKey: ["companies-page", dq],
+    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
+  });
   const summary = useQuery({ queryKey: ["doc-summary", period], queryFn: () => documentsSummaryApi.summary(period) });
   const completeness = useQuery({ queryKey: ["recon-summary", period], queryFn: () => reconciliationApi.summary(period) });
   const reminders = useQuery({ queryKey: ["doc-reminders", period], queryFn: () => remindersApi.list(period) });
@@ -75,19 +81,23 @@ export function Statements() {
     return !(s?.hasBankStatement ?? false) || !(s?.hasInvoiceOrReceipt ?? false) || cs !== "COMPLETE";
   };
 
-  const rows = companies.data ?? [];
+  const rows = companies.data?.pages.flatMap((p) => p.content) ?? [];
   const selectableIds = rows.filter((c) => needsReminder(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
-  // Column-aligned "to resolve this month" counts for the strip on top of the table.
-  const missingBank = rows.filter((c) => !(byCompany.get(c.id)?.hasBankStatement ?? false)).length;
-  // Companies that have a bank statement for the month but whose reconciliation isn't COMPLETE.
-  const notReconciled = rows.filter((c) =>
-    (byCompany.get(c.id)?.hasBankStatement ?? false) && (completenessBy.get(c.id) ?? "NOT_STARTED") !== "COMPLETE").length;
-  const toEmail = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastSentAt).length;
-  const toWa = rows.filter((c) => needsReminder(c.id) && !reminderBy.get(c.id)?.lastWhatsappAt).length;
+  useEffect(() => { setSelected(new Set()); }, [period, dq]);
 
-  useEffect(() => { setSelected(new Set()); }, [period]);
+  // Auto-load the next page when the sentinel scrolls near the viewport.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !companies.hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !companies.isFetchingNextPage) void companies.fetchNextPage(); },
+      { rootMargin: "250px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [companies.hasNextPage, companies.isFetchingNextPage, companies.fetchNextPage]);
 
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectableIds));
@@ -111,12 +121,7 @@ export function Statements() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("documents.title")}</h2>
         </div>
-        <HeaderSummary items={[
-          { n: missingBank, label: t("summary.missingBank") },
-          { n: notReconciled, label: t("summary.notReconciled") },
-          { n: toEmail, label: t("summary.toSendEmail") },
-          { n: toWa, label: t("summary.toSendWhatsapp") },
-        ]} />
+        <CompanySearch onSearch={setDq} />
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -196,6 +201,9 @@ export function Statements() {
               </div>
             );
           })}
+          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          <div ref={sentinel} style={{ height: 1 }} />
+          {companies.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>
       </div>
 

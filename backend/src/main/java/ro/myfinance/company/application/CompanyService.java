@@ -38,17 +38,15 @@ public class CompanyService {
     }
 
     /**
-     * Paged list for the Companies directory screen (infinite scroll). A deterministic sort
-     * (legal name, then id as tiebreaker) keeps paging stable across requests. RLS scopes rows to the
-     * tenant, including the count query.
+     * Paged list for the Companies directory + module screens (infinite scroll), optionally filtered by a
+     * fuzzy company search ({@code q}: name or CUI, substring, diacritic-insensitive). The search query
+     * carries its own name ordering; RLS scopes rows to the tenant, including the count query.
      */
     @Transactional(readOnly = true)
-    public Page<Company> listPage(int page, int size) {
+    public Page<Company> listPage(String q, int page, int size) {
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         int safePage = Math.max(page, 0);
-        var pageable = PageRequest.of(safePage, safeSize,
-                Sort.by(Sort.Order.asc("legalName"), Sort.Order.asc("id")));
-        return companies.findAll(pageable);
+        return companies.search(q == null ? "" : q.trim(), PageRequest.of(safePage, safeSize));
     }
 
     @Transactional(readOnly = true)

@@ -5,12 +5,14 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { companiesApi, representativesApi, taxRegimeKey } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
+import { CompanySearch } from "../components/CompanySearch";
 import { vatStatusKey } from "../domain/vat";
 
-/** MOD-03 — manage companies: list + add; rows link to detail. Paged with infinite scroll. */
+/** MOD-03 — manage companies: list + add; rows link to detail. Paged with infinite scroll + search. */
 export function Companies() {
   const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
+  const [dq, setDq] = useState("");
   const {
     data: pages,
     isLoading,
@@ -19,8 +21,8 @@ export function Companies() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["companies-page"],
-    queryFn: ({ pageParam }) => companiesApi.listPage(pageParam, 25),
+    queryKey: ["companies-page", dq],
+    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
@@ -59,7 +61,10 @@ export function Companies() {
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ marginTop: 0 }}>{t("nav.companies")}</h1>
-        <button className="primary" onClick={() => setShowAdd(true)}>{t("companies.add")}</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompanySearch onSearch={setDq} />
+          <button className="primary" onClick={() => setShowAdd(true)}>{t("companies.add")}</button>
+        </div>
       </div>
 
       {isLoading && <p>{t("common.loading")}</p>}

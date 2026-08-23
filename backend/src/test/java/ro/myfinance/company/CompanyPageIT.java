@@ -52,12 +52,12 @@ class CompanyPageIT extends AbstractPostgresIT {
         seedCompany(TENANT, "Alpha SRL");
         seedCompany(TENANT, "Mid SRL");
 
-        Page<Company> first = service.listPage(0, 2);
+        Page<Company> first = service.listPage("", 0, 2);
         assertThat(first.getTotalElements()).isEqualTo(3);
         assertThat(first.getContent()).extracting(Company::getLegalName).containsExactly("Alpha SRL", "Mid SRL");
         assertThat(first.isLast()).isFalse();
 
-        Page<Company> second = service.listPage(1, 2);
+        Page<Company> second = service.listPage("", 1, 2);
         assertThat(second.getContent()).extracting(Company::getLegalName).containsExactly("Zeta SRL");
         assertThat(second.isLast()).isTrue();
     }
@@ -68,7 +68,7 @@ class CompanyPageIT extends AbstractPostgresIT {
         asTenant(TENANT);
         seedCompany(TENANT, "Only SRL");
 
-        Page<Company> page = service.listPage(0, 5000);
+        Page<Company> page = service.listPage("", 0, 5000);
         assertThat(page.getSize()).isEqualTo(100); // clamped, not 5000
         assertThat(page.getTotalElements()).isEqualTo(1);
     }
@@ -81,7 +81,7 @@ class CompanyPageIT extends AbstractPostgresIT {
         seedCompany(TENANT, "Acme SRL");
 
         TenantContext.set(new TenantContext.Identity(OTHER_TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
-        Page<Company> page = service.listPage(0, 25);
+        Page<Company> page = service.listPage("", 0, 25);
         assertThat(page.getTotalElements()).isZero();
         assertThat(page.getContent()).isEmpty();
     }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { reportsApi, type ReportRow } from "../api/reports";
 import { usePeriod } from "../lib/period";
@@ -15,8 +15,8 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
+import { CompanySearch } from "../components/CompanySearch";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
@@ -33,22 +33,40 @@ export function Reports() {
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
   const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
-  const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
+  const [dq, setDq] = useState("");
+  const companies = useInfiniteQuery({
+    queryKey: ["companies-page", dq],
+    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
+  });
   const reports = useQuery({ queryKey: ["reports", period], queryFn: () => reportsApi.list(period) });
   const rowBy = new Map<string, ReportRow>((reports.data ?? []).map((r) => [r.companyId, r]));
 
-  const rows = companies.data ?? [];
+  const rows = companies.data?.pages.flatMap((p) => p.content) ?? [];
   const hasReport = (id: string) => !!rowBy.get(id)?.uploadedAt;
   const selectableIds = rows.filter((c) => hasReport(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
-  useEffect(() => { setSelected(new Set()); }, [period]);
+  useEffect(() => { setSelected(new Set()); }, [period, dq]);
+
+  // Auto-load the next page when the sentinel scrolls near the viewport.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !companies.hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !companies.isFetchingNextPage) void companies.fetchNextPage(); },
+      { rootMargin: "250px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [companies.hasNextPage, companies.isFetchingNextPage, companies.fetchNextPage]);
 
   // Deep-link from the dashboard (?company=&open=1): open that company's document manager once loaded.
   const autoOpened = useRef(false);
   useEffect(() => {
     if (!openModal || autoOpened.current) return;
-    const c = (companies.data ?? []).find((x) => x.id === focusCompany);
+    const c = (companies.data?.pages.flatMap((p) => p.content) ?? []).find((x) => x.id === focusCompany);
     if (c) { autoOpened.current = true; setManageFor({ id: c.id, name: c.legalName }); }
   }, [openModal, focusCompany, companies.data]);
 
@@ -60,13 +78,6 @@ export function Reports() {
     r.body + attachmentsNote(t("channel.attachments"), rowBy.get(id)?.uploadedAt ? [t("channel.reportAttachment")] : []));
   const dot = (r?: ReportRow) => !r?.uploadedAt ? "var(--dot-red)" : r.balanced ? "var(--dot-green)" : "var(--dot-orange)";
 
-  // Column-aligned "to resolve this month" counts for the strip on top of the table.
-  const missingBalance = rows.filter((c) => (rowBy.get(c.id)?.balanceCount ?? 0) === 0).length;
-  const missingReport = rows.filter((c) => !rowBy.get(c.id)?.uploadedAt).length;
-  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
-  const noEmail = rows.filter((c) => !rowBy.get(c.id)?.lastSentAt).length;
-  const noWa = rows.filter((c) => !rowBy.get(c.id)?.lastWhatsappAt).length;
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
@@ -74,13 +85,8 @@ export function Reports() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("reports.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("reports.title")}</h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <HeaderSummary items={[
-            { n: missingBalance, label: t("summary.missingBalance") },
-            { n: missingReport, label: t("summary.missingReport") },
-            { n: noEmail, label: t("summary.noEmail") },
-            { n: noWa, label: t("summary.noWhatsapp") },
-          ]} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompanySearch onSearch={setDq} />
           <SyncMonthButton type="TRIAL_BALANCE" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["reports", period] })} />
         </div>
       </div>
@@ -140,7 +146,9 @@ export function Reports() {
               </div>
             );
           })}
-          {reports.data && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          <div ref={sentinel} style={{ height: 1 }} />
+          {companies.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>
       </div>
 

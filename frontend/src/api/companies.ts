@@ -55,9 +55,10 @@ export interface Page<T> {
 
 export const companiesApi = {
   list: () => api<Company[]>("/api/v1/companies"),
-  /** Paged directory for the Companies screen (infinite scroll). Pickers keep using list(). */
-  listPage: (page: number, size = 25) =>
-    api<Page<Company>>(`/api/v1/companies/page?page=${page}&size=${size}`),
+  /** Paged, fuzzy-searchable directory (name or CUI) — infinite scroll on the Companies screen and every
+   *  module list. Pass "" for no filter. Pickers keep using list(). */
+  listPage: (q: string, page: number, size = 25) =>
+    api<Page<Company>>(`/api/v1/companies/page?q=${encodeURIComponent(q)}&page=${page}&size=${size}`),
   get: (id: string) => api<Company>(`/api/v1/companies/${id}`),
   create: (input: CreateCompanyInput) =>
     api<Company>("/api/v1/companies", { method: "POST", body: JSON.stringify(input) }),

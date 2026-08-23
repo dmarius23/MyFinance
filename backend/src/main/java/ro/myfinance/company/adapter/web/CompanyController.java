@@ -41,9 +41,10 @@ public class CompanyController {
 
     /** Paged variant for the Companies directory (infinite scroll). Full list above stays for pickers. */
     @GetMapping("/page")
-    public PageResponse<CompanyResponse> listPage(@RequestParam(defaultValue = "0") int page,
+    public PageResponse<CompanyResponse> listPage(@RequestParam(name = "q", defaultValue = "") String q,
+                                                  @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "25") int size) {
-        return PageResponse.from(service.listPage(page, size).map(CompanyResponse::from));
+        return PageResponse.from(service.listPage(q, page, size).map(CompanyResponse::from));
     }
 
     @GetMapping("/{id}")

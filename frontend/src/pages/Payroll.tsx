@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { payrollApi, type PayrollRow } from "../api/payroll";
 import { usePeriod } from "../lib/period";
@@ -14,8 +14,8 @@ import { DocumentManagerModal } from "../components/DocumentManagerModal";
 import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
-import { HeaderSummary } from "../components/HeaderSummary";
 import { SyncMonthButton } from "../components/SyncMonthButton";
+import { CompanySearch } from "../components/CompanySearch";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
 /** MOD-08 Payroll — monthly hub list (Console B skin): manage payroll docs per company, send the
@@ -32,28 +32,39 @@ export function Payroll() {
   const [waFor, setWaFor] = useState<{ id: string; name: string } | null>(null);
   const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
-  const companies = useQuery({ queryKey: ["companies"], queryFn: companiesApi.list });
+  const [dq, setDq] = useState("");
+  const companies = useInfiniteQuery({
+    queryKey: ["companies-page", dq],
+    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
+  });
   const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
   const rowBy = new Map<string, PayrollRow>((payroll.data ?? []).map((r) => [r.companyId, r]));
 
-  const rows = companies.data ?? [];
+  const rows = companies.data?.pages.flatMap((p) => p.content) ?? [];
   const selectableIds = rows.filter((c) => (rowBy.get(c.id)?.documents.length ?? 0) > 0).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
-  // Column-aligned "to resolve this month" counts, shown in a strip on top of the table.
-  const docsN = (id: string) => rowBy.get(id)?.documents.length ?? 0;
-  const missingDocs = rows.filter((c) => docsN(c.id) === 0).length;
-  // "Missing email/WhatsApp" = companies with no last email/WhatsApp for this module + month.
-  const noEmail = rows.filter((c) => !rowBy.get(c.id)?.lastSentAt).length;
-  const noWa = rows.filter((c) => !rowBy.get(c.id)?.lastWhatsappAt).length;
+  useEffect(() => { setSelected(new Set()); }, [period, dq]);
 
-  useEffect(() => { setSelected(new Set()); }, [period]);
+  // Auto-load the next page when the sentinel scrolls near the viewport.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !companies.hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && !companies.isFetchingNextPage) void companies.fetchNextPage(); },
+      { rootMargin: "250px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [companies.hasNextPage, companies.isFetchingNextPage, companies.fetchNextPage]);
 
   // Deep-link from the dashboard (?company=&open=1): open that company's document manager once loaded.
   const autoOpened = useRef(false);
   useEffect(() => {
     if (!openModal || autoOpened.current) return;
-    const c = (companies.data ?? []).find((x) => x.id === focusCompany);
+    const c = (companies.data?.pages.flatMap((p) => p.content) ?? []).find((x) => x.id === focusCompany);
     if (c) { autoOpened.current = true; setManageFor({ id: c.id, name: c.legalName }); }
   }, [openModal, focusCompany, companies.data]);
 
@@ -72,12 +83,8 @@ export function Payroll() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("payroll.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <HeaderSummary items={[
-            { n: missingDocs, label: t("summary.missingDocs") },
-            { n: noEmail, label: t("summary.noEmail") },
-            { n: noWa, label: t("summary.noWhatsapp") },
-          ]} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompanySearch onSearch={setDq} />
           <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
         </div>
       </div>
@@ -131,7 +138,9 @@ export function Payroll() {
               </div>
             );
           })}
-          {payroll.data && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          <div ref={sentinel} style={{ height: 1 }} />
+          {companies.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>
       </div>
 
