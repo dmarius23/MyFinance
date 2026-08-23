@@ -47,9 +47,21 @@ public final class FolderMapper {
      * {@link #matchesCompany} (CUI digits or a distinctive part of the legal name).
      */
     public static Optional<UUID> resolveCompany(RemoteFile file, List<Company> companies) {
-        for (String candidate : matchCandidates(file)) {
+        // Folder-path segments first — a company-named folder is a reliable identity (CUI or name).
+        for (String seg : segments(file)) {
             for (Company c : companies) {
-                if (matchesCompany(candidate, c)) {
+                if (matchesCompany(seg, c)) {
+                    return Optional.of(c.getId());
+                }
+            }
+        }
+        // Then the filename — stricter (CUI, or a DISTINCTIVE name only), so a short word that merely
+        // appears in a filename (e.g. the accounting firm's own name in "Scan autorizatie Meric.pdf")
+        // does not falsely claim an unrelated document for that company.
+        String name = file.name();
+        if (name != null && !name.isBlank()) {
+            for (Company c : companies) {
+                if (matchesCompanyInFilename(name, c)) {
                     return Optional.of(c.getId());
                 }
             }
@@ -57,13 +69,15 @@ public final class FolderMapper {
         return Optional.empty();
     }
 
-    /** Folder-path segments (outermost first) plus the filename — the strings we try to identify a company in. */
-    private static List<String> matchCandidates(RemoteFile file) {
-        List<String> candidates = new java.util.ArrayList<>(segments(file));
-        if (file.name() != null && !file.name().isBlank()) {
-            candidates.add(file.name());
+    /** Company identity from a FILENAME: the embedded CUI, or a distinctive (≥6-char) name core. The length
+     *  floor keeps a short name (a firm's own name, a common word) from colliding with unrelated files. */
+    private static boolean matchesCompanyInFilename(String fileName, Company c) {
+        String cuiDigits = digits(c.getCui());
+        if (cuiDigits.length() >= 4 && digits(fileName).contains(cuiDigits)) {
+            return true;
         }
-        return candidates;
+        String core = coreName(c.getLegalName());
+        return core != null && core.length() >= 6 && StringNormalizer.alnumUpper(fileName).contains(core);
     }
 
     /**

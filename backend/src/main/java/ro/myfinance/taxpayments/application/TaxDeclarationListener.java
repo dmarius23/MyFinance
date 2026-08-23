@@ -17,6 +17,8 @@ import ro.myfinance.intake.application.DocumentDeletedEvent;
 import ro.myfinance.intake.application.DocumentUploadedEvent;
 import ro.myfinance.intake.domain.DocumentType;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
+import ro.myfinance.taxpayments.domain.DeclarationType;
+import ro.myfinance.taxpayments.domain.ObligationLine;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.TaxDeclaration;
 
@@ -65,25 +67,44 @@ public class TaxDeclarationListener {
             boolean wrongParty = differentCui(pd.cui(), ownCui);
             LocalDate declPeriod = pd.period() == null ? null : pd.period().atDay(1);
             LocalDate storedMonth = e.periodMonth().withDayOfMonth(1);
-            // No auto-dedup: every uploaded declaration is kept and shown. A company may legitimately file
-            // several of the same type in a month (e.g. separate D100s for chirii, dividende and impozit),
-            // so a second same-type upload is NOT a duplicate — accidental re-uploads are left for the
-            // accountant to delete in the manager. A declaration whose own period (from the ANAF XML)
-            // belongs to a different month is still stored flagged outside-period
-            // ({@link TaxDeclaration#isOutsidePeriod()}, derived from declPeriod vs the slot): it shows with
-            // a "Move to correct period" action and is excluded from this month's payment totals.
             // Persist the itemized obligations (code + amount) so the list can show one line per creanță.
-            java.util.List<ro.myfinance.taxpayments.domain.ObligationLine> obligations = pd.obligations().stream()
-                    .map(o -> new ro.myfinance.taxpayments.domain.ObligationLine(o.codOblig(), o.amount()))
+            // A declaration whose own period (from the ANAF XML) belongs to a different month is still stored,
+            // flagged outside-period ({@link TaxDeclaration#isOutsidePeriod()}) with a "Move to correct
+            // period" action, and excluded from this month's payment totals.
+            java.util.List<ObligationLine> obligations = pd.obligations().stream()
+                    .map(o -> new ObligationLine(o.codOblig(), o.amount()))
                     .toList();
             TaxDeclaration row = new TaxDeclaration(TenantContext.tenantId().orElseThrow(),
                     e.companyId(), storedMonth, e.documentId());
             row.apply(pd.type(), pd.cui(), pd.declaredTotal(), pd.computedTotal(), pd.totalsMismatch(),
                     declPeriod, wrongParty, false, obligations);
+
+            // Auto-dedup: keep ONE declaration per (company, form, month) — except D100, which a company may
+            // legitimately file once per fiscal obligation (creanță 103 profit / 604 dividende / 618 chirii …),
+            // so D100s are keyed by their obligation code(s). A re-imported or regenerated copy arrives as a
+            // *different* document filling the same slot; it supersedes the older one (removed here) instead
+            // of piling up a duplicate.
+            String slot = obligationSlot(pd.type(), obligations);
+            declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(e.companyId(), storedMonth).stream()
+                    .filter(prev -> prev.getType() == pd.type()
+                            && !e.documentId().equals(prev.getDocumentId())
+                            && obligationSlot(prev.getType(), prev.getObligations()).equals(slot))
+                    .forEach(declarations::delete);
             declarations.save(row);
         } catch (RuntimeException ex) {
             log.warn("Failed to store tax declaration for document {}", e.documentId(), ex);
         }
+    }
+
+    /** The dedup slot a declaration occupies: one per form per month — but D100 is one per fiscal obligation
+     *  code (creanță), since a company can file several D100s (chirii / dividende / profit) in the same month. */
+    private static String obligationSlot(DeclarationType type, java.util.List<ObligationLine> obligations) {
+        if (type != DeclarationType.D100) {
+            return "";
+        }
+        return obligations.stream().map(ObligationLine::cod)
+                .filter(java.util.Objects::nonNull).map(String::trim).filter(s -> !s.isEmpty())
+                .sorted().distinct().collect(java.util.stream.Collectors.joining(","));
     }
 
     /** Wrong party only when both CUIs are known and their digits differ. */

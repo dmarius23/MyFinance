@@ -40,6 +40,7 @@ class TaxDeclarationListenerTest {
     void setup() {
         TenantContext.set(new TenantContext.Identity(UUID.randomUUID(), UUID.randomUUID(), Role.TENANT_ADMIN, null));
         when(declarations.findByDocumentId(any())).thenReturn(Optional.empty());
+        when(declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(any(), any())).thenReturn(java.util.List.of());
         when(declarations.save(any())).thenAnswer(i -> i.getArgument(0));
     }
 

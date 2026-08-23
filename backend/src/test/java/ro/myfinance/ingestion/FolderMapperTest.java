@@ -71,6 +71,16 @@ class FolderMapperTest {
     }
 
     @Test
+    void doesNotClaimAFileForAShortFirmNameThatMerelyAppearsInItsFilename() {
+        // "Scan autorizatie Meric.pdf" filed under a *client's* TVA folder must NOT be claimed by the firm's
+        // own company "MERIC SRL" (5-char core) just because the word appears in the filename. No CUI, no
+        // company folder in scope → it stays unresolved (goes to review) rather than a false match.
+        List<Company> cos = List.of(company(UUID.randomUUID(), "MERIC SRL", "20464846"));
+        assertThat(FolderMapper.resolveCompany(
+                named("Scan autorizatie Meric.pdf", "TRECERE TVA/EMA MARKET/Documentatie tva"), cos)).isEmpty();
+    }
+
+    @Test
     void recognisesFirmDeclarationAndPayrollTypeFolders() {
         assertThat(FolderMapper.resolveType(named("x.pdf", "7. Iulie 2026/D 112")))
                 .contains(ro.myfinance.intake.domain.DocumentType.DECLARATION);
