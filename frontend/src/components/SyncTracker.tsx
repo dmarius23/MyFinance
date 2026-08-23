@@ -6,7 +6,7 @@ import { ingestionApi } from "../api/ingestion";
 /** The module list query a finished sync should refresh, keyed by Drive module type. */
 const MODULE_QUERY_KEY: Record<string, string> = {
   PAYROLL: "payroll",
-  DECLARATION: "tax-list",
+  DECLARATION: "tax-list-page", // paginated tax list (renamed from "tax-list" when search/infinite-scroll landed)
   TRIAL_BALANCE: "reports",
 };
 
