@@ -11,8 +11,9 @@ import java.util.Optional;
  *
  * <p>Returns {@link Optional#empty()} when the document should NOT be mirrored (receipts, unclassified, or a
  * declaration whose kind is unknown) — those stay in Supabase. Bank statements and invoices file into the
- * ACCOUNTING drive's <b>{@code <Company>/<year>/<N. LunăRo>}</b> layout (e.g. {@code ACME SRL/2026/3. Martie}
- * — the same folders the client drops files into), so an invoice files regardless of its resolved direction.
+ * ACCOUNTING drive's <b>{@code Contabilitate <Company>/<year>/<N. LunăRo>}</b> layout (e.g.
+ * {@code Contabilitate ACME SRL/2026/3. Martie} — the same folders the client drops files into), so an
+ * invoice files regardless of its resolved direction.
  */
 public final class DriveFilingRouter {
 
@@ -59,7 +60,8 @@ public final class DriveFilingRouter {
             case TRIAL_BALANCE -> Optional.of(new Filing(DrivePurpose.DECLARATIONS,
                     declSegments(r, trimesterFolder(r.periodMonth()), r.companyName())));
             case BANK_STATEMENT, INVOICE -> Optional.of(new Filing(DrivePurpose.ACCOUNTING,
-                    List.of(r.companyName(), String.valueOf(r.periodMonth().getYear()),
+                    List.of(companyAccountingFolder(r.companyName()),
+                            String.valueOf(r.periodMonth().getYear()),
                             accountingMonthFolder(r.periodMonth()))));
             case RECEIPT, UNCLASSIFIED -> Optional.empty();
         };
@@ -89,6 +91,11 @@ public final class DriveFilingRouter {
     private static String trimesterFolder(LocalDate period) {
         int q = (period.getMonthValue() - 1) / 3 + 1;
         return "Bilant Interimar T" + q + " an " + period.getYear();
+    }
+
+    /** "Contabilitate {Company}" — the per-company folder in the accounting (contabilitate clienti) drive. */
+    private static String companyAccountingFolder(String companyName) {
+        return "Contabilitate " + companyName;
     }
 
     /** "{monthNumber}. {LunăRo}" — the per-month folder under a company's year folder (e.g. "3. Martie"). */

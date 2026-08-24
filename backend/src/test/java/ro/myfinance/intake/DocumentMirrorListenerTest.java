@@ -85,7 +85,7 @@ class DocumentMirrorListenerTest {
     void a_clean_bank_statement_files_under_company_year_month() {
         doc(DocumentType.BANK_STATEMENT, DocumentSource.EMPLOYEE, null, null, null);
         fire(DocumentType.BANK_STATEMENT);
-        assertThat(capturedSegments()).containsExactly("ACME SRL", "2026", "6. Iunie");
+        assertThat(capturedSegments()).containsExactly("Contabilitate ACME SRL", "2026", "6. Iunie");
     }
 
     @Test

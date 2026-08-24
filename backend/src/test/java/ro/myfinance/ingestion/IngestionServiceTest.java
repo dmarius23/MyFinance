@@ -222,11 +222,11 @@ class IngestionServiceTest {
         lenient().when(a.getCui()).thenReturn("49443957");
         lenient().when(a.getLegalName()).thenReturn("ACME SRL");
         when(companies.findAll()).thenReturn(List.of(a));
-        // Real client layout: <Company>/<year>/<N. LunăRo> — the period is resolved from year + month folders.
+        // Real client layout: Contabilitate <Company>/<year>/<N. LunăRo> — period resolved from year + month.
         fake.files = List.of(
-                new CloudFolderConnector.RemoteFile("b", "extras.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null),
-                new CloudFolderConnector.RemoteFile("i", "factura.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e2", null),
-                new CloudFolderConnector.RemoteFile("x", "random.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e3", null));
+                new CloudFolderConnector.RemoteFile("b", "extras.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("i", "factura.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("x", "random.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e3", null));
         when(classifier.classify(any(), any(), any())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             if (name.startsWith("extras")) return DocumentType.BANK_STATEMENT;
