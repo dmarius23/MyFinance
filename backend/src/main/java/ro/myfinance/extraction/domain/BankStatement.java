@@ -56,6 +56,14 @@ public class BankStatement {
     @Column(name = "txn_count", nullable = false)
     private int txnCount;
 
+    /** The file's real covered range (earliest/latest transaction date) — a statement may span several
+     *  months. Used to list the file under every month it touches. Null when the file has no transactions. */
+    @Column(name = "first_txn_date")
+    private LocalDate firstTxnDate;
+
+    @Column(name = "last_txn_date")
+    private LocalDate lastTxnDate;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -91,4 +99,12 @@ public class BankStatement {
     public StatementStatus getStatus() { return status; }
     public boolean isCrossCheckOk() { return crossCheckOk; }
     public int getTxnCount() { return txnCount; }
+    public LocalDate getFirstTxnDate() { return firstTxnDate; }
+    public LocalDate getLastTxnDate() { return lastTxnDate; }
+
+    /** Record the file's covered range (earliest/latest transaction date). */
+    public void setRange(LocalDate firstTxnDate, LocalDate lastTxnDate) {
+        this.firstTxnDate = firstTxnDate;
+        this.lastTxnDate = lastTxnDate;
+    }
 }
