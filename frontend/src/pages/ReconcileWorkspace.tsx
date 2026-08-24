@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion } from "../api/bank";
 import { companiesApi } from "../api/companies";
-import { documentsApi } from "../api/documents";
+import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi } from "../api/ingestion";
 import { usePeriod } from "../lib/period";
 import { Icon } from "../components/Icon";
@@ -63,6 +63,7 @@ export function ReconcileWorkspace() {
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<{ documentId: string; filename: string | null; invoiceId?: string } | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [uploadToast, setUploadToast] = useState<{ tone: "ok" | "warn" | "info"; msg: string }[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stmtFileRef = useRef<HTMLInputElement>(null);
 
@@ -83,9 +84,38 @@ export function ReconcileWorkspace() {
     mutationFn: async (s: MatchSuggestion) => { for (const l of s.links) await bankApi.match(companyId, l.transactionId, l.invoiceId, l.amount); },
     onSuccess: invalidate, onError: onErr,
   });
+  // Never-silent upload: the block reason (duplicate / wrong month / wrong company) is known immediately;
+  // for a clean bank statement we briefly poll the statements list to tell "imported N" from
+  // "already covered by another statement" (the extractor runs asynchronously).
   const upload = useMutation({
-    mutationFn: async (files: File[]) => { for (const f of files) await documentsApi.upload(companyId, period, f); },
-    onSuccess: invalidate, onError: onErr,
+    mutationFn: async (files: File[]) => {
+      const docs: Document[] = [];
+      for (const f of files) docs.push(await documentsApi.upload(companyId, period, f));
+      return docs;
+    },
+    onSuccess: async (docs) => {
+      invalidate();
+      const pendingStmt = (d: Document) => !d.driveBlockReason && d.type === "BANK_STATEMENT";
+      let stmts = await bankApi.statements(companyId, period);
+      for (let i = 0; i < 4 && docs.some((d) => pendingStmt(d) && !stmts.some((s) => s.documentId === d.id)); i++) {
+        await new Promise((r) => setTimeout(r, 1200));
+        stmts = await bankApi.statements(companyId, period);
+      }
+      setUploadToast(docs.map((d): { tone: "ok" | "warn" | "info"; msg: string } => {
+        const name = d.originalFilename;
+        if (d.driveBlockReason === "DUPLICATE") return { tone: "warn", msg: `${name}: ${t("recon.up.duplicate")}` };
+        if (d.driveBlockReason === "WRONG_PERIOD") return { tone: "warn", msg: `${name}: ${d.driveBlockDetail ?? t("recon.up.wrongMonth")}` };
+        if (d.driveBlockReason === "WRONG_COMPANY") return { tone: "warn", msg: `${name}: ${d.driveBlockDetail ?? t("recon.up.wrongCompany")}` };
+        if (d.type === "BANK_STATEMENT") {
+          const s = stmts.find((x) => x.documentId === d.id);
+          return s
+            ? { tone: "ok", msg: `${name}: ${t("recon.up.imported", { n: s.txnCount })}` }
+            : { tone: "info", msg: `${name}: ${t("recon.up.alreadyCovered")}` };
+        }
+        return { tone: "ok", msg: `${name}: ${t("recon.up.uploaded")}` };
+      }));
+    },
+    onError: onErr,
   });
   // Drive sync (bank statements + invoices together): a general/mixed connection routes each file
   // through the classifier, exactly like the documents modal.
@@ -455,6 +485,24 @@ export function ReconcileWorkspace() {
       {preview && <DocumentPreviewModal companyId={companyId} documentId={preview.documentId} filename={preview.filename} onClose={() => setPreview(null)} />}
       {requesting && c && (
         <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />
+      )}
+      {uploadToast && (
+        <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 20, right: 20, zIndex: 10001, display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
+          <div style={{ ...card, padding: "10px 34px 10px 14px", position: "relative", boxShadow: "0 8px 24px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>{t("recon.up.title")}</div>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
+              {uploadToast.map((r, i) => (
+                <li key={i} style={{ fontSize: 12, display: "flex", alignItems: "flex-start", gap: 6,
+                  color: r.tone === "ok" ? "var(--ok-fg, #166534)" : r.tone === "warn" ? "var(--warn-fg, #92400e)" : "var(--text-secondary)" }}>
+                  <span aria-hidden style={{ flex: "none" }}>{r.tone === "ok" ? "✓" : r.tone === "warn" ? "⚠" : "•"}</span>
+                  <span>{r.msg}</span>
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => setUploadToast(null)} aria-label={t("common.dismiss")}
+              style={{ position: "absolute", top: 6, right: 8, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 16, lineHeight: 1 }}>×</button>
+          </div>
+        </div>
       )}
     </div>
   );
