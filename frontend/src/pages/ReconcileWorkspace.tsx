@@ -100,6 +100,16 @@ export function ReconcileWorkspace() {
     },
     onError: onErr,
   });
+  // Re-run extraction on the already-stored documents for this company+month (no re-import) — e.g. after a
+  // parser fix, to rebuild a statement's transactions without re-uploading.
+  const reextract = useMutation({
+    mutationFn: () => documentsApi.reclassify(companyId, period),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+    },
+    onError: onErr,
+  });
   const mapChecked = useMutation({
     mutationFn: async ({ txnId, invoiceIds }: { txnId: string; invoiceIds: string[] }) => { for (const id of invoiceIds) await bankApi.match(companyId, txnId, id); },
     onSuccess: () => { setChecked(new Set()); invalidate(); }, onError: onErr,
@@ -237,6 +247,13 @@ export function ReconcileWorkspace() {
               <span className="mono" style={{ color: "var(--text-muted)" }}>{s.openingBalance != null ? money(s.openingBalance) : "—"} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>
               <span className={`pill round ${s.crossCheckOk ? "ok" : "danger"}`}>✓ {t("recon.txnsParsed", { n: s.txnCount })}</span>
               <span style={{ flex: 1 }} />
+              <button onClick={() => reextract.mutate()} disabled={reextract.isPending}
+                style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 8, cursor: reextract.isPending ? "default" : "pointer",
+                  border: "1px solid var(--border)", background: "var(--btn-bg, #fff)", color: "var(--text-secondary)" }}
+                title={t("recon.reextractTip")}>
+                <Icon name="reconcile" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                {reextract.isPending ? t("recon.reextracting") : t("recon.reextract")}
+              </button>
               <button onClick={() => setPreview({ documentId: s.documentId, filename: [s.bankCode, maskIban(s.accountIban)].filter(Boolean).join(" ") || null })}
                 style={eyeBtn} title={t("recon.viewStatement")} aria-label={t("recon.viewStatement")}><Icon name="eye" size={15} /></button>
             </div>
