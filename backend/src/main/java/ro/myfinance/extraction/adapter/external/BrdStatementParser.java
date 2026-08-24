@@ -29,9 +29,16 @@ public class BrdStatementParser implements BankStatementParser {
             Pattern.compile("Balance\\s+RON\\s+([\\d.,]+)\\s+Balance\\s+RON\\s+([\\d.,]+)");
     // Transaction header: settlement date + the account's own IBAN + optional description start.
     private static final Pattern TXN_HEADER = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+(RO\\w+)\\s*(.*)$");
-    // Amount line: a date followed by one/two amounts then the running balance.
+    // Amount line: a date followed by one/two amounts then the running balance (older multi-line exports).
     private static final Pattern AMOUNT_LINE = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+([\\d.,].*)$");
     private static final Pattern NUMBER = Pattern.compile("[\\d.,]+");
+    // A monetary value: thousands-grouped, exactly two decimals (e.g. 26,153.76 / 91.00). The trailing
+    // (?!\\d) rejects a wrapped period like "03.2026" so only real amounts/balances match.
+    private static final Pattern MONEY = Pattern.compile("[\\d,]+\\.\\d{2}(?!\\d)");
+    // The value date + amount(s) + balance that BRD's "Transactions List" prints right after "Partner name:"
+    // on the SAME row — stripped before reading the partner name from the wrapped continuation lines.
+    private static final Pattern INLINE_AMOUNTS =
+            Pattern.compile("(Partner name:)\\s*\\d{2}/\\d{2}/\\d{2}(\\s+[\\d,]+\\.\\d{2}){1,3}");
 
     @Override
     public boolean supports(String text) {
@@ -69,33 +76,48 @@ public class BrdStatementParser implements BankStatementParser {
         for (int hIdx = 0; hIdx < headers.size(); hIdx++) {
             int a = headers.get(hIdx);
             int nextHeader = (hIdx + 1 < headers.size()) ? headers.get(hIdx + 1) : lines.length;
-            int amountIdx = -1;
-            for (int j = a + 1; j < nextHeader; j++) {
-                if (isAmountLine(lines[j])) {
-                    amountIdx = j;
-                    break;
-                }
-            }
-            if (amountIdx < 0) {
-                continue; // header with no amount line — skip (not a real transaction row)
-            }
             Matcher h = TXN_HEADER.matcher(lines[a].strip());
             h.matches();
             LocalDate date = LocalDate.parse(h.group(1), DMY);
 
+            // The running balance is the last monetary value on the transaction row. BRD's "Transactions
+            // List" export prints the value date + amount + balance on the SAME line as the settlement date
+            // + IBAN + description; older exports print them on a following line. Support both: prefer the
+            // header row's own balance, else fall back to the next amount line.
+            BigDecimal balance = lastMoney(lines[a]);
+            int blockEnd = nextHeader;
+            if (balance == null) {
+                int amountIdx = -1;
+                for (int j = a + 1; j < nextHeader; j++) {
+                    if (isAmountLine(lines[j])) {
+                        amountIdx = j;
+                        break;
+                    }
+                }
+                if (amountIdx < 0) {
+                    continue; // header with no amounts anywhere — not a real transaction row
+                }
+                balance = lastMoney(lines[amountIdx]);
+                blockEnd = amountIdx;
+            }
+            if (balance == null) {
+                continue;
+            }
+
             StringBuilder block = new StringBuilder(h.group(3));
-            for (int j = a + 1; j < amountIdx; j++) {
+            for (int j = a + 1; j < blockEnd; j++) {
                 block.append(' ').append(lines[j].strip());
             }
-            String full = block.toString().strip();
+            // Drop the inline "value-date amount balance" that follows "Partner name:" on a single-line row,
+            // so the partner name is read from the wrapped continuation, not from the amount columns.
+            String full = INLINE_AMOUNTS.matcher(block.toString().strip()).replaceFirst("$1 ").strip();
 
             String partnerName = group(PARTNER_NAME, full);
             String partnerIban = group(PARTNER_ACCT, full);
             int pn = full.indexOf("Partner name:");
             String desc = (pn >= 0 ? full.substring(0, pn) : full).strip();
 
-            raw.add(new Raw(date, desc, blankToNull(partnerName), blankToNull(partnerIban),
-                    lastNumber(lines[amountIdx])));
+            raw.add(new Raw(date, desc, blankToNull(partnerName), blankToNull(partnerIban), balance));
         }
 
         List<ParsedTransaction> txns = new ArrayList<>();
@@ -130,6 +152,16 @@ public class BrdStatementParser implements BankStatementParser {
             last = m.group();
         }
         // skip the leading date token (dd/mm/yy has slashes, won't match NUMBER as a whole)
+        return last == null ? null : num(last);
+    }
+
+    /** The last monetary value (two-decimal, comma-grouped) on the line — the running balance — or null. */
+    private BigDecimal lastMoney(String line) {
+        Matcher m = MONEY.matcher(line);
+        String last = null;
+        while (m.find()) {
+            last = m.group();
+        }
         return last == null ? null : num(last);
     }
 
