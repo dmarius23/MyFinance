@@ -10,6 +10,10 @@ export interface Document {
   periodMonth: string;
   uploadedBy: string | null;
   uploadedAt: string;
+  /** Why this document is NOT mirrored to Drive (DUPLICATE | WRONG_COMPANY | WRONG_PERIOD), or null. */
+  driveBlockReason: string | null;
+  /** Human-readable explanation of driveBlockReason, for display. */
+  driveBlockDetail: string | null;
 }
 
 export const documentsApi = {

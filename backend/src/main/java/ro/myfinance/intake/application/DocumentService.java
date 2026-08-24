@@ -40,13 +40,14 @@ public class DocumentService {
     private final DocumentStorage storage;
     private final DocumentClassifier classifier;
     private final DocumentReclassifier ocr;
+    private final DocumentValidator validator;
     private final AuditRecorder audit;
     private final ApplicationEventPublisher events;
     private final ro.myfinance.tenant.application.TenantDirectory tenants;
 
     public DocumentService(CompanyDirectory companies, DocumentRepository documents,
                            DocumentStorage storage, DocumentClassifier classifier,
-                           DocumentReclassifier ocr, AuditRecorder audit,
+                           DocumentReclassifier ocr, DocumentValidator validator, AuditRecorder audit,
                            ApplicationEventPublisher events,
                            ro.myfinance.tenant.application.TenantDirectory tenants) {
         this.companies = companies;
@@ -54,6 +55,7 @@ public class DocumentService {
         this.storage = storage;
         this.classifier = classifier;
         this.ocr = ocr;
+        this.validator = validator;
         this.audit = audit;
         this.tenants = tenants;
         this.events = events;
@@ -99,12 +101,6 @@ public class DocumentService {
         LocalDate period = periodMonth.withDayOfMonth(1);
         enforceDocumentQuota(companyId, period);
         DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
-        // Company-ownership check for PAYROLL: the payslip must carry this company's CUI/name. NOT applied
-        // to TRIAL_BALANCE — a balanță de verificare is a table of accounts that often doesn't print the
-        // CUI, so the text check produced false rejects; the balance's company comes from its folder.
-        if (type == DocumentType.PAYROLL) {
-            verifyBelongsToCompany(company.getLegalName(), company.getCui(), contentType, bytes);
-        }
         String safeName = sanitize(filename);
         UUID id = UUID.randomUUID();
         String key = "%s/%s/%s/%s-%s".formatted(tenantId, companyId, period.format(MONTH), id, safeName);
@@ -113,6 +109,15 @@ public class DocumentService {
         UUID uploadedBy = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         Document doc = new Document(tenantId, companyId, period, type, source,
                 DocumentStatus.UPLOADED, filename, contentType, bytes.length, key, uploadedBy);
+        // Common validation (duplicate / wrong company / wrong month) gates the Drive mirror — the file is
+        // always stored here, but a blocked one is not written to Drive. Files ingested FROM Drive skip the
+        // heavy per-type checks (ingestion already deduped/flagged them and they are never mirrored back);
+        // we still hash them so a later manual upload of the same bytes is detected as a duplicate.
+        if (source == DocumentSource.DRIVE) {
+            doc.setContentSha256(ro.myfinance.common.hash.ContentHash.sha256(bytes));
+        } else {
+            applyValidation(doc, validator.validate(company, period, type, filename, contentType, bytes, null));
+        }
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
         events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));
@@ -246,6 +251,7 @@ public class DocumentService {
                 java.util.Map.of("periodMonth", String.valueOf(oldPeriod)),
                 java.util.Map.of("periodMonth", target.toString()));
         byte[] bytes = storage.retrieve(doc.getStorageKey());
+        revalidate(doc, bytes); // moving to the correct month can clear a WRONG_PERIOD Drive block
         events.publishEvent(new DocumentUploadedEvent(id, companyId, target, doc.getType(),
                 doc.getOriginalFilename(), bytes));
         return doc;
@@ -263,6 +269,7 @@ public class DocumentService {
                 java.util.Map.of("type", String.valueOf(oldType)),
                 java.util.Map.of("type", newType.name()));
         byte[] bytes = storage.retrieve(doc.getStorageKey());
+        revalidate(doc, bytes); // the new type may change the duplicate/wrong-party/period verdict
         events.publishEvent(new DocumentUploadedEvent(id, companyId, doc.getPeriodMonth(), newType,
                 doc.getOriginalFilename(), bytes));
         return doc;
@@ -303,28 +310,23 @@ public class DocumentService {
                 .orElseThrow(() -> new NotFoundException("Document not found: " + id));
     }
 
-    /**
-     * Payroll guard: a payroll document must belong to the company it's uploaded for. We read the PDF
-     * text and require the company's fiscal code (CUI, digits only) to appear in it; otherwise the file
-     * is rejected so one company's payroll can't be attached to another. Conservative: if the file isn't
-     * a readable text PDF (e.g. a scan) or the company has no CUI, we can't verify and allow the upload.
-     */
-    private void verifyBelongsToCompany(String companyName, String companyCui, String contentType, byte[] bytes) {
-        if (contentType == null || !contentType.toLowerCase().contains("pdf")) {
+    /** Persist the validator's verdict + Drive-routing metadata onto the document. */
+    private static void applyValidation(Document doc, DocumentValidator.Result v) {
+        doc.setContentSha256(v.contentSha256());
+        doc.setDriveBlockReason(v.blockReason());
+        doc.setDriveBlockDetail(v.blockDetail());
+        doc.setDeclKind(v.declKind());
+        doc.setDominantObligationCod(v.dominantObligationCod());
+    }
+
+    /** Re-run validation for an existing document (after a period move / type change) and re-persist it. */
+    private void revalidate(Document doc, byte[] bytes) {
+        var company = companies.findById(doc.getCompanyId()).orElse(null);
+        if (company == null) {
             return;
         }
-        String text;
-        try (org.apache.pdfbox.pdmodel.PDDocument pdf = org.apache.pdfbox.Loader.loadPDF(bytes)) {
-            text = new org.apache.pdfbox.text.PDFTextStripper().getText(pdf);
-        } catch (java.io.IOException | RuntimeException e) {
-            return; // unreadable / not a real PDF → can't verify, allow
-        }
-        // Match on CUI or company name (payslips print only the name). null = can't verify → allow.
-        if (Boolean.FALSE.equals(CompanyMatcher.present(text, companyCui, companyName))) {
-            throw new ro.myfinance.common.web.ConflictException(
-                    "Documentul nu pare emis pentru această firmă (" + companyName + " / CUI "
-                            + companyCui + " negăsit în document).");
-        }
+        applyValidation(doc, validator.validate(company, doc.getPeriodMonth(), doc.getType(),
+                doc.getOriginalFilename(), doc.getContentType(), bytes, doc.getId()));
     }
 
     private void validate(String contentType, byte[] bytes) {

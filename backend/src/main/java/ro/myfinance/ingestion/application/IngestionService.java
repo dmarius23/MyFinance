@@ -1,8 +1,6 @@
 package ro.myfinance.ingestion.application;
 
-import java.security.MessageDigest;
 import java.time.LocalDate;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +41,7 @@ public class IngestionService {
     private final CompanyDirectory companies;
     private final DocumentService documents;
     private final ConnectorRegistry registry;
+    private final ro.myfinance.intake.application.DocumentClassifier classifier;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ModuleSyncStatusService syncStatus;
@@ -50,7 +49,8 @@ public class IngestionService {
 
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
                             CompanyDirectory companies, DocumentService documents,
-                            ConnectorRegistry registry, AuditRecorder audit,
+                            ConnectorRegistry registry,
+                            ro.myfinance.intake.application.DocumentClassifier classifier, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications,
                             ModuleSyncStatusService syncStatus,
                             @org.springframework.beans.factory.annotation.Qualifier(
@@ -60,6 +60,7 @@ public class IngestionService {
         this.companies = companies;
         this.documents = documents;
         this.registry = registry;
+        this.classifier = classifier;
         this.audit = audit;
         this.notifications = notifications;
         this.syncStatus = syncStatus;
@@ -217,6 +218,9 @@ public class IngestionService {
      * the same month's declarations. Requires the month-first layout.
      */
     public ModuleSyncStatusService.View syncModuleMonth(String moduleType, LocalDate period) {
+        if ("MIXED".equalsIgnoreCase(moduleType)) {
+            return syncAccountingMonth(period);
+        }
         DocumentType module = parseForcedType(moduleType);
         if (module == null) {
             throw new IllegalArgumentException("Unknown module type: " + moduleType);
@@ -254,6 +258,40 @@ public class IngestionService {
         return syncStatus.get(module.name(), targetPeriod);
     }
 
+    /**
+     * Month-wide sync of the ACCOUNTING (contabilitate clienti) drive — bank statements + invoices for ALL
+     * companies. The drive is company-first (no root month folder), so we crawl from the root and filter
+     * per file by the requested month. Tracked under the "MIXED" status slot.
+     */
+    private ModuleSyncStatusService.View syncAccountingMonth(LocalDate period) {
+        SourceConnection conn = findDriveConnection("MIXED")
+                .orElseThrow(() -> new NotFoundException("No accounting Drive folder configured"));
+        LocalDate month = period.withDayOfMonth(1);
+        UUID startedBy = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        if (!syncStatus.tryStart(ACCOUNTING_SLOT, month, startedBy)) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "A sync for bank statements & invoices / " + month + " is already running.");
+        }
+        moduleSyncExecutor.execute(() -> {
+            SyncResult r = new SyncResult(0, 0, 0, 0, List.of());
+            try {
+                r = doSync(conn, null, java.util.Set.of(month), null, previousMonth(),
+                        false, conn.getRootFolderId(), false, null, null);
+                log.info("syncAccountingMonth done period={} → imported={} review={} skipped={} failed={}",
+                        month, r.imported(), r.needsReview(), r.skipped(), r.failed());
+            } catch (RuntimeException e) {
+                log.error("syncAccountingMonth failed period={}: {}", month, e.getMessage(), e);
+                r = new SyncResult(r.imported(), r.needsReview(), r.skipped(), r.failed() + 1, r.issues());
+            } finally {
+                syncStatus.markFinish(ACCOUNTING_SLOT, month, r.summary());
+            }
+        });
+        return syncStatus.get(ACCOUNTING_SLOT, month);
+    }
+
+    /** The status slot for the combined bank-statement + invoice ("MIXED") accounting sync. */
+    private static final String ACCOUNTING_SLOT = "MIXED";
+
     /** The crawl + import for a claimed (module, month) slot; always releases the slot via markFinish. */
     private void runModuleSync(SourceConnection conn, DocumentType module, LocalDate targetPeriod, String startFolder) {
         SyncResult r = new SyncResult(0, 0, 0, 0, List.of());
@@ -288,6 +326,9 @@ public class IngestionService {
     /** The shared sync state for a module + month (last synced, and whether a sync is running now). */
     @Transactional(readOnly = true)
     public ModuleSyncStatusService.View syncStatusFor(String type, LocalDate period) {
+        if ("MIXED".equalsIgnoreCase(type)) {
+            return syncStatus.get(ACCOUNTING_SLOT, period.withDayOfMonth(1));
+        }
         DocumentType module = parseForcedType(type);
         if (module == null) {
             return new ModuleSyncStatusService.View(false, null, null, null, null);
@@ -336,13 +377,36 @@ public class IngestionService {
         List<SourceConnection> drive = connections.findByOrderByCreatedAtDesc().stream()
                 .filter(c -> "GOOGLE_DRIVE".equalsIgnoreCase(c.getProvider()) && !"DISABLED".equals(c.getStatus()))
                 .toList();
-        // A type-specific connection wins; otherwise a general root connection (no forced type) covers all types.
+        // Bank statements & invoices (and the combined "MIXED" module) come from the ACCOUNTING drive
+        // (contabilitate clienti) — its client-uploaded Company/year-month/mixed layout.
+        if (isAccountingModule(forcedType)) {
+            Optional<SourceConnection> acct = drive.stream()
+                    .filter(IngestionService::accountingLayout).findFirst();
+            if (acct.isPresent()) {
+                return acct;
+            }
+        }
+        // A type-specific connection wins; otherwise a general root connection (no forced type) covers the
+        // declaration/payroll/report types — but never the ACCOUNTING drive (that only serves bank/invoice).
         return drive.stream()
                 .filter(c -> forcedType != null && forcedType.equalsIgnoreCase(c.getForcedType()))
                 .findFirst()
                 .or(() -> drive.stream()
-                        .filter(c -> c.getForcedType() == null || c.getForcedType().isBlank())
+                        .filter(c -> (c.getForcedType() == null || c.getForcedType().isBlank())
+                                && !accountingLayout(c))
                         .findFirst());
+    }
+
+    /** The ACCOUNTING drive (contabilitate clienti): bank statements + invoices in a Company/month layout. */
+    private static boolean accountingLayout(SourceConnection conn) {
+        return "ACCOUNTING".equalsIgnoreCase(conn.getPurpose());
+    }
+
+    /** Bank statements / invoices / the combined MIXED module are sourced from the ACCOUNTING drive. */
+    private static boolean isAccountingModule(String type) {
+        return "MIXED".equalsIgnoreCase(type)
+                || DocumentType.BANK_STATEMENT.name().equalsIgnoreCase(type)
+                || DocumentType.INVOICE.name().equalsIgnoreCase(type);
     }
 
     /**
@@ -383,7 +447,10 @@ public class IngestionService {
         // only the signed copy when both signed & unsigned exist. Off by default (opt-in via config).
         // The module-month sync ({@code onlyType} set) targets one module's subtree for the whole firm; it
         // is inherently a month-first operation, so apply those guards even if the config flag is absent.
-        boolean monthFirst = monthFirstLayout(conn) || onlyType != null;
+        boolean monthFirst = (monthFirstLayout(conn) || onlyType != null) && !accountingLayout(conn);
+        // The ACCOUNTING drive (contabilitate clienti) is a Company/year-month/mixed layout: bank statements
+        // and invoices sit together in each month folder, so type is decided by CONTENT, not by a subfolder.
+        boolean accountingMixed = accountingLayout(conn);
         // The root-subtree scope check (only month/balance folders) only applies to a full crawl FROM the
         // root. When we start below the root (a company or a scoped module subtree), the paths are already
         // inside the wanted subtree and carry no top month/Bilant segment, so that check would drop them.
@@ -405,6 +472,19 @@ public class IngestionService {
             try {
                 if (!isSupported(f) || f.size() > MAX_BYTES) {
                     if (onlyCompany == null) skipped++;
+                    continue;
+                }
+                // ACCOUNTING drive: Company/year-month/mixed. Resolve company + period from the path, classify
+                // by content, and accept only bank statements & invoices (anything else → review).
+                if (accountingMixed) {
+                    switch (importMixedFile(conn, connector, f, tenantId, onlyCompany, onlyPeriods,
+                            companyKnown, tenantCompanies, issues)) {
+                        case IMPORTED -> imported++;
+                        case NEEDS_REVIEW -> review++;
+                        case SKIPPED -> skipped++;
+                        case FAILED -> failed++;
+                        case PASS -> { /* outside the requested company/month — not counted */ }
+                    }
                     continue;
                 }
                 // Month-first layout guards (opt-in): ignore anything outside the month/balance subtrees,
@@ -568,6 +648,67 @@ public class IngestionService {
     }
 
     /** Upsert a ledger row: re-record the existing one on re-sync (unique per connection + file), else insert. */
+    /** Per-file outcome of the ACCOUNTING mixed-layout import, mapped to the run's counters by the caller. */
+    private enum Outcome { IMPORTED, NEEDS_REVIEW, SKIPPED, FAILED, PASS }
+
+    /**
+     * Import one file from the ACCOUNTING (contabilitate clienti) drive: resolve company + period from the
+     * Company/year-month path, classify by content, accept only bank statements & invoices (else review),
+     * dedupe by content hash, and upload as a DRIVE-sourced document. A thrown exception bubbles to the
+     * caller's per-file catch (counted as failed).
+     */
+    private Outcome importMixedFile(SourceConnection conn, CloudFolderConnector connector, RemoteFile f,
+                                    UUID tenantId, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
+                                    boolean companyKnown, List<Company> tenantCompanies,
+                                    List<SyncResult.Issue> issues) {
+        Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
+                : FolderMapper.resolveCompany(f, tenantCompanies);
+        LocalDate period = FolderMapper.resolvePeriod(f);
+        if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
+            return Outcome.PASS;
+        }
+        if (onlyPeriods != null && !onlyPeriods.contains(period)) {
+            return Outcome.PASS;
+        }
+        ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
+        if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
+                && java.util.Objects.equals(prior.getSourceEtag(), f.etag())) {
+            return Outcome.SKIPPED;
+        }
+        if (cid.isEmpty()) {
+            String reason = "Could not match a company from the folder path";
+            writeLedger(prior, tenantId, conn, f, null, null, period, null, ImportFile.Status.NEEDS_REVIEW, reason);
+            issues.add(new SyncResult.Issue(f.name(), reason));
+            return Outcome.NEEDS_REVIEW;
+        }
+        byte[] bytes = connector.download(conn, f);
+        String sha = sha256(bytes);
+        DocumentType ct = classifier.classify(f.name(), mime(f), bytes);
+        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE) {
+            String reason = "Doar extrase de cont și facturi sunt acceptate din acest folder (detectat: " + ct + ")";
+            writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
+            issues.add(new SyncResult.Issue(f.name(), reason));
+            return Outcome.NEEDS_REVIEW;
+        }
+        if (ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
+                conn.getId(), cid.get(), period, sha, ImportFile.Status.IMPORTED.name())) {
+            writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null,
+                    ImportFile.Status.DUPLICATE, "Identical file already imported for this month");
+            return Outcome.SKIPPED;
+        }
+        var doc = documents.upload(cid.get(), period, f.name(), mime(f), bytes, ct, DocumentSource.DRIVE);
+        if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
+                && prior.getDocumentId() != null && !prior.getDocumentId().equals(doc.getId())) {
+            try {
+                documents.delete(prior.getDocumentId());
+            } catch (RuntimeException e) {
+                log.warn("Could not remove superseded document {} on re-import of {}", prior.getDocumentId(), f.name(), e);
+            }
+        }
+        writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, doc.getId(), ImportFile.Status.IMPORTED, null);
+        return Outcome.IMPORTED;
+    }
+
     private void writeLedger(ImportFile prior, UUID tenantId, SourceConnection conn, RemoteFile f, String sha,
                              UUID companyId, LocalDate period, UUID documentId, ImportFile.Status status, String detail) {
         if (prior != null) {
@@ -833,10 +974,6 @@ public class IngestionService {
     }
 
     private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return ro.myfinance.common.hash.ContentHash.sha256(bytes);
     }
 }

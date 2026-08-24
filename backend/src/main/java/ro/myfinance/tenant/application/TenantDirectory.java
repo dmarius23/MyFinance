@@ -30,6 +30,17 @@ public class TenantDirectory {
         return limitValue("maxDocumentsPerCompanyMonth");
     }
 
+    /** The current tenant's display identity (name + CUI) for the app shell, or empty for a SUPER_ADMIN. */
+    public java.util.Optional<CurrentTenant> current() {
+        return TenantContext.tenantId()
+                .flatMap(tenants::findById)
+                .map(t -> new CurrentTenant(t.getName(), t.getCui()));
+    }
+
+    /** The signed-in user's own accounting firm identity. */
+    public record CurrentTenant(String name, String cui) {
+    }
+
     private long limitValue(String key) {
         return TenantContext.tenantId()
                 .flatMap(tenants::findById)

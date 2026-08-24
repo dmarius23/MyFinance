@@ -9,8 +9,10 @@ import java.util.Optional;
  * document and the metadata needed to place it, return the target drive (purpose) and the folder path under
  * that drive's root. No I/O — fully unit-testable. The Drive writer ensures the path exists and uploads.
  *
- * <p>Returns {@link Optional#empty()} when the document should NOT be mirrored (receipts, unclassified, a
- * declaration whose kind is unknown, or an invoice whose direction is unresolved) — those stay in Supabase.
+ * <p>Returns {@link Optional#empty()} when the document should NOT be mirrored (receipts, unclassified, or a
+ * declaration whose kind is unknown) — those stay in Supabase. Bank statements and invoices file into the
+ * ACCOUNTING drive's simplified <b>{@code <Company>/<yyyy-MM>}</b> layout (the same folders the client drops
+ * files into), so an invoice files regardless of its resolved direction.
  */
 public final class DriveFilingRouter {
 
@@ -56,11 +58,8 @@ public final class DriveFilingRouter {
                             declSegments(r, monthFolder(r.periodMonth()), leaf)));
             case TRIAL_BALANCE -> Optional.of(new Filing(DrivePurpose.DECLARATIONS,
                     declSegments(r, trimesterFolder(r.periodMonth()), r.companyName())));
-            case BANK_STATEMENT -> Optional.of(new Filing(DrivePurpose.ACCOUNTING,
-                    List.of(companyAccountingFolder(r.companyName()), "Extrase de cont")));
-            case INVOICE -> invoiceFolder(r.invoiceDirection())
-                    .map(leaf -> new Filing(DrivePurpose.ACCOUNTING,
-                            List.of(companyAccountingFolder(r.companyName()), leaf)));
+            case BANK_STATEMENT, INVOICE -> Optional.of(new Filing(DrivePurpose.ACCOUNTING,
+                    List.of(r.companyName(), accountingMonthFolder(r.periodMonth()))));
             case RECEIPT, UNCLASSIFIED -> Optional.empty();
         };
     }
@@ -91,9 +90,9 @@ public final class DriveFilingRouter {
         return "Bilant Interimar T" + q + " an " + period.getYear();
     }
 
-    /** "Contabilitate {Company}" — the per-company folder in the accounting drive. */
-    private static String companyAccountingFolder(String companyName) {
-        return "Contabilitate " + companyName;
+    /** "{year}-{month}" — the per-month folder under a company in the accounting drive (e.g. "2026-06"). */
+    private static String accountingMonthFolder(LocalDate period) {
+        return "%04d-%02d".formatted(period.getYear(), period.getMonthValue());
     }
 
     /** The declaration leaf folder, or empty when the declaration kind is unknown (skip mirroring). */
@@ -119,17 +118,5 @@ public final class DriveFilingRouter {
             default -> null;
         };
         return label == null ? "D100" : "D100 " + label;
-    }
-
-    /** The invoice leaf folder by direction, or empty when direction is unresolved (skip mirroring). */
-    private static Optional<String> invoiceFolder(InvoiceDirection direction) {
-        if (direction == null) {
-            return Optional.empty();
-        }
-        return switch (direction) {
-            case RECEIVED -> Optional.of("Facturi achizitii");
-            case ISSUED -> Optional.of("Facturi emise");
-            case UNKNOWN -> Optional.empty();
-        };
     }
 }
