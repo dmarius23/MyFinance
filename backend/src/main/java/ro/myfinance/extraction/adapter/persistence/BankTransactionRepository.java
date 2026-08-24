@@ -10,4 +10,13 @@ public interface BankTransactionRepository extends JpaRepository<BankTransaction
     List<BankTransaction> findByStatementIdInOrderByTxnDateDesc(List<UUID> statementIds);
 
     java.util.List<ro.myfinance.extraction.domain.BankTransaction> findByCompanyId(java.util.UUID companyId);
+
+    /** A company's transactions whose date is in [from, toExclusive) — the reconcile month/window read,
+     *  before de-duplication across overlapping files. */
+    List<BankTransaction> findByCompanyIdAndTxnDateGreaterThanEqualAndTxnDateLessThan(
+            UUID companyId, java.time.LocalDate from, java.time.LocalDate toExclusive);
+
+    /** Every tenant transaction dated in [from, toExclusive) — cross-company monthly roll-up (RLS-scoped). */
+    List<BankTransaction> findByTxnDateGreaterThanEqualAndTxnDateLessThan(
+            java.time.LocalDate from, java.time.LocalDate toExclusive);
 }

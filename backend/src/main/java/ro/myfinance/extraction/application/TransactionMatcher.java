@@ -11,11 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.NotFoundException;
-import ro.myfinance.extraction.adapter.persistence.BankStatementRepository;
 import ro.myfinance.extraction.adapter.persistence.BankTransactionRepository;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.extraction.adapter.persistence.TransactionInvoiceMatchRepository;
-import ro.myfinance.extraction.domain.BankStatement;
 import ro.myfinance.extraction.domain.BankTransaction;
 import ro.myfinance.extraction.domain.Invoice;
 import ro.myfinance.extraction.domain.TransactionInvoiceMatch;
@@ -30,16 +28,16 @@ import ro.myfinance.extraction.domain.TransactionInvoiceMatch;
 public class TransactionMatcher {
 
     private final BankTransactionRepository transactions;
-    private final BankStatementRepository statements;
+    private final CanonicalTransactions canonical;
     private final InvoiceRepository invoices;
     private final TransactionInvoiceMatchRepository matches;
     private final AuditRecorder audit;
 
-    public TransactionMatcher(BankTransactionRepository transactions, BankStatementRepository statements,
+    public TransactionMatcher(BankTransactionRepository transactions, CanonicalTransactions canonical,
                               InvoiceRepository invoices, TransactionInvoiceMatchRepository matches,
                               AuditRecorder audit) {
         this.transactions = transactions;
-        this.statements = statements;
+        this.canonical = canonical;
         this.invoices = invoices;
         this.matches = matches;
         this.audit = audit;
@@ -47,12 +45,12 @@ public class TransactionMatcher {
 
     public void matchPeriod(UUID companyId, java.time.LocalDate periodMonth) {
         java.time.LocalDate period = periodMonth.withDayOfMonth(1);
-        List<UUID> stmtIds = statements.findByCompanyIdAndPeriodMonth(companyId, period)
-                .stream().map(BankStatement::getId).toList();
-        if (stmtIds.isEmpty()) {
+        // Match against the month's canonical (deduped) transactions — never the raw rows, so an invoice
+        // can't be settled twice by the same transaction appearing in two overlapping files.
+        List<BankTransaction> txns = canonical.forMonth(companyId, period);
+        if (txns.isEmpty()) {
             return;
         }
-        List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds);
         List<UUID> txnIds = txns.stream().map(BankTransaction::getId).toList();
         java.util.Set<UUID> matchedTxnIds = new java.util.HashSet<>();
         java.util.Set<UUID> usedInvoiceIds = new java.util.HashSet<>();

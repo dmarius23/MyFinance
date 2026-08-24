@@ -37,35 +37,37 @@ public class ReconciliationView {
 
     private final BankStatementRepository statements;
     private final BankTransactionRepository transactions;
+    private final CanonicalTransactions canonical;
     private final InvoiceRepository invoices;
     private final TransactionInvoiceMatchRepository matches;
 
     public ReconciliationView(BankStatementRepository statements, BankTransactionRepository transactions,
-                              InvoiceRepository invoices, TransactionInvoiceMatchRepository matches) {
+                              CanonicalTransactions canonical, InvoiceRepository invoices,
+                              TransactionInvoiceMatchRepository matches) {
         this.statements = statements;
         this.transactions = transactions;
+        this.canonical = canonical;
         this.invoices = invoices;
         this.matches = matches;
     }
 
     @Transactional(readOnly = true)
     public List<CompanyCompleteness> completenessSummary(java.time.LocalDate periodMonth) {
-        java.util.Map<UUID, List<BankStatement>> stmtsByCompany = new java.util.HashMap<>();
-        for (BankStatement s : statements.findByPeriodMonth(periodMonth)) {
-            stmtsByCompany.computeIfAbsent(s.getCompanyId(), k -> new java.util.ArrayList<>()).add(s);
-        }
+        // A company "has a statement for the month" when it has any transaction dated in the month (from any
+        // file) — so a multi-month file counts for every month it covers.
+        java.util.Map<UUID, List<BankTransaction>> txnsByCompany = canonical.byCompanyForMonth(periodMonth);
         java.util.Map<UUID, List<Invoice>> invByCompany = new java.util.HashMap<>();
         for (Invoice i : invoices.findByPeriodMonth(periodMonth.withDayOfMonth(1))) {
             invByCompany.computeIfAbsent(i.getCompanyId(), k -> new java.util.ArrayList<>()).add(i);
         }
-        java.util.Set<UUID> companyIds = new java.util.HashSet<>(stmtsByCompany.keySet());
+        java.util.Set<UUID> companyIds = new java.util.HashSet<>(txnsByCompany.keySet());
         companyIds.addAll(invByCompany.keySet());
 
         List<CompanyCompleteness> out = new java.util.ArrayList<>();
         for (UUID companyId : companyIds) {
-            List<BankStatement> stmts = stmtsByCompany.get(companyId);
-            boolean hasStatements = stmts != null && !stmts.isEmpty();
-            int missingTxn = hasStatements ? missingDocTxnCount(stmts) : 0;
+            List<BankTransaction> monthTxns = txnsByCompany.get(companyId);
+            boolean hasStatements = monthTxns != null && !monthTxns.isEmpty();
+            int missingTxn = hasStatements ? missingDocTxnCount(monthTxns) : 0;
             Completeness completeness = !hasStatements ? Completeness.NOT_STARTED
                     : (missingTxn > 0 ? Completeness.PARTIAL : Completeness.COMPLETE);
             InvoiceRollup roll = paymentRollup(invByCompany.get(companyId));
@@ -76,13 +78,11 @@ public class ReconciliationView {
     }
 
     /**
-     * Count of bank transactions that require a document but aren't fully allocated yet — i.e. the
-     * documents the client still owes. Drives both the completeness state and the "N missing" hint.
+     * Count of the month's (deduped) bank transactions that require a document but aren't fully allocated
+     * yet — the documents the client still owes. Drives both the completeness state and the "N missing" hint.
      */
-    private int missingDocTxnCount(List<BankStatement> companyStatements) {
-        List<UUID> stmtIds = companyStatements.stream().map(BankStatement::getId).toList();
-        List<BankTransaction> reqTxns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds)
-                .stream().filter(BankTransaction::isRequiresDocument).toList();
+    private int missingDocTxnCount(List<BankTransaction> monthTxns) {
+        List<BankTransaction> reqTxns = monthTxns.stream().filter(BankTransaction::isRequiresDocument).toList();
         if (reqTxns.isEmpty()) {
             return 0;
         }
@@ -132,9 +132,23 @@ public class ReconciliationView {
     }
 
     @Transactional(readOnly = true)
-    /** Parsed bank statements for a company/period (read view for the statements list). */
+    /** Statement files whose covered range touches the month (a multi-month file is listed under each month
+     *  it covers), newest range first. Falls back to the dominant-month statement for files with no range. */
     public List<BankStatement> statementsForPeriod(UUID companyId, java.time.LocalDate periodMonth) {
-        return statements.findByCompanyIdAndPeriodMonth(companyId, periodMonth.withDayOfMonth(1));
+        java.time.LocalDate monthStart = periodMonth.withDayOfMonth(1);
+        java.time.LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
+        List<BankStatement> byRange = statements
+                .findByCompanyIdAndFirstTxnDateLessThanEqualAndLastTxnDateGreaterThanEqual(
+                        companyId, monthEnd, monthStart);
+        // Include legacy statements that predate the range columns (first/last null) but are filed here.
+        java.util.Map<UUID, BankStatement> byId = new java.util.LinkedHashMap<>();
+        for (BankStatement s : byRange) {
+            byId.put(s.getId(), s);
+        }
+        for (BankStatement s : statements.findByCompanyIdAndPeriodMonth(companyId, monthStart)) {
+            byId.putIfAbsent(s.getId(), s);
+        }
+        return new java.util.ArrayList<>(byId.values());
     }
 
     /** Invoices/receipts filed under a company/period (manual-link candidate list). */
@@ -143,13 +157,11 @@ public class ReconciliationView {
     }
 
     public List<TxnWithMatches> transactionsWithMatches(UUID companyId, java.time.LocalDate periodMonth) {
-        java.time.LocalDate period = periodMonth.withDayOfMonth(1);
-        List<UUID> stmtIds = statements.findByCompanyIdAndPeriodMonth(companyId, period)
-                .stream().map(BankStatement::getId).toList();
-        if (stmtIds.isEmpty()) {
+        // Every transaction dated in the month, from any file, deduped to one canonical row.
+        List<BankTransaction> txns = canonical.forMonth(companyId, periodMonth);
+        if (txns.isEmpty()) {
             return List.of();
         }
-        List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds);
         List<UUID> txnIds = txns.stream().map(BankTransaction::getId).toList();
         List<TransactionInvoiceMatch> links = matches.findByTransactionIdIn(txnIds);
         java.util.Map<UUID, Invoice> invById = new java.util.HashMap<>();
@@ -270,12 +282,11 @@ public class ReconciliationView {
     public List<OpenTxnView> openTransactions(UUID companyId, java.time.LocalDate periodMonth, int months) {
         java.time.LocalDate to = periodMonth.withDayOfMonth(1);
         java.time.LocalDate from = to.minusMonths(months);
-        List<UUID> stmtIds = statements.findByCompanyIdAndPeriodMonthBetween(companyId, from, to)
-                .stream().map(BankStatement::getId).toList();
-        if (stmtIds.isEmpty()) {
+        // Deduped transactions dated in the rolling window [from-month, period-month].
+        List<BankTransaction> txns = canonical.between(companyId, from, to.plusMonths(1));
+        if (txns.isEmpty()) {
             return List.of();
         }
-        List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(stmtIds);
         java.util.Map<UUID, BigDecimal> allocated = new java.util.HashMap<>();
         for (TransactionInvoiceMatch m : matches.findByTransactionIdIn(txns.stream().map(BankTransaction::getId).toList())) {
             allocated.merge(m.getTransactionId(), m.getAllocatedAmount(), BigDecimal::add);
@@ -331,23 +342,16 @@ public class ReconciliationView {
         java.time.LocalDate period = periodMonth.withDayOfMonth(1);
         List<DocumentStatus> out = new java.util.ArrayList<>();
 
-        for (BankStatement s : statements.findByCompanyIdAndPeriodMonth(companyId, period)) {
+        // A statement file legitimately spans several months now (reconcile-by-month), so we no longer flag
+        // a statement for having transactions "outside the period". We only flag one that has NO transaction
+        // dated in the month it's listed under (a genuinely empty/unreadable file). List files by range.
+        java.time.LocalDate monthEnd = period.plusMonths(1).minusDays(1);
+        for (BankStatement s : statements.findByCompanyIdAndFirstTxnDateLessThanEqualAndLastTxnDateGreaterThanEqual(
+                companyId, monthEnd, period)) {
             List<BankTransaction> txns = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId()));
-            long total = txns.size();
-            long in = txns.stream().filter(t -> t.getTxnDate().withDayOfMonth(1).equals(period)).count();
-            String dateFlag;
-            String reason;
-            if (total == 0 || in == 0) {
-                dateFlag = "RED";
-                reason = "no_transactions_in_period";
-            } else if (in < total) {
-                dateFlag = "ORANGE";
-                reason = "some_transactions_outside_period";
-            } else {
-                dateFlag = null;
-                reason = null;
-            }
-            out.add(new DocumentStatus(s.getDocumentId(), dateFlag, reason, false, null, null, null, null,
+            boolean anyInMonth = txns.stream().anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
+            out.add(new DocumentStatus(s.getDocumentId(), anyInMonth ? null : "RED",
+                    anyInMonth ? null : "no_transactions_in_period", false, null, null, null, null,
                     null, null, null));
         }
 

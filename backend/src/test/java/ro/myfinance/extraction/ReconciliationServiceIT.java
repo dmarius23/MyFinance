@@ -124,11 +124,15 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void dedupAcrossReupload() throws Exception {
+    void storeAllFilesButDedupeTheMonthView() throws Exception {
         UUID companyId = asTenantWithCompany(TENANT_A);
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras-again.pdf", "application/pdf", pdf("RECONSTUB"));
-        assertThat(companyTxns(companyId)).hasSize(3); // not 6
+        // Store-then-dedupe-at-view: each file keeps its own rows (both statements stored)...
+        assertThat(companyTxns(companyId)).hasSize(6);
+        assertThat(statements.findByCompanyIdAndPeriodMonth(companyId, LocalDate.of(2026, 6, 1))).hasSize(2);
+        // ...but the reconcile month view collapses the overlap to one canonical row per transaction.
+        assertThat(reconciliation.transactionsWithMatches(companyId, LocalDate.of(2026, 6, 1))).hasSize(3);
     }
 
     @Test

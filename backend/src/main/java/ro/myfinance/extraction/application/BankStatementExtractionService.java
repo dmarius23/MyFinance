@@ -76,7 +76,11 @@ public class BankStatementExtractionService {
         Optional<BankStatement> prior = statements.findByDocumentId(documentId);
         if (prior.isPresent()) {
             BankStatement es = prior.get();
-            if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0) {
+            // A healthy, already-parsed statement is left untouched (re-running the parser would only risk
+            // dropping its manual reconciliation links) — we just re-classify and re-match. But a LEGACY
+            // statement (no covered range → parsed before store-then-dedupe) is re-parsed so re-extraction
+            // rebuilds it under the new rules (full rows + first/last txn date).
+            if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0 && es.getFirstTxnDate() != null) {
                 alignDocumentPeriod(documentId, es.getPeriodMonth()); // keep the document with its statement
                 reconciliation.classify(es.getId()); // re-apply the latest base rules (keeps accountant overrides)
                 reconciliation.matchPeriod(companyId, es.getPeriodMonth());
@@ -151,7 +155,15 @@ public class BankStatementExtractionService {
         }
         alignDocumentPeriod(documentId, period); // file the document in the statement's dominant month too
         reconciliation.classify(statement.getId());
-        reconciliation.matchPeriod(companyId, period);
+        // Auto-match EVERY month the file covers — a multi-month statement settles invoices in each of its
+        // months, not just the dominant one.
+        java.util.Set<LocalDate> months = rows.stream().map(ParsedTransaction::date)
+                .filter(java.util.Objects::nonNull).map(d -> d.withDayOfMonth(1))
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (months.isEmpty()) {
+            months.add(period);
+        }
+        months.forEach(m -> reconciliation.matchPeriod(companyId, m));
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
     }
 
@@ -171,12 +183,7 @@ public class BankStatementExtractionService {
 
     private String dedupKey(String accountIban, java.time.LocalDate date, java.math.BigDecimal amount,
                             java.math.BigDecimal balanceAfter, String description, String ref) {
-        if (balanceAfter != null) {
-            return "B|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString()
-                    + "|" + balanceAfter.stripTrailingZeros().toPlainString();
-        }
-        return "F|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString() + "|"
-                + ReconText.normalize(description) + "|" + (ref == null ? "" : ref);
+        return TxnDedupKey.of(accountIban, date, amount, balanceAfter, description, ref);
     }
 
     private boolean crossCheck(ParsedStatement p) {
