@@ -222,10 +222,11 @@ class IngestionServiceTest {
         lenient().when(a.getCui()).thenReturn("49443957");
         lenient().when(a.getLegalName()).thenReturn("ACME SRL");
         when(companies.findAll()).thenReturn(List.of(a));
+        // Real client layout: <Company>/<year>/<N. LunăRo> — the period is resolved from year + month folders.
         fake.files = List.of(
-                new CloudFolderConnector.RemoteFile("b", "extras.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e1", null),
-                new CloudFolderConnector.RemoteFile("i", "factura.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e2", null),
-                new CloudFolderConnector.RemoteFile("x", "random.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e3", null));
+                new CloudFolderConnector.RemoteFile("b", "extras.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("i", "factura.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("x", "random.pdf", "ACME SRL/2026/3. Martie", "application/pdf", 100, "e3", null));
         when(classifier.classify(any(), any(), any())).thenAnswer(inv -> {
             String name = inv.getArgument(0);
             if (name.startsWith("extras")) return DocumentType.BANK_STATEMENT;
@@ -236,15 +237,15 @@ class IngestionServiceTest {
         when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(acct.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
-        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), any(), any(), any(), any(), eq(DocumentSource.DRIVE))).thenReturn(doc);
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), any(), any(), any(), any(), eq(DocumentSource.DRIVE))).thenReturn(doc);
 
-        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 6, 1));
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
 
         assertThat(r.imported()).isEqualTo(2);    // extras (bank) + factura (invoice)
         assertThat(r.needsReview()).isEqualTo(1); // random → not a bank/invoice
-        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("extras.pdf"), any(), any(),
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("extras.pdf"), any(), any(),
                 eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE));
-        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("factura.pdf"), any(), any(),
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("factura.pdf"), any(), any(),
                 eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
     }
 

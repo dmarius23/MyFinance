@@ -11,8 +11,8 @@ import java.util.Optional;
  *
  * <p>Returns {@link Optional#empty()} when the document should NOT be mirrored (receipts, unclassified, or a
  * declaration whose kind is unknown) — those stay in Supabase. Bank statements and invoices file into the
- * ACCOUNTING drive's simplified <b>{@code <Company>/<yyyy-MM>}</b> layout (the same folders the client drops
- * files into), so an invoice files regardless of its resolved direction.
+ * ACCOUNTING drive's <b>{@code <Company>/<year>/<N. LunăRo>}</b> layout (e.g. {@code ACME SRL/2026/3. Martie}
+ * — the same folders the client drops files into), so an invoice files regardless of its resolved direction.
  */
 public final class DriveFilingRouter {
 
@@ -59,7 +59,8 @@ public final class DriveFilingRouter {
             case TRIAL_BALANCE -> Optional.of(new Filing(DrivePurpose.DECLARATIONS,
                     declSegments(r, trimesterFolder(r.periodMonth()), r.companyName())));
             case BANK_STATEMENT, INVOICE -> Optional.of(new Filing(DrivePurpose.ACCOUNTING,
-                    List.of(r.companyName(), accountingMonthFolder(r.periodMonth()))));
+                    List.of(r.companyName(), String.valueOf(r.periodMonth().getYear()),
+                            accountingMonthFolder(r.periodMonth()))));
             case RECEIPT, UNCLASSIFIED -> Optional.empty();
         };
     }
@@ -90,9 +91,9 @@ public final class DriveFilingRouter {
         return "Bilant Interimar T" + q + " an " + period.getYear();
     }
 
-    /** "{year}-{month}" — the per-month folder under a company in the accounting drive (e.g. "2026-06"). */
+    /** "{monthNumber}. {LunăRo}" — the per-month folder under a company's year folder (e.g. "3. Martie"). */
     private static String accountingMonthFolder(LocalDate period) {
-        return "%04d-%02d".formatted(period.getYear(), period.getMonthValue());
+        return period.getMonthValue() + ". " + RO_MONTHS[period.getMonthValue()];
     }
 
     /** The declaration leaf folder, or empty when the declaration kind is unknown (skip mirroring). */
