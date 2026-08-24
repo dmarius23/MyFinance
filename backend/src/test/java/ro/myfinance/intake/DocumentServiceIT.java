@@ -99,6 +99,28 @@ class DocumentServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void identicalUploadIsFlaggedDuplicateAndNotMirrored() {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        Document first = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document second = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+
+        assertThat(first.getDriveBlockReason()).isNull();
+        assertThat(second.getDriveBlockReason()).isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+        assertThat(first.getContentSha256()).isEqualTo(second.getContentSha256());
+    }
+
+    @Test
+    void duplicateDetectionIsTenantScoped() {
+        // Same bytes in tenant A must NOT flag tenant B's upload as a duplicate (RLS-scoped dedup query).
+        UUID companyA = asTenantWithCompany(TENANT_A);
+        documents.upload(companyA, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+
+        UUID companyB = asTenantWithCompany(TENANT_B);
+        Document docB = documents.upload(companyB, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        assertThat(docB.getDriveBlockReason()).isNull();
+    }
+
+    @Test
     void tenantBCannotSeeOrDeleteTenantADocuments() {
         UUID companyA = asTenantWithCompany(TENANT_A);
         Document docA = documents.upload(companyA, LocalDate.of(2026, 6, 1), "a.png", "image/png", png());

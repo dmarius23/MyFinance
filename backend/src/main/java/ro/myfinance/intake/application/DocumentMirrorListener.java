@@ -13,6 +13,7 @@ import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.adapter.persistence.DocumentRepository;
 import ro.myfinance.intake.domain.Document;
+import ro.myfinance.intake.domain.DocumentSource;
 import ro.myfinance.intake.domain.DrivePurpose;
 import ro.myfinance.intake.domain.DriveFilingRouter;
 
@@ -23,11 +24,12 @@ import ro.myfinance.intake.domain.DriveFilingRouter;
  * from Supabase (the canonical store). Runs after the upload commits and off the request thread
  * ({@code AFTER_COMMIT} + {@code @Async}), in its own transaction. Cleans up the mirror copy on delete.
  *
- * <p>Handles the types whose filing metadata is known at upload time (payroll, bank statement, report).
- * Declarations (need the extracted obligation) and invoices (need the parsed direction) are filed by
- * dedicated listeners once that metadata is resolved — {@link DriveFilingRouter} returns empty here for
- * those until then. No-op when the tenant has no write-enabled Drive connection for the resolved purpose or
- * the service account is not configured.
+ * <p>Skips documents synced FROM Drive (the accounting drive is bidirectional) and any document a
+ * validation check blocked (duplicate / wrong company / wrong month) — those stay in Supabase, unmirrored.
+ * The declaration routing metadata (form + dominant obligation) is captured at upload by
+ * {@code DocumentValidator}, so declarations file here directly; only a declaration whose kind could not be
+ * parsed is left for a later pass. No-op when the tenant has no write-enabled Drive connection for the
+ * resolved purpose or the service account is not configured.
  */
 @Component
 public class DocumentMirrorListener {
@@ -60,6 +62,15 @@ public class DocumentMirrorListener {
             if (doc == null || company == null) {
                 return;
             }
+            if (doc.getSource() == DocumentSource.DRIVE) {
+                return; // synced FROM the drive — don't mirror it back (the accounting drive is bidirectional)
+            }
+            if (doc.getDriveBlockReason() != null) {
+                // Blocked by validation (duplicate / wrong company / wrong month): kept in Supabase, not filed.
+                log.info("Drive mirror skipped for document {} — {} ({})", e.documentId(),
+                        doc.getDriveBlockReason(), doc.getDriveBlockDetail());
+                return;
+            }
             // Resolve the target first (it carries the connection's rootIsYearFolder), then route with it.
             DrivePurpose purpose = DriveFilingRouter.purposeFor(doc.getType()).orElse(null);
             if (purpose == null) {
@@ -71,7 +82,8 @@ public class DocumentMirrorListener {
             }
             DriveFilingRouter.FilingRequest request = new DriveFilingRouter.FilingRequest(
                     doc.getType(), doc.getPeriodMonth(), companyFolder(company),
-                    null, null, doc.getInvoiceDirection(), target.rootIsYearFolder());
+                    doc.getDeclKind(), doc.getDominantObligationCod(), doc.getInvoiceDirection(),
+                    target.rootIsYearFolder());
             DriveFilingRouter.Filing filing = DriveFilingRouter.route(request).orElse(null);
             if (filing == null) {
                 return; // a declaration/invoice whose metadata (obligation/direction) is resolved later

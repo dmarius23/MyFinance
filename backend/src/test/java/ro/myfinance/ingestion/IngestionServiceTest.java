@@ -46,6 +46,8 @@ class IngestionServiceTest {
     private final CompanyDirectory companies = mock(CompanyDirectory.class);
     private final DocumentService documents = mock(DocumentService.class);
     private final ConnectorRegistry registry = mock(ConnectorRegistry.class);
+    private final ro.myfinance.intake.application.DocumentClassifier classifier =
+            mock(ro.myfinance.intake.application.DocumentClassifier.class);
     private final AuditRecorder audit = mock(AuditRecorder.class);
 
     private final ro.myfinance.notifications.application.NotificationService notifications =
@@ -54,7 +56,7 @@ class IngestionServiceTest {
             mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
     // Inline executor: module-month syncs run synchronously in the test thread (deterministic).
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, audit, notifications, syncStatus, Runnable::run);
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, classifier, audit, notifications, syncStatus, Runnable::run);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
@@ -204,6 +206,46 @@ class IngestionServiceTest {
         // type is null → DocumentService runs the content classifier (statement vs invoice).
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"), any(), any(),
                 isNull(), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void accountingDriveClassifiesByContentAndAcceptsOnlyBankAndInvoice() {
+        // The ACCOUNTING (contabilitate clienti) drive: Company/year-month/mixed. Type is decided by CONTENT;
+        // only bank statements & invoices are accepted, anything else goes to review.
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.files = List.of(
+                new CloudFolderConnector.RemoteFile("b", "extras.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("i", "factura.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("x", "random.pdf", "ACME SRL/2026-06", "application/pdf", 100, "e3", null));
+        when(classifier.classify(any(), any(), any())).thenAnswer(inv -> {
+            String name = inv.getArgument(0);
+            if (name.startsWith("extras")) return DocumentType.BANK_STATEMENT;
+            if (name.startsWith("factura")) return DocumentType.INVOICE;
+            return DocumentType.UNCLASSIFIED;
+        });
+        when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(acct.getId()), any(), any(), any(), any())).thenReturn(false);
+        Document doc = mock(Document.class);
+        when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), any(), any(), any(), any(), eq(DocumentSource.DRIVE))).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 6, 1));
+
+        assertThat(r.imported()).isEqualTo(2);    // extras (bank) + factura (invoice)
+        assertThat(r.needsReview()).isEqualTo(1); // random → not a bank/invoice
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("extras.pdf"), any(), any(),
+                eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE));
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("factura.pdf"), any(), any(),
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
     }
 
     @Test

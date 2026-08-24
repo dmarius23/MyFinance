@@ -190,6 +190,11 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
                             )}
                           </>
                         )}
+                        {d.driveBlockReason && (
+                          <span className="pill round warn" title={d.driveBlockDetail ?? undefined}>
+                            {t("doc.driveBlockedChip")}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); del(d); }} title={t("payroll.deleteDoc")} disabled={remove.isPending}

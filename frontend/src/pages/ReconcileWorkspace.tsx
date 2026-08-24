@@ -422,11 +422,15 @@ export function ReconcileWorkspace() {
             <input ref={fileRef} type="file" multiple accept="application/pdf,image/png,image/jpeg,image/webp" style={{ display: "none" }}
               onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; if (f.length) upload.mutate(f); }} />
           </div>
-          {driveEnabled && (
+          {driveEnabled ? (
             <button disabled={sync.isPending} onClick={() => sync.mutate()} title={t("files.syncHint")}
               style={{ margin: "0 12px 12px", width: "calc(100% - 24px)", justifyContent: "center" }}>
               <Icon name="reconcile" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />{sync.isPending ? t("files.syncing") : t("files.syncFromDrive")}
             </button>
+          ) : (
+            <div style={{ margin: "0 12px 12px", fontSize: 11.5, color: "var(--text-muted)" }}>
+              {t("files.driveNotConfigured")}
+            </div>
           )}
         </div>
       </div>

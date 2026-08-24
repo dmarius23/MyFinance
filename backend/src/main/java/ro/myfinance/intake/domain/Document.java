@@ -71,6 +71,27 @@ public class Document {
     @Enumerated(EnumType.STRING)
     private InvoiceDirection invoiceDirection;
 
+    /** SHA-256 of the stored bytes — the key for cross-document duplicate detection. */
+    @Column(name = "content_sha256")
+    private String contentSha256;
+
+    /** Why this document is NOT mirrored to Drive (duplicate / wrong company / wrong period). Null = eligible. */
+    @Column(name = "drive_block_reason")
+    @Enumerated(EnumType.STRING)
+    private DriveBlockReason driveBlockReason;
+
+    /** Human-readable explanation of {@link #driveBlockReason}, surfaced in the UI. */
+    @Column(name = "drive_block_detail")
+    private String driveBlockDetail;
+
+    /** Declaration form (D100/D112/D300) captured at upload — routes DECLARATION mirrors. Null otherwise. */
+    @Column(name = "decl_kind")
+    private String declKind;
+
+    /** Largest-amount obligation code (D100 sub-routing: 628 Chirii / 604 Dividende / 103 Profit …). */
+    @Column(name = "dominant_obligation_cod")
+    private String dominantObligationCod;
+
     @CreationTimestamp
     @Column(name = "uploaded_at", nullable = false, updatable = false)
     private Instant uploadedAt;
@@ -114,5 +135,15 @@ public class Document {
     public void setDriveFileId(String driveFileId) { this.driveFileId = driveFileId; }
     public InvoiceDirection getInvoiceDirection() { return invoiceDirection; }
     public void setInvoiceDirection(InvoiceDirection invoiceDirection) { this.invoiceDirection = invoiceDirection; }
+    public String getContentSha256() { return contentSha256; }
+    public void setContentSha256(String contentSha256) { this.contentSha256 = contentSha256; }
+    public DriveBlockReason getDriveBlockReason() { return driveBlockReason; }
+    public void setDriveBlockReason(DriveBlockReason driveBlockReason) { this.driveBlockReason = driveBlockReason; }
+    public String getDriveBlockDetail() { return driveBlockDetail; }
+    public void setDriveBlockDetail(String driveBlockDetail) { this.driveBlockDetail = driveBlockDetail; }
+    public String getDeclKind() { return declKind; }
+    public void setDeclKind(String declKind) { this.declKind = declKind; }
+    public String getDominantObligationCod() { return dominantObligationCod; }
+    public void setDominantObligationCod(String dominantObligationCod) { this.dominantObligationCod = dominantObligationCod; }
 }
 

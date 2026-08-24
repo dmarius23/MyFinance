@@ -19,11 +19,14 @@ public final class DocumentDtos {
 
     public record DocumentResponse(UUID id, String type, String status, String originalFilename,
                                    String contentType, long sizeBytes, LocalDate periodMonth,
-                                   UUID uploadedBy, Instant uploadedAt) {
+                                   UUID uploadedBy, Instant uploadedAt,
+                                   String driveBlockReason, String driveBlockDetail) {
         public static DocumentResponse from(Document d) {
             return new DocumentResponse(d.getId(), d.getType().name(), d.getStatus().name(),
                     d.getOriginalFilename(), d.getContentType(), d.getSizeBytes(), d.getPeriodMonth(),
-                    d.getUploadedBy(), d.getUploadedAt());
+                    d.getUploadedBy(), d.getUploadedAt(),
+                    d.getDriveBlockReason() == null ? null : d.getDriveBlockReason().name(),
+                    d.getDriveBlockDetail());
         }
     }
 }

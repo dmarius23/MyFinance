@@ -3,8 +3,7 @@ package ro.myfinance.tenant.adapter.web;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ro.myfinance.common.security.TenantContext;
-import ro.myfinance.tenant.adapter.persistence.TenantRepository;
+import ro.myfinance.tenant.application.TenantDirectory;
 
 /**
  * The signed-in user's own tenant (accounting firm) identity, for the app shell to display. Any
@@ -16,9 +15,9 @@ import ro.myfinance.tenant.adapter.persistence.TenantRepository;
 @RequestMapping("/api/v1/me")
 public class MeController {
 
-    private final TenantRepository tenants;
+    private final TenantDirectory tenants;
 
-    public MeController(TenantRepository tenants) {
+    public MeController(TenantDirectory tenants) {
         this.tenants = tenants;
     }
 
@@ -26,9 +25,8 @@ public class MeController {
 
     @GetMapping
     public MeResponse me() {
-        return TenantContext.tenantId()
-                .flatMap(tenants::findById)
-                .map(t -> new MeResponse(t.getName(), t.getCui()))
+        return tenants.current()
+                .map(t -> new MeResponse(t.name(), t.cui()))
                 .orElse(new MeResponse(null, null));
     }
 }

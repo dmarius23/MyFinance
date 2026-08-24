@@ -74,26 +74,22 @@ class DriveFilingRouterTest {
     }
 
     @Test
-    void bank_statement_goes_to_accounting_drive() {
+    void bank_statement_goes_to_accounting_drive_under_company_month() {
         Filing f = route(DocumentType.BANK_STATEMENT, JUNE, "ACME SRL", null, null, null);
         assertThat(f.purpose()).isEqualTo(DrivePurpose.ACCOUNTING);
-        assertThat(f.segments()).containsExactly("Contabilitate ACME SRL", "Extrase de cont");
+        assertThat(f.segments()).containsExactly("ACME SRL", "2026-06");
     }
 
     @Test
-    void invoice_direction_selects_the_leaf_folder() {
+    void invoice_files_under_company_month_regardless_of_direction() {
+        // The accounting drive is a single Company/year-month layout (mixed) — direction is not used.
         assertThat(route(DocumentType.INVOICE, JUNE, "ACME", null, null, InvoiceDirection.RECEIVED).segments())
-                .containsExactly("Contabilitate ACME", "Facturi achizitii");
+                .containsExactly("ACME", "2026-06");
         assertThat(route(DocumentType.INVOICE, JUNE, "ACME", null, null, InvoiceDirection.ISSUED).segments())
-                .containsExactly("Contabilitate ACME", "Facturi emise");
-    }
-
-    @Test
-    void invoice_without_resolved_direction_is_not_mirrored() {
-        assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, null, false))).isEmpty();
-        assertThat(DriveFilingRouter.route(
-                new FilingRequest(DocumentType.INVOICE, JUNE, "ACME", null, null, InvoiceDirection.UNKNOWN, false))).isEmpty();
+                .containsExactly("ACME", "2026-06");
+        // Even with no resolved direction, an invoice now files (routing needs only company + month).
+        assertThat(route(DocumentType.INVOICE, JUNE, "ACME", null, null, null).segments())
+                .containsExactly("ACME", "2026-06");
     }
 
     @Test
