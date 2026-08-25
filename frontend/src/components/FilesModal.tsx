@@ -6,6 +6,8 @@ import { reconciliationApi } from "../api/bank";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
+import { syncFinishedNote } from "../lib/syncStatus";
+import { useSyncTracker } from "./SyncTracker";
 import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
@@ -28,6 +30,7 @@ const darkHeader: React.CSSProperties = {
 export function FilesModal({ companyId, companyName, companyCui, period, onClose }:
   { companyId: string; companyName: string; companyCui?: string; period: string; onClose: () => void }) {
   const { t, i18n } = useTranslation();
+  const { run } = useSyncTracker();
   // The statement's covered period as a date range (a monthly statement spans the whole month),
   // e.g. "01.01.2026 - 31.01.2026".
   const periodLabel = (() => {
@@ -137,7 +140,9 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
   });
   const driveEnabled = driveQ.data?.driveEnabled === true;
   const sync = useMutation({
-    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: MIXED_SOURCE }),
+    // Shared SyncTracker toast: "syncing <company · month>" → "finished" with the result.
+    mutationFn: () => run(`${companyName} · ${monthLabel(period, i18n.language)}`,
+      ingestionApi.syncCompany({ companyId, period, type: MIXED_SOURCE }), (r: SyncResult) => syncFinishedNote(t, r)),
     onSuccess: (r: SyncResult) => {
       invalidate();
       // A sync imports any document type for this company+month — refresh every list scoped to it.
@@ -147,9 +152,6 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
       // Extraction/report/reconciliation for imported docs runs asynchronously after the import commits,
       // so the first refetch can land before those results exist. Re-refresh shortly after to pick them up.
       if (r.imported > 0) [1500, 4000].forEach((ms) => window.setTimeout(() => void refreshScoped(), ms));
-      const parts = [t("files.syncDone", r as unknown as Record<string, number>)];
-      for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
-      setSyncNote(parts.join(" · "));
     },
     onError: (e) => setSyncNote(e instanceof ApiError ? e.message : "Sync failed"),
   });

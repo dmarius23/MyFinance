@@ -4,9 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { declarationsApi, type DeclarationFile } from "../api/taxes";
 import { documentsApi } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
-import { useSyncStatus, SyncStatusLine } from "../lib/syncStatus";
+import { useSyncStatus, SyncStatusLine, syncFinishedNote } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
+import { useSyncTracker } from "./SyncTracker";
 import { Icon } from "./Icon";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
@@ -17,6 +18,7 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
   { companyId: string; companyName: string; period: string; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const { run } = useSyncTracker();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
   // Block this per-company sync while a month-wide DECLARATION sync (all companies) runs; show last synced.
   const { status: syncStatus, running: monthSyncRunning } = useSyncStatus("DECLARATION", period, driveMode);
   const sync = useMutation({
-    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "DECLARATION" }),
+    // Shared SyncTracker toast: "syncing <company · month>" → "finished" with the result.
+    mutationFn: () => run(`${companyName} · ${monthLabel(period, i18n.language)}`,
+      ingestionApi.syncCompany({ companyId, period, type: "DECLARATION" }), (r: SyncResult) => syncFinishedNote(t, r)),
     onSuccess: (r: SyncResult) => {
       setError(null); invalidate();
       const refreshScoped = () =>
@@ -57,7 +61,6 @@ export function DeclarationsModal({ companyId, companyName, period, onClose }:
       void refreshScoped();
       // Extraction runs asynchronously after the import commits — re-refresh shortly after to pick it up.
       if (r.imported > 0) [1500, 4000].forEach((ms) => window.setTimeout(() => void refreshScoped(), ms));
-      window.alert(t("payroll.syncDone", r as unknown as Record<string, number>));
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Sync failed"),
   });
