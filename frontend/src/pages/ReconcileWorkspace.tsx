@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion } from "../api/bank";
+import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
 import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi } from "../api/ingestion";
@@ -52,6 +52,7 @@ export function ReconcileWorkspace() {
 
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
+  const filesQ = useQuery({ queryKey: ["bank-files", companyId, period], queryFn: () => bankApi.statementFiles(companyId, period) });
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
   const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period, 18, true) });
   const suggestionsQ = useQuery({ queryKey: ["match-suggestions", companyId, period], queryFn: () => reconciliationApi.suggestions(companyId, period) });
@@ -74,7 +75,16 @@ export function ReconcileWorkspace() {
     void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
     void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
     void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
+    void qc.invalidateQueries({ queryKey: ["bank-files", companyId, period] });
+    void qc.invalidateQueries({ queryKey: ["bank-stmts", companyId, period] });
   };
+  // Delete a bank-statement file the accountant uploaded — cascades to its statement, transactions and any
+  // reconciliation links; the confirm spells out that impact.
+  const deleteFile = useMutation({
+    mutationFn: (f: StatementFile) => bankApi.deleteFile(companyId, f.documentId),
+    onSuccess: () => { invalidate(); void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); },
+    onError: onErr,
+  });
   const onErr = (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`);
 
   const match = useMutation({ mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId), onSuccess: invalidate, onError: onErr });
@@ -241,8 +251,17 @@ export function ReconcileWorkspace() {
   const selectTxn = (id: string) => { setSelectedTxnId((cur) => (cur === id ? null : id)); setChecked(new Set()); };
   const toggleCheck = (id: string) => setChecked((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  const hasStatement = (statements.data?.length ?? 0) > 0;
+  const files = filesQ.data ?? [];
+  const hasStatement = files.length > 0;
   const c = company.data;
+  // Compact "5 ian – 24 feb" only when a file spans more than one month (multi-month statement).
+  const fileRange = (f: StatementFile): string | null => {
+    if (!f.coveredFrom || !f.coveredTo || f.coveredFrom.slice(0, 7) === f.coveredTo.slice(0, 7)) return null;
+    const d = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
+    return `${d(f.coveredFrom)} – ${d(f.coveredTo)}`;
+  };
+  const fileSource = (f: StatementFile) =>
+    f.mine ? t("recon.byYou") : f.source === "DRIVE" ? t("recon.fromDrive") : t("recon.byColleague");
   const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
 
   return (
@@ -266,16 +285,23 @@ export function ReconcileWorkspace() {
         </button>
       </div>
 
-      {/* ===== statement strip / empty upload ===== */}
+      {/* ===== statement files strip / empty upload ===== */}
       {hasStatement ? (
         <div style={{ margin: "0 18px 10px", ...card, padding: "4px 12px" }}>
-          {(statements.data ?? []).map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, padding: "7px 0", borderBottom: "1px solid var(--hair)" }}>
+          {files.map((f) => {
+            const s = (statements.data ?? []).find((x) => x.documentId === f.documentId);
+            const range = fileRange(f);
+            return (
+            <div key={f.documentId} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, padding: "7px 0", borderBottom: "1px solid var(--hair)" }}>
               <span style={{ width: 30, height: 30, borderRadius: 8, background: "var(--th-bg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Icon name="statements" size={15} style={{ color: "var(--text-muted)" }} /></span>
-              <b>{s.bankCode ?? "—"}</b>
-              <span className="mono" style={{ color: "var(--text-muted)" }}>{maskIban(s.accountIban)}</span>
-              <span className="mono" style={{ color: "var(--text-muted)" }}>{s.openingBalance != null ? money(s.openingBalance) : "—"} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>
-              <span className={`pill round ${s.crossCheckOk ? "ok" : "danger"}`}>✓ {t("recon.txnsParsed", { n: s.txnCount })}</span>
+              <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{f.filename ?? s?.bankCode ?? "—"}</b>
+              {range && <span className="mono" style={{ color: "var(--text-muted)" }}>{range}</span>}
+              {s?.openingBalance != null && <span className="mono" style={{ color: "var(--text-muted)" }}>{money(s.openingBalance)} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>}
+              {f.status === "EXTRACTED" ? <span className="pill round ok">✓ {t("recon.txnsParsed", { n: f.txnsInMonth })}</span>
+                : f.status === "NEEDS_REVIEW" ? <span className="pill round warn">{t("recon.fileNeedsReview")}</span>
+                : f.status === "DUPLICATE" ? <span className="pill round">{t("doc.duplicateChip")}</span>
+                : <span className="pill round">{t("recon.fileNoTxn")}</span>}
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{fileSource(f)}</span>
               <span style={{ flex: 1 }} />
               <button onClick={() => reextract.mutate()} disabled={reextract.isPending}
                 style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 8, cursor: reextract.isPending ? "default" : "pointer",
@@ -284,10 +310,17 @@ export function ReconcileWorkspace() {
                 <Icon name="reconcile" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
                 {reextract.isPending ? t("recon.reextracting") : t("recon.reextract")}
               </button>
-              <button onClick={() => setPreview({ documentId: s.documentId, filename: [s.bankCode, maskIban(s.accountIban)].filter(Boolean).join(" ") || null })}
+              <button onClick={() => setPreview({ documentId: f.documentId, filename: f.filename })}
                 style={eyeBtn} title={t("recon.viewStatement")} aria-label={t("recon.viewStatement")}><Icon name="eye" size={15} /></button>
+              {f.deletable && (
+                <button
+                  onClick={() => { if (window.confirm(t("recon.deleteFileConfirm", { name: f.filename ?? "", txns: f.txnsInMonth, matches: f.matchedInMonth }))) deleteFile.mutate(f); }}
+                  disabled={deleteFile.isPending} title={t("recon.deleteFile")} aria-label={t("recon.deleteFile")}
+                  style={{ border: "none", background: "none", color: "#dc2626", cursor: "pointer", padding: "0 2px", fontSize: 14, flexShrink: 0 }}>✕</button>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div style={{ margin: "0 18px 10px", border: "1px dashed var(--danger-bd, #fecaca)", background: "var(--danger-bg, #fee2e2)", borderRadius: 12, padding: 14, display: "flex", alignItems: "center", gap: 14 }}>

@@ -214,6 +214,28 @@ public class DocumentService {
     }
 
     /**
+     * Delete a document the current user uploaded. Only the uploader may delete their own file, and never a
+     * Drive-synced one (those are managed in Drive — deleting locally would just be re-imported). Cascades
+     * to any bank statement, its transactions and their reconciliation links (FK ON DELETE CASCADE).
+     */
+    public void deleteOwn(UUID companyId, UUID id) {
+        Document doc = require(id);
+        if (!doc.getCompanyId().equals(companyId)) {
+            throw new NotFoundException("Document not found: " + id);
+        }
+        UUID me = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        if (me == null || !me.equals(doc.getUploadedBy())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You can only delete files you uploaded");
+        }
+        if (doc.getSource() == DocumentSource.DRIVE) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Drive-synced files are managed in Drive, not deleted here");
+        }
+        delete(id);
+    }
+
+    /**
      * Re-fire the document pipeline for the stored documents of a type in a month — a backfill that
      * (re)builds reports/extractions from documents that are already imported (e.g. after ingest logic
      * changed), without re-importing. Publishes the same DocumentUploadedEvent a fresh upload would, so the

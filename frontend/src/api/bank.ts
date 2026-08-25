@@ -12,6 +12,21 @@ export interface BankStatement {
   txnCount: number;
 }
 
+/** A bank-statement file for the reconcile files panel. */
+export interface StatementFile {
+  documentId: string;
+  filename: string | null;
+  source: string | null;
+  uploadedAt: string | null;
+  mine: boolean;
+  deletable: boolean;
+  status: string; // EXTRACTED | NEEDS_REVIEW | DUPLICATE | NO_TXN
+  coveredFrom: string | null;
+  coveredTo: string | null;
+  txnsInMonth: number;
+  matchedInMonth: number;
+}
+
 export interface MatchedInvoice {
   invoiceId: string;
   documentId: string;
@@ -69,6 +84,10 @@ export interface CompanyCompleteness {
 export const bankApi = {
   statements: (companyId: string, period: string) =>
     api<BankStatement[]>(`/api/v1/companies/${companyId}/bank-statements?period=${period}`),
+  statementFiles: (companyId: string, period: string) =>
+    api<StatementFile[]>(`/api/v1/companies/${companyId}/bank-statement-files?period=${period}`),
+  deleteFile: (companyId: string, documentId: string) =>
+    api<void>(`/api/v1/companies/${companyId}/bank-statement-files/${documentId}`, { method: "DELETE" }),
   transactions: (companyId: string, period: string) =>
     api<BankTransaction[]>(`/api/v1/companies/${companyId}/bank-transactions?period=${period}`),
   setRequirement: (companyId: string, txnId: string, requiresDocument: boolean, reason?: string) =>

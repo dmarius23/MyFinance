@@ -76,7 +76,11 @@ public class BankStatementExtractionService {
         Optional<BankStatement> prior = statements.findByDocumentId(documentId);
         if (prior.isPresent()) {
             BankStatement es = prior.get();
-            if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0) {
+            // A healthy, already-parsed statement is left untouched (re-running the parser would only risk
+            // dropping its manual reconciliation links) — we just re-classify and re-match. But a LEGACY
+            // statement (no covered range → parsed before store-then-dedupe) is re-parsed so re-extraction
+            // rebuilds it under the new rules (full rows + first/last txn date).
+            if (es.getStatus() == StatementStatus.EXTRACTED && es.getTxnCount() > 0 && es.getFirstTxnDate() != null) {
                 alignDocumentPeriod(documentId, es.getPeriodMonth()); // keep the document with its statement
                 reconciliation.classify(es.getId()); // re-apply the latest base rules (keeps accountant overrides)
                 reconciliation.matchPeriod(companyId, es.getPeriodMonth());
@@ -105,18 +109,14 @@ public class BankStatementExtractionService {
             return;
         }
 
-        // Dedup against ALL of the company's stored transactions (across statements and upload
-        // periods), so the same statement uploaded under two different month-labels — or overlapping
-        // statements — never double-records a transaction. The key includes the exact date and running
-        // balance, so genuinely distinct (incl. recurring) transactions in other months are kept.
-        Set<String> seen = new HashSet<>();
-        for (BankTransaction existing : transactions.findByCompanyId(companyId)) {
-            seen.add(dedupKey(existing.getAccountIban(), existing.getTxnDate(), existing.getAmount(),
-                    existing.getBalanceAfter(), existing.getDescription(), existing.getRef()));
-        }
-
+        // Store-then-dedupe-at-view: every file keeps its OWN transaction rows, so it stays visible and
+        // independently deletable, and a multi-month file lands under each month its transactions fall in.
+        // Overlaps ACROSS files are deduped at read time by the reconcile view/engine — never here. We only
+        // drop within-file repeats (a parser emitting the same row twice) and rows whose amount couldn't be
+        // derived (flagged for review).
         boolean hadNullAmount = false;
-        List<ParsedTransaction> unique = new ArrayList<>();
+        Set<String> withinFile = new HashSet<>();
+        List<ParsedTransaction> rows = new ArrayList<>();
         for (ParsedTransaction t : parsed.transactions()) {
             if (t.amount() == null) {
                 hadNullAmount = true; // amount couldn't be derived → skip the row, flag for review
@@ -124,43 +124,46 @@ public class BankStatementExtractionService {
             }
             String key = dedupKey(parsed.accountIban(), t.date(), t.amount(), t.balanceAfter(),
                     t.description(), t.ref());
-            if (seen.add(key)) {
-                unique.add(t);
+            if (withinFile.add(key)) {
+                rows.add(t);
             }
-        }
-
-        // A re-upload of a statement we already hold: every parsed transaction was deduped away. Don't
-        // create an empty shell statement — it would show nothing in the upload period and clutter the
-        // list. The existing statement (filed under its own month) remains the record of these txns.
-        if (!parsed.transactions().isEmpty() && unique.isEmpty()) {
-            log.info("Statement document {} duplicates an existing statement ({} transactions already "
-                    + "stored) — not creating an empty statement", documentId, parsed.transactions().size());
-            reconciliation.matchPeriod(companyId, periodMonth);
-            return;
         }
 
         boolean crossOk = crossCheck(parsed);
         StatementStatus status = (crossOk && !hadNullAmount)
                 ? StatementStatus.EXTRACTED : StatementStatus.NEEDS_REVIEW;
 
-        // A bank statement is inherently for a specific month, printed in it. File it under that month
-        // (the transactions' own month), not the slot the accountant happened to upload it into — so a
-        // statement dropped into the wrong period still lands where its transactions belong.
-        LocalDate period = statementPeriod(unique, periodMonth);
+        // period_month keeps the file's dominant month (back-compat); the covered range drives the per-month
+        // files list, so a Jan–Feb file is listed under both January and February.
+        LocalDate period = statementPeriod(rows, periodMonth);
+        LocalDate firstTxn = rows.stream().map(ParsedTransaction::date).filter(java.util.Objects::nonNull)
+                .min(LocalDate::compareTo).orElse(null);
+        LocalDate lastTxn = rows.stream().map(ParsedTransaction::date).filter(java.util.Objects::nonNull)
+                .max(LocalDate::compareTo).orElse(null);
 
-        BankStatement statement = statements.save(new BankStatement(tenantId, documentId, companyId,
+        BankStatement statement = new BankStatement(tenantId, documentId, companyId,
                 period, parsed.bankCode(), parsed.accountIban(), parsed.openingBalance(),
-                parsed.closingBalance(), status, crossOk, unique.size()));
+                parsed.closingBalance(), status, crossOk, rows.size());
+        statement.setRange(firstTxn, lastTxn);
+        statements.save(statement);
 
-        for (ParsedTransaction t : unique) {
+        for (ParsedTransaction t : rows) {
             TxnDirection dir = t.amount().signum() < 0 ? TxnDirection.DEBIT : TxnDirection.CREDIT;
             transactions.save(new BankTransaction(tenantId, companyId, statement.getId(),
                     parsed.accountIban(), t.date(), t.amount(), dir, t.partnerName(), t.partnerIban(),
                     t.description(), t.ref(), t.balanceAfter()));
         }
-        alignDocumentPeriod(documentId, period); // file the document in the statement's own month too
+        alignDocumentPeriod(documentId, period); // file the document in the statement's dominant month too
         reconciliation.classify(statement.getId());
-        reconciliation.matchPeriod(companyId, period);
+        // Auto-match EVERY month the file covers — a multi-month statement settles invoices in each of its
+        // months, not just the dominant one.
+        java.util.Set<LocalDate> months = rows.stream().map(ParsedTransaction::date)
+                .filter(java.util.Objects::nonNull).map(d -> d.withDayOfMonth(1))
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (months.isEmpty()) {
+            months.add(period);
+        }
+        months.forEach(m -> reconciliation.matchPeriod(companyId, m));
         audit.record("STATEMENT_EXTRACTED", "bank_statement", statement.getId());
     }
 
@@ -180,12 +183,7 @@ public class BankStatementExtractionService {
 
     private String dedupKey(String accountIban, java.time.LocalDate date, java.math.BigDecimal amount,
                             java.math.BigDecimal balanceAfter, String description, String ref) {
-        if (balanceAfter != null) {
-            return "B|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString()
-                    + "|" + balanceAfter.stripTrailingZeros().toPlainString();
-        }
-        return "F|" + accountIban + "|" + date + "|" + amount.stripTrailingZeros().toPlainString() + "|"
-                + ReconText.normalize(description) + "|" + (ref == null ? "" : ref);
+        return TxnDedupKey.of(accountIban, date, amount, balanceAfter, description, ref);
     }
 
     private boolean crossCheck(ParsedStatement p) {

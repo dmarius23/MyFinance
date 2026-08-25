@@ -78,6 +78,19 @@ public class ReconciliationService {
                               java.math.BigDecimal remaining) {
     }
 
+    /**
+     * A bank-statement FILE relevant to a month, for the reconcile files panel. {@code status} is
+     * EXTRACTED / NEEDS_REVIEW / DUPLICATE / NO_TXN; {@code coveredFrom}/{@code coveredTo} is the file's real
+     * range (null for legacy/unparsed); {@code txnsInMonth} counts its transactions dated in the shown month;
+     * {@code matchedInMonth} how many of those are reconciled to invoices (delete impact). {@code mine} is
+     * true when the current user uploaded it, and {@code deletable} adds "not a Drive-synced file".
+     */
+    public record StatementFileView(UUID documentId, String filename, String source,
+                                    java.time.Instant uploadedAt, boolean mine, boolean deletable,
+                                    String status, java.time.LocalDate coveredFrom, java.time.LocalDate coveredTo,
+                                    int txnsInMonth, int matchedInMonth) {
+    }
+
     /** One proposed transaction↔invoice allocation within a suggestion. */
     public record SuggestionLink(UUID transactionId, java.time.LocalDate txnDate, String partnerName,
                                  java.math.BigDecimal txnAmount, UUID invoiceId, String invoiceFilename,
@@ -138,6 +151,13 @@ public class ReconciliationService {
     /** Invoices/receipts filed under a company/period (manual-link candidate list). */
     public List<Invoice> invoicesForPeriod(UUID companyId, java.time.LocalDate periodMonth) {
         return view.invoicesForPeriod(companyId, periodMonth);
+    }
+
+    /** Bank-statement files relevant to a month (files panel): status, range, this-month + matched counts,
+     *  and delete-own ownership. */
+    @Transactional(readOnly = true)
+    public List<StatementFileView> statementFiles(UUID companyId, java.time.LocalDate periodMonth) {
+        return view.statementFiles(companyId, periodMonth);
     }
 
     public List<TxnWithMatches> transactionsWithMatches(UUID companyId, java.time.LocalDate periodMonth) {

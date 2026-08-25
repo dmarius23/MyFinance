@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.OpenTransactionResponse;
+import ro.myfinance.extraction.adapter.web.BankStatementDtos.StatementFileResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.StatementResponse;
 import ro.myfinance.extraction.adapter.web.BankStatementDtos.TransactionResponse;
 import ro.myfinance.extraction.application.ReconciliationService;
@@ -21,9 +22,12 @@ import ro.myfinance.extraction.application.ReconciliationService;
 public class BankStatementController {
 
     private final ReconciliationService recon;
+    private final ro.myfinance.intake.application.DocumentService documents;
 
-    public BankStatementController(ReconciliationService recon) {
+    public BankStatementController(ReconciliationService recon,
+                                   ro.myfinance.intake.application.DocumentService documents) {
         this.recon = recon;
+        this.documents = documents;
     }
 
     @GetMapping("/bank-statements")
@@ -31,6 +35,23 @@ public class BankStatementController {
                                               @RequestParam("period") LocalDate period) {
         return recon.statementsForPeriod(companyId, period).stream()
                 .map(StatementResponse::from).toList();
+    }
+
+    /** Bank-statement FILES relevant to the month (files panel): status, range, this-month + matched counts,
+     *  and whether the caller may delete each (their own upload, not Drive-synced). */
+    @GetMapping("/bank-statement-files")
+    public List<StatementFileResponse> statementFiles(@PathVariable UUID companyId,
+                                                      @RequestParam("period") LocalDate period) {
+        return recon.statementFiles(companyId, period).stream()
+                .map(StatementFileResponse::from).toList();
+    }
+
+    /** Delete a bank-statement file the caller uploaded (not a Drive-synced one). Cascades to its statement,
+     *  transactions and reconciliation links. */
+    @org.springframework.web.bind.annotation.DeleteMapping("/bank-statement-files/{documentId}")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void deleteFile(@PathVariable UUID companyId, @PathVariable UUID documentId) {
+        documents.deleteOwn(companyId, documentId);
     }
 
     @GetMapping("/bank-transactions")
