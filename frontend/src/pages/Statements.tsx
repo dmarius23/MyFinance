@@ -177,9 +177,7 @@ export function Statements() {
                       )}
                       {(s?.duplicateCount ?? 0) > 0 && (
                         <InfoTip lines={s?.duplicateFiles ?? []}>
-                          <span className="pill round muted" title={t("statements.duplicate.tip")}>
-                            {t("statements.duplicate", { n: s?.duplicateCount ?? 0 })}
-                          </span>
+                          <span className="pill round danger" title={t("statements.duplicate.tip")}>DUP</span>
                         </InfoTip>
                       )}
                     </div>
