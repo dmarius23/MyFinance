@@ -132,20 +132,26 @@ class DocumentServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void summaryCountsMisfiledDocuments() {
+    void summaryCountsMisfiledAndDuplicateDocuments() {
         UUID companyId = asTenantWithCompany(TENANT_A);
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "ok.png", "image/png", png());
         Document bad = documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras-Ianuarie.png", "image/png",
                 new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01});
-        // Flag it wrong-period exactly as the DocumentValidator would for a mis-filed statement.
+        Document dup = documents.upload(companyId, LocalDate.of(2026, 6, 1), "copy.png", "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x02});
+        // Flag one wrong-period and one duplicate, exactly as the DocumentValidator would.
         jdbc.update("update document set drive_block_reason = 'WRONG_PERIOD', drive_block_detail = ? where id = ?",
                 "Extrasul este pentru 2026-01, nu 2026-06.", bad.getId());
+        jdbc.update("update document set drive_block_reason = 'DUPLICATE', drive_block_detail = ? where id = ?",
+                "Fișier identic deja încărcat.", dup.getId());
 
         DocumentService.CompanyDocSummary s = documents.summary(LocalDate.of(2026, 6, 1)).stream()
                 .filter(row -> row.companyId().equals(companyId)).findFirst().orElseThrow();
         assertThat(s.misfiledCount()).isEqualTo(1);
         assertThat(s.misfiledFiles()).singleElement().asString()
                 .contains("extras-Ianuarie.png").contains("2026-01");
+        assertThat(s.duplicateCount()).isEqualTo(1);
+        assertThat(s.duplicateFiles()).singleElement().asString().contains("copy.png");
     }
 
     @Test

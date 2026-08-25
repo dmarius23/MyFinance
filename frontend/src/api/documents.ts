@@ -77,6 +77,10 @@ export interface CompanyDocSummary {
   misfiledCount: number;
   /** "<filename> — <reason>" per mis-filed document, for the warning tooltip. */
   misfiledFiles: string[];
+  /** Count of documents flagged as duplicates at upload (benign, not mirrored to Drive). */
+  duplicateCount: number;
+  /** "<filename> — <reason>" per duplicate document, for the tooltip. */
+  duplicateFiles: string[];
 }
 
 export const documentsSummaryApi = {
