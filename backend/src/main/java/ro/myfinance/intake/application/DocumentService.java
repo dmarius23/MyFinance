@@ -157,13 +157,28 @@ public class DocumentService {
                     || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) {
                 a.invoiceReceipts.add(d.getOriginalFilename());
             }
+            // Drive-block flags surfaced on the Statements list so they're visible without opening the doc
+            // manager: mis-filed (wrong period/company) as one chip, duplicate as a separate, benign chip.
+            // Both stay on the server; only the Drive mirror is withheld.
+            ro.myfinance.intake.domain.DriveBlockReason reason = d.getDriveBlockReason();
+            if (reason != null) {
+                String detail = d.getDriveBlockDetail() != null && !d.getDriveBlockDetail().isBlank()
+                        ? d.getDriveBlockDetail() : reason.name();
+                String line = d.getOriginalFilename() + " — " + detail;
+                if (reason == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE) {
+                    a.duplicates.add(line);
+                } else { // WRONG_PERIOD / WRONG_COMPANY
+                    a.misfiled.add(line);
+                }
+            }
         }
         return acc.entrySet().stream()
                 .map(e -> {
                     DocAcc a = e.getValue();
                     return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(),
                             !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
-                            a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts);
+                            a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts,
+                            a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates);
                 })
                 .toList();
     }
@@ -173,12 +188,16 @@ public class DocumentService {
         int fileCount;
         final List<String> bankStatements = new java.util.ArrayList<>();
         final List<String> invoiceReceipts = new java.util.ArrayList<>();
+        final List<String> misfiled = new java.util.ArrayList<>();
+        final List<String> duplicates = new java.util.ArrayList<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
                                     boolean hasInvoiceOrReceipt, int fileCount,
                                     int bankStatementCount, int invoiceReceiptCount,
-                                    List<String> bankStatementFiles, List<String> invoiceReceiptFiles) {
+                                    List<String> bankStatementFiles, List<String> invoiceReceiptFiles,
+                                    int misfiledCount, List<String> misfiledFiles,
+                                    int duplicateCount, List<String> duplicateFiles) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */
