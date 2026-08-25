@@ -299,7 +299,7 @@ export function ReconcileWorkspace() {
               {s?.openingBalance != null && <span className="mono" style={{ color: "var(--text-muted)" }}>{money(s.openingBalance)} → {s.closingBalance != null ? money(s.closingBalance) : "—"}</span>}
               {f.status === "EXTRACTED" ? <span className="pill round ok">✓ {t("recon.txnsParsed", { n: f.txnsInMonth })}</span>
                 : f.status === "NEEDS_REVIEW" ? <span className="pill round warn">{t("recon.fileNeedsReview")}</span>
-                : f.status === "DUPLICATE" ? <span className="pill round">{t("doc.duplicateChip")}</span>
+                : f.status === "DUPLICATE" ? <span className="pill round danger" title={t("doc.duplicateChip")}>DUP</span>
                 : <span className="pill round">{t("recon.fileNoTxn")}</span>}
               <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{fileSource(f)}</span>
               <span style={{ flex: 1 }} />
