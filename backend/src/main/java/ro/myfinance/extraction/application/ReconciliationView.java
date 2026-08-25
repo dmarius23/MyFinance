@@ -40,15 +40,18 @@ public class ReconciliationView {
     private final CanonicalTransactions canonical;
     private final InvoiceRepository invoices;
     private final TransactionInvoiceMatchRepository matches;
+    private final ro.myfinance.intake.application.DocumentDirectory documentDir;
 
     public ReconciliationView(BankStatementRepository statements, BankTransactionRepository transactions,
                               CanonicalTransactions canonical, InvoiceRepository invoices,
-                              TransactionInvoiceMatchRepository matches) {
+                              TransactionInvoiceMatchRepository matches,
+                              ro.myfinance.intake.application.DocumentDirectory documentDir) {
         this.statements = statements;
         this.transactions = transactions;
         this.canonical = canonical;
         this.invoices = invoices;
         this.matches = matches;
+        this.documentDir = documentDir;
     }
 
     @Transactional(readOnly = true)
@@ -149,6 +152,67 @@ public class ReconciliationView {
             byId.putIfAbsent(s.getId(), s);
         }
         return new java.util.ArrayList<>(byId.values());
+    }
+
+    /**
+     * Bank-statement FILES relevant to a month for the reconcile files panel: extracted files whose range
+     * covers the month (a multi-month file is listed under every month it touches) plus bank-statement
+     * documents filed under the month that produced no statement (duplicates / unparsed), each with its
+     * status, covered range, this-month transaction + matched counts, and ownership (for delete-own).
+     */
+    @Transactional(readOnly = true)
+    public List<ReconciliationService.StatementFileView> statementFiles(UUID companyId, java.time.LocalDate periodMonth) {
+        java.time.LocalDate m = periodMonth.withDayOfMonth(1);
+        java.time.LocalDate monthEnd = m.plusMonths(1).minusDays(1);
+        UUID me = ro.myfinance.common.security.TenantContext.current()
+                .map(ro.myfinance.common.security.TenantContext.Identity::userId).orElse(null);
+
+        java.util.Map<UUID, ReconciliationService.StatementFileView> byDoc = new java.util.LinkedHashMap<>();
+        java.util.List<BankStatement> stmts = new java.util.ArrayList<>(
+                statements.findByCompanyIdAndFirstTxnDateLessThanEqualAndLastTxnDateGreaterThanEqual(companyId, monthEnd, m));
+        stmts.addAll(statements.findByCompanyIdAndPeriodMonth(companyId, m)); // legacy null-range fallback
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
+        for (BankStatement s : stmts) {
+            if (!seen.add(s.getId())) {
+                continue;
+            }
+            List<BankTransaction> inMonth = transactions.findByStatementIdInOrderByTxnDateDesc(List.of(s.getId()))
+                    .stream().filter(t -> t.getTxnDate().withDayOfMonth(1).equals(m)).toList();
+            String status = s.getStatus() == ro.myfinance.extraction.domain.StatementStatus.EXTRACTED
+                    ? (inMonth.isEmpty() ? "NO_TXN" : "EXTRACTED") : "NEEDS_REVIEW";
+            byDoc.put(s.getDocumentId(), fileView(s.getDocumentId(), s.getFirstTxnDate(), s.getLastTxnDate(),
+                    status, inMonth.size(), matchedCount(inMonth), me));
+        }
+        for (ro.myfinance.intake.domain.Document d : documentDir.findByPeriodMonth(m)) {
+            if (d.getType() != ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT || byDoc.containsKey(d.getId())) {
+                continue;
+            }
+            String status = d.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE
+                    ? "DUPLICATE" : "NO_TXN";
+            byDoc.put(d.getId(), fileView(d.getId(), null, null, status, 0, 0, me));
+        }
+        return new java.util.ArrayList<>(byDoc.values());
+    }
+
+    private ReconciliationService.StatementFileView fileView(UUID documentId, java.time.LocalDate from,
+            java.time.LocalDate to, String status, int txnsInMonth, int matchedInMonth, UUID me) {
+        ro.myfinance.intake.domain.Document d = documentDir.findById(documentId).orElse(null);
+        boolean mine = d != null && me != null && me.equals(d.getUploadedBy());
+        boolean deletable = mine && d.getSource() != ro.myfinance.intake.domain.DocumentSource.DRIVE;
+        return new ReconciliationService.StatementFileView(documentId,
+                d == null ? null : d.getOriginalFilename(), d == null ? null : d.getSource().name(),
+                d == null ? null : d.getUploadedAt(), mine, deletable, status, from, to, txnsInMonth, matchedInMonth);
+    }
+
+    private int matchedCount(List<BankTransaction> txns) {
+        if (txns.isEmpty()) {
+            return 0;
+        }
+        java.util.Set<UUID> matchedTxn = new java.util.HashSet<>();
+        for (TransactionInvoiceMatch mm : matches.findByTransactionIdIn(txns.stream().map(BankTransaction::getId).toList())) {
+            matchedTxn.add(mm.getTransactionId());
+        }
+        return matchedTxn.size();
     }
 
     /** Invoices/receipts filed under a company/period (manual-link candidate list). */

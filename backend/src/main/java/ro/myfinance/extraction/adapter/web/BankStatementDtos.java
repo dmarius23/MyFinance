@@ -100,6 +100,18 @@ public final class BankStatementDtos {
     public record SetRequirementRequest(boolean requiresDocument, String reason) {
     }
 
+    /** A bank-statement file for the reconcile files panel. */
+    public record StatementFileResponse(UUID documentId, String filename, String source,
+                                        java.time.Instant uploadedAt, boolean mine, boolean deletable,
+                                        String status, LocalDate coveredFrom, LocalDate coveredTo,
+                                        int txnsInMonth, int matchedInMonth) {
+        public static StatementFileResponse from(ro.myfinance.extraction.application.ReconciliationService.StatementFileView v) {
+            return new StatementFileResponse(v.documentId(), v.filename(), v.source(), v.uploadedAt(),
+                    v.mine(), v.deletable(), v.status(), v.coveredFrom(), v.coveredTo(),
+                    v.txnsInMonth(), v.matchedInMonth());
+        }
+    }
+
     public record PaymentResponse(UUID txnId, LocalDate txnDate, String partnerName,
                                   BigDecimal amount, BigDecimal allocatedAmount) {
     }

@@ -130,4 +130,28 @@ class DocumentServiceIT extends AbstractPostgresIT {
         assertThatThrownBy(() -> documents.delete(docA.getId())).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> documents.getContent(docA.getId())).isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void deleteOwnOnlyForYourOwnNonDriveUpload() {
+        UUID uploader = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(TENANT_A, uploader, Role.TENANT_ADMIN, null));
+        jdbc.update("insert into tenant(id, name, status, plan) values (?, ?, 'ACTIVE', 'STANDARD') on conflict do nothing",
+                TENANT_A, "T-" + TENANT_A);
+        UUID companyId = companies.create("Client SRL", "RO-DEL-" + UUID.randomUUID(), "SRL", "Cluj", null, null, null, null, null).getId();
+        Document mine = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document synced = documents.upload(companyId, LocalDate.of(2026, 6, 1), "d.png", "image/png", png(),
+                null, ro.myfinance.intake.domain.DocumentSource.DRIVE);
+
+        // A colleague (same tenant, different user) cannot delete someone else's upload.
+        TenantContext.set(new TenantContext.Identity(TENANT_A, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        assertThatThrownBy(() -> documents.deleteOwn(companyId, mine.getId()))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        // The uploader can delete their own upload, but never a Drive-synced file.
+        TenantContext.set(new TenantContext.Identity(TENANT_A, uploader, Role.TENANT_ADMIN, null));
+        assertThatThrownBy(() -> documents.deleteOwn(companyId, synced.getId()))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        documents.deleteOwn(companyId, mine.getId());
+        assertThat(documents.list(companyId, null)).extracting(Document::getId).containsExactly(synced.getId());
+    }
 }

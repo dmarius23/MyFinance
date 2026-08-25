@@ -136,6 +136,21 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void statementFilesListsTheUploadedFileWithStatusAndOwnership() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+
+        var fs = reconciliation.statementFiles(companyId, LocalDate.of(2026, 6, 1));
+        assertThat(fs).hasSize(1);
+        var f = fs.get(0);
+        assertThat(f.filename()).isEqualTo("extras.pdf");
+        assertThat(f.status()).isEqualTo("EXTRACTED");
+        assertThat(f.txnsInMonth()).isEqualTo(3);
+        assertThat(f.mine()).isTrue();       // uploaded in this test's user context
+        assertThat(f.deletable()).isTrue();  // own, non-Drive upload
+    }
+
+    @Test
     void overrideCreatesLearnedRuleAppliedToNextStatement() throws Exception {
         UUID companyId = asTenantWithCompany(TENANT_A);
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
