@@ -78,6 +78,7 @@ export function ReconcileWorkspace() {
     void qc.invalidateQueries({ queryKey: ["bank-files", companyId, period] });
     void qc.invalidateQueries({ queryKey: ["bank-stmts", companyId, period] });
   };
+  const onErr = (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`);
   // Delete a bank-statement file the accountant uploaded — cascades to its statement, transactions and any
   // reconciliation links; the confirm spells out that impact.
   const deleteFile = useMutation({
@@ -85,7 +86,6 @@ export function ReconcileWorkspace() {
     onSuccess: () => { invalidate(); void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] }); },
     onError: onErr,
   });
-  const onErr = (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`);
 
   const match = useMutation({ mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.match(companyId, txnId, invoiceId), onSuccess: invalidate, onError: onErr });
   const unmatch = useMutation({ mutationFn: ({ txnId, invoiceId }: { txnId: string; invoiceId: string }) => bankApi.unmatch(companyId, txnId, invoiceId), onSuccess: invalidate, onError: onErr });
