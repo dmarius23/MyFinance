@@ -184,7 +184,8 @@ public class ReconciliationView {
                     status, inMonth.size(), matchedCount(inMonth), me));
         }
         for (ro.myfinance.intake.domain.Document d : documentDir.findByPeriodMonth(m)) {
-            if (d.getType() != ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT || byDoc.containsKey(d.getId())) {
+            if (d.getType() != ro.myfinance.intake.domain.DocumentType.BANK_STATEMENT
+                    || !d.getCompanyId().equals(companyId) || byDoc.containsKey(d.getId())) {
                 continue;
             }
             String status = d.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE
