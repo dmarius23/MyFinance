@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi, type Document as Doc } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
-import { useSyncStatus, SyncStatusLine, syncScopeLabel } from "../lib/syncStatus";
+import { useSyncStatus, SyncStatusLine, syncScopeLabel, syncFinishedNote } from "../lib/syncStatus";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
+import { useSyncTracker } from "./SyncTracker";
 import { Icon } from "./Icon";
 
 /**
@@ -18,6 +19,7 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
     accept?: string; multiple?: boolean; onClose: () => void; onChanged?: () => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const { run } = useSyncTracker();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -100,7 +102,9 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
   // sync too, and show when it was last synced.
   const { status: syncStatus, running: monthSyncRunning } = useSyncStatus(type, period, driveMode);
   const sync = useMutation({
-    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type }),
+    // Shared SyncTracker toast: "syncing <company · month>" → "finished" with the result.
+    mutationFn: () => run(`${companyName} · ${monthLabel(period, i18n.language)}`,
+      ingestionApi.syncCompany({ companyId, period, type }), (r: SyncResult) => syncFinishedNote(t, r)),
     onSuccess: (r: SyncResult) => {
       refresh();
       onChanged?.();
@@ -111,9 +115,6 @@ export function DocumentManagerModal({ companyId, companyName, period, type, tit
       // Extraction/report/reconciliation for imported docs runs asynchronously after the import commits,
       // so the first refetch can land before those results exist. Re-refresh shortly after to pick them up.
       if (r.imported > 0) [1500, 4000].forEach((ms) => window.setTimeout(() => { onChanged?.(); void refreshScoped(); }, ms));
-      const parts = [t("payroll.syncDone", r as unknown as Record<string, number>)];
-      for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
-      setNote(parts.join(" · "));
     },
     onError: (e) => setNote(e instanceof ApiError ? e.message : t("payroll.uploadError")),
   });

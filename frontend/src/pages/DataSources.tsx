@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
+import { useSyncTracker } from "../components/SyncTracker";
+import { syncFinishedNote } from "../lib/syncStatus";
 
 /**
  * MOD-15 — admin screen to configure document-source folders (Google Drive) and trigger a sync.
@@ -12,6 +14,7 @@ import { ApiError } from "../lib/apiClient";
 export function DataSources() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { run } = useSyncTracker();
   const conns = useQuery({ queryKey: ["ingestion-connections"], queryFn: ingestionApi.list });
   const [form, setForm] = useState<{ displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean }>({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS", rootIsYearFolder: false });
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +38,9 @@ export function DataSources() {
   });
   const remove = useMutation({ mutationFn: (id: string) => ingestionApi.remove(id), onSuccess: refresh, onError: onErr });
   const sync = useMutation({
-    mutationFn: (id: string) => ingestionApi.sync(id),
-    onSuccess: (r: SyncResult) => { refresh(); window.alert(t("ingest.syncDone", r as unknown as Record<string, number>)); },
+    // Shared SyncTracker toast: "syncing <connection>" → "finished" with the result.
+    mutationFn: (c: Connection) => run(c.displayName, ingestionApi.sync(c.id), (r: SyncResult) => syncFinishedNote(t, r)),
+    onSuccess: refresh,
     onError: onErr,
   });
   // Inline write toggle straight from the row (keeps name/root; a general root connection has no forced type).
@@ -82,7 +86,7 @@ export function DataSources() {
                 {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : t("ingest.never")}
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c.id)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
+                <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
                 <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled, purpose: c.purpose, rootIsYearFolder: c.rootIsYearFolder })}>{t("ingest.edit")}</button>
                 <button onClick={() => setOpenImports(openImports === c.id ? null : c.id)}>{t("ingest.imports")}</button>
                 <button style={{ color: "#dc2626" }} onClick={() => { if (window.confirm(t("ingest.confirmDelete", { name: c.displayName }))) remove.mutate(c.id); }}>✕</button>

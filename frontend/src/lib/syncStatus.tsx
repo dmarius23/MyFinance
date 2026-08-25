@@ -1,7 +1,18 @@
 import type { CSSProperties } from "react";
+import type { TFunction } from "i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { ingestionApi, type SyncStatus } from "../api/ingestion";
+import { ingestionApi, type SyncResult, type SyncStatus } from "../api/ingestion";
+
+/**
+ * One-line summary of a finished sync for the shared "finished" toast — counts plus any per-file issues.
+ * Shared by every sync entry point so the result reads identically across modules.
+ */
+export function syncFinishedNote(t: TFunction, r: SyncResult): string {
+  const parts = [t("ingest.syncDone", r as unknown as Record<string, number>)];
+  for (const iss of r.issues ?? []) parts.push(`⚠ ${iss.filename} — ${iss.reason}`);
+  return parts.join(" · ");
+}
 
 /**
  * The shared per (module + month) Drive-sync state, polled live. Used by the per-company upload modals so

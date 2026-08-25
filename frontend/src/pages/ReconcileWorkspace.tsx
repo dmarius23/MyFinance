@@ -5,11 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
 import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
-import { ingestionApi } from "../api/ingestion";
-import { usePeriod } from "../lib/period";
+import { ingestionApi, type SyncResult } from "../api/ingestion";
+import { usePeriod, monthLabel as monthLabelLong } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
 import { SendReminderModal } from "../components/SendReminderModal";
+import { useSyncTracker } from "../components/SyncTracker";
+import { syncFinishedNote } from "../lib/syncStatus";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const maskIban = (iban: string | null) => (!iban || iban.length <= 4 ? (iban ?? "") : `…${iban.slice(-4)}`);
@@ -47,8 +49,9 @@ export function ReconcileWorkspace() {
   const { companyId = "" } = useParams();
   const { period } = usePeriod();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const { run } = useSyncTracker();
 
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
@@ -131,8 +134,11 @@ export function ReconcileWorkspace() {
   // through the classifier, exactly like the documents modal.
   const driveQ = useQuery({ queryKey: ["ingestion-source", "MIXED"], queryFn: () => ingestionApi.source("MIXED") });
   const driveEnabled = driveQ.data?.driveEnabled === true;
+  const syncLabel = `${company.data?.legalName ?? "…"} · ${monthLabelLong(period, i18n.language)}`;
   const sync = useMutation({
-    mutationFn: () => ingestionApi.syncCompany({ companyId, period, type: "MIXED" }),
+    // The shared SyncTracker shows a "syncing <company · month>" toast, then a "finished" toast with the result.
+    mutationFn: () => run(syncLabel, ingestionApi.syncCompany({ companyId, period, type: "MIXED" }),
+      (r: SyncResult) => syncFinishedNote(t, r)),
     onSuccess: () => {
       invalidate();
       // A sync imports any document type for this company+month — refresh every list scoped to it.

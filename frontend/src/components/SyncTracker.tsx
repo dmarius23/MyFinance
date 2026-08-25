@@ -18,7 +18,19 @@ const MODULE_QUERY_KEY: Record<string, string> = {
  */
 type Entry = { key: string; type: string; period: string; label: string };
 type Finished = { key: string; label: string; result?: string };
-type Api = { track: (type: string, period: string, label: string) => void };
+type Api = {
+  /** Track an async (fire-and-forget) module-month sync by polling its server status until it finishes. */
+  track: (type: string, period: string, label: string) => void;
+  /**
+   * Drive a synchronous sync (a request that resolves when the sync is done) through the same shared
+   * "syncing → finished" toast: shows {@code label} while the promise is pending, then a finished toast
+   * (with {@code formatResult(value)} if given). Rejections drop the entry and rethrow for the caller.
+   */
+  run: <T>(label: string, promise: Promise<T>, formatResult?: (value: T) => string) => Promise<T>;
+};
+
+/** How long the aggregated "finished" toast stays before it auto-dismisses (the × closes it sooner). */
+const FINISHED_TOAST_MS = 6000;
 
 const Ctx = createContext<Api | null>(null);
 const keyOf = (type: string, period: string) => `${type}:${period}`;
@@ -35,6 +47,8 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
   const finishedRef = useRef<Finished[]>([]);
   const [finishedToast, setFinishedToast] = useState<Finished[] | null>(null);
 
+  const runId = useRef(0);
+
   const track = useCallback((type: string, period: string, label: string) => {
     const key = keyOf(type, period);
     finishedRef.current = finishedRef.current.filter((f) => f.key !== key); // re-running clears its old result
@@ -46,7 +60,17 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
     setActive((prev) => prev.filter((e) => e.key !== key));
   }, []);
 
-  // When the LAST running sync finishes, show the aggregated "finished" toast, then auto-dismiss.
+  // Promise-driven variant for synchronous syncs (empty type/period → not polled; completion is the promise).
+  const run = useCallback(<T,>(label: string, promise: Promise<T>, formatResult?: (value: T) => string): Promise<T> => {
+    const key = `run:${++runId.current}`;
+    setActive((prev) => [...prev, { key, type: "", period: "", label }]);
+    return promise.then(
+      (value) => { finish(key, label, formatResult ? formatResult(value) : undefined); return value; },
+      (err) => { setActive((prev) => prev.filter((e) => e.key !== key)); throw err; },
+    );
+  }, [finish]);
+
+  // When the LAST running sync finishes, show the aggregated "finished" toast.
   useEffect(() => {
     if (active.length === 0 && finishedRef.current.length > 0) {
       setFinishedToast(finishedRef.current.slice());
@@ -54,10 +78,17 @@ export function SyncTrackerProvider({ children }: { children: ReactNode }) {
     }
   }, [active.length]);
 
+  // The finished toast is informational — auto-dismiss it after a few seconds (× closes it sooner).
+  useEffect(() => {
+    if (!finishedToast) return;
+    const id = window.setTimeout(() => setFinishedToast(null), FINISHED_TOAST_MS);
+    return () => window.clearTimeout(id);
+  }, [finishedToast]);
+
   return (
-    <Ctx.Provider value={{ track }}>
+    <Ctx.Provider value={{ track, run }}>
       {children}
-      {active.map((e) => <SyncPoll key={e.key} entry={e} onFinish={finish} />)}
+      {active.filter((e) => e.type).map((e) => <SyncPoll key={e.key} entry={e} onFinish={finish} />)}
       <style>{"@keyframes mf-spin{to{transform:rotate(360deg)}}@keyframes mf-toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}"}</style>
       <div style={{ position: "fixed", bottom: 20, right: 20, display: "flex", flexDirection: "column",
         gap: 8, zIndex: 10001, pointerEvents: "none", maxWidth: 380 }}>
