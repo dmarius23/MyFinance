@@ -31,8 +31,12 @@ class PayrollServiceTest {
             mock(ro.myfinance.access.application.EmailEnvelopeService.class);
     private final ro.myfinance.notifications.application.NotificationService notifications =
             mock(ro.myfinance.notifications.application.NotificationService.class);
+    private final ro.myfinance.company.application.CompanyDirectory companies =
+            mock(ro.myfinance.company.application.CompanyDirectory.class);
+    private final ro.myfinance.company.application.ExpectedDocuments expected =
+            new ro.myfinance.company.application.ExpectedDocuments();
     private final PayrollService service =
-            new PayrollService(documents, history, dispatch, envelopes, notifications);
+            new PayrollService(documents, history, dispatch, envelopes, notifications, companies, expected);
 
     @Test
     void sendDelegatesToDispatchWithPayrollKindAndMapsTheRow() {

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { companiesApi } from "../api/companies";
-import { payrollApi, type PayrollRow } from "../api/payroll";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { payrollApi, type PayrollListRow, type CompletenessFilter as FilterValue } from "../api/payroll";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
@@ -16,6 +15,7 @@ import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBu
 import { BulkActionBar } from "../components/BulkActionBar";
 import { SyncMonthButton } from "../components/SyncMonthButton";
 import { CompanySearch } from "../components/CompanySearch";
+import { CompletenessFilter } from "../components/CompletenessFilter";
 import { loadAllPages } from "../lib/paging";
 import { attachmentsNote } from "../lib/attachmentsNote";
 
@@ -34,53 +34,54 @@ export function Payroll() {
   const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
   const [dq, setDq] = useState("");
-  const companies = useInfiniteQuery({
-    queryKey: ["companies-page", dq],
-    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
+  const [filter, setFilter] = useState<FilterValue>("all");
+  const pageQ = useInfiniteQuery({
+    queryKey: ["payroll-page", period, dq, filter],
+    queryFn: ({ pageParam }) => payrollApi.listPage(period, dq, filter, pageParam, 25),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
-  const payroll = useQuery({ queryKey: ["payroll", period], queryFn: () => payrollApi.list(period) });
-  const rowBy = new Map<string, PayrollRow>((payroll.data ?? []).map((r) => [r.companyId, r]));
+  const invalidateList = () => qc.invalidateQueries({ queryKey: ["payroll-page", period] });
 
-  const rows = companies.data?.pages.flatMap((p) => p.content) ?? [];
-  const selectableIds = rows.filter((c) => (rowBy.get(c.id)?.documents.length ?? 0) > 0).map((c) => c.id);
+  const rows: PayrollListRow[] = pageQ.data?.pages.flatMap((p) => p.content) ?? [];
+  const rowById = new Map(rows.map((r) => [r.companyId, r]));
+  const selectableIds = rows.filter((r) => r.documents.length > 0).map((r) => r.companyId);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
-  useEffect(() => { setSelected(new Set()); }, [period, dq]);
+  useEffect(() => { setSelected(new Set()); }, [period, dq, filter]);
 
   // Auto-load the next page when the sentinel scrolls near the viewport.
   const sentinel = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !companies.hasNextPage) return;
+    if (!node || !pageQ.hasNextPage) return;
     const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting && !companies.isFetchingNextPage) void companies.fetchNextPage(); },
+      (entries) => { if (entries[0].isIntersecting && !pageQ.isFetchingNextPage) void pageQ.fetchNextPage(); },
       { rootMargin: "250px" });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [companies.hasNextPage, companies.isFetchingNextPage, companies.fetchNextPage]);
+  }, [pageQ.hasNextPage, pageQ.isFetchingNextPage, pageQ.fetchNextPage]);
 
   // Deep-link from the dashboard (?company=&open=1): open that company's document manager once loaded.
   const autoOpened = useRef(false);
   useEffect(() => {
     if (!openModal || autoOpened.current) return;
-    const c = (companies.data?.pages.flatMap((p) => p.content) ?? []).find((x) => x.id === focusCompany);
-    if (c) { autoOpened.current = true; setManageFor({ id: c.id, name: c.legalName }); }
-  }, [openModal, focusCompany, companies.data]);
+    const r = rows.find((x) => x.companyId === focusCompany);
+    if (r) { autoOpened.current = true; setManageFor({ id: r.companyId, name: r.companyName }); }
+  }, [openModal, focusCompany, rows]);
 
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   // Select-all covers EVERY matching company (loads all pages), not just those scrolled into view.
   const toggleAll = async () => {
     if (allSelected) { setSelected(new Set()); return; }
-    const all = await loadAllPages(companies);
-    setSelected(new Set(all.filter((c) => (rowBy.get(c.id)?.documents.length ?? 0) > 0).map((c) => c.id)));
+    const all = await loadAllPages(pageQ);
+    setSelected(new Set(all.filter((r) => r.documents.length > 0).map((r) => r.companyId)));
   };
-  const nameOf = (id: string) => rows.find((c) => c.id === id)?.legalName ?? id;
+  const nameOf = (id: string) => rowById.get(id)?.companyName ?? id;
   const target = (id: string): PayrollTarget =>
-    ({ companyId: id, companyName: nameOf(id), documents: rowBy.get(id)?.documents ?? [] });
+    ({ companyId: id, companyName: nameOf(id), documents: rowById.get(id)?.documents ?? [] });
   const waBody = (id: string) => payrollApi.emailBody(id, period).then((r) =>
-    r.body + attachmentsNote(t("channel.attachments"), (rowBy.get(id)?.documents ?? []).map((d) => d.filename)));
+    r.body + attachmentsNote(t("channel.attachments"), (rowById.get(id)?.documents ?? []).map((d) => d.filename)));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -90,8 +91,9 @@ export function Payroll() {
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("payroll.title")}</h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompletenessFilter value={filter} onChange={setFilter} />
           <CompanySearch onSearch={setDq} />
-          <SyncMonthButton type="PAYROLL" period={period} onDone={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />
+          <SyncMonthButton type="PAYROLL" period={period} onDone={invalidateList} />
         </div>
       </div>
 
@@ -111,17 +113,16 @@ export function Payroll() {
             <div style={{ textAlign: "right" }}>{t("channel.actions")}</div>
           </div>
 
-          {rows.map((c) => {
-            const r = rowBy.get(c.id);
-            const docs = r?.documents ?? [];
+          {rows.map((r) => {
+            const docs = r.documents;
             const selectable = docs.length > 0;
-            const manage = () => setManageFor({ id: c.id, name: c.legalName });
+            const manage = () => setManageFor({ id: r.companyId, name: r.companyName });
             return (
-              <div key={c.id} ref={c.id === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (c.id === focusCompany || selected.has(c.id)) ? "var(--row-active)" : undefined, boxShadow: c.id === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
-                <div>{selectable ? <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
+              <div key={r.companyId} ref={r.companyId === focusCompany ? focusRef : undefined} style={{ ...gridRow, borderTop: "1px solid var(--hair)", background: (r.companyId === focusCompany || selected.has(r.companyId)) ? "var(--row-active)" : undefined, boxShadow: r.companyId === focusCompany ? "inset 3px 0 0 var(--primary)" : undefined }}>
+                <div>{selectable ? <input type="checkbox" checked={selected.has(r.companyId)} onChange={() => toggle(r.companyId)} /> : <span style={{ color: "var(--text-faint)" }}>·</span>}</div>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{c.legalName}</div>
-                  <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
+                  <div style={{ fontWeight: 600 }}>{r.companyName}</div>
+                  <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{r.cui}{r.locality ? ` · ${r.locality}` : ""}</div>
                 </div>
                 <div>
                   {docs.length === 0
@@ -132,34 +133,34 @@ export function Payroll() {
                         </span>
                       </InfoTip>}
                 </div>
-                <div><LastEmailCell lastSentAt={r?.lastSentAt} count={r?.sentCount} onOpen={() => setLogFor({ id: c.id, name: c.legalName })} /></div>
-                <div><LastWhatsAppCell lastSentAt={r?.lastWhatsappAt} count={r?.whatsappCount} onOpen={() => setWaFor({ id: c.id, name: c.legalName })} /></div>
+                <div><LastEmailCell lastSentAt={r.lastSentAt} count={r.sentCount} onOpen={() => setLogFor({ id: r.companyId, name: r.companyName })} /></div>
+                <div><LastWhatsAppCell lastSentAt={r.lastWhatsappAt} count={r.whatsappCount} onOpen={() => setWaFor({ id: r.companyId, name: r.companyName })} /></div>
                 <div>
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
-                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
+                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(r.companyId)])} />
+                    <WhatsAppAction onClick={() => setWaFor({ id: r.companyId, name: r.companyName })} />
                   </RowActions>
                 </div>
               </div>
             );
           })}
-          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          {!pageQ.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{filter === "missing" ? t("filter.noneMissing") : t("taxes.noCompanies")}</div>}
           <div ref={sentinel} style={{ height: 1 }} />
-          {companies.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
+          {pageQ.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>
       </div>
 
       {manageFor && <DocumentManagerModal companyId={manageFor.id} companyName={manageFor.name} period={period}
         type="PAYROLL" title={t("payroll.documents")}
         accept="application/pdf,image/png,image/jpeg,image/webp"
-        onClose={() => setManageFor(null)} onChanged={() => qc.invalidateQueries({ queryKey: ["payroll", period] })} />}
+        onClose={() => setManageFor(null)} onChanged={invalidateList} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period}
         loadBody={() => waBody(waFor.id)}
         onClose={() => setWaFor(null)} />}
       {waBulk && <WhatsAppBulkModal targets={waBulk} kind="PAYROLL" period={period} loadBody={waBody}
-        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); qc.invalidateQueries({ queryKey: ["payroll", period] }); }} />}
+        onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); invalidateList(); }} />}
       {logFor && <PayrollLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}
         onCompose={() => setSendList([target(logFor.id)])} />}
