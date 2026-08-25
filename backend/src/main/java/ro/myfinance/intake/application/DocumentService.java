@@ -157,13 +157,22 @@ public class DocumentService {
                     || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT) {
                 a.invoiceReceipts.add(d.getOriginalFilename());
             }
+            // Mis-filed = flagged wrong-period / wrong-company at upload (kept on the server, not mirrored).
+            // Surfaced on the Statements list so a wrong-month upload is visible without opening the doc manager.
+            if (d.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.WRONG_PERIOD
+                    || d.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.WRONG_COMPANY) {
+                String detail = d.getDriveBlockDetail() != null && !d.getDriveBlockDetail().isBlank()
+                        ? d.getDriveBlockDetail() : d.getDriveBlockReason().name();
+                a.misfiled.add(d.getOriginalFilename() + " — " + detail);
+            }
         }
         return acc.entrySet().stream()
                 .map(e -> {
                     DocAcc a = e.getValue();
                     return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(),
                             !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
-                            a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts);
+                            a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts,
+                            a.misfiled.size(), a.misfiled);
                 })
                 .toList();
     }
@@ -173,12 +182,14 @@ public class DocumentService {
         int fileCount;
         final List<String> bankStatements = new java.util.ArrayList<>();
         final List<String> invoiceReceipts = new java.util.ArrayList<>();
+        final List<String> misfiled = new java.util.ArrayList<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
                                     boolean hasInvoiceOrReceipt, int fileCount,
                                     int bankStatementCount, int invoiceReceiptCount,
-                                    List<String> bankStatementFiles, List<String> invoiceReceiptFiles) {
+                                    List<String> bankStatementFiles, List<String> invoiceReceiptFiles,
+                                    int misfiledCount, List<String> misfiledFiles) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */

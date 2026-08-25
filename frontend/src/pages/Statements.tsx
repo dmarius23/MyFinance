@@ -166,6 +166,15 @@ export function Statements() {
                 <div>
                   <div style={{ fontWeight: 600 }}>{c.legalName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{c.cui}{c.locality ? ` · ${c.locality}` : ""}</div>
+                  {(s?.misfiledCount ?? 0) > 0 && (
+                    <div style={{ marginTop: 3 }}>
+                      <InfoTip lines={s?.misfiledFiles ?? []}>
+                        <span className="pill round warn" title={t("statements.misfiled.tip")}>
+                          ⚠ {t("statements.misfiled", { n: s?.misfiledCount ?? 0 })}
+                        </span>
+                      </InfoTip>
+                    </div>
+                  )}
                 </div>
                 <div>
                   {hasBank

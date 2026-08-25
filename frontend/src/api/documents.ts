@@ -73,6 +73,10 @@ export interface CompanyDocSummary {
   invoiceReceiptCount: number;
   bankStatementFiles: string[];
   invoiceReceiptFiles: string[];
+  /** Count of documents flagged wrong-period / wrong-company at upload (mis-filed, not mirrored to Drive). */
+  misfiledCount: number;
+  /** "<filename> — <reason>" per mis-filed document, for the warning tooltip. */
+  misfiledFiles: string[];
 }
 
 export const documentsSummaryApi = {
