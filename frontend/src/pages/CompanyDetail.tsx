@@ -8,6 +8,7 @@ import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES, VAT_PERIODS, vatPeriodKey, CUI_PATTERN, PHONE_PATTERN } from "../domain/company";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
+import { explicitValidity } from "../lib/validity";
 import { Field } from "../components/Field";
 import { Icon } from "../components/Icon";
 
@@ -106,10 +107,12 @@ function GeneralInfoSection({ company }: { company: Company }) {
         <form id={EDIT_FORM_ID} style={{ marginTop: 12 }}
           onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}>
           <Field label={`${t("company.legalName")} *`}>
-            <input required value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
+            <input required {...explicitValidity(t("validation.required", { field: t("company.legalName") }))}
+              value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
           </Field>
           <Field label={`${t("company.cui")} *`}>
             <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")}
+              {...explicitValidity(t("company.cuiInvalid"))}
               value={form.cui} onChange={(e) => setForm({ ...form, cui: e.target.value })} />
             <span style={{ display: "block", color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
               {t("company.cuiEditHint")}
@@ -206,9 +209,9 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
                 <input placeholder={t("company.namePlaceholder")} value={editing.name} autoFocus style={editInp}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
                 <input type="email" placeholder={t("company.emailPlaceholder")} value={editing.email} style={editInp}
-                  title={t("company.emailInvalid")} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+                  {...explicitValidity(t("company.emailInvalid"))} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
                 <input type="tel" placeholder={t("company.phonePlaceholder")} value={editing.phone} style={editInp}
-                  pattern={PHONE_PATTERN} title={t("company.phoneInvalid")}
+                  pattern={PHONE_PATTERN} {...explicitValidity(t("company.phoneInvalid"))}
                   onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
                 <span />
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -249,11 +252,12 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
       <form style={{ display: "grid", gridTemplateColumns: REP_GRID, alignItems: "center", gap: 10, marginTop: 12 }}
         onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
         <input placeholder={t("company.namePlaceholder")} required value={form.name} style={inp}
+          {...explicitValidity(t("validation.required", { field: t("company.namePlaceholder") }))}
           onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input type="email" placeholder={t("company.emailPlaceholder")} required value={form.email} style={inp}
-          title={t("company.emailInvalid")} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          {...explicitValidity(t("company.emailInvalid"))} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <input type="tel" placeholder={t("company.phonePlaceholder")} value={form.phone} style={inp}
-          pattern={PHONE_PATTERN} title={t("company.phoneInvalid")}
+          pattern={PHONE_PATTERN} {...explicitValidity(t("company.phoneInvalid"))}
           onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <span />
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
