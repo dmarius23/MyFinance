@@ -1,5 +1,7 @@
 import { api, download } from "../lib/apiClient";
 import { periodTag, type Granularity } from "./portal";
+import type { Page } from "./companies";
+import type { CompletenessFilter } from "./payroll";
 
 export interface ReportItem {
   code: string | null;
@@ -54,6 +56,13 @@ export interface ReportRow {
   whatsappCount: number;
 }
 
+/** A self-contained row for the paginated + filterable Reports list (embeds the company identity). */
+export interface ReportListRow extends ReportRow {
+  companyName: string;
+  cui: string | null;
+  locality: string | null;
+}
+
 export interface TrendPoint {
   periodMonth: string;
   revenue: number;
@@ -98,6 +107,10 @@ export interface ReportWithCoverage {
 
 export const reportsApi = {
   list: (period: string) => api<ReportRow[]>(`/api/v1/reports?period=${period}`),
+  /** Paginated + fuzzy-searchable list; filter="missing" narrows to active companies with no trial balance. */
+  listPage: (period: string, q: string, filter: CompletenessFilter, page: number, size = 25) =>
+    api<Page<ReportListRow>>(
+      `/api/v1/reports/page?period=${period}&q=${encodeURIComponent(q)}&filter=${filter}&page=${page}&size=${size}`),
   // Rebuild reports for the month from already-imported trial balances (re-runs extraction, no re-import).
   rebuild: (period: string) =>
     api<{ reprocessed: number }>(`/api/v1/documents/reprocess`, {

@@ -22,6 +22,7 @@ import ro.myfinance.reports.application.ReportEmailService;
 import ro.myfinance.reports.application.ReportEmailService.ReportEmailView;
 import ro.myfinance.reports.application.ReportPdfGenerator;
 import ro.myfinance.reports.application.ReportService;
+import ro.myfinance.reports.application.ReportService.ReportListRow;
 import ro.myfinance.reports.application.ReportService.ReportRow;
 import ro.myfinance.reports.application.ReportService.TrendPoint;
 import ro.myfinance.reports.domain.ReportData;
@@ -52,6 +53,23 @@ public class ReportController {
     public List<ReportRowResponse> list(
             @RequestParam("period") LocalDate period) {
         return reports.summary(period).stream().map(ReportRowResponse::from).toList();
+    }
+
+    /**
+     * Paginated per-company reports list, fuzzy-searched by company (name or CUI). {@code filter=missing}
+     * narrows to active companies that uploaded no trial balance (balanță) this month.
+     */
+    @GetMapping("/api/v1/reports/page")
+    public ro.myfinance.common.web.PageResponse<ReportListRowResponse> listPage(
+            @RequestParam("period") LocalDate period,
+            @RequestParam(value = "q", required = false, defaultValue = "") String q,
+            @RequestParam(value = "filter", required = false, defaultValue = "all") String filter,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "25") int size) {
+        boolean onlyMissing = "missing".equalsIgnoreCase(filter);
+        return ro.myfinance.common.web.PageResponse.from(
+                reports.listPage(period, q, onlyMissing, page, Math.min(size, 100))
+                        .map(ReportListRowResponse::from));
     }
 
     /**
@@ -131,6 +149,17 @@ public class ReportController {
             return new ReportRowResponse(r.companyId(), r.uploadedAt(), r.version(), r.balanced(),
                     r.lastSentAt(), r.sentCount(), r.balanceCount(), r.balanceFiles(),
                     r.lastWhatsappAt(), r.whatsappCount());
+        }
+    }
+
+    public record ReportListRowResponse(UUID companyId, String companyName, String cui, String locality,
+                                        Instant uploadedAt, int version, boolean balanced, Instant lastSentAt,
+                                        int sentCount, int balanceCount, List<String> balanceFiles,
+                                        Instant lastWhatsappAt, int whatsappCount) {
+        static ReportListRowResponse from(ReportListRow r) {
+            return new ReportListRowResponse(r.companyId(), r.companyName(), r.cui(), r.locality(),
+                    r.uploadedAt(), r.version(), r.balanced(), r.lastSentAt(), r.sentCount(),
+                    r.balanceCount(), r.balanceFiles(), r.lastWhatsappAt(), r.whatsappCount());
         }
     }
 

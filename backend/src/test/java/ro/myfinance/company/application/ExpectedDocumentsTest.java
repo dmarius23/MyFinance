@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
 import ro.myfinance.company.domain.Company;
+import ro.myfinance.company.domain.CompanyStatus;
 
 class ExpectedDocumentsTest {
 
@@ -18,9 +19,21 @@ class ExpectedDocumentsTest {
         assertThat(expected.owesPayroll(company(null))).isFalse(); // fail-open on unknown profile
     }
 
+    @Test
+    void owesBalanceForActiveCompaniesOnly() {
+        assertThat(expected.owesBalance(companyStatus(CompanyStatus.ACTIVE))).isTrue();
+        assertThat(expected.owesBalance(companyStatus(CompanyStatus.INACTIVE))).isFalse();
+    }
+
     private Company company(Boolean hasEmployees) {
         Company c = mock(Company.class);
         when(c.getHasEmployees()).thenReturn(hasEmployees);
+        return c;
+    }
+
+    private Company companyStatus(CompanyStatus status) {
+        Company c = mock(Company.class);
+        when(c.getStatus()).thenReturn(status);
         return c;
     }
 }

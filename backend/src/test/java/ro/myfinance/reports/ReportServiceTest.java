@@ -51,7 +51,7 @@ class ReportServiceTest {
     private ReportService service() {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); // JSR-310 for LocalDate
         return new ReportService(snapshots, emails, new TrialBalanceExtractor(), mapper, companies,
-                documents, storage, notifications);
+                documents, storage, notifications, new ro.myfinance.company.application.ExpectedDocuments());
     }
 
     private byte[] fixture() throws Exception {
