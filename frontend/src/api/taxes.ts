@@ -1,5 +1,6 @@
 import { api } from "../lib/apiClient";
 import { type Page } from "./companies";
+import type { CompletenessFilter } from "./payroll";
 
 export interface DeclarationSummary {
   id: string;
@@ -78,6 +79,7 @@ export interface TaxPaymentRow {
 
 /** Declaration columns shown in the monthly list, in order. */
 export const DECLARATION_TYPES = ["D100", "D112", "D300"] as const;
+export type DeclType = (typeof DECLARATION_TYPES)[number];
 
 export interface DeclarationFile {
   id: string;
@@ -126,8 +128,8 @@ export const declarationsApi = {
 export const taxPaymentsApi = {
   list: (period: string) => api<TaxPaymentRow[]>(`/api/v1/tax-payments?period=${period}`),
   /** Paged + fuzzy-searchable (company name or CUI) monthly list — infinite scroll. */
-  listPage: (period: string, q: string, page: number, size = 25) =>
-    api<Page<TaxPaymentRow>>(`/api/v1/tax-payments/page?period=${period}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`),
+  listPage: (period: string, q: string, filter: CompletenessFilter, declType: DeclType | null, page: number, size = 25) =>
+    api<Page<TaxPaymentRow>>(`/api/v1/tax-payments/page?period=${period}&q=${encodeURIComponent(q)}&filter=${filter}${declType ? `&declType=${declType}` : ""}&page=${page}&size=${size}`),
 
   summary: (companyId: string, period: string) =>
     api<TaxPaymentSummary>(`/api/v1/companies/${companyId}/tax-payments?period=${period}`),

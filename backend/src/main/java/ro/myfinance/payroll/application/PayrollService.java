@@ -39,15 +39,21 @@ public class PayrollService {
     private final EmailDispatchService dispatch;
     private final EmailEnvelopeService envelopes;
     private final ro.myfinance.notifications.application.NotificationService notifications;
+    private final ro.myfinance.company.application.CompanyDirectory companies;
+    private final ro.myfinance.company.application.ExpectedDocuments expected;
 
     public PayrollService(DocumentService documents, EmailHistoryRepository history,
                           EmailDispatchService dispatch, EmailEnvelopeService envelopes,
-                          ro.myfinance.notifications.application.NotificationService notifications) {
+                          ro.myfinance.notifications.application.NotificationService notifications,
+                          ro.myfinance.company.application.CompanyDirectory companies,
+                          ro.myfinance.company.application.ExpectedDocuments expected) {
         this.documents = documents;
         this.history = history;
         this.dispatch = dispatch;
         this.envelopes = envelopes;
         this.notifications = notifications;
+        this.companies = companies;
+        this.expected = expected;
     }
 
     /** One payroll document (for the list chips and the attach set). */
@@ -57,6 +63,15 @@ public class PayrollService {
     /** Per-company payroll status for the monthly list. */
     public record PayrollRow(UUID companyId, List<PayrollDoc> documents, Instant lastSentAt, int sentCount,
                              Instant lastWhatsappAt, int whatsappCount) {
+    }
+
+    /**
+     * A row for the paginated Payroll list — self-contained (embeds the company identity) so the page can be
+     * server-filtered ("needs attention") without a separate company query.
+     */
+    public record PayrollListRow(UUID companyId, String companyName, String cui, String locality,
+                                 List<PayrollDoc> documents, Instant lastSentAt, int sentCount,
+                                 Instant lastWhatsappAt, int whatsappCount) {
     }
 
     /** One payroll email send (notification log + resend). */
@@ -101,6 +116,65 @@ public class PayrollService {
             out.add(new PayrollRow(companyId, docs, last, es.size(), lastWa, ws.size()));
         }
         return out;
+    }
+
+    /**
+     * A page of the monthly payroll list, fuzzy-searched by company (name or CUI). With {@code onlyMissing},
+     * keeps only companies that OWE payroll ({@link ro.myfinance.company.application.ExpectedDocuments#owesPayroll})
+     * yet uploaded nothing this month — the "needs attention" worklist. Small tenants ⇒ the filtered page is
+     * computed in-memory over the tenant's companies (RLS-scoped).
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<PayrollListRow> listPage(
+            LocalDate period, String q, boolean onlyMissing, int page, int size) {
+        LocalDate month = period.withDayOfMonth(1);
+        MonthPayroll ctx = monthContext(month);
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        if (!onlyMissing) {
+            return companies.search(q, pageable).map(c -> buildListRow(c, ctx));
+        }
+        List<PayrollListRow> missing = companies.findAllById(companies.searchIds(q)).stream()
+                .filter(expected::owesPayroll)
+                .filter(c -> ctx.docs().getOrDefault(c.getId(), List.of()).isEmpty())
+                .map(c -> buildListRow(c, ctx))
+                .sorted(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()))
+                .toList();
+        int from = Math.min(page * size, missing.size());
+        int to = Math.min(from + size, missing.size());
+        return new org.springframework.data.domain.PageImpl<>(missing.subList(from, to), pageable, missing.size());
+    }
+
+    /** The month's payroll docs / emails / WhatsApp grouped by company (loaded once, shared across rows). */
+    private record MonthPayroll(Map<UUID, List<PayrollDoc>> docs, Map<UUID, List<EmailHistory>> emails,
+                                Map<UUID, List<EmailHistory>> whatsapp) {
+    }
+
+    private MonthPayroll monthContext(LocalDate month) {
+        Map<UUID, List<PayrollDoc>> docsByCompany = new LinkedHashMap<>();
+        for (Document d : documents.listByPeriodAndType(month, DocumentType.PAYROLL)) {
+            docsByCompany.computeIfAbsent(d.getCompanyId(), k -> new ArrayList<>())
+                    .add(new PayrollDoc(d.getId(), d.getOriginalFilename()));
+        }
+        Map<UUID, List<EmailHistory>> emailsByCompany = new LinkedHashMap<>();
+        for (EmailHistory e : history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.PAYROLL, month)) {
+            emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
+        Map<UUID, List<EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
+        for (EmailHistory e : history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
+                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.PAYROLL, month)) {
+            whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
+        }
+        return new MonthPayroll(docsByCompany, emailsByCompany, whatsappByCompany);
+    }
+
+    private PayrollListRow buildListRow(ro.myfinance.company.domain.Company c, MonthPayroll ctx) {
+        List<PayrollDoc> docs = ctx.docs().getOrDefault(c.getId(), List.of());
+        List<EmailHistory> es = ctx.emails().getOrDefault(c.getId(), List.of());
+        List<EmailHistory> ws = ctx.whatsapp().getOrDefault(c.getId(), List.of());
+        Instant last = es.isEmpty() ? null : es.get(0).getSentAt(); // sorted desc
+        Instant lastWa = ws.isEmpty() ? null : ws.get(0).getSentAt();
+        return new PayrollListRow(c.getId(), c.getLegalName(), c.getCui(), c.getLocality(),
+                docs, last, es.size(), lastWa, ws.size());
     }
 
     /** Payroll documents uploaded for a company/period. */

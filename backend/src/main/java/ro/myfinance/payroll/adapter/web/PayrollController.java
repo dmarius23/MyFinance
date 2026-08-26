@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.payroll.application.PayrollService.PayrollDoc;
 import ro.myfinance.payroll.application.PayrollService.PayrollEmailView;
+import ro.myfinance.payroll.application.PayrollService.PayrollListRow;
 import ro.myfinance.payroll.application.PayrollService.PayrollRow;
 import ro.myfinance.common.email.EmailStatus;
 
@@ -36,6 +37,23 @@ public class PayrollController {
     public List<PayrollRowResponse> list(
             @RequestParam("period") LocalDate period) {
         return payroll.summary(period).stream().map(PayrollRowResponse::from).toList();
+    }
+
+    /**
+     * Paginated per-company payroll list, fuzzy-searched by company (name or CUI). {@code filter=missing}
+     * narrows to companies that owe payroll (have employees) but uploaded nothing this month.
+     */
+    @GetMapping("/api/v1/payroll/page")
+    public ro.myfinance.common.web.PageResponse<PayrollListRowResponse> listPage(
+            @RequestParam("period") LocalDate period,
+            @RequestParam(value = "q", required = false, defaultValue = "") String q,
+            @RequestParam(value = "filter", required = false, defaultValue = "all") String filter,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "25") int size) {
+        boolean onlyMissing = "missing".equalsIgnoreCase(filter);
+        return ro.myfinance.common.web.PageResponse.from(
+                payroll.listPage(period, q, onlyMissing, page, Math.min(size, 100))
+                        .map(PayrollListRowResponse::from));
     }
 
     /** Default editable email body for a company/period. */
@@ -78,6 +96,16 @@ public class PayrollController {
                                      Instant lastWhatsappAt, int whatsappCount) {
         static PayrollRowResponse from(PayrollRow r) {
             return new PayrollRowResponse(r.companyId(),
+                    r.documents().stream().map(PayrollDocResponse::from).toList(),
+                    r.lastSentAt(), r.sentCount(), r.lastWhatsappAt(), r.whatsappCount());
+        }
+    }
+
+    public record PayrollListRowResponse(UUID companyId, String companyName, String cui, String locality,
+                                         List<PayrollDocResponse> documents, Instant lastSentAt, int sentCount,
+                                         Instant lastWhatsappAt, int whatsappCount) {
+        static PayrollListRowResponse from(PayrollListRow r) {
+            return new PayrollListRowResponse(r.companyId(), r.companyName(), r.cui(), r.locality(),
                     r.documents().stream().map(PayrollDocResponse::from).toList(),
                     r.lastSentAt(), r.sentCount(), r.lastWhatsappAt(), r.whatsappCount());
         }

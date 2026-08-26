@@ -42,12 +42,14 @@ public class ReportService {
     private final DocumentDirectory documents;
     private final DocumentStorage storage;
     private final ro.myfinance.notifications.application.NotificationService notifications;
+    private final ro.myfinance.company.application.ExpectedDocuments expected;
 
     public ReportService(ReportSnapshotRepository snapshots, EmailHistoryRepository emails,
                          TrialBalanceExtractor extractor, ObjectMapper json,
                          ro.myfinance.company.application.CompanyDirectory companies,
                          DocumentDirectory documents, DocumentStorage storage,
-                         ro.myfinance.notifications.application.NotificationService notifications) {
+                         ro.myfinance.notifications.application.NotificationService notifications,
+                         ro.myfinance.company.application.ExpectedDocuments expected) {
         this.snapshots = snapshots;
         this.emails = emails;
         this.extractor = extractor;
@@ -56,6 +58,17 @@ public class ReportService {
         this.documents = documents;
         this.storage = storage;
         this.notifications = notifications;
+        this.expected = expected;
+    }
+
+    /**
+     * A self-contained row for the paginated Reports list — embeds the company identity so the page can be
+     * server-filtered ("needs attention") without a separate company query.
+     */
+    public record ReportListRow(UUID companyId, String companyName, String cui, String locality,
+                                Instant uploadedAt, int version, boolean balanced, Instant lastSentAt,
+                                int sentCount, int balanceCount, List<String> balanceFiles,
+                                Instant lastWhatsappAt, int whatsappCount) {
     }
 
     /** Per-company report status for the monthly list. */
@@ -180,7 +193,61 @@ public class ReportService {
     /** Per-company rows for the period (report uploaded? + email last-sent). */
     @Transactional(readOnly = true)
     public List<ReportRow> summary(LocalDate periodMonth) {
-        LocalDate month = periodMonth.withDayOfMonth(1);
+        MonthReports ctx = monthContext(periodMonth.withDayOfMonth(1));
+        java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
+        ids.addAll(ctx.snapshots().keySet());
+        ids.addAll(ctx.emails().keySet());
+        ids.addAll(ctx.whatsapp().keySet());
+        ids.addAll(ctx.balanceFiles().keySet());
+
+        List<ReportRow> out = new ArrayList<>();
+        for (UUID companyId : ids) {
+            ReportSnapshot s = ctx.snapshots().get(companyId);
+            var es = ctx.emails().getOrDefault(companyId, List.of());
+            var ws = ctx.whatsapp().getOrDefault(companyId, List.of());
+            List<String> balanceFiles = ctx.balanceFiles().getOrDefault(companyId, List.of());
+            out.add(new ReportRow(companyId,
+                    s == null ? null : s.getUpdatedAt(),
+                    s == null ? 0 : s.getVersion(),
+                    s != null && s.isBalanced(),
+                    es.isEmpty() ? null : es.get(0).getSentAt(),
+                    es.size(), balanceFiles.size(), balanceFiles,
+                    ws.isEmpty() ? null : ws.get(0).getSentAt(), ws.size()));
+        }
+        return out;
+    }
+
+    /**
+     * A page of the monthly Reports list, fuzzy-searched by company. {@code onlyMissing} keeps active
+     * companies that owe a balance ({@link ro.myfinance.company.application.ExpectedDocuments#owesBalance})
+     * but uploaded no trial balance this month. Small tenants ⇒ the filtered page is computed in-memory.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ReportListRow> listPage(
+            LocalDate periodMonth, String q, boolean onlyMissing, int page, int size) {
+        MonthReports ctx = monthContext(periodMonth.withDayOfMonth(1));
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        if (!onlyMissing) {
+            return companies.search(q, pageable).map(c -> buildListRow(c, ctx));
+        }
+        List<ReportListRow> missing = companies.findAllById(companies.searchIds(q)).stream()
+                .filter(expected::owesBalance)
+                .filter(c -> ctx.balanceFiles().getOrDefault(c.getId(), List.of()).isEmpty())
+                .map(c -> buildListRow(c, ctx))
+                .sorted(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()))
+                .toList();
+        int from = Math.min(page * size, missing.size());
+        int to = Math.min(from + size, missing.size());
+        return new org.springframework.data.domain.PageImpl<>(missing.subList(from, to), pageable, missing.size());
+    }
+
+    /** The month's snapshots / trial-balance files / emails / WhatsApp grouped by company. */
+    private record MonthReports(Map<UUID, ReportSnapshot> snapshots, Map<UUID, List<String>> balanceFiles,
+                                Map<UUID, List<ro.myfinance.common.email.EmailHistory>> emails,
+                                Map<UUID, List<ro.myfinance.common.email.EmailHistory>> whatsapp) {
+    }
+
+    private MonthReports monthContext(LocalDate month) {
         Map<UUID, ReportSnapshot> byCompany = new LinkedHashMap<>();
         for (ReportSnapshot s : snapshots.findByPeriodMonth(month)) {
             // Exclude snapshots whose content_period is known and belongs to a different month —
@@ -200,7 +267,6 @@ public class ReportService {
                 ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.REPORT, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
-        // The uploaded trial-balance (balanță) files per company — for the count + filename tooltip.
         Map<UUID, List<String>> balanceFilesByCompany = new LinkedHashMap<>();
         for (var d : documents.findByPeriodMonth(month)) {
             if (d.getType() == ro.myfinance.intake.domain.DocumentType.TRIAL_BALANCE) {
@@ -208,27 +274,18 @@ public class ReportService {
                         .add(d.getOriginalFilename());
             }
         }
-        java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
-        ids.addAll(byCompany.keySet());
-        ids.addAll(emailsByCompany.keySet());
-        ids.addAll(whatsappByCompany.keySet());
-        ids.addAll(balanceFilesByCompany.keySet());
+        return new MonthReports(byCompany, balanceFilesByCompany, emailsByCompany, whatsappByCompany);
+    }
 
-        List<ReportRow> out = new ArrayList<>();
-        for (UUID companyId : ids) {
-            ReportSnapshot s = byCompany.get(companyId);
-            var es = emailsByCompany.getOrDefault(companyId, List.of());
-            var ws = whatsappByCompany.getOrDefault(companyId, List.of());
-            List<String> balanceFiles = balanceFilesByCompany.getOrDefault(companyId, List.of());
-            out.add(new ReportRow(companyId,
-                    s == null ? null : s.getUpdatedAt(),
-                    s == null ? 0 : s.getVersion(),
-                    s != null && s.isBalanced(),
-                    es.isEmpty() ? null : es.get(0).getSentAt(),
-                    es.size(), balanceFiles.size(), balanceFiles,
-                    ws.isEmpty() ? null : ws.get(0).getSentAt(), ws.size()));
-        }
-        return out;
+    private ReportListRow buildListRow(ro.myfinance.company.domain.Company c, MonthReports ctx) {
+        ReportSnapshot s = ctx.snapshots().get(c.getId());
+        var es = ctx.emails().getOrDefault(c.getId(), List.of());
+        var ws = ctx.whatsapp().getOrDefault(c.getId(), List.of());
+        List<String> balanceFiles = ctx.balanceFiles().getOrDefault(c.getId(), List.of());
+        return new ReportListRow(c.getId(), c.getLegalName(), c.getCui(), c.getLocality(),
+                s == null ? null : s.getUpdatedAt(), s == null ? 0 : s.getVersion(), s != null && s.isBalanced(),
+                es.isEmpty() ? null : es.get(0).getSentAt(), es.size(),
+                balanceFiles.size(), balanceFiles, ws.isEmpty() ? null : ws.get(0).getSentAt(), ws.size());
     }
 
     /**

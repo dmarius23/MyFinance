@@ -1,4 +1,13 @@
 import { api } from "../lib/apiClient";
+import type { Page } from "./companies";
+
+/** Minimal company identity returned by the Statements "needs attention" list. */
+export interface CompanyRef {
+  id: string;
+  legalName: string;
+  cui: string | null;
+  locality: string | null;
+}
 
 export interface BankStatement {
   id: string;
@@ -205,6 +214,9 @@ export interface MatchSuggestion {
 export const reconciliationApi = {
   summary: (period: string) =>
     api<CompanyCompleteness[]>(`/api/v1/reconciliation/summary?period=${period}`),
+  /** Paginated list of active companies whose reconciliation isn't complete this month (the "needs attention" filter). */
+  needyCompanies: (period: string, q: string, page: number, size = 25) =>
+    api<Page<CompanyRef>>(`/api/v1/reconciliation/companies/page?period=${period}&q=${encodeURIComponent(q)}&page=${page}&size=${size}`),
   documentStatus: (companyId: string, period: string) =>
     api<DocumentStatus[]>(`/api/v1/companies/${companyId}/document-status?period=${period}`),
   /** Non-trivial match proposals (cross-period exact, split, installment) for one-click apply. */
