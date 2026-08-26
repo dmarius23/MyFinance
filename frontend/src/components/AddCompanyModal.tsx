@@ -18,7 +18,7 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: () => companiesApi.create(form),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["companies"] });
+      void qc.invalidateQueries({ queryKey: ["companies-all"] });
       onClose();
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to create company"),
@@ -54,15 +54,15 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             {ENTITY_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </Field>
-        <Field label={t("company.fiscalResidence")}>
-          <input list="ro-localities" value={form.locality ?? ""} onChange={set("locality")}
+        <Field label={`${t("company.fiscalResidence")} *`}>
+          <input required list="ro-localities" value={form.locality ?? ""} onChange={set("locality")}
             placeholder={t("company.fiscalResidencePlaceholder")} />
           <datalist id="ro-localities">
             {ROMANIAN_LOCALITIES.map((l) => <option key={l} value={l} />)}
           </datalist>
         </Field>
-        <Field label={t("company.vatStatus")}>
-          <select value={form.vatStatus ?? ""} onChange={set("vatStatus")}>
+        <Field label={`${t("company.vatStatus")} *`}>
+          <select required value={form.vatStatus ?? ""} onChange={set("vatStatus")}>
             <option value="">—</option>
             {VAT_STATUSES.map((v) => (
               <option key={v} value={v}>{t(vatStatusKey(v))}</option>
@@ -77,8 +77,8 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label={t("company.taxRegime")}>
-          <select value={form.taxRegime ?? ""} onChange={set("taxRegime")}>
+        <Field label={`${t("company.taxRegime")} *`}>
+          <select required value={form.taxRegime ?? ""} onChange={set("taxRegime")}>
             <option value="">—</option>
             {TAX_REGIMES.map((v) => <option key={v} value={v}>{t(taxRegimeKey(v))}</option>)}
           </select>

@@ -16,7 +16,7 @@ export const representativesApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  update: (companyId: string, userId: string, input: { name: string; phone?: string }) =>
+  update: (companyId: string, userId: string, input: { name: string; phone?: string; email?: string }) =>
     api<Representative>(`/api/v1/companies/${companyId}/representatives/${userId}`, {
       method: "PUT",
       body: JSON.stringify(input),
