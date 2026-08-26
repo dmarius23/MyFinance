@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, TAX_REGIMES, taxRegimeKey, type Company } from "../api/companies";
@@ -9,6 +9,7 @@ import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES, VAT_PERIODS, vatPeriodKey } from "../domain/company";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { Field } from "../components/Field";
+import { Icon } from "../components/Icon";
 
 const EDIT_FORM_ID = "company-edit-form";
 
@@ -31,9 +32,6 @@ export function CompanyDetail() {
   const c = company.data!;
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <Link to="/companies" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
-        ← {t("companies.back")}
-      </Link>
       <GeneralInfoSection company={c} />
       <RepresentativesSection companyId={id} />
     </div>
@@ -42,6 +40,7 @@ export function CompanyDetail() {
 
 function GeneralInfoSection({ company }: { company: Company }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +67,11 @@ function GeneralInfoSection({ company }: { company: Company }) {
     <div className="card">
       {/* Header — the same button slot in both modes: Edit/Deactivate in view, Cancel/Save in edit. */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <h1 style={{ marginTop: 0, marginBottom: 0 }}>{company.legalName}</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <button onClick={() => navigate("/companies")} title={t("companies.back")}
+            style={{ ...iconBtn, width: 34, height: 34 }}><Icon name="chevronLeft" size={18} /></button>
+          <h1 style={{ marginTop: 0, marginBottom: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{company.legalName}</h1>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           {editing ? (
             <>
@@ -282,3 +285,4 @@ function Row({ k, v }: { k: string; v: string }) {
 }
 
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "160px 1fr", rowGap: 8, marginTop: 12 };
+const iconBtn: React.CSSProperties = { padding: 0, border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary, #55605d)", cursor: "pointer", flex: "none" };
