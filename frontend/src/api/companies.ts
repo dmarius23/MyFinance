@@ -12,6 +12,8 @@ export interface Company {
   hasEmployees: boolean | null;
   responsibleUserId: string | null;
   status: "ACTIVE" | "INACTIVE";
+  /** When the company was inserted into the system (ISO). */
+  createdAt: string;
 }
 
 export interface CreateCompanyInput {

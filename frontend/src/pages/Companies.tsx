@@ -1,80 +1,134 @@
-import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { companiesApi, representativesApi, taxRegimeKey } from "../api/companies";
+import { useQuery } from "@tanstack/react-query";
+import { companiesApi, representativesApi, taxRegimeKey, type Company, type CompanyRepEntry } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
 import { CompanySearch } from "../components/CompanySearch";
 import { vatStatusKey } from "../domain/vat";
+import { ENTITY_TYPES } from "../domain/company";
 
-/** MOD-03 — manage companies: list + add; rows link to detail. Paged with infinite scroll + search. */
+const TAX_REGIMES = ["MICRO", "PROFIT"] as const;
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+type SortKey = "name" | "residence";
+
+/** A company is "complete" when it has a representative AND the mandatory fiscal profile (residence, VAT,
+ *  tax regime). Anything missing shows the "incomplet" chip and fails the completeness filter. */
+function isComplete(c: Company, hasRep: boolean): boolean {
+  return hasRep && !!c.locality && !!c.vatStatus && !!c.taxRegime;
+}
+
+/** MOD-03 — manage companies: filterable/sortable list; whole row opens detail. */
 export function Companies() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
   const [dq, setDq] = useState("");
-  const {
-    data: pages,
-    isLoading,
-    error,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ["companies-page", dq],
-    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
-    initialPageParam: 0,
-    getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
-  });
+  const [activeOnly, setActiveOnly] = useState(true);
+  const [fVat, setFVat] = useState("");        // "" | VAT_PAYER | NON_VAT_PAYER
+  const [fType, setFType] = useState("");       // "" | SRL | SA | PFA | ONG
+  const [fRegime, setFRegime] = useState("");   // "" | MICRO | PROFIT
+  const [fEmp, setFEmp] = useState("");         // "" | yes | no
+  const [fComplete, setFComplete] = useState(""); // "" | complete | incomplete
+  const [sort, setSort] = useState<SortKey>("name");
 
-  const data = pages?.pages.flatMap((p) => p.content);
+  const companiesQ = useQuery({ queryKey: ["companies-all"], queryFn: companiesApi.list });
+  const repsQ = useQuery({ queryKey: ["representatives-all"], queryFn: representativesApi.listAll });
 
-  // Auto-load the next page when the sentinel row scrolls near the viewport.
-  const sentinel = useRef<HTMLTableRowElement | null>(null);
-  useEffect(() => {
-    const node = sentinel.current;
-    if (!node || !hasNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isFetchingNextPage) void fetchNextPage();
-      },
-      { rootMargin: "200px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const repsByCompany = useMemo(() => {
+    const m = new Map<string, CompanyRepEntry[]>();
+    for (const r of repsQ.data ?? []) {
+      const list = m.get(r.companyId) ?? [];
+      list.push(r);
+      m.set(r.companyId, list);
+    }
+    return m;
+  }, [repsQ.data]);
 
-  const { data: repsData } = useQuery({
-    queryKey: ["representatives-all"],
-    queryFn: representativesApi.listAll,
-  });
+  const rows = useMemo(() => {
+    const all = companiesQ.data ?? [];
+    const q = norm(dq.trim());
+    const filtered = all.filter((c) => {
+      if (activeOnly && c.status !== "ACTIVE") return false;
+      if (q && !(norm(c.legalName).includes(q) || c.cui.toLowerCase().includes(dq.trim().toLowerCase()))) return false;
+      if (fVat && c.vatStatus !== fVat) return false;
+      if (fType && c.entityType !== fType) return false;
+      if (fRegime && c.taxRegime !== fRegime) return false;
+      if (fEmp && (fEmp === "yes") !== (c.hasEmployees === true)) return false;
+      if (fComplete) {
+        const complete = isComplete(c, (repsByCompany.get(c.id) ?? []).length > 0);
+        if (fComplete === "complete" && !complete) return false;
+        if (fComplete === "incomplete" && complete) return false;
+      }
+      return true;
+    });
+    const key = sort === "residence"
+      ? (c: Company) => `${norm(c.locality ?? "￿")}|${norm(c.legalName)}`
+      : (c: Company) => norm(c.legalName);
+    return filtered.sort((a, b) => key(a).localeCompare(key(b)));
+  }, [companiesQ.data, dq, activeOnly, fVat, fType, fRegime, fEmp, fComplete, sort, repsByCompany]);
 
-  // Group reps by companyId for O(1) lookup in the table rows.
-  const repsByCompany = new Map<string, typeof repsData>([]);
-  for (const r of repsData ?? []) {
-    const list = repsByCompany.get(r.companyId) ?? [];
-    list.push(r);
-    repsByCompany.set(r.companyId, list);
-  }
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(i18n.language === "ro" ? "ro-RO" : "en-US",
+    { day: "2-digit", month: "short", year: "numeric" });
+
+  const selectStyle: React.CSSProperties = { fontSize: 12, padding: "5px 8px", borderRadius: 8,
+    border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)" };
 
   return (
     <div className="card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h1 style={{ marginTop: 0 }}>{t("nav.companies")}</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <CompanySearch onSearch={setDq} />
           <button className="primary" onClick={() => setShowAdd(true)}>{t("companies.add")}</button>
         </div>
       </div>
 
-      {isLoading && <p>{t("common.loading")}</p>}
-      {error && (
+      {/* Filter bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "10px 0 4px" }}>
+        <select value={fComplete} onChange={(e) => setFComplete(e.target.value)} style={selectStyle} title={t("companies.filter.completeness")}>
+          <option value="">{t("companies.filter.completeness")}: {t("filter.all")}</option>
+          <option value="complete">{t("companies.filter.complete")}</option>
+          <option value="incomplete">{t("company.incomplete")}</option>
+        </select>
+        <select value={fVat} onChange={(e) => setFVat(e.target.value)} style={selectStyle}>
+          <option value="">{t("company.vat")}: {t("filter.all")}</option>
+          <option value="VAT_PAYER">{t("vatStatus.VAT_PAYER")}</option>
+          <option value="NON_VAT_PAYER">{t("vatStatus.NON_VAT_PAYER")}</option>
+        </select>
+        <select value={fType} onChange={(e) => setFType(e.target.value)} style={selectStyle}>
+          <option value="">{t("company.entityType")}: {t("filter.all")}</option>
+          {ENTITY_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select value={fRegime} onChange={(e) => setFRegime(e.target.value)} style={selectStyle}>
+          <option value="">{t("company.taxRegime")}: {t("filter.all")}</option>
+          {TAX_REGIMES.map((v) => <option key={v} value={v}>{t(taxRegimeKey(v))}</option>)}
+        </select>
+        <select value={fEmp} onChange={(e) => setFEmp(e.target.value)} style={selectStyle}>
+          <option value="">{t("company.hasEmployees")}: {t("filter.all")}</option>
+          <option value="yes">{t("common.yes")}</option>
+          <option value="no">{t("common.no")}</option>
+        </select>
+        <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--text-secondary)" }}>
+          <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} />
+          {t("companies.filter.activeOnly")}
+        </label>
+        <span style={{ flex: 1 }} />
+        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={selectStyle} title={t("companies.sort")}>
+          <option value="name">{t("companies.sort")}: {t("company.legalName")}</option>
+          <option value="residence">{t("companies.sort")}: {t("company.locality")}</option>
+        </select>
+      </div>
+
+      {(companiesQ.isLoading || repsQ.isLoading) && <p>{t("common.loading")}</p>}
+      {companiesQ.error && (
         <p style={{ color: "#dc2626" }}>
-          {error instanceof ApiError ? error.message : t("companies.loadError")}
+          {companiesQ.error instanceof ApiError ? companiesQ.error.message : t("companies.loadError")}
         </p>
       )}
 
-      {data && (
+      {companiesQ.data && (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ textAlign: "left", color: "var(--text-muted)" }}>
@@ -86,55 +140,56 @@ export function Companies() {
               <th style={{ padding: 8 }}>{t("company.taxRegime")}</th>
               <th style={{ padding: 8 }}>{t("company.hasEmployees")}</th>
               <th style={{ padding: 8 }}>{t("company.representatives")}</th>
+              <th style={{ padding: 8 }}>{t("company.created")}</th>
               <th style={{ padding: 8 }}>{t("company.status")}</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((c) => {
+            {rows.map((c) => {
               const reps = repsByCompany.get(c.id) ?? [];
+              const complete = isComplete(c, reps.length > 0);
               return (
-              <tr key={c.id} style={{ borderTop: "1px solid var(--border)" }}>
-                <td style={{ padding: 8 }}><Link to={`/companies/${c.id}`}>{c.legalName}</Link></td>
-                <td style={{ padding: 8 }}>{c.cui}</td>
-                <td style={{ padding: 8 }}>{c.entityType ?? "—"}</td>
-                <td style={{ padding: 8 }}>{c.locality ?? "—"}</td>
-                <td style={{ padding: 8 }}>{c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"}</td>
-                <td style={{ padding: 8 }}>{c.taxRegime ? t(taxRegimeKey(c.taxRegime), { defaultValue: c.taxRegime }) : "—"}</td>
-                <td style={{ padding: 8 }}>{c.hasEmployees == null ? "—" : t(c.hasEmployees ? "common.yes" : "common.no")}</td>
-                <td style={{ padding: 8 }}>
-                  {reps.length === 0 ? (
-                    <span style={{ color: "var(--text-muted)" }}>—</span>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      {reps.map((r) => (
-                        <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <span style={{ fontSize: 13 }}>{r.name}</span>
-                          {r.status === "INACTIVE" && (
-                            <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999,
-                              background: "#f3f4f6", color: "#6b7280", border: "1px solid #e5e7eb" }}>
-                              {t("team.st.INACTIVE")}
-                            </span>
-                          )}
-                          {r.status === "INVITED" && (
-                            <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 999,
-                              background: "#eff6ff", color: "#3b82f6", border: "1px solid #bfdbfe" }}>
-                              {t("team.st.INVITED")}
-                            </span>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: 8 }}>{c.status}</td>
-              </tr>
+                <tr key={c.id} onClick={() => navigate(`/companies/${c.id}`)}
+                  style={{ borderTop: "1px solid var(--border)", cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--row-active)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}>
+                  <td style={{ padding: 8 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontWeight: 600 }}>{c.legalName}</span>
+                      {!complete && (
+                        <span className="pill round warn" title={t("company.incompleteHint")}>⚠ {t("company.incomplete")}</span>
+                      )}
+                    </span>
+                  </td>
+                  <td style={{ padding: 8 }} className="mono">{c.cui}</td>
+                  <td style={{ padding: 8 }}>{c.entityType ?? "—"}</td>
+                  <td style={{ padding: 8 }}>{c.locality ?? "—"}</td>
+                  <td style={{ padding: 8 }}>{c.vatStatus ? t(vatStatusKey(c.vatStatus), { defaultValue: c.vatStatus }) : "—"}</td>
+                  <td style={{ padding: 8 }}>{c.taxRegime ? t(taxRegimeKey(c.taxRegime), { defaultValue: c.taxRegime }) : "—"}</td>
+                  <td style={{ padding: 8 }}>{c.hasEmployees == null ? "—" : t(c.hasEmployees ? "common.yes" : "common.no")}</td>
+                  <td style={{ padding: 8 }}>
+                    {reps.length === 0 ? (
+                      <span style={{ color: "var(--text-muted)" }}>—</span>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {reps.map((r) => (
+                          <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{ fontSize: 13 }}>{r.name}</span>
+                            {r.status === "INACTIVE" && <span className="pill round muted" style={{ fontSize: 10 }}>{t("team.st.INACTIVE")}</span>}
+                            {r.status === "INVITED" && <span className="pill round" style={{ fontSize: 10 }}>{t("team.st.INVITED")}</span>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: 8, color: "var(--text-muted)", whiteSpace: "nowrap" }}>{fmtDate(c.createdAt)}</td>
+                  <td style={{ padding: 8 }}>{t(`companyStatus.${c.status}`, { defaultValue: c.status })}</td>
+                </tr>
               );
             })}
-            <tr ref={sentinel}>
-              <td colSpan={9} style={{ padding: 8, textAlign: "center", color: "var(--text-muted)" }}>
-                {isFetchingNextPage ? t("common.loading") : !hasNextPage && data.length > 0 ? "—" : ""}
-              </td>
-            </tr>
+            {rows.length === 0 && !companiesQ.isLoading && (
+              <tr><td colSpan={10} style={{ padding: 14, textAlign: "center", color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</td></tr>
+            )}
           </tbody>
         </table>
       )}
