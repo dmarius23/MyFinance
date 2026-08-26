@@ -14,7 +14,7 @@ public final class RepresentativeDtos {
     public record InviteRepresentativeRequest(@NotBlank String name, @Email @NotBlank String email, String phone) {
     }
 
-    public record UpdateRepresentativeRequest(@NotBlank String name, String phone) {
+    public record UpdateRepresentativeRequest(@NotBlank String name, String phone, @Email String email) {
     }
 
     public record SetActiveRequest(boolean active) {

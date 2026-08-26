@@ -23,6 +23,11 @@ public class LoggingUserInviter implements UserInviter {
     }
 
     @Override
+    public void updateEmail(UUID externalUserId, String newEmail) {
+        log.info("[DEV INVITE] would set auth user {} email -> {}", externalUserId, newEmail);
+    }
+
+    @Override
     public void delete(UUID externalUserId) {
         log.info("[DEV INVITE] would delete orphaned auth user {}", externalUserId);
     }

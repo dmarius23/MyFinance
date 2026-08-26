@@ -50,7 +50,7 @@ public class RepresentativeController {
     public RepresentativeResponse update(@PathVariable UUID companyId, @PathVariable UUID userId,
                                          @Valid @RequestBody UpdateRepresentativeRequest request) {
         return RepresentativeResponse.from(
-                service.updateRepresentative(companyId, userId, request.name(), request.phone()));
+                service.updateRepresentative(companyId, userId, request.name(), request.phone(), request.email()));
     }
 
     @PatchMapping("/{userId}/active")

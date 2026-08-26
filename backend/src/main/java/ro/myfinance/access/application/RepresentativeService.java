@@ -97,11 +97,25 @@ public class RepresentativeService {
         }
     }
 
-    /** Update a representative's contact details (must be assigned to the given company). */
-    public AppUser updateRepresentative(UUID companyId, UUID userId, String name, String phone) {
+    /**
+     * Update a representative's contact details (must be assigned to the given company). When the email
+     * changes, the login identity is synced first (Supabase auth) so the rep keeps signing in — rejected if
+     * another user already owns that address. The app_user PK is the auth user's external id.
+     */
+    public AppUser updateRepresentative(UUID companyId, UUID userId, String name, String phone, String email) {
         AppUser rep = requireRepOfCompany(companyId, userId);
         rep.setName(name);
         rep.setPhone(phone);
+        if (email != null && !email.isBlank() && !email.trim().equalsIgnoreCase(rep.getEmail())) {
+            String normalized = email.trim();
+            users.findByEmail(normalized).ifPresent(other -> {
+                if (!other.getId().equals(rep.getId())) {
+                    throw new ConflictException("Another user already uses the email " + normalized);
+                }
+            });
+            inviter.updateEmail(rep.getId(), normalized); // sync the auth identity before the local email
+            rep.setEmail(normalized);
+        }
         audit.record("REPRESENTATIVE_UPDATED", "company", companyId);
         return rep;
     }

@@ -4,9 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, TAX_REGIMES, taxRegimeKey, type CreateCompanyInput } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
-import { ENTITY_TYPES } from "../domain/company";
+import { ENTITY_TYPES, CUI_PATTERN } from "../domain/company";
 import { VAT_PERIODS, vatPeriodKey } from "../domain/company";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
+import { explicitValidity } from "../lib/validity";
 import { Field } from "./Field";
 
 export function AddCompanyModal({ onClose }: { onClose: () => void }) {
@@ -18,7 +19,7 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: () => companiesApi.create(form),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["companies"] });
+      void qc.invalidateQueries({ queryKey: ["companies-all"] });
       onClose();
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to create company"),
@@ -42,11 +43,13 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
         }}
       >
         <h2 style={{ marginTop: 0 }}>Add company</h2>
-        <Field label="Legal name *">
-          <input required value={form.legalName} onChange={set("legalName")} />
+        <Field label={`${t("company.legalName")} *`}>
+          <input required {...explicitValidity(t("validation.required", { field: t("company.legalName") }))}
+            value={form.legalName} onChange={set("legalName")} />
         </Field>
         <Field label="CUI *">
-          <input required value={form.cui} onChange={set("cui")} />
+          <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")}
+            {...explicitValidity(t("company.cuiInvalid"))} value={form.cui} onChange={set("cui")} />
         </Field>
         <Field label={t("company.entityType")}>
           <select value={form.entityType ?? ""} onChange={set("entityType")}>
@@ -54,15 +57,17 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             {ENTITY_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </Field>
-        <Field label={t("company.fiscalResidence")}>
-          <input list="ro-localities" value={form.locality ?? ""} onChange={set("locality")}
+        <Field label={`${t("company.fiscalResidence")} *`}>
+          <input required list="ro-localities" value={form.locality ?? ""} onChange={set("locality")}
+            {...explicitValidity(t("validation.required", { field: t("company.fiscalResidence") }))}
             placeholder={t("company.fiscalResidencePlaceholder")} />
           <datalist id="ro-localities">
             {ROMANIAN_LOCALITIES.map((l) => <option key={l} value={l} />)}
           </datalist>
         </Field>
-        <Field label={t("company.vatStatus")}>
-          <select value={form.vatStatus ?? ""} onChange={set("vatStatus")}>
+        <Field label={`${t("company.vatStatus")} *`}>
+          <select required value={form.vatStatus ?? ""} onChange={set("vatStatus")}
+            {...explicitValidity(t("validation.required", { field: t("company.vatStatus") }))}>
             <option value="">—</option>
             {VAT_STATUSES.map((v) => (
               <option key={v} value={v}>{t(vatStatusKey(v))}</option>
@@ -77,8 +82,9 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label={t("company.taxRegime")}>
-          <select value={form.taxRegime ?? ""} onChange={set("taxRegime")}>
+        <Field label={`${t("company.taxRegime")} *`}>
+          <select required value={form.taxRegime ?? ""} onChange={set("taxRegime")}
+            {...explicitValidity(t("validation.required", { field: t("company.taxRegime") }))}>
             <option value="">—</option>
             {TAX_REGIMES.map((v) => <option key={v} value={v}>{t(taxRegimeKey(v))}</option>)}
           </select>

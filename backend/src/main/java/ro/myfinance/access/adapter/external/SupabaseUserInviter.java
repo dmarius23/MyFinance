@@ -75,6 +75,17 @@ public class SupabaseUserInviter implements UserInviter {
     }
 
     @Override
+    public void updateEmail(UUID externalUserId, String newEmail) {
+        // Admin PUT with email_confirm=true sets the address without a re-confirmation round-trip.
+        client.put()
+                .uri("/auth/v1/admin/users/{id}", externalUserId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("email", newEmail, "email_confirm", true))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    @Override
     public void delete(UUID externalUserId) {
         try {
             client.delete()
