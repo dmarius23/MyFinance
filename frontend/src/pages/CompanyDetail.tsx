@@ -6,7 +6,7 @@ import { companiesApi, TAX_REGIMES, taxRegimeKey, type Company } from "../api/co
 import { representativesApi } from "../api/representatives";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
-import { ENTITY_TYPES, VAT_PERIODS, vatPeriodKey } from "../domain/company";
+import { ENTITY_TYPES, VAT_PERIODS, vatPeriodKey, CUI_PATTERN, PHONE_PATTERN } from "../domain/company";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { Field } from "../components/Field";
 import { Icon } from "../components/Icon";
@@ -109,7 +109,8 @@ function GeneralInfoSection({ company }: { company: Company }) {
             <input required value={form.legalName} onChange={(e) => setForm({ ...form, legalName: e.target.value })} />
           </Field>
           <Field label={`${t("company.cui")} *`}>
-            <input required value={form.cui} onChange={(e) => setForm({ ...form, cui: e.target.value })} />
+            <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")}
+              value={form.cui} onChange={(e) => setForm({ ...form, cui: e.target.value })} />
             <span style={{ display: "block", color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
               {t("company.cuiEditHint")}
             </span>
@@ -189,6 +190,8 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
   });
 
   const inp: React.CSSProperties = { width: "100%", minWidth: 0 };
+  // Compact inline inputs when editing a representative — noticeably shorter than the full-width invite row.
+  const editInp: React.CSSProperties = { width: "100%", maxWidth: 150, minWidth: 0, padding: "3px 6px", fontSize: 12 };
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>{t("company.representatives")}</h2>
@@ -200,11 +203,12 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
             padding: "6px 0", borderTop: "1px solid var(--hair)", opacity: r.status === "INACTIVE" ? 0.55 : 1 }}>
             {editing?.id === r.id ? (
               <>
-                <input placeholder={t("company.namePlaceholder")} value={editing.name} autoFocus style={inp}
+                <input placeholder={t("company.namePlaceholder")} value={editing.name} autoFocus style={editInp}
                   onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
-                <input type="email" placeholder={t("company.emailPlaceholder")} value={editing.email} style={inp}
-                  onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
-                <input type="tel" placeholder={t("company.phonePlaceholder")} value={editing.phone} style={inp}
+                <input type="email" placeholder={t("company.emailPlaceholder")} value={editing.email} style={editInp}
+                  title={t("company.emailInvalid")} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+                <input type="tel" placeholder={t("company.phonePlaceholder")} value={editing.phone} style={editInp}
+                  pattern={PHONE_PATTERN} title={t("company.phoneInvalid")}
                   onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
                 <span />
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -247,8 +251,9 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
         <input placeholder={t("company.namePlaceholder")} required value={form.name} style={inp}
           onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input type="email" placeholder={t("company.emailPlaceholder")} required value={form.email} style={inp}
-          onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          title={t("company.emailInvalid")} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <input type="tel" placeholder={t("company.phonePlaceholder")} value={form.phone} style={inp}
+          pattern={PHONE_PATTERN} title={t("company.phoneInvalid")}
           onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <span />
         <div style={{ display: "flex", justifyContent: "flex-end" }}>

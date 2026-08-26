@@ -11,7 +11,7 @@ import { ENTITY_TYPES } from "../domain/company";
 
 const TAX_REGIMES = ["MICRO", "PROFIT"] as const;
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-type SortKey = "name" | "residence";
+type SortKey = "name" | "residence" | "created";
 
 /** A company is "complete" when it has a representative AND the mandatory fiscal profile (residence, VAT,
  *  tax regime). Anything missing shows the "incomplet" chip and fails the completeness filter. */
@@ -63,6 +63,10 @@ export function Companies() {
       }
       return true;
     });
+    if (sort === "created") {
+      // Newest first (ISO timestamps sort lexicographically); ties fall back to name.
+      return filtered.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || norm(a.legalName).localeCompare(norm(b.legalName)));
+    }
     const key = sort === "residence"
       ? (c: Company) => `${norm(c.locality ?? "￿")}|${norm(c.legalName)}`
       : (c: Company) => norm(c.legalName);
@@ -118,6 +122,7 @@ export function Companies() {
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={selectStyle} title={t("companies.sort")}>
           <option value="name">{t("companies.sort")}: {t("company.legalName")}</option>
           <option value="residence">{t("companies.sort")}: {t("company.locality")}</option>
+          <option value="created">{t("companies.sort")}: {t("company.created")}</option>
         </select>
       </div>
 

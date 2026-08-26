@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, TAX_REGIMES, taxRegimeKey, type CreateCompanyInput } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
-import { ENTITY_TYPES } from "../domain/company";
+import { ENTITY_TYPES, CUI_PATTERN } from "../domain/company";
 import { VAT_PERIODS, vatPeriodKey } from "../domain/company";
 import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { Field } from "./Field";
@@ -46,7 +46,7 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
           <input required value={form.legalName} onChange={set("legalName")} />
         </Field>
         <Field label="CUI *">
-          <input required value={form.cui} onChange={set("cui")} />
+          <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")} value={form.cui} onChange={set("cui")} />
         </Field>
         <Field label={t("company.entityType")}>
           <select value={form.entityType ?? ""} onChange={set("entityType")}>
