@@ -78,4 +78,46 @@ class RepresentativeServiceTest {
         // The just-created auth user must be scheduled for deletion — no orphan.
         verify(authCleanup).scheduleDelete(externalId);
     }
+
+    /** A representative assigned to the company, resolvable by requireRepOfCompany. */
+    private AppUser assignedRep(String email) {
+        AppUser rep = new AppUser(externalId, tenant, email, "Rep One", Role.REPRESENTATIVE);
+        when(links.existsByUserIdAndCompanyId(externalId, companyId)).thenReturn(true);
+        when(users.findById(externalId)).thenReturn(Optional.of(rep));
+        return rep;
+    }
+
+    @Test
+    void updateChangesEmailAndSyncsTheAuthIdentity() {
+        AppUser rep = assignedRep("old@client.ro");
+        when(users.findByEmail("new@client.ro")).thenReturn(Optional.empty());
+
+        service.updateRepresentative(companyId, externalId, "Rep One", "0712345678", "new@client.ro");
+
+        org.assertj.core.api.Assertions.assertThat(rep.getEmail()).isEqualTo("new@client.ro");
+        verify(inviter).updateEmail(externalId, "new@client.ro"); // login identity synced
+    }
+
+    @Test
+    void updateRejectsAnEmailAlreadyUsedByAnotherUser() {
+        AppUser rep = assignedRep("old@client.ro");
+        AppUser other = new AppUser(UUID.randomUUID(), tenant, "taken@client.ro", "Someone", Role.REPRESENTATIVE);
+        when(users.findByEmail("taken@client.ro")).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() ->
+                service.updateRepresentative(companyId, externalId, "Rep One", null, "taken@client.ro"))
+                .isInstanceOf(ro.myfinance.common.web.ConflictException.class);
+
+        org.assertj.core.api.Assertions.assertThat(rep.getEmail()).isEqualTo("old@client.ro"); // unchanged
+        verify(inviter, never()).updateEmail(any(), any());
+    }
+
+    @Test
+    void updateWithTheSameEmailDoesNotTouchAuth() {
+        assignedRep("rep@client.ro");
+
+        service.updateRepresentative(companyId, externalId, "Rep One", "0712345678", "rep@client.ro");
+
+        verify(inviter, never()).updateEmail(any(), any());
+    }
 }
