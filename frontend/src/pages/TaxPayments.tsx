@@ -146,15 +146,18 @@ export function TaxPayments() {
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("taxes.title")}</h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* Declaration-type picker sits BEFORE the toggle and is always rendered (disabled unless
+              "needs attention" is active) so switching the filter never reflows the row. */}
+          <select value={declType ?? ""} disabled={filter !== "missing"}
+            onChange={(e) => setDeclType((e.target.value || null) as DeclType | null)}
+            title={t("taxes.filterByType")}
+            style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: "1px solid var(--border)",
+              background: "var(--surface)", color: "var(--text-secondary)",
+              opacity: filter === "missing" ? 1 : 0.45, cursor: filter === "missing" ? "pointer" : "default" }}>
+            <option value="">{t("filter.all")}</option>
+            {DECLARATION_TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+          </select>
           <CompletenessFilter value={filter} onChange={setFilter} />
-          {filter === "missing" && (
-            <select value={declType ?? ""} onChange={(e) => setDeclType((e.target.value || null) as DeclType | null)}
-              title={t("taxes.filterByType")}
-              style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
-              <option value="">{t("filter.all")}</option>
-              {DECLARATION_TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
-            </select>
-          )}
           <CompanySearch onSearch={setDq} />
           <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
         </div>
