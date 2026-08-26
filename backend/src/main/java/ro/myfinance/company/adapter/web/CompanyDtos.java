@@ -1,6 +1,7 @@
 package ro.myfinance.company.adapter.web;
 
 import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
 import java.util.UUID;
 import ro.myfinance.company.domain.Company;
 import ro.myfinance.company.domain.CompanyStatus;
@@ -10,10 +11,11 @@ public final class CompanyDtos {
     private CompanyDtos() {
     }
 
-    public record CreateCompanyRequest(@NotBlank String legalName, @NotBlank String cui,
-                                       String entityType, String locality, String vatStatus,
-                                       String vatPeriod, String taxRegime, Boolean hasEmployees,
-                                       UUID responsibleUserId) {
+    // Fiscal residence (locality), VAT status and tax regime are mandatory at creation so the completeness
+    // filter and the expected-documents rules have a reliable profile from day one.
+    public record CreateCompanyRequest(@NotBlank String legalName, @NotBlank String cui, String entityType,
+                                       @NotBlank String locality, @NotBlank String vatStatus, String vatPeriod,
+                                       @NotBlank String taxRegime, Boolean hasEmployees, UUID responsibleUserId) {
     }
 
     public record UpdateCompanyRequest(String cui, String legalName, String entityType, String locality,
@@ -26,11 +28,12 @@ public final class CompanyDtos {
 
     public record CompanyResponse(UUID id, String legalName, String cui, String entityType,
                                   String locality, String vatStatus, String vatPeriod, String taxRegime,
-                                  Boolean hasEmployees, UUID responsibleUserId, CompanyStatus status) {
+                                  Boolean hasEmployees, UUID responsibleUserId, CompanyStatus status,
+                                  Instant createdAt) {
         public static CompanyResponse from(Company c) {
             return new CompanyResponse(c.getId(), c.getLegalName(), c.getCui(), c.getEntityType(),
                     c.getLocality(), c.getVatStatus(), c.getVatPeriod(), c.getTaxRegime(),
-                    c.getHasEmployees(), c.getResponsibleUserId(), c.getStatus());
+                    c.getHasEmployees(), c.getResponsibleUserId(), c.getStatus(), c.getCreatedAt());
         }
     }
 }

@@ -14,6 +14,12 @@ public interface UserInviter {
     InvitedUser invite(String email, InviteClaims claims);
 
     /**
+     * Change an existing auth user's email (admin-set, already-confirmed). Used when an accountant corrects
+     * a representative's email so their login identity matches the app.
+     */
+    void updateEmail(UUID externalUserId, String newEmail);
+
+    /**
      * Delete an auth user by its external id — the compensating action when the local persistence that
      * should have followed an {@link #invite} fails, so no orphaned auth user is left behind. Must be
      * <b>idempotent</b>: deleting an already-absent user is a success (the outbox retries this).
