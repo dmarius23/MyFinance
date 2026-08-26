@@ -56,6 +56,26 @@ public class ReconciliationController {
         return service.completenessSummary(period);
     }
 
+    /**
+     * Active companies still needing attention this month (reconciliation ≠ complete), paginated + fuzzy
+     * company search. Feeds the Statements list's "needs attention" filter.
+     */
+    @GetMapping("/api/v1/reconciliation/companies/page")
+    public ro.myfinance.common.web.PageResponse<CompanyRefResponse> needyCompanies(
+            @RequestParam("period") LocalDate period,
+            @RequestParam(name = "q", defaultValue = "") String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "25") int size) {
+        return ro.myfinance.common.web.PageResponse.from(
+                service.companiesNeedingAttention(period, q, page, Math.min(size, 100)).map(CompanyRefResponse::from));
+    }
+
+    public record CompanyRefResponse(java.util.UUID id, String legalName, String cui, String locality) {
+        static CompanyRefResponse from(ro.myfinance.extraction.application.ReconciliationView.CompanyRef r) {
+            return new CompanyRefResponse(r.id(), r.legalName(), r.cui(), r.locality());
+        }
+    }
+
     @GetMapping("/api/v1/companies/{companyId}/document-status")
     public List<DocumentStatus> documentStatus(@PathVariable UUID companyId,
                                                @RequestParam("period") LocalDate period) {

@@ -16,6 +16,8 @@ import { WhatsAppModal } from "../components/WhatsAppModal";
 import { WhatsAppBulkModal, type WhatsAppTarget } from "../components/WhatsAppBulkModal";
 import { BulkActionBar } from "../components/BulkActionBar";
 import { CompanySearch } from "../components/CompanySearch";
+import { CompletenessFilter } from "../components/CompletenessFilter";
+import type { CompletenessFilter as FilterValue } from "../api/payroll";
 import { loadAllPages } from "../lib/paging";
 
 type DotKind = "green" | "orange" | "red";
@@ -59,9 +61,12 @@ export function Statements() {
   const [waBulk, setWaBulk] = useState<WhatsAppTarget[] | null>(null);
 
   const [dq, setDq] = useState("");
+  const [filter, setFilter] = useState<FilterValue>("all");
   const companies = useInfiniteQuery({
-    queryKey: ["companies-page", dq],
-    queryFn: ({ pageParam }) => companiesApi.listPage(dq, pageParam, 25),
+    queryKey: ["statements-companies", period, dq, filter],
+    queryFn: ({ pageParam }) => filter === "missing"
+      ? reconciliationApi.needyCompanies(period, dq, pageParam, 25)
+      : companiesApi.listPage(dq, pageParam, 25),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
@@ -86,7 +91,7 @@ export function Statements() {
   const selectableIds = rows.filter((c) => needsReminder(c.id)).map((c) => c.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
-  useEffect(() => { setSelected(new Set()); }, [period, dq]);
+  useEffect(() => { setSelected(new Set()); }, [period, dq, filter]);
 
   // Auto-load the next page when the sentinel scrolls near the viewport.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -127,7 +132,10 @@ export function Statements() {
           <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("statements.crumb")}</div>
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("documents.title")}</h2>
         </div>
-        <CompanySearch onSearch={setDq} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompletenessFilter value={filter} onChange={setFilter} />
+          <CompanySearch onSearch={setDq} />
+        </div>
       </div>
 
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
@@ -223,7 +231,7 @@ export function Statements() {
               </div>
             );
           })}
-          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{t("taxes.noCompanies")}</div>}
+          {!companies.isLoading && rows.length === 0 && <div style={{ padding: 14, color: "var(--text-muted)" }}>{filter === "missing" ? t("filter.noneMissing") : t("taxes.noCompanies")}</div>}
           <div ref={sentinel} style={{ height: 1 }} />
           {companies.isFetchingNextPage && <div style={{ padding: 10, textAlign: "center", color: "var(--text-muted)", fontSize: 12 }}>{t("common.loading")}</div>}
         </div>

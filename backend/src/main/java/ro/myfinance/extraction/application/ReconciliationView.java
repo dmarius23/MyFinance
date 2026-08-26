@@ -42,16 +42,48 @@ public class ReconciliationView {
     private final TransactionInvoiceMatchRepository matches;
     private final ro.myfinance.intake.application.DocumentDirectory documentDir;
 
+    private final ro.myfinance.company.application.CompanyDirectory companies;
+
     public ReconciliationView(BankStatementRepository statements, BankTransactionRepository transactions,
                               CanonicalTransactions canonical, InvoiceRepository invoices,
                               TransactionInvoiceMatchRepository matches,
-                              ro.myfinance.intake.application.DocumentDirectory documentDir) {
+                              ro.myfinance.intake.application.DocumentDirectory documentDir,
+                              ro.myfinance.company.application.CompanyDirectory companies) {
         this.statements = statements;
         this.transactions = transactions;
         this.canonical = canonical;
         this.invoices = invoices;
         this.matches = matches;
         this.documentDir = documentDir;
+        this.companies = companies;
+    }
+
+    /** Lightweight company identity for the Statements "needs attention" list (the row needs only this). */
+    public record CompanyRef(UUID id, String legalName, String cui, String locality) {
+    }
+
+    /**
+     * Active companies that still need attention this month: reconciliation not COMPLETE — i.e. no bank
+     * statement uploaded, or transactions still missing documents. Fuzzy-searched by company; small tenants
+     * ⇒ computed in-memory (RLS-scoped).
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<CompanyRef> companiesNeedingAttention(
+            java.time.LocalDate period, String q, int page, int size) {
+        java.util.Set<UUID> complete = completenessSummary(period).stream()
+                .filter(c -> c.completeness() == ReconciliationService.Completeness.COMPLETE)
+                .map(ReconciliationService.CompanyCompleteness::companyId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<CompanyRef> missing = companies.findAllById(companies.searchIds(q)).stream()
+                .filter(c -> c.getStatus() == ro.myfinance.company.domain.CompanyStatus.ACTIVE)
+                .filter(c -> !complete.contains(c.getId()))
+                .map(c -> new CompanyRef(c.getId(), c.getLegalName(), c.getCui(), c.getLocality()))
+                .sorted(java.util.Comparator.comparing(r -> r.legalName() == null ? "" : r.legalName().toLowerCase()))
+                .toList();
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        int from = Math.min(page * size, missing.size());
+        int to = Math.min(from + size, missing.size());
+        return new org.springframework.data.domain.PageImpl<>(missing.subList(from, to), pageable, missing.size());
     }
 
     @Transactional(readOnly = true)

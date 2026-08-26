@@ -1,6 +1,9 @@
 # Completeness filter — "show only companies still missing X this month"
 
-**Status:** Phase 1 (Payroll) in progress on `feat/completeness-filter`.
+**Status:** All four modules DONE on `feat/completeness-filter` — Payroll, Reports, Bank statements, Taxe
+(with the per-declaration-type picker). Each has a paginated+filtered endpoint, expectation rules in
+`ExpectedDocuments` (payroll/balance) or the `taxpayments` module (declarations), and a cross-tenant IT.
+Bank statements reuses `CompanyCompleteness.completeness` via a lightweight `/reconciliation/companies/page`.
 **Goal:** Turn each module list into an actionable worklist — filter to the companies that still owe a
 document/declaration for the selected period, so staff can chase reps without eyeballing every row.
 

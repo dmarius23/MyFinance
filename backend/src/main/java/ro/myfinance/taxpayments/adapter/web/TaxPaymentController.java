@@ -73,9 +73,13 @@ public class TaxPaymentController {
     public ro.myfinance.common.web.PageResponse<ro.myfinance.taxpayments.domain.TaxPaymentRow> listPage(
             @RequestParam("period") LocalDate period,
             @RequestParam(name = "q", defaultValue = "") String q,
+            @RequestParam(name = "filter", defaultValue = "all") String filter,
+            @RequestParam(name = "declType", required = false) ro.myfinance.taxpayments.domain.DeclarationType declType,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "25") int size) {
-        return ro.myfinance.common.web.PageResponse.from(payments.listPage(period, q, page, Math.min(size, 100)));
+        boolean onlyMissing = "missing".equalsIgnoreCase(filter);
+        return ro.myfinance.common.web.PageResponse.from(
+                payments.listPage(period, q, onlyMissing, declType, page, Math.min(size, 100)));
     }
 
     @GetMapping("/api/v1/companies/{companyId}/tax-payments")

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow, type DeclarationCell } from "../api/taxes";
+import { taxPaymentsApi, DECLARATION_TYPES, type TaxPaymentRow, type DeclarationCell, type DeclType } from "../api/taxes";
+import type { CompletenessFilter as FilterValue } from "../api/payroll";
+import { CompletenessFilter } from "../components/CompletenessFilter";
 import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
@@ -77,15 +79,17 @@ export function TaxPayments() {
   const [bulkTargets, setBulkTargets] = useState<PreviewTarget[] | null>(null);
 
   const [dq, setDq] = useState("");
+  const [filter, setFilter] = useState<FilterValue>("all");
+  const [declType, setDeclType] = useState<DeclType | null>(null);
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ["tax-list-page", period, dq],
-    queryFn: ({ pageParam }) => taxPaymentsApi.listPage(period, dq, pageParam as number),
+    queryKey: ["tax-list-page", period, dq, filter, declType],
+    queryFn: ({ pageParam }) => taxPaymentsApi.listPage(period, dq, filter, filter === "missing" ? declType : null, pageParam as number),
     initialPageParam: 0,
     getNextPageParam: (last) => (last.last ? undefined : last.page + 1),
   });
   const rows = data?.pages.flatMap((p) => p.content) ?? [];
 
-  useEffect(() => { setSelected(new Set()); }, [period, dq]);
+  useEffect(() => { setSelected(new Set()); }, [period, dq, filter, declType]);
 
   // Auto-load the next page when the sentinel scrolls near the viewport.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -142,6 +146,15 @@ export function TaxPayments() {
           <h2 style={{ margin: "2px 0 0", fontSize: 21, letterSpacing: "-0.01em" }}>{t("taxes.title")}</h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <CompletenessFilter value={filter} onChange={setFilter} />
+          {filter === "missing" && (
+            <select value={declType ?? ""} onChange={(e) => setDeclType((e.target.value || null) as DeclType | null)}
+              title={t("taxes.filterByType")}
+              style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-secondary)" }}>
+              <option value="">{t("filter.all")}</option>
+              {DECLARATION_TYPES.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+            </select>
+          )}
           <CompanySearch onSearch={setDq} />
           <SyncMonthButton type="DECLARATION" period={period} onDone={refreshList} />
         </div>

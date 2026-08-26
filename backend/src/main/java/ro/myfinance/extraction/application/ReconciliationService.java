@@ -130,6 +130,13 @@ public class ReconciliationService {
         return view.completenessSummary(periodMonth);
     }
 
+    /** Active companies whose reconciliation isn't COMPLETE this month — the "needs attention" worklist. */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<ReconciliationView.CompanyRef> companiesNeedingAttention(
+            java.time.LocalDate period, String q, int page, int size) {
+        return view.companiesNeedingAttention(period, q, page, size);
+    }
+
     public void matchPeriod(UUID companyId, java.time.LocalDate periodMonth) {
         matcher.matchPeriod(companyId, periodMonth);
     }

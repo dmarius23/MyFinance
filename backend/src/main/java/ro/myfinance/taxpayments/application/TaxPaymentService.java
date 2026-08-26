@@ -23,6 +23,7 @@ import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.common.email.EmailHistory;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.taxpayments.domain.DeclarationType;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.PaymentLine;
 import ro.myfinance.taxpayments.domain.TaxCategory;
@@ -83,14 +84,52 @@ public class TaxPaymentService {
     }
 
     /**
-     * A page of the monthly list, filtered by a fuzzy company search (name or CUI). Companies are
-     * paged + name-sorted at the DB; each page row carries the same declaration/email/WhatsApp data.
+     * A page of the monthly list, fuzzy-searched by company (name or CUI). {@code onlyMissing} keeps
+     * companies that OWE a declaration but haven't filed it this month — narrowed to {@code declType} when
+     * given, else any expected type ({@link #owesDeclaration}). Small tenants ⇒ the filtered page is
+     * computed in-memory over the tenant's companies.
      */
     public org.springframework.data.domain.Page<ro.myfinance.taxpayments.domain.TaxPaymentRow> listPage(
-            LocalDate period, String q, int page, int size) {
+            LocalDate period, String q, boolean onlyMissing, DeclarationType declType, int page, int size) {
         MonthCtx ctx = monthContext(period);
-        return companies.search(q, org.springframework.data.domain.PageRequest.of(page, size))
-                .map(c -> buildRow(c, ctx));
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        if (!onlyMissing) {
+            return companies.search(q, pageable).map(c -> buildRow(c, ctx));
+        }
+        List<ro.myfinance.taxpayments.domain.TaxPaymentRow> missing = companies.findAllById(companies.searchIds(q)).stream()
+                .filter(c -> needsDeclaration(c, ctx, declType))
+                .map(c -> buildRow(c, ctx))
+                .sorted(java.util.Comparator.comparing(r -> r.companyName() == null ? "" : r.companyName().toLowerCase()))
+                .toList();
+        int from = Math.min(page * size, missing.size());
+        int to = Math.min(from + size, missing.size());
+        return new org.springframework.data.domain.PageImpl<>(missing.subList(from, to), pageable, missing.size());
+    }
+
+    /** True when the company owes a declaration type it hasn't filed this month (any expected type, or only
+     *  {@code declType} when given). */
+    private boolean needsDeclaration(Company c, MonthCtx ctx, DeclarationType declType) {
+        java.util.Set<DeclarationType> filed = ctx.declByCompany().getOrDefault(c.getId(), List.of()).stream()
+                .filter(d -> !d.isOutsidePeriod())
+                .map(TaxDeclaration::getType)
+                .collect(java.util.stream.Collectors.toSet());
+        DeclarationType[] types = declType != null ? new DeclarationType[]{declType} : DeclarationType.values();
+        for (DeclarationType t : types) {
+            if (owesDeclaration(c, t) && !filed.contains(t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Which declaration types a company is expected to file, from its fiscal profile (fail-open on blanks;
+     *  cadence intentionally ignored — see the completeness-filter design doc). */
+    private boolean owesDeclaration(Company c, DeclarationType type) {
+        return switch (type) {
+            case D112 -> Boolean.TRUE.equals(c.getHasEmployees());
+            case D300 -> "VAT_PAYER".equalsIgnoreCase(c.getVatStatus());
+            case D100 -> "MICRO".equalsIgnoreCase(c.getTaxRegime()) || "PROFIT".equalsIgnoreCase(c.getTaxRegime());
+        };
     }
 
     /** The month's declarations/emails/WhatsApp grouped by company (loaded once, shared across page rows). */
