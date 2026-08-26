@@ -126,9 +126,9 @@ public class TaxPaymentService {
      *  cadence intentionally ignored — see the completeness-filter design doc). */
     private boolean owesDeclaration(Company c, DeclarationType type) {
         return switch (type) {
-            case D112 -> Boolean.TRUE.equals(c.getHasEmployees());
-            case D300 -> "VAT_PAYER".equalsIgnoreCase(c.getVatStatus());
-            case D100 -> "MICRO".equalsIgnoreCase(c.getTaxRegime()) || "PROFIT".equalsIgnoreCase(c.getTaxRegime());
+            case D112 -> Boolean.TRUE.equals(c.getHasEmployees());  // payroll contributions — only with employees
+            case D300 -> "VAT_PAYER".equalsIgnoreCase(c.getVatStatus()); // VAT return — only VAT payers
+            case D100 -> true; // state-budget declaration (incl. profit/micro tax) — owed by every company
         };
     }
 

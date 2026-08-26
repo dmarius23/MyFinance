@@ -31,7 +31,7 @@ document/declaration for the selected period, so staff can chase reps without ey
 | Reports         | every active company (monthly)        | no TRIAL_BALANCE document                       |
 | Taxe · D112     | `has_employees = true`                | no D112 declaration                             |
 | Taxe · D300     | `vat_status = VAT_PAYER`              | no D300 declaration                             |
-| Taxe · D100     | `tax_regime ∈ {MICRO, PROFIT}`        | no D100 declaration                             |
+| Taxe · D100     | **every company** (state-budget/profit declaration) | no D100 declaration               |
 
 Fiscal fields are already normalized in the data (`VAT_PAYER`/`NON_VAT_PAYER`, `MONTHLY`/`QUARTERLY`,
 `MICRO`/`PROFIT`, boolean `has_employees`). `ExpectedDocuments` reads them defensively.

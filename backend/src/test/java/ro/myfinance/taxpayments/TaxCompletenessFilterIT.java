@@ -66,16 +66,19 @@ class TaxCompletenessFilterIT extends AbstractPostgresIT {
     @Test
     void missingByTypeRespectsTheFiscalProfileAndWhatIsFiled() {
         asTenant(tenantA);
-        UUID owesD112 = company(tenantA, "Alpha SRL", true, null, null);      // employees, no D112 → missing D112
-        UUID filedD112 = company(tenantA, "Bravo SRL", true, null, null);     // employees, filed D112 → not missing
-        filedDeclaration(tenantA, filedD112, DeclarationType.D112);
-        company(tenantA, "Charlie SRL", false, null, null);                   // no employees → doesn't owe D112
-        UUID owesD300 = company(tenantA, "Delta SRL", false, "VAT_PAYER", null); // VAT payer, no D300 → missing D300
+        UUID emp = company(tenantA, "Emp SRL", true, null, null);          // owes D112 (employees) + D100 (all)
+        UUID vat = company(tenantA, "Vat SRL", false, "VAT_PAYER", null);  // owes D300 (VAT) + D100 (all)
+        UUID plain = company(tenantA, "Plain SRL", false, null, null);     // owes only D100 (all)
+        UUID done = company(tenantA, "Done SRL", false, null, null);       // owes only D100 — and filed it
+        filedDeclaration(tenantA, done, DeclarationType.D100);
 
-        assertThat(missing(DeclarationType.D112)).containsExactly(owesD112);
-        assertThat(missing(DeclarationType.D300)).containsExactly(owesD300);
-        // Any expected type missing (no declType) → both the D112-ower and the D300-ower.
-        assertThat(missing(null)).containsExactlyInAnyOrder(owesD112, owesD300);
+        // D112 only from companies with employees that haven't filed it; D300 only from VAT payers.
+        assertThat(missing(DeclarationType.D112)).containsExactly(emp);
+        assertThat(missing(DeclarationType.D300)).containsExactly(vat);
+        // D100 is owed by EVERY company — everyone who hasn't filed it (all but "done").
+        assertThat(missing(DeclarationType.D100)).containsExactlyInAnyOrder(emp, vat, plain);
+        // Any expected type missing (no declType): everyone still missing something ("done" filed its only owed type).
+        assertThat(missing(null)).containsExactlyInAnyOrder(emp, vat, plain);
     }
 
     @Test
