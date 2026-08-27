@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { companiesApi, representativesApi, taxRegimeKey, type Company, type CompanyRepEntry } from "../api/companies";
 import { ApiError } from "../lib/apiClient";
 import { AddCompanyModal } from "../components/AddCompanyModal";
+import { ImportCompaniesModal } from "../components/ImportCompaniesModal";
 import { CompanySearch } from "../components/CompanySearch";
 import { vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES } from "../domain/company";
@@ -24,6 +25,7 @@ export function Companies() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [dq, setDq] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
   const [fVat, setFVat] = useState("");        // "" | VAT_PAYER | NON_VAT_PAYER
@@ -85,6 +87,7 @@ export function Companies() {
         <h1 style={{ marginTop: 0 }}>{t("nav.companies")}</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <CompanySearch onSearch={setDq} />
+          <button onClick={() => setShowImport(true)}>{t("companies.import")}</button>
           <button className="primary" onClick={() => setShowAdd(true)}>{t("companies.add")}</button>
         </div>
       </div>
@@ -200,6 +203,7 @@ export function Companies() {
       )}
 
       {showAdd && <AddCompanyModal onClose={() => setShowAdd(false)} />}
+      {showImport && <ImportCompaniesModal onClose={() => setShowImport(false)} />}
     </div>
   );
 }
