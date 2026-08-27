@@ -15,12 +15,13 @@ import ro.myfinance.common.security.TenantContext;
 
 /**
  * MOD-15 — automatic Google Drive polling. Enabled by {@code myfinance.ingestion.poll.enabled=true}.
- * Payroll lands early in the month, so it runs hourly during the first week and once a day afterwards
- * (both cron expressions configurable). Each run enumerates Drive connections across tenants (via the
- * admin/RLS-bypassing datasource), then syncs the current + previous month for each, under that tenant's
- * RLS context. New previous-month payroll notifies the company's representatives.
+ * Runs ONCE nightly (02:00 Europe/Bucharest by default; the cron is configurable), enumerating Drive
+ * connections across tenants (via the admin/RLS-bypassing datasource) and syncing the current + previous
+ * month for each — every module type: payroll, declarations, trial balance, and (via the accounting
+ * connection) bank statements + invoices — under that tenant's RLS context. New previous-month payroll
+ * notifies the company's representatives.
  *
- * <p>Multi-instance safe (S6): each tick is guarded by a ShedLock {@code @SchedulerLock}, so with several
+ * <p>Multi-instance safe (S6): the tick is guarded by a ShedLock {@code @SchedulerLock}, so with several
  * web/worker instances up exactly one runs the poll and the rest skip it — no duplicate Drive imports.
  */
 @Component
@@ -37,18 +38,11 @@ public class IngestionScheduler {
         this.ingestion = ingestion;
     }
 
-    /** Hourly during the first week of the month (days 1–7). One instance per tick via the distributed lock. */
-    @Scheduled(cron = "${myfinance.ingestion.poll.cron-frequent:0 0 * 1-7 * *}")
-    @SchedulerLock(name = "ingestionPollFrequent", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
-    public void pollFrequent() {
-        run("frequent");
-    }
-
-    /** Once a day for the rest of the month (days 8–31, 09:00). One instance per tick via the distributed lock. */
-    @Scheduled(cron = "${myfinance.ingestion.poll.cron-daily:0 0 9 8-31 * *}")
-    @SchedulerLock(name = "ingestionPollDaily", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
-    public void pollDaily() {
-        run("daily");
+    /** Nightly auto-sync (02:00 local by default). One instance per tick via the distributed lock. */
+    @Scheduled(cron = "${myfinance.ingestion.poll.cron:0 0 2 * * *}", zone = "Europe/Bucharest")
+    @SchedulerLock(name = "ingestionPollNightly", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
+    public void pollNightly() {
+        run("nightly");
     }
 
     void run(String which) {
