@@ -25,30 +25,46 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     /**
      * Paged company search by name or CUI, ordered by name. Substring match, case- AND diacritic-insensitive
      * (Romanian ă â î ș ş ț ţ folded to a a i s s t t), so any part of the name matches. Empty {@code q}
-     * returns all. RLS scopes results to the current tenant. {@code q} must be non-null (pass "" for all).
+     * returns all. <b>Only ACTIVE companies</b> — inactive companies are hidden from the module lists (the
+     * Companies management screen uses the full, unfiltered {@code findAll} list instead). Also matches on
+     * the name of any of the company's representatives. RLS scopes results — and the representative join —
+     * to the current tenant. {@code q} must be non-null (pass "" for all).
      */
     @Query(value = """
             SELECT * FROM company
-            WHERE :q = ''
+            WHERE status = 'ACTIVE' AND (
+                  :q = ''
                OR translate(lower(legal_name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')
                OR cui LIKE ('%' || :q || '%')
+               OR EXISTS (SELECT 1 FROM representative_link rl JOIN app_user au ON au.id = rl.user_id
+                          WHERE rl.company_id = company.id
+                            AND translate(lower(au.name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')))
             ORDER BY legal_name
             """,
             countQuery = """
             SELECT count(*) FROM company
-            WHERE :q = ''
+            WHERE status = 'ACTIVE' AND (
+                  :q = ''
                OR translate(lower(legal_name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')
                OR cui LIKE ('%' || :q || '%')
+               OR EXISTS (SELECT 1 FROM representative_link rl JOIN app_user au ON au.id = rl.user_id
+                          WHERE rl.company_id = company.id
+                            AND translate(lower(au.name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')))
             """,
             nativeQuery = true)
     Page<Company> search(@Param("q") String q, Pageable pageable);
 
-    /** The ids of every company matching {@code q} (unpaged) — for server-side bulk actions over the filter. */
+    /** The ids of every ACTIVE company matching {@code q} (name, CUI or representative name; unpaged) —
+     *  for server-side bulk actions over the module-list filter. */
     @Query(value = """
             SELECT id FROM company
-            WHERE :q = ''
+            WHERE status = 'ACTIVE' AND (
+                  :q = ''
                OR translate(lower(legal_name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')
                OR cui LIKE ('%' || :q || '%')
+               OR EXISTS (SELECT 1 FROM representative_link rl JOIN app_user au ON au.id = rl.user_id
+                          WHERE rl.company_id = company.id
+                            AND translate(lower(au.name), 'ăâîșşțţ', 'aaisstt') LIKE ('%' || translate(lower(:q), 'ăâîșşțţ', 'aaisstt') || '%')))
             """, nativeQuery = true)
     List<UUID> searchIds(@Param("q") String q);
 }

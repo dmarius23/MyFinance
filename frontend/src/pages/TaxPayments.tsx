@@ -46,9 +46,12 @@ function breakdownLines(cells: DeclarationCell[], totalLabel: string): string[] 
  * ("code - label: amount RON") plus the total. Empty renders the {@code missingLabel} chip when given
  * (a known declaration column), else a muted dash.
  */
-function DeclStack({ cells, missingLabel }: { cells: DeclarationCell[]; missingLabel?: string }) {
+function DeclStack({ cells, missingLabel, naLabel }: { cells: DeclarationCell[]; missingLabel?: string; naLabel?: string }) {
   const { t } = useTranslation();
   if (cells.length === 0) {
+    // Not expected for this company (e.g. D300 for a non-VAT payer, D112 with no employees) → muted N/A,
+    // never a "missing" alert. Expected-but-absent → the danger "lipsă" chip. Neither → a muted dash.
+    if (naLabel) return <span className="pill round muted">{naLabel}</span>;
     return missingLabel
       ? <span className="pill round danger">{missingLabel}</span>
       : <span style={{ color: "var(--text-faint)" }}>—</span>;
@@ -194,11 +197,17 @@ export function TaxPayments() {
                   <div style={{ fontWeight: 600 }}>{row.companyName}</div>
                   <div className="mono" style={{ color: "var(--text-muted)", fontSize: 11 }}>{row.cui}{row.residence ? ` · ${row.residence}` : ""}</div>
                 </div>
-                {DECLARATION_TYPES.map((ty) => (
-                  <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
-                    <DeclStack cells={cellsFor(row, ty)} missingLabel={t("taxes.missing")} />
-                  </div>
-                ))}
+                {DECLARATION_TYPES.map((ty) => {
+                  // D100 owed by all; D112 only with employees; D300 only for VAT payers.
+                  const expected = ty === "D112" ? row.owesD112 : ty === "D300" ? row.owesD300 : true;
+                  return (
+                    <div key={ty} className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
+                      <DeclStack cells={cellsFor(row, ty)}
+                        missingLabel={expected ? t("taxes.missing") : undefined}
+                        naLabel={expected ? undefined : t("taxes.na")} />
+                    </div>
+                  );
+                })}
                 <div className="mono" style={{ textAlign: "right", fontSize: 12.5 }}>
                   <DeclStack cells={otherCells(row)} />
                 </div>

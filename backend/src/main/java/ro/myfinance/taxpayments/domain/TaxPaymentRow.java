@@ -9,9 +9,14 @@ import java.util.UUID;
  * One row of the monthly Tax &amp; Payments list: a company (name + CUI + fiscal residence), the
  * declarations it has uploaded for the period (one cell per declaration), and whether/when an email
  * was last sent.
+ *
+ * <p>{@code owesD112}/{@code owesD300} say whether the company is expected to file that declaration
+ * (D112 only with employees, D300 only for VAT payers; D100 is owed by all). The list uses them to show
+ * "N/A" instead of a "missing" chip for a type the company never has to file.
  */
 public record TaxPaymentRow(UUID companyId, String companyName, String cui, String residence,
-                            List<DeclarationCell> declarations, Instant lastEmailAt, int emailCount,
+                            List<DeclarationCell> declarations, boolean owesD112, boolean owesD300,
+                            Instant lastEmailAt, int emailCount,
                             Instant lastWhatsappAt, int whatsappCount) {
 
     /**
