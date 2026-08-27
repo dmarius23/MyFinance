@@ -69,6 +69,40 @@ public final class FolderMapper {
         return Optional.empty();
     }
 
+    /**
+     * Resolve the company for a file on the ACCOUNTING (contabilitate clienți) drive by an EXACT match on
+     * the client folder name. That folder is the company's legal name, preceded by the word
+     * "Contabilitate" — e.g. {@code Contabilitate INNOVATECODE IT SRL}. The match is case-, diacritic- and
+     * whitespace-insensitive but otherwise <b>exact</b> (whole-string, never a substring): a folder for a
+     * different company — or a short/common name that merely appears inside an unrelated folder — never
+     * claims this company's files. Returns empty when no folder segment exactly names a company, so the
+     * caller flags the file for review instead of guessing.
+     */
+    public static Optional<UUID> resolveAccountingCompany(RemoteFile file, List<Company> companies) {
+        for (String seg : segments(file)) {
+            for (Company c : companies) {
+                if (isAccountingCompanyFolder(seg, c)) {
+                    return Optional.of(c.getId());
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Whether {@code segment} is company {@code c}'s ACCOUNTING client folder: exactly its legal name,
+     * optionally prefixed with "Contabilitate" (case/diacritic/space-insensitive, whole-string). Not a
+     * substring test — {@code Contabilitate ALPHA SRL} matches only ALPHA SRL, not ALPHABET SRL.
+     */
+    public static boolean isAccountingCompanyFolder(String segment, Company c) {
+        String name = StringNormalizer.alnumUpper(c.getLegalName() == null ? "" : c.getLegalName());
+        if (name.isBlank()) {
+            return false;
+        }
+        String seg = StringNormalizer.alnumUpper(segment == null ? "" : segment);
+        return seg.equals(name) || seg.equals("CONTABILITATE" + name);
+    }
+
     /** Company identity from a FILENAME: the embedded CUI, or a distinctive (≥6-char) name core. The length
      *  floor keeps a short name (a firm's own name, a common word) from colliding with unrelated files. */
     private static boolean matchesCompanyInFilename(String fileName, Company c) {

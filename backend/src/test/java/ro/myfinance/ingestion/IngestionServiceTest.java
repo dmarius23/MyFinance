@@ -48,6 +48,8 @@ class IngestionServiceTest {
     private final ConnectorRegistry registry = mock(ConnectorRegistry.class);
     private final ro.myfinance.intake.application.DocumentClassifier classifier =
             mock(ro.myfinance.intake.application.DocumentClassifier.class);
+    private final ro.myfinance.intake.application.DocumentValidator validator =
+            mock(ro.myfinance.intake.application.DocumentValidator.class);
     private final AuditRecorder audit = mock(AuditRecorder.class);
 
     private final ro.myfinance.notifications.application.NotificationService notifications =
@@ -56,7 +58,7 @@ class IngestionServiceTest {
             mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
     // Inline executor: module-month syncs run synchronously in the test thread (deterministic).
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, classifier, audit, notifications, syncStatus, Runnable::run);
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, classifier, validator, audit, notifications, syncStatus, Runnable::run);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
@@ -247,6 +249,38 @@ class IngestionServiceTest {
                 eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE));
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("factura.pdf"), any(), any(),
                 eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void accountingSyncFlagsFileWhoseContentBelongsToAnotherCompany() {
+        // A file sitting in the right company folder but whose CONTENT is for a different company must be
+        // flagged for review, never imported (the critical "documents must be for that company" guarantee).
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        when(companies.findById(COMPANY)).thenReturn(Optional.of(a));
+        fake.files = List.of(new CloudFolderConnector.RemoteFile(
+                "b", "extras.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null));
+        when(classifier.classify(any(), any(), any())).thenReturn(DocumentType.BANK_STATEMENT);
+        when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+        // The content validator says this statement belongs to another company.
+        when(validator.validate(any(), any(), any(), any(), any(), any(), any())).thenReturn(
+                new ro.myfinance.intake.application.DocumentValidator.Result(
+                        "sha", ro.myfinance.intake.domain.DriveBlockReason.WRONG_COMPANY,
+                        "Extrasul nu pare emis pentru această firmă (ACME SRL).", null, null));
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
+
+        assertThat(r.needsReview()).isEqualTo(1);
+        assertThat(r.imported()).isZero();
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

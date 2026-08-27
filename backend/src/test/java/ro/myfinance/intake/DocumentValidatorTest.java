@@ -122,14 +122,26 @@ class DocumentValidatorTest {
 
     @Test
     void bank_statement_from_another_month_is_wrong_period() {
+        // The statement IS for this company (its name is in the text), so the company check passes and the
+        // wrong MONTH is what gets flagged.
+        String text = "Extras de cont — Titular ACME SRL CUI 999";
         BankStatementParser parser = mock(BankStatementParser.class);
-        when(statements.extractText(any())).thenReturn("text");
-        when(statements.find("text")).thenReturn(Optional.of(parser));
-        when(parser.parse("text")).thenReturn(new ParsedStatement("BT", "RO49", BigDecimal.ZERO, BigDecimal.TEN,
+        when(statements.extractText(any())).thenReturn(text);
+        when(statements.find(text)).thenReturn(Optional.of(parser));
+        when(parser.parse(text)).thenReturn(new ParsedStatement("BT", "RO49", BigDecimal.ZERO, BigDecimal.TEN,
                 List.of(new ParsedTransaction(LocalDate.of(2026, 3, 5), BigDecimal.TEN, null, null, "x", null, null))));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.BANK_STATEMENT,
                 "extras.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_PERIOD);
+    }
+
+    @Test
+    void bank_statement_for_another_company_is_wrong_company() {
+        // The statement text carries a different holder — neither this company's name nor CUI appears.
+        when(statements.extractText(any())).thenReturn("Extras de cont — Titular OTHER COMPANY SRL CUI 123456");
+        var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.BANK_STATEMENT,
+                "extras.pdf", "application/pdf", new byte[]{1}, null);
+        assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_COMPANY);
     }
 
     @Test
