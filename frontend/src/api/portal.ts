@@ -58,6 +58,10 @@ export interface PortalDoc {
   issuerCif?: string | null;
   total?: number | null;
   invoiceDate?: string | null;
+  /** Filed for another company (CUI mismatch) — shown with a "wrong party" label. */
+  wrongParty?: boolean;
+  /** The current rep uploaded this and may delete it (not a Drive-managed file). */
+  canDelete?: boolean;
 }
 
 export interface PayrollFile {
@@ -117,6 +121,7 @@ export const portalApi = {
     return upload<PortalDoc>("/api/v1/portal/documents", form);
   },
   missing: (period: string) => api<MissingItem[]>(`/api/v1/portal/missing?period=${period}`),
+  deleteDocument: (id: string) => api<void>(`/api/v1/portal/documents/${id}`, { method: "DELETE" }),
   myDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/documents?period=${period}`),
   companyDocuments: (period: string) => api<PortalDoc[]>(`/api/v1/portal/company-documents?period=${period}`),
   // The report for the calendar period of `granularity` containing `period`, plus its coverage

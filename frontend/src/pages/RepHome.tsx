@@ -130,6 +130,7 @@ export function RepHome() {
     if (d.paymentStatus === "PAID") out.push(<Badge key="p" label={t("portal.paid")} tone="green" dot />);
     else if (d.paymentStatus === "PARTIAL") out.push(<Badge key="p" label={t("portal.partial")} tone="amber" dot />);
     else if (d.paymentStatus === "UNPAID") out.push(<Badge key="p" label={t("portal.unpaid")} tone="red" dot />);
+    if (d.wrongParty) out.push(<Badge key="w" label={`⚠ ${t("portal.wrongParty")}`} tone="red" />);
     if (d.duplicate) out.push(<Badge key="d" label={`⚠ ${t("portal.duplicate")}`} tone="red" />);
     if (d.outsidePeriod) out.push(<Badge key="o" label={`⚠ ${t("portal.outsidePeriod")}`} tone="indigo" />);
     return out.length ? out : null;
@@ -138,6 +139,13 @@ export function RepHome() {
     mutationFn: (files: File[]) => Promise.all(files.map((f) => portalApi.uploadDocument(f, period))),
     onSuccess: refresh,
   });
+  const del = useMutation({
+    mutationFn: (id: string) => portalApi.deleteDocument(id),
+    onSuccess: refresh,
+  });
+  const onDelete = (d: PortalDoc) => () => {
+    if (window.confirm(t("portal.confirmDelete", { name: d.filename }))) del.mutate(d.id);
+  };
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []); e.target.value = "";
     if (files.length) upload.mutate(files);
@@ -247,17 +255,18 @@ export function RepHome() {
               <span style={{ fontSize: 13.5, fontWeight: 600, color: hasBank ? C.green : C.danger }}>{hasBank ? t("portal.bankUploaded") : t("portal.bankMissing")}</span>
             </div>
             {bank.map((d) => (
-              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")}
+              <DocRow key={d.id} filename={d.filename} label={t("portal.docType.bank")} badges={docBadges(d)}
                 bank companyName={me.data?.name} companyCui={me.data?.cui} bankPeriod={period}
                 iconBg="#e0e7ff" iconFg="#3730a3"
-                onView={onView(d)} onDownload={onDownload(d)} />
+                onView={onView(d)} onDownload={onDownload(d)} onDelete={d.canDelete ? onDelete(d) : undefined} />
             ))}
             {others.length === 0 && !hasBank && <div style={{ color: C.mut, fontSize: 13 }}>—</div>}
             {others.map((d) => (
               <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer}
                 issuerCif={d.issuerCif} total={d.total} invoiceDate={d.invoiceDate} badges={docBadges(d)}
                 invoice={d.type === "INVOICE" || d.type === "RECEIPT"}
-                iconBg="#e6f4f2" iconFg="#0f766e" onView={onView(d)} onDownload={onDownload(d)} />
+                iconBg="#e6f4f2" iconFg="#0f766e" onView={onView(d)} onDownload={onDownload(d)}
+                onDelete={d.canDelete ? onDelete(d) : undefined} />
             ))}
 
             {/* still needed */}
@@ -515,11 +524,11 @@ export function RepHome() {
 const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
 const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
-function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, bank, companyName, companyCui, bankPeriod, iconBg, iconFg, onView, onDownload }:
+function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, bank, companyName, companyCui, bankPeriod, iconBg, iconFg, onView, onDownload, onDelete }:
   { filename: string; label: string; issuer?: string | null; issuerCif?: string | null;
     total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean;
     bank?: boolean; companyName?: string | null; companyCui?: string | null; bankPeriod?: string;
-    iconBg: string; iconFg: string; onView: () => void; onDownload: () => void }) {
+    iconBg: string; iconFg: string; onView: () => void; onDownload: () => void; onDelete?: () => void }) {
   const { t } = useTranslation();
   const supplier = issuer ? `${issuer}${issuerCif ? ` (CUI ${issuerCif})` : ""}` : "—";
   const amountDate = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
@@ -579,6 +588,10 @@ function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges
       <div style={{ display: "flex", gap: 6, flex: "none" }}>
         <button onClick={onView} title={t("portal.view")} aria-label={t("portal.view")} style={iconBtn}><EyeIcon /></button>
         <button onClick={onDownload} title={t("portal.download")} aria-label={t("portal.download")} style={iconBtn}><DownloadIcon stroke="#52605d" /></button>
+        {onDelete && (
+          <button onClick={onDelete} title={t("portal.delete")} aria-label={t("portal.delete")}
+            style={{ ...iconBtn, color: "#b91c1c", borderColor: "#fecaca" }}>✕</button>
+        )}
       </div>
     </div>
   );

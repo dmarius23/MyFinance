@@ -16,6 +16,7 @@ import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.application.DocumentService.DocumentContent;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
+import ro.myfinance.intake.domain.DriveBlockReason;
 import ro.myfinance.notifications.application.NotificationService;
 import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.reports.application.Granularity;
@@ -90,7 +91,8 @@ public class PortalService {
      */
     public record DocView(UUID id, String filename, String type, String status, Instant uploadedAt,
                           String issuer, String paymentStatus, boolean duplicate, boolean outsidePeriod,
-                          String issuerCif, java.math.BigDecimal total, java.time.LocalDate invoiceDate) {
+                          String issuerCif, java.math.BigDecimal total, java.time.LocalDate invoiceDate,
+                          boolean wrongParty, boolean canDelete) {
     }
 
     public record PayrollFile(UUID id, String filename) {
@@ -169,6 +171,9 @@ public class PortalService {
                                 ReconciliationService.DocumentStatus::documentId, s -> s, (a, b) -> a));
         return documents.list(companyId, month).stream()
                 .filter(d -> types.contains(d.getType()))
+                // Wrong-party (altă firmă) documents are visible to the rep ONLY when the rep uploaded them.
+                // A wrong-party document the accountant (or Drive sync) produced stays with the accountant.
+                .filter(d -> !(wrongParty(d) && d.getSource() != DocumentSource.REP))
                 .map(d -> {
                     boolean isInvoice = d.getType() == ro.myfinance.intake.domain.DocumentType.INVOICE
                             || d.getType() == ro.myfinance.intake.domain.DocumentType.RECEIPT;
@@ -181,7 +186,8 @@ public class PortalService {
                             s != null && "date_outside_period".equals(s.dateReason()),
                             s == null ? null : s.issuerCif(),
                             s == null ? null : s.total(),
-                            s == null ? null : s.invoiceDate());
+                            s == null ? null : s.invoiceDate(),
+                            wrongParty(d), canDelete(d));
                 })
                 .toList();
     }
@@ -272,7 +278,24 @@ public class PortalService {
 
     private DocView view(Document d) {
         return new DocView(d.getId(), d.getOriginalFilename(), d.getType().name(),
-                d.getStatus().name(), d.getUploadedAt(), null, null, false, false, null, null, null);
+                d.getStatus().name(), d.getUploadedAt(), null, null, false, false, null, null, null,
+                wrongParty(d), canDelete(d));
+    }
+
+    /** A document filed for another company (CUI mismatch) — the "wrong party" label. */
+    private static boolean wrongParty(Document d) {
+        return d.getDriveBlockReason() == DriveBlockReason.WRONG_COMPANY;
+    }
+
+    /** The rep may delete a document only if they uploaded it and it isn't Drive-managed. */
+    private boolean canDelete(Document d) {
+        UUID me = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
+        return d.getSource() != DocumentSource.DRIVE && me != null && me.equals(d.getUploadedBy());
+    }
+
+    /** Delete a document the rep uploaded themselves (enforced by {@link DocumentService#deleteOwn}). */
+    public void deleteOwnDocument(UUID documentId) {
+        documents.deleteOwn(companyId(), documentId);
     }
 
     /**

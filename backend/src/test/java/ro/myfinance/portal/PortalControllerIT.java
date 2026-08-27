@@ -1,5 +1,8 @@
 package ro.myfinance.portal;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -96,5 +99,35 @@ class PortalControllerIT extends AbstractPostgresIT {
                         .header(PortalService.COMPANY_HEADER, otherCompany.toString())
                         .with(repToken()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void repHidesTheAccountantsWrongPartyDocumentButSeesTheirOwn() throws Exception {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        // Accountant-uploaded, flagged wrong company → must NOT be visible to the rep.
+        seedDoc("acct-wrong.pdf", "EMPLOYEE", "WRONG_COMPANY", null);
+        // Rep-uploaded, flagged wrong company → visible to the rep, labelled and deletable by them.
+        seedDoc("rep-wrong.pdf", "REP", "WRONG_COMPANY", repId);
+        // A normal accountant document → visible (only wrong-party accountant docs are hidden).
+        seedDoc("acct-ok.pdf", "EMPLOYEE", null, null);
+        TenantContext.clear();
+
+        mvc.perform(get("/api/v1/portal/company-documents?period=2026-05-01")
+                        .header(PortalService.COMPANY_HEADER, linkedCompany.toString())
+                        .with(repToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].filename", hasItem("rep-wrong.pdf")))
+                .andExpect(jsonPath("$[*].filename", hasItem("acct-ok.pdf")))
+                .andExpect(jsonPath("$[*].filename", not(hasItem("acct-wrong.pdf"))))
+                .andExpect(jsonPath("$[?(@.wrongParty==true)].filename", contains("rep-wrong.pdf")))
+                .andExpect(jsonPath("$[?(@.canDelete==true)].filename", contains("rep-wrong.pdf")));
+    }
+
+    private void seedDoc(String filename, String source, String blockReason, UUID uploadedBy) {
+        jdbc.update("insert into document(id, tenant_id, company_id, period_month, type, source, status, "
+                        + "original_filename, content_type, size_bytes, storage_key, uploaded_by, drive_block_reason) "
+                        + "values (?, ?, ?, ?, 'INVOICE', ?, 'UPLOADED', ?, 'application/pdf', 10, ?, ?, ?)",
+                UUID.randomUUID(), TENANT, linkedCompany, java.time.LocalDate.of(2026, 5, 1), source,
+                filename, "key/" + UUID.randomUUID(), uploadedBy, blockReason);
     }
 }

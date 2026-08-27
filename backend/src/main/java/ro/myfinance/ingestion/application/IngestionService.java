@@ -703,8 +703,13 @@ public class IngestionService {
         if (company != null) {
             DocumentValidator.Result v = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
             if (v != null && (v.blockReason() == DriveBlockReason.WRONG_COMPANY || v.blockReason() == DriveBlockReason.WRONG_PERIOD)) {
-                writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, v.blockDetail());
-                issues.add(new SyncResult.Issue(f.name(), v.blockDetail()));
+                // Not imported. The accountant just gets a warning to check the Drive folder — the document
+                // sits in the wrong company's folder (wrong party) or is for another month.
+                String reason = v.blockReason() == DriveBlockReason.WRONG_COMPANY
+                        ? "Parte greșită — document pentru altă firmă în Drive (neimportat); verificați folderul. " + v.blockDetail()
+                        : v.blockDetail();
+                writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
+                issues.add(new SyncResult.Issue(f.name(), reason));
                 return Outcome.NEEDS_REVIEW;
             }
         }
