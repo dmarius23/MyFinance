@@ -16,8 +16,11 @@ import ro.myfinance.support.AbstractPostgresIT;
 
 class CompanyServiceIT extends AbstractPostgresIT {
 
-    private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
-    private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-0000-0000-0000-000000000002");
+    // Per-method (non-static) random tenants: JUnit builds a fresh instance per test, so each method
+    // gets its own tenant namespace. The IT container persists rows across methods, and companies are
+    // now name-unique per tenant — a shared constant would collide on re-created fixtures like "Alpha SRL".
+    private final UUID TENANT_A = UUID.randomUUID();
+    private final UUID TENANT_B = UUID.randomUUID();
 
     @Autowired CompanyService companies;
     @Autowired JdbcTemplate jdbc;

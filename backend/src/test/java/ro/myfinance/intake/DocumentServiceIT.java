@@ -19,8 +19,10 @@ import ro.myfinance.support.AbstractPostgresIT;
 
 class DocumentServiceIT extends AbstractPostgresIT {
 
-    private static final UUID TENANT_A = UUID.fromString("aaaaaaaa-0000-0000-0000-0000000000d1");
-    private static final UUID TENANT_B = UUID.fromString("bbbbbbbb-0000-0000-0000-0000000000d2");
+    // Per-method (non-static) random tenants — see CompanyServiceIT: fresh tenant per test avoids
+    // name-uniqueness collisions on the re-created "Client SRL" fixture in the shared IT container.
+    private final UUID TENANT_A = UUID.randomUUID();
+    private final UUID TENANT_B = UUID.randomUUID();
 
     @Autowired DocumentService documents;
     @Autowired CompanyService companies;

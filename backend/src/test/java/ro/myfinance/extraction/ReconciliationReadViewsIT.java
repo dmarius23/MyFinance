@@ -34,7 +34,9 @@ import ro.myfinance.support.AbstractPostgresIT;
 @Import(ReconciliationReadViewsIT.StubConfig.class)
 class ReconciliationReadViewsIT extends AbstractPostgresIT {
 
-    private static final UUID TENANT = UUID.fromString("cccccccc-0000-0000-0000-0000000000e3");
+    // Per-method (non-static) random tenant — see CompanyServiceIT: fresh tenant per test avoids
+    // name-uniqueness collisions on the re-created "Client SRL" fixture in the shared IT container.
+    private final UUID TENANT = UUID.randomUUID();
 
     @Autowired DocumentService documents;
     @Autowired CompanyService companies;

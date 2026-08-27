@@ -19,11 +19,12 @@ import ro.myfinance.support.AbstractPostgresIT;
 
 class RepresentativeServiceIT extends AbstractPostgresIT {
 
-    private static final UUID TENANT = UUID.fromString("cccccccc-0000-0000-0000-0000000000c1");
-    // Dedicated tenant pair for the isolation test — kept apart from TENANT (which sibling tests
-    // seed with reps) so the cross-tenant assertions aren't polluted by leftover rows.
-    private static final UUID TENANT_ISO_A = UUID.fromString("cccccccc-0000-0000-0000-0000000000c2");
-    private static final UUID TENANT_ISO_B = UUID.fromString("cccccccc-0000-0000-0000-0000000000c3");
+    // Per-method (non-static) random tenants — JUnit builds a fresh instance per test, so each method
+    // gets its own tenant namespace: no cross-method row pollution, and the re-created "Client SRL"
+    // fixture never collides with the now-enforced per-tenant name uniqueness in the shared IT container.
+    private final UUID TENANT = UUID.randomUUID();
+    private final UUID TENANT_ISO_A = UUID.randomUUID();
+    private final UUID TENANT_ISO_B = UUID.randomUUID();
 
     @Autowired RepresentativeService representatives;
     @Autowired CompanyService companies;

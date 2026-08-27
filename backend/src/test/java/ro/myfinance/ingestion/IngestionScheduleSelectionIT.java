@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.ingestion.application.IngestionScheduler;
@@ -19,7 +20,14 @@ import ro.myfinance.support.AbstractPostgresIT;
  * Per-tenant auto-sync scheduling (V56): the hourly tick must pick up only the tenants whose
  * {@code general_settings.auto_sync_hour} matches the current hour AND whose {@code auto_sync_enabled}
  * is true — while a tenant with no settings row yet inherits the defaults (enabled, hour 2).
+ *
+ * <p>{@code poll.enabled=true} so the {@code @ConditionalOnProperty} {@link IngestionScheduler} bean exists;
+ * the cron is pinned to a once-a-year time so the scheduled tick never fires mid-test.
  */
+@TestPropertySource(properties = {
+        "myfinance.ingestion.poll.enabled=true",
+        "myfinance.ingestion.poll.cron=0 0 0 31 12 ?"
+})
 class IngestionScheduleSelectionIT extends AbstractPostgresIT {
 
     // Hour 2 (explicit), hour 5, disabled at hour 2, and no settings row (defaults → hour 2).
