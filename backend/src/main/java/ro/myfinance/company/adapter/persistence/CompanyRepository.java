@@ -17,6 +17,11 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
     // Used when editing a company's CUI: a clash with any OTHER company in the tenant is a conflict.
     boolean existsByCuiAndIdNot(String cui, UUID id);
 
+    // Company legal name is also unique per tenant (case-insensitive) — for create + CSV import dedup.
+    boolean existsByLegalNameIgnoreCase(String legalName);
+
+    boolean existsByLegalNameIgnoreCaseAndIdNot(String legalName, UUID id);
+
     /**
      * Paged company search by name or CUI, ordered by name. Substring match, case- AND diacritic-insensitive
      * (Romanian ă â î ș ş ț ţ folded to a a i s s t t), so any part of the name matches. Empty {@code q}

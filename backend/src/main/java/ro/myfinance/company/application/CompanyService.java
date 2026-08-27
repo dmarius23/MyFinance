@@ -61,6 +61,9 @@ public class CompanyService {
         if (companies.existsByCui(cui)) {
             throw new ConflictException("A company with CUI " + cui + " already exists in this tenant");
         }
+        if (companies.existsByLegalNameIgnoreCase(legalName)) {
+            throw new ConflictException("A company named " + legalName + " already exists in this tenant");
+        }
         Company company = new Company(currentTenant(), legalName, cui);
         company.setEntityType(entityType);
         company.setLocality(locality);
@@ -85,7 +88,10 @@ public class CompanyService {
             }
             company.setCui(cui);
         }
-        if (legalName != null) {
+        if (legalName != null && !legalName.equals(company.getLegalName())) {
+            if (companies.existsByLegalNameIgnoreCaseAndIdNot(legalName, id)) {
+                throw new ConflictException("A company named " + legalName + " already exists in this tenant");
+            }
             company.setLegalName(legalName);
         }
         company.setEntityType(entityType);
