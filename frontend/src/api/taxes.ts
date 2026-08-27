@@ -71,6 +71,10 @@ export interface TaxPaymentRow {
   cui: string;
   residence: string | null;
   declarations: DeclarationCell[];
+  /** Whether this company is expected to file D112 (has employees) / D300 (VAT payer). D100 is owed by
+   *  all. Used to render "N/A" instead of a "missing" chip for a declaration the company never files. */
+  owesD112: boolean;
+  owesD300: boolean;
   lastEmailAt: string | null;
   emailCount: number;
   lastWhatsappAt: string | null;

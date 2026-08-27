@@ -62,8 +62,9 @@ class ReportsCompletenessFilterIT extends AbstractPostgresIT {
                 .extracting(ReportListRow::companyId)
                 .containsExactly(activeEmpty);
 
-        // The "all" filter is unchanged — every company, regardless of completeness.
-        assertThat(service.listPage(PERIOD, "", false, 0, 25).getTotalElements()).isEqualTo(3);
+        // The "all" filter shows every ACTIVE company regardless of completeness, but inactive companies
+        // are hidden from the module lists — so Charlie (INACTIVE) is excluded: Alpha + Bravo = 2.
+        assertThat(service.listPage(PERIOD, "", false, 0, 25).getTotalElements()).isEqualTo(2);
     }
 
     @Test

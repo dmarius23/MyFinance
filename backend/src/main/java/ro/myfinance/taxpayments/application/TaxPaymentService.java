@@ -184,7 +184,9 @@ public class TaxPaymentService {
         List<EmailHistory> ws = ctx.whatsappByCompany().getOrDefault(c.getId(), List.of());
         Instant lastWa = ws.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
         return new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
-                c.getCui(), c.getLocality(), cells, last, es.size(), lastWa, ws.size());
+                c.getCui(), c.getLocality(), cells,
+                owesDeclaration(c, DeclarationType.D112), owesDeclaration(c, DeclarationType.D300),
+                last, es.size(), lastWa, ws.size());
     }
 
     /** Append one obligation cell unless an identical (type + code + amount) one was already added. */

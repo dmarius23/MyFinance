@@ -53,7 +53,8 @@ export function Companies() {
     const q = norm(dq.trim());
     const filtered = all.filter((c) => {
       if (activeOnly && c.status !== "ACTIVE") return false;
-      if (q && !(norm(c.legalName).includes(q) || c.cui.toLowerCase().includes(dq.trim().toLowerCase()))) return false;
+      if (q && !(norm(c.legalName).includes(q) || c.cui.toLowerCase().includes(dq.trim().toLowerCase())
+          || (repsByCompany.get(c.id) ?? []).some((r) => norm(r.name ?? "").includes(q)))) return false;
       if (fVat && c.vatStatus !== fVat) return false;
       if (fType && c.entityType !== fType) return false;
       if (fRegime && c.taxRegime !== fRegime) return false;
