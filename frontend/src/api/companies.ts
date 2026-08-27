@@ -1,4 +1,4 @@
-import { api } from "../lib/apiClient";
+import { api, upload } from "../lib/apiClient";
 
 export interface Company {
   id: string;
@@ -55,8 +55,29 @@ export interface Page<T> {
   last: boolean;
 }
 
+/** Per-row outcome of a CSV import. */
+export interface ImportRowResult {
+  line: number;
+  name: string;
+  status: "CREATED" | "SKIPPED" | "INVALID";
+  message: string | null;
+}
+export interface ImportResult {
+  total: number;
+  created: number;
+  skipped: number;
+  invalid: number;
+  rows: ImportRowResult[];
+}
+
 export const companiesApi = {
   list: () => api<Company[]>("/api/v1/companies"),
+  /** Bulk-onboard companies from an accountant CSV (multipart). Partial import → per-row report. */
+  importCsv: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<ImportResult>("/api/v1/companies/import", form);
+  },
   /** Paged, fuzzy-searchable directory (name or CUI) — infinite scroll on the Companies screen and every
    *  module list. Pass "" for no filter. Pickers keep using list(). */
   listPage: (q: string, page: number, size = 25) =>

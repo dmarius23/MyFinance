@@ -16,7 +16,7 @@ import ro.myfinance.support.AbstractPostgresIT;
  * S6 — the distributed lock that makes the ingestion poll run exactly once per tick. Proven at the lock
  * layer on a real Postgres: while one "instance" holds the named lock, no other can acquire it (so only one
  * runs the tick); once released it's available again. This is the guarantee behind the
- * {@code @SchedulerLock} on {@code IngestionScheduler.pollFrequent/pollDaily}.
+ * {@code @SchedulerLock} on {@code IngestionScheduler.pollNightly}.
  */
 class IngestionSchedulerLockIT extends AbstractPostgresIT {
 
@@ -24,7 +24,7 @@ class IngestionSchedulerLockIT extends AbstractPostgresIT {
 
     @Test
     void aHeldLockBlocksOtherInstancesThenReleases() {
-        var config = new LockConfiguration(Instant.now(), "ingestionPollFrequent",
+        var config = new LockConfiguration(Instant.now(), "ingestionPollNightly",
                 Duration.ofMinutes(5), Duration.ZERO);
 
         Optional<SimpleLock> first = lockProvider.lock(config);   // instance A grabs the tick

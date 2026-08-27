@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-/** Current accounting month (yyyy-MM-01), shared across the shell topbar and the month-aware pages. */
+/** Current calendar month (yyyy-MM-01). */
 function thisMonth(): string {
   return new Date().toISOString().slice(0, 7) + "-01";
 }
@@ -9,6 +9,12 @@ function shift(period: string, delta: number): string {
   const d = new Date(period);
   const nd = new Date(d.getFullYear(), d.getMonth() + delta, 1);
   return `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+/** Default accounting month = the PREVIOUS calendar month — accountants process last month's documents
+ *  during the current one. So any day in August shows July, flipping to August on 1 September. */
+function defaultPeriod(): string {
+  return shift(thisMonth(), -1);
 }
 
 interface PeriodCtx {
@@ -21,7 +27,7 @@ interface PeriodCtx {
 const Ctx = createContext<PeriodCtx | null>(null);
 
 export function PeriodProvider({ children }: { children: ReactNode }) {
-  const [period, setPeriod] = useState<string>(thisMonth);
+  const [period, setPeriod] = useState<string>(defaultPeriod);
   const value = useMemo<PeriodCtx>(() => ({
     period,
     setPeriod,
