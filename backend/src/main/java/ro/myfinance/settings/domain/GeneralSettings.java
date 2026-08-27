@@ -28,6 +28,14 @@ public class GeneralSettings {
     @Column(name = "sender_email")
     private String senderEmail;
 
+    /** Whether the nightly automatic Drive sync runs for this tenant. */
+    @Column(name = "auto_sync_enabled", nullable = false)
+    private boolean autoSyncEnabled = true;
+
+    /** Local hour (0–23, Europe/Bucharest) at which the automatic sync runs. */
+    @Column(name = "auto_sync_hour", nullable = false)
+    private int autoSyncHour = 2;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -42,5 +50,9 @@ public class GeneralSettings {
     public UUID getTenantId() { return tenantId; }
     public String getSenderEmail() { return senderEmail; }
     public void setSenderEmail(String senderEmail) { this.senderEmail = senderEmail; }
+    public boolean isAutoSyncEnabled() { return autoSyncEnabled; }
+    public void setAutoSyncEnabled(boolean autoSyncEnabled) { this.autoSyncEnabled = autoSyncEnabled; }
+    public int getAutoSyncHour() { return autoSyncHour; }
+    public void setAutoSyncHour(int autoSyncHour) { this.autoSyncHour = autoSyncHour; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

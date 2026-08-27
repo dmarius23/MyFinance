@@ -37,6 +37,17 @@ public class SettingsService {
         return s;
     }
 
+    /** Turn the nightly automatic Drive sync on/off and set the hour (0–23, Europe/Bucharest) it runs. */
+    public GeneralSettings updateAutoSync(boolean enabled, int hour) {
+        if (hour < 0 || hour > 23) {
+            throw new IllegalArgumentException("Sync hour must be between 0 and 23");
+        }
+        GeneralSettings s = getSettings();
+        s.setAutoSyncEnabled(enabled);
+        s.setAutoSyncHour(hour);
+        return s;
+    }
+
     /** The accounting firm's outbound From address (null if not configured yet). */
     @Transactional(readOnly = true)
     public String senderEmail() {
