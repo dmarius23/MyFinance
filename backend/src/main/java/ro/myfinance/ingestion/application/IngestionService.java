@@ -20,8 +20,10 @@ import ro.myfinance.ingestion.application.CloudFolderConnector.RemoteFile;
 import ro.myfinance.ingestion.domain.ImportFile;
 import ro.myfinance.ingestion.domain.SourceConnection;
 import ro.myfinance.intake.application.DocumentService;
+import ro.myfinance.intake.application.DocumentValidator;
 import ro.myfinance.intake.domain.DocumentSource;
 import ro.myfinance.intake.domain.DocumentType;
+import ro.myfinance.intake.domain.DriveBlockReason;
 
 /**
  * MOD-15 — pulls files from a configured cloud folder into the existing intake pipeline. For each new
@@ -42,6 +44,7 @@ public class IngestionService {
     private final DocumentService documents;
     private final ConnectorRegistry registry;
     private final ro.myfinance.intake.application.DocumentClassifier classifier;
+    private final ro.myfinance.intake.application.DocumentValidator validator;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ModuleSyncStatusService syncStatus;
@@ -50,7 +53,8 @@ public class IngestionService {
     public IngestionService(SourceConnectionRepository connections, ImportFileRepository ledger,
                             CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry,
-                            ro.myfinance.intake.application.DocumentClassifier classifier, AuditRecorder audit,
+                            ro.myfinance.intake.application.DocumentClassifier classifier,
+                            ro.myfinance.intake.application.DocumentValidator validator, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications,
                             ModuleSyncStatusService syncStatus,
                             @org.springframework.beans.factory.annotation.Qualifier(
@@ -61,6 +65,7 @@ public class IngestionService {
         this.documents = documents;
         this.registry = registry;
         this.classifier = classifier;
+        this.validator = validator;
         this.audit = audit;
         this.notifications = notifications;
         this.syncStatus = syncStatus;
@@ -661,8 +666,10 @@ public class IngestionService {
                                     UUID tenantId, UUID onlyCompany, java.util.Set<LocalDate> onlyPeriods,
                                     boolean companyKnown, List<Company> tenantCompanies,
                                     List<SyncResult.Issue> issues) {
+        // EXACT company folder match ("Contabilitate <legal name>") — never a fuzzy/substring match, so a
+        // file is only ever attributed to the company whose folder it actually sits in.
         Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
-                : FolderMapper.resolveCompany(f, tenantCompanies);
+                : FolderMapper.resolveAccountingCompany(f, tenantCompanies);
         LocalDate period = FolderMapper.resolvePeriod(f);
         if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
             return Outcome.PASS;
@@ -676,7 +683,7 @@ public class IngestionService {
             return Outcome.SKIPPED;
         }
         if (cid.isEmpty()) {
-            String reason = "Could not match a company from the folder path";
+            String reason = "Niciun folder de firmă cu nume exact (Contabilitate <nume firmă>) pentru acest fișier";
             writeLedger(prior, tenantId, conn, f, null, null, period, null, ImportFile.Status.NEEDS_REVIEW, reason);
             issues.add(new SyncResult.Issue(f.name(), reason));
             return Outcome.NEEDS_REVIEW;
@@ -689,6 +696,17 @@ public class IngestionService {
             writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
             issues.add(new SyncResult.Issue(f.name(), reason));
             return Outcome.NEEDS_REVIEW;
+        }
+        // Content confirmation: the file's own content must belong to THIS company (exact name/CUI) and month.
+        // A file that landed in the wrong company's folder — or a wrong-month file — is flagged, not loaded.
+        Company company = companies.findById(cid.get()).orElse(null);
+        if (company != null) {
+            DocumentValidator.Result v = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
+            if (v != null && (v.blockReason() == DriveBlockReason.WRONG_COMPANY || v.blockReason() == DriveBlockReason.WRONG_PERIOD)) {
+                writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, v.blockDetail());
+                issues.add(new SyncResult.Issue(f.name(), v.blockDetail()));
+                return Outcome.NEEDS_REVIEW;
+            }
         }
         if (ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
                 conn.getId(), cid.get(), period, sha, ImportFile.Status.IMPORTED.name())) {

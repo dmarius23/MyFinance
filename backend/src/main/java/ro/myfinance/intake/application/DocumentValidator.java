@@ -102,10 +102,19 @@ public class DocumentValidator {
                     }
                 }
                 case BANK_STATEMENT -> {
-                    LocalDate stmtMonth = statementMonth(bytes);
-                    if (outsidePeriod(stmtMonth, period)) {
-                        reason = DriveBlockReason.WRONG_PERIOD;
-                        detail = "Extrasul este pentru " + ym(stmtMonth) + ", nu " + ym(period) + ".";
+                    // Confirm the statement belongs to this company (holder name / CUI present in its text);
+                    // fail open when the text can't be verified (present() → null).
+                    String text = statements.extractText(bytes);
+                    if (text != null && !text.isBlank() && Boolean.FALSE.equals(
+                            CompanyMatcher.present(text, company.getCui(), company.getLegalName()))) {
+                        reason = DriveBlockReason.WRONG_COMPANY;
+                        detail = "Extrasul nu pare emis pentru această firmă (" + company.getLegalName() + ").";
+                    } else {
+                        LocalDate stmtMonth = statementMonth(bytes);
+                        if (outsidePeriod(stmtMonth, period)) {
+                            reason = DriveBlockReason.WRONG_PERIOD;
+                            detail = "Extrasul este pentru " + ym(stmtMonth) + ", nu " + ym(period) + ".";
+                        }
                     }
                 }
                 case PAYROLL -> {

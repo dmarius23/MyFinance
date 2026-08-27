@@ -33,6 +33,49 @@ class FolderMapperTest {
                 Instant.parse("2026-06-10T00:00:00Z"));
     }
 
+    // ---- ACCOUNTING drive: EXACT company-folder match ("Contabilitate <legal name>") ------------------
+
+    @Test
+    void accountingMatchesExactContabilitateFolder() {
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"));
+        // Case- and diacritic-insensitive, but the whole name must match.
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate INNOVATECODE IT SRL/2026-05"), cos)).contains(id);
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("contabilitate innovatecode it srl/2026-05"), cos)).contains(id);
+        // The bare exact name (no "Contabilitate" prefix) also resolves.
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("INNOVATECODE IT SRL/2026-05"), cos)).contains(id);
+    }
+
+    @Test
+    void accountingDoesNotMatchOnSubstringOrPartialName() {
+        UUID alpha = UUID.randomUUID();
+        List<Company> cos = List.of(company(alpha, "ALPHA SRL", "111222"));
+        // "ALPHABET SRL" merely contains "ALPHA" — must NOT resolve to ALPHA SRL.
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate ALPHABET SRL/2026-05"), cos)).isEmpty();
+    }
+
+    @Test
+    void accountingShortNameDoesNotClaimOtherCompaniesFiles() {
+        // Reproduces the reported bug: a "test" company (CUI 555) must not pull files from other folders.
+        UUID test = UUID.randomUUID();
+        UUID real = UUID.randomUUID();
+        List<Company> cos = List.of(company(test, "test", "555"),
+                company(real, "STONEAGE INDUSTRY SRL", "44570402"));
+        // A different company's folder resolves to THAT company, never to "test".
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate STONEAGE INDUSTRY SRL/2026-05"), cos)).contains(real);
+        // A folder that merely contains the word "test" does not resolve to the "test" company.
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate TESTAREA GLOBAL SRL/2026-05"), cos)).isEmpty();
+        // Only its own exact folder resolves to "test".
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate test/2026-05"), cos)).contains(test);
+    }
+
     @Test
     void matchesCompanyByCuiInFolder() {
         UUID id = UUID.randomUUID();
