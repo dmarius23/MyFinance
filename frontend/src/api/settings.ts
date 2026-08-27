@@ -9,6 +9,10 @@ export interface GeneralSettings {
   microRate: number | null;
   profitRate: number | null;
   senderEmail: string | null;
+  /** Whether the nightly automatic Drive sync runs for this tenant. */
+  autoSyncEnabled: boolean;
+  /** Local hour (0–23, Europe/Bucharest) at which the automatic sync runs. */
+  autoSyncHour: number;
 }
 
 /** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. Read-only. */
@@ -34,6 +38,11 @@ export const settingsApi = {
     api<GeneralSettings>("/api/v1/settings", {
       method: "PUT",
       body: JSON.stringify({ senderEmail }),
+    }),
+  updateAutoSync: (enabled: boolean, hour: number) =>
+    api<GeneralSettings>("/api/v1/settings/auto-sync", {
+      method: "PUT",
+      body: JSON.stringify({ enabled, hour }),
     }),
   listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
 };

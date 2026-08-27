@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
+import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
@@ -59,6 +60,8 @@ export function DataSources() {
       </div>
 
       {error && <div className="card" style={{ color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }}>{error}</div>}
+
+      <AutoSyncCard />
 
       {/* existing connections */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -164,6 +167,58 @@ export function DataSources() {
           </button>
         </form>
       </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-tenant nightly auto-sync schedule (V56): on/off + the local hour (Europe/Bucharest) it runs.
+ * The backend tick fires hourly and only syncs tenants whose configured hour matches.
+ */
+function AutoSyncCard() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: settingsApi.get });
+  const [draft, setDraft] = useState<{ enabled: boolean; hour: number } | null>(null);
+  const s = settings.data;
+  const enabled = draft?.enabled ?? s?.autoSyncEnabled ?? true;
+  const hour = draft?.hour ?? s?.autoSyncHour ?? 2;
+  const dirty = s != null && (enabled !== s.autoSyncEnabled || hour !== s.autoSyncHour);
+
+  const save = useMutation({
+    mutationFn: () => settingsApi.updateAutoSync(enabled, hour),
+    onSuccess: (updated) => { qc.setQueryData(["settings"], updated); setDraft(null); },
+  });
+
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0, fontSize: 15 }}>{t("ingest.autoSyncTitle")}</h3>
+      <p style={{ color: "var(--text-muted)", fontSize: 12.5, marginTop: 2 }}>{t("ingest.autoSyncHint")}</p>
+      {settings.isLoading ? (
+        <div style={{ color: "var(--text-muted)", fontSize: 13 }}>…</div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}>
+            <input type="checkbox" checked={enabled} onChange={(e) => setDraft({ enabled: e.target.checked, hour })} />
+            {t("ingest.autoSyncEnabled")}
+          </label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, color: enabled ? "var(--text-secondary)" : "var(--text-muted)" }}>
+            {t("ingest.autoSyncAt")}
+            <select value={hour} disabled={!enabled} onChange={(e) => setDraft({ enabled, hour: Number(e.target.value) })} style={input}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{t("ingest.autoSyncTz")}</span>
+          </label>
+          {dirty && (
+            <button className="primary" disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? "…" : t("common.save")}
+            </button>
+          )}
+          {save.isError && <span style={{ color: "#b91c1c", fontSize: 12.5 }}>{save.error instanceof ApiError ? save.error.message : t("common.error")}</span>}
+        </div>
       )}
     </div>
   );

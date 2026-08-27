@@ -15,10 +15,15 @@ public final class SettingsDtos {
      * {@code senderEmail} is per-tenant and editable.
      */
     public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate,
-                                   String senderEmail) {
+                                   String senderEmail, boolean autoSyncEnabled, int autoSyncHour) {
     }
 
     public record UpdateSenderEmailRequest(String senderEmail) {
+    }
+
+    /** Nightly auto-sync schedule: on/off + the local hour (0–23, Europe/Bucharest) it runs. */
+    public record UpdateAutoSyncRequest(boolean enabled,
+                                        @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(23) int hour) {
     }
 
     /** Read-only treasury row shown on the tenant Settings page (the account in force today). */

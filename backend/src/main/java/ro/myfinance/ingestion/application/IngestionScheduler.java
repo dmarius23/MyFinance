@@ -1,5 +1,7 @@
 package ro.myfinance.ingestion.application;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.UUID;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -15,11 +17,12 @@ import ro.myfinance.common.security.TenantContext;
 
 /**
  * MOD-15 — automatic Google Drive polling. Enabled by {@code myfinance.ingestion.poll.enabled=true}.
- * Runs ONCE nightly (02:00 Europe/Bucharest by default; the cron is configurable), enumerating Drive
- * connections across tenants (via the admin/RLS-bypassing datasource) and syncing the current + previous
- * month for each — every module type: payroll, declarations, trial balance, and (via the accounting
- * connection) bank statements + invoices — under that tenant's RLS context. New previous-month payroll
- * notifies the company's representatives.
+ * The tick fires ONCE per hour (Europe/Bucharest); each firing syncs only the tenants whose per-tenant
+ * schedule ({@code general_settings.auto_sync_enabled} + {@code auto_sync_hour}) matches the current local
+ * hour. Tenants without a settings row yet inherit the defaults (enabled, 02:00). For each matching Drive
+ * connection it syncs the current + previous month — every module type: payroll, declarations, trial
+ * balance, and (via the accounting connection) bank statements + invoices — under that tenant's RLS
+ * context. New previous-month payroll notifies the company's representatives.
  *
  * <p>Multi-instance safe (S6): the tick is guarded by a ShedLock {@code @SchedulerLock}, so with several
  * web/worker instances up exactly one runs the poll and the rest skip it — no duplicate Drive imports.
@@ -38,17 +41,19 @@ public class IngestionScheduler {
         this.ingestion = ingestion;
     }
 
-    /** Nightly auto-sync (02:00 local by default). One instance per tick via the distributed lock. */
-    @Scheduled(cron = "${myfinance.ingestion.poll.cron:0 0 2 * * *}", zone = "Europe/Bucharest")
+    /**
+     * Hourly tick (top of each hour, Europe/Bucharest). Syncs only the tenants scheduled for this hour.
+     * One instance per tick via the distributed lock.
+     */
+    @Scheduled(cron = "${myfinance.ingestion.poll.cron:0 0 * * * *}", zone = "Europe/Bucharest")
     @SchedulerLock(name = "ingestionPollNightly", lockAtLeastFor = "PT1M", lockAtMostFor = "PT30M")
     public void pollNightly() {
-        run("nightly");
+        int hour = ZonedDateTime.now(ZoneId.of("Europe/Bucharest")).getHour();
+        run("hour=" + hour, hour);
     }
 
-    void run(String which) {
-        List<Conn> conns = admin.query(
-                "select id, tenant_id from source_connection where provider = 'GOOGLE_DRIVE' and status <> 'DISABLED'",
-                (rs, i) -> new Conn(rs.getObject("id", UUID.class), rs.getObject("tenant_id", UUID.class)));
+    void run(String which, int hour) {
+        List<Conn> conns = dueConnections(hour);
         log.info("Ingestion auto-sync ({}) — {} connection(s)", which, conns.size());
         for (Conn c : conns) {
             try {
@@ -64,6 +69,21 @@ public class IngestionScheduler {
         }
     }
 
-    private record Conn(UUID id, UUID tenantId) {
+    /**
+     * Drive connections whose tenant is scheduled to auto-sync at {@code hour} (Europe/Bucharest).
+     * LEFT JOIN so tenants without a {@code general_settings} row yet inherit the defaults (enabled, hour 2).
+     */
+    public List<Conn> dueConnections(int hour) {
+        return admin.query(
+                "select sc.id, sc.tenant_id from source_connection sc"
+                        + " left join general_settings gs on gs.tenant_id = sc.tenant_id"
+                        + " where sc.provider = 'GOOGLE_DRIVE' and sc.status <> 'DISABLED'"
+                        + " and coalesce(gs.auto_sync_enabled, true) = true"
+                        + " and coalesce(gs.auto_sync_hour, 2) = ?",
+                (rs, i) -> new Conn(rs.getObject("id", UUID.class), rs.getObject("tenant_id", UUID.class)),
+                hour);
+    }
+
+    public record Conn(UUID id, UUID tenantId) {
     }
 }

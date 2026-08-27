@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.settings.adapter.web.SettingsDtos.SettingsResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.TreasuryResponse;
+import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateAutoSyncRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateSenderEmailRequest;
 import ro.myfinance.settings.application.PlatformRatesService;
 import ro.myfinance.settings.application.PlatformTreasuryService;
@@ -41,16 +42,24 @@ public class SettingsController {
     @GetMapping
     public SettingsResponse getSettings() {
         LocalDate today = LocalDate.now();
+        var gs = service.getSettings();
         return new SettingsResponse(
                 rates.rateFor(TaxRateCategory.VAT, today).orElse(null),
                 rates.rateFor(TaxRateCategory.MICRO, today).orElse(null),
                 rates.rateFor(TaxRateCategory.PROFIT, today).orElse(null),
-                service.getSettings().getSenderEmail());
+                gs.getSenderEmail(), gs.isAutoSyncEnabled(), gs.getAutoSyncHour());
     }
 
     @PutMapping
     public SettingsResponse updateSenderEmail(@Valid @RequestBody UpdateSenderEmailRequest request) {
         service.updateSenderEmail(request.senderEmail());
+        return getSettings();
+    }
+
+    /** Configure the tenant's nightly automatic Drive sync (on/off + hour). */
+    @PutMapping("/auto-sync")
+    public SettingsResponse updateAutoSync(@Valid @RequestBody UpdateAutoSyncRequest request) {
+        service.updateAutoSync(request.enabled(), request.hour());
         return getSettings();
     }
 
