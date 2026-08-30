@@ -1,6 +1,7 @@
 package ro.myfinance.company.adapter.persistence;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,6 +14,10 @@ public interface CompanyRepository extends JpaRepository<Company, UUID> {
 
     // Tenant scoping is enforced by RLS; CUI uniqueness is enforced per tenant in the DB.
     boolean existsByCui(String cui);
+
+    // The company with this CUI in the current tenant (RLS-scoped) — used by CSV import to back-fill a
+    // representative onto a company that already exists.
+    Optional<Company> findByCui(String cui);
 
     // Used when editing a company's CUI: a clash with any OTHER company in the tenant is a conflict.
     boolean existsByCuiAndIdNot(String cui, UUID id);

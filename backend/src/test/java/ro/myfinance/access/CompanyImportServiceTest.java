@@ -48,6 +48,60 @@ class CompanyImportServiceTest {
     }
 
     @Test
+    void normalizesBareNineDigitPhoneAndInvitesRep() {
+        Company c = mock(Company.class);
+        UUID cid = UUID.randomUUID();
+        when(c.getId()).thenReturn(cid);
+        when(companies.create(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(c);
+
+        // Phone "712345678" (9 digits, no leading 0) — the real-world CSV format that used to be rejected.
+        var res = svc.importCsv(csv("""
+                name;cui;residence;vat;tax_regime;rep_name;rep_email;rep_phone
+                ACME SRL;RO12345678;Cluj;platitor;micro;Ion Pop;ion@acme.ro;712345678
+                """));
+
+        assertThat(res.created()).isEqualTo(1);
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"));
+    }
+
+    @Test
+    void invitesRepEvenWhenPhoneIsUnrecognized() {
+        Company c = mock(Company.class);
+        UUID cid = UUID.randomUUID();
+        when(c.getId()).thenReturn(cid);
+        when(companies.create(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(c);
+
+        var res = svc.importCsv(csv("""
+                name;cui;residence;vat;tax_regime;rep_name;rep_email;rep_phone
+                ACME SRL;RO12345678;Cluj;platitor;micro;Ion Pop;ion@acme.ro;garbage
+                """));
+
+        assertThat(res.created()).isEqualTo(1);
+        // Bad phone dropped (null) — but the representative is still invited.
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), isNull());
+    }
+
+    @Test
+    void backfillsRepresentativeOntoAnExistingCompany() {
+        Company existing = mock(Company.class);
+        UUID cid = UUID.randomUUID();
+        when(existing.getId()).thenReturn(cid);
+        when(companies.create(any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new ConflictException("A company with CUI RO12345678 already exists"));
+        when(companies.findByCui("RO12345678")).thenReturn(java.util.Optional.of(existing));
+
+        var res = svc.importCsv(csv("""
+                name;cui;residence;vat;tax_regime;rep_name;rep_email;rep_phone
+                ACME SRL;RO12345678;Cluj;platitor;micro;Ion Pop;ion@acme.ro;712345678
+                """));
+
+        assertThat(res.created()).isZero();
+        assertThat(res.skipped()).isEqualTo(1);           // company not re-created
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"));
+        assertThat(res.rows()).anyMatch(x -> x.status() == Status.SKIPPED && x.message().contains("representative added"));
+    }
+
+    @Test
     void reportsInvalidCuiAndSkipsDuplicates() {
         Company c = mock(Company.class);
         when(c.getId()).thenReturn(UUID.randomUUID());
