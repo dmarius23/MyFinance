@@ -24,7 +24,6 @@ public class CompanyImportService {
 
     private static final Pattern CUI = Pattern.compile("(RO)?[0-9]{2,10}", Pattern.CASE_INSENSITIVE);
     private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
-    private static final Pattern PHONE = Pattern.compile("(\\+40|0040|0)[0-9]{9}");
     /** Canonical column keys (header cells are normalized to letters-only lowercase before matching). */
     private static final List<String> REQUIRED = List.of("name", "cui", "residence", "vat", "taxregime");
 
@@ -65,9 +64,11 @@ public class CompanyImportService {
 
     private RowResult importRow(int line, List<String> r, Map<String, Integer> col) {
         String name = cell(r, col, "name");
+        String cui = cell(r, col, "cui").toUpperCase(Locale.ROOT);
+        String repEmail = cell(r, col, "repemail");
         Company company;
+        boolean existed;
         try {
-            String cui = cell(r, col, "cui").toUpperCase(Locale.ROOT);
             String residence = cell(r, col, "residence");
             String type = normEntityType(cell(r, col, "type"));
             String vat = normVat(cell(r, col, "vat"));
@@ -81,27 +82,66 @@ public class CompanyImportService {
             require(regime != null, "Tax regime must be micro or profit");
 
             company = companies.create(name, cui, type, residence, vat, null, regime, employees, null);
+            existed = false;
         } catch (ConflictException dup) {
-            return new RowResult(line, name, Status.SKIPPED, dup.getMessage());
+            // Company already exists. If the row also carries a representative, back-fill it onto the
+            // existing company (so re-importing the same CSV attaches reps that a prior import missed);
+            // otherwise just skip the duplicate.
+            if (repEmail.isBlank()) {
+                return new RowResult(line, name, Status.SKIPPED, dup.getMessage());
+            }
+            company = companies.findByCui(cui).orElse(null);
+            if (company == null) {
+                return new RowResult(line, name, Status.SKIPPED, dup.getMessage());
+            }
+            existed = true;
         } catch (RuntimeException e) {
             return new RowResult(line, name, Status.INVALID, e.getMessage());
         }
-        // Company created — invite the representative if one is given (soft-fail: keep the company).
-        String repEmail = cell(r, col, "repemail");
-        if (!repEmail.isBlank()) {
-            String repName = cell(r, col, "repname");
-            String repPhone = cell(r, col, "repphone");
-            if (repName.isBlank() || !EMAIL.matcher(repEmail).matches()
-                    || (!repPhone.isBlank() && !PHONE.matcher(repPhone).matches())) {
-                return new RowResult(line, name, Status.CREATED, "Company created; representative skipped — invalid name/email/phone");
-            }
-            try {
-                representatives.inviteRepresentative(company.getId(), repName, repEmail, repPhone.isBlank() ? null : repPhone);
-            } catch (RuntimeException e) {
-                return new RowResult(line, name, Status.CREATED, "Company created; representative not invited — " + e.getMessage());
-            }
+
+        Status status = existed ? Status.SKIPPED : Status.CREATED;
+        String base = existed ? "Company already existed" : "Company created";
+
+        // Invite the representative if one is given (soft-fail: never lose the company/row over the rep).
+        if (repEmail.isBlank()) {
+            return new RowResult(line, name, status, existed ? base : null);
         }
-        return new RowResult(line, name, Status.CREATED, null);
+        String repName = cell(r, col, "repname");
+        if (repName.isBlank() || !EMAIL.matcher(repEmail).matches()) {
+            return new RowResult(line, name, status, base + "; representative skipped — invalid name/email");
+        }
+        // Phone is best-effort: normalized to national form, dropped (null) if unrecognized — a bad phone
+        // must never cost us the representative.
+        String repPhone = normPhone(cell(r, col, "repphone"));
+        try {
+            representatives.inviteRepresentative(company.getId(), repName, repEmail, repPhone);
+        } catch (RuntimeException e) {
+            return new RowResult(line, name, status, base + "; representative — " + e.getMessage());
+        }
+        return new RowResult(line, name, status, existed ? base + "; representative added" : null);
+    }
+
+    /**
+     * Normalize a Romanian phone to national {@code 0XXXXXXXXX} form, or null when it can't be recognized.
+     * Accepts a {@code +40}/{@code 0040}/{@code 40} country prefix, an existing leading {@code 0}, or a
+     * bare 9-digit subscriber number (e.g. {@code 712345678}), with spaces/dashes/dots/parentheses.
+     */
+    static String normPhone(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String d = raw.replaceAll("[\\s.()\\-/]", "");
+        if (d.startsWith("+")) {
+            d = d.substring(1);
+        }
+        if (d.startsWith("0040")) {
+            d = d.substring(4);
+        } else if (d.startsWith("40")) {
+            d = d.substring(2);
+        } else if (d.startsWith("0")) {
+            d = d.substring(1);
+        }
+        return d.matches("[0-9]{9}") ? "0" + d : null;
     }
 
     private static void require(boolean ok, String message) {

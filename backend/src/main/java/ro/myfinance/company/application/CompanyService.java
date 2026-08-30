@@ -55,6 +55,12 @@ public class CompanyService {
                 .orElseThrow(() -> new NotFoundException("Company not found: " + id));
     }
 
+    /** The company with this CUI in the current tenant, if any — for CSV import to back-fill a rep. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<Company> findByCui(String cui) {
+        return companies.findByCui(cui == null ? "" : cui.trim());
+    }
+
     public Company create(String legalName, String cui, String entityType, String locality,
                           String vatStatus, String vatPeriod, String taxRegime, Boolean hasEmployees,
                           UUID responsibleUserId) {
