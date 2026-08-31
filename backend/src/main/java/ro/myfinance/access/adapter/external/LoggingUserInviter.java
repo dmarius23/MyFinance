@@ -31,6 +31,11 @@ public class LoggingUserInviter implements UserInviter {
     }
 
     @Override
+    public void sendInvite(String email) {
+        log.info("[DEV INVITE] would send a set-password (recovery) email to {}", email);
+    }
+
+    @Override
     public void updateEmail(UUID externalUserId, String newEmail) {
         log.info("[DEV INVITE] would set auth user {} email -> {}", externalUserId, newEmail);
     }

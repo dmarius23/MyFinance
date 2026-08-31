@@ -15,9 +15,10 @@ import ro.myfinance.access.application.UserInviter;
 public class UserInviterConfig {
 
     @Bean
-    UserInviter representativeInviter(SupabaseProperties props, RestClient.Builder restClientBuilder) {
+    UserInviter representativeInviter(SupabaseProperties props, RestClient.Builder restClientBuilder,
+                                      @org.springframework.beans.factory.annotation.Value("${myfinance.app.url:}") String appUrl) {
         return props.isConfigured()
-                ? new SupabaseUserInviter(props, restClientBuilder)
+                ? new SupabaseUserInviter(props, restClientBuilder, appUrl)
                 : new LoggingUserInviter();
     }
 }

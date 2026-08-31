@@ -191,6 +191,11 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
     mutationFn: (userId: string) => representativesApi.remove(companyId, userId),
     onSuccess: refresh, onError: onErr,
   });
+  const sendInvite = useMutation({
+    mutationFn: (userId: string) => representativesApi.sendInvite(companyId, userId),
+    onSuccess: () => { refresh(); window.alert(t("company.inviteSent")); },
+    onError: onErr,
+  });
 
   const inp: React.CSSProperties = { width: "100%", minWidth: 0 };
   // Compact inline inputs when editing a representative — noticeably shorter than the full-width invite row.
@@ -227,6 +232,10 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
                 <span style={{ color: "var(--text-muted)" }}>{r.phone ?? "—"}</span>
                 <span><span className="pill round" style={{ fontSize: 11 }}>{t(`team.st.${r.status}`, { defaultValue: r.status })}</span></span>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  <button type="button" disabled={sendInvite.isPending}
+                    onClick={() => { if (window.confirm(t("company.inviteConfirm", { name: r.name ?? r.email }))) sendInvite.mutate(r.id); }}>
+                    {t("company.sendInvite")}
+                  </button>
                   <button type="button" onClick={() => setEditing({ id: r.id, name: r.name ?? "", email: r.email, phone: r.phone ?? "" })}>
                     {t("common.edit")}
                   </button>

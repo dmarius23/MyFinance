@@ -118,6 +118,10 @@ management:
 myfinance:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  # Public frontend URL, used as the redirect target for Supabase invite / set-password emails so the
+  # link opens the app (not Supabase's default Site URL). Per-environment (prod = the deployed host).
+  app:
+    url: ${MYFINANCE_APP_URL:}
   supabase:
     url: ${SUPABASE_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
