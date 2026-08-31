@@ -51,6 +51,14 @@ public class RepresentativeService {
      * otherwise a new representative is invited. Re-assigning an existing link is rejected.
      */
     public AppUser inviteRepresentative(UUID companyId, String name, String email, String phone) {
+        return inviteRepresentative(companyId, name, email, phone, true);
+    }
+
+    /**
+     * As above, but {@code sendEmail=false} provisions the rep WITHOUT an invite email — used by bulk CSV
+     * import so the identity provider's per-email rate limit doesn't drop all but the first representative.
+     */
+    public AppUser inviteRepresentative(UUID companyId, String name, String email, String phone, boolean sendEmail) {
         UUID tenantId = currentTenant();
         companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
@@ -74,7 +82,8 @@ public class RepresentativeService {
         // schedule the deletion of the just-created auth user (own tx via the outbox, so it survives this
         // rollback and is retried) — leaving no orphaned auth user. saveAndFlush surfaces constraint
         // failures here, inside the try, rather than at commit.
-        var invited = inviter.invite(email, new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId));
+        InviteClaims claims = new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId);
+        var invited = sendEmail ? inviter.invite(email, claims) : inviter.provision(email, claims);
         try {
             AppUser rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
             rep.setPhone(phone);

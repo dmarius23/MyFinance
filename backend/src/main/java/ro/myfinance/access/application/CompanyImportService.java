@@ -114,7 +114,9 @@ public class CompanyImportService {
         // must never cost us the representative.
         String repPhone = normPhone(cell(r, col, "repphone"));
         try {
-            representatives.inviteRepresentative(company.getId(), repName, repEmail, repPhone);
+            // Bulk import: provision WITHOUT an invite email — the provider rate-limits invite emails,
+            // which would otherwise drop every representative after the first.
+            representatives.inviteRepresentative(company.getId(), repName, repEmail, repPhone, false);
         } catch (RuntimeException e) {
             return new RowResult(line, name, status, base + "; representative — " + e.getMessage());
         }

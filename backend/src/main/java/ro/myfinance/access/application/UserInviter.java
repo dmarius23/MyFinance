@@ -14,6 +14,14 @@ public interface UserInviter {
     InvitedUser invite(String email, InviteClaims claims);
 
     /**
+     * Create the auth user with the same tenant/role/company claims but WITHOUT sending an invite email.
+     * Used for bulk onboarding (CSV import), where the identity provider's per-email rate limit would
+     * otherwise drop all but the first representative. The user can be sent a real invite / password reset
+     * later. Like {@link #invite}, reuses an already-registered auth user (returning {@code created=false}).
+     */
+    InvitedUser provision(String email, InviteClaims claims);
+
+    /**
      * Change an existing auth user's email (admin-set, already-confirmed). Used when an accountant corrects
      * a representative's email so their login identity matches the app.
      */

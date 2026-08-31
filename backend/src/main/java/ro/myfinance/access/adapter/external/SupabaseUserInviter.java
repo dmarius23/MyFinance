@@ -58,20 +58,55 @@ public class SupabaseUserInviter implements UserInviter {
         }
 
         // Staff (admin/employee) have no company; only representatives carry a company_id claim.
-        Map<String, Object> appMetadata = new HashMap<>();
-        appMetadata.put("tenant_id", claims.tenantId().toString());
-        appMetadata.put("role", claims.role().name());
-        if (claims.companyId() != null) {
-            appMetadata.put("company_id", claims.companyId().toString());
-        }
         client.put()
                 .uri("/auth/v1/admin/users/{id}", userId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("app_metadata", appMetadata))
+                .body(Map.of("app_metadata", appMetadata(claims)))
                 .retrieve()
                 .toBodilessEntity();
 
         return new InvitedUser(userId, created);
+    }
+
+    @Override
+    public InvitedUser provision(String email, InviteClaims claims) {
+        Map<String, Object> appMetadata = appMetadata(claims);
+        try {
+            // Admin create-user does NOT send an email (unlike /invite), so it isn't email-rate-limited.
+            // email_confirm=true marks the address confirmed; the rep gets a password via reset/magic-link later.
+            GoTrueUser created = client.post()
+                    .uri("/auth/v1/admin/users")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("email", email, "email_confirm", true, "app_metadata", appMetadata))
+                    .retrieve()
+                    .body(GoTrueUser.class);
+            if (created == null || created.id() == null) {
+                throw new IllegalStateException("Supabase admin create-user returned no user id");
+            }
+            return new InvitedUser(created.id(), true);
+        } catch (HttpClientErrorException e) {
+            if (!isAlreadyRegistered(e)) {
+                throw e;
+            }
+            UUID userId = findUserIdByEmail(email);   // reuse the existing auth user and (re)apply claims
+            client.put()
+                    .uri("/auth/v1/admin/users/{id}", userId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("app_metadata", appMetadata))
+                    .retrieve()
+                    .toBodilessEntity();
+            return new InvitedUser(userId, false);
+        }
+    }
+
+    private static Map<String, Object> appMetadata(InviteClaims claims) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("tenant_id", claims.tenantId().toString());
+        m.put("role", claims.role().name());
+        if (claims.companyId() != null) {
+            m.put("company_id", claims.companyId().toString());
+        }
+        return m;
     }
 
     @Override

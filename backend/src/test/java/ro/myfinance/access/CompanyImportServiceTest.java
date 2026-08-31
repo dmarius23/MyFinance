@@ -44,7 +44,7 @@ class CompanyImportServiceTest {
         // Lenient mapping: "platitor" → VAT_PAYER, "micro" → MICRO, "da" → true.
         verify(companies).create(eq("ACME SRL"), eq("RO12345678"), eq("SRL"), eq("Cluj"),
                 eq("VAT_PAYER"), isNull(), eq("MICRO"), eq(true), isNull());
-        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"));
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"), eq(false));
     }
 
     @Test
@@ -61,7 +61,7 @@ class CompanyImportServiceTest {
                 """));
 
         assertThat(res.created()).isEqualTo(1);
-        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"));
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"), eq(false));
     }
 
     @Test
@@ -78,7 +78,7 @@ class CompanyImportServiceTest {
 
         assertThat(res.created()).isEqualTo(1);
         // Bad phone dropped (null) — but the representative is still invited.
-        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), isNull());
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), isNull(), eq(false));
     }
 
     @Test
@@ -97,7 +97,7 @@ class CompanyImportServiceTest {
 
         assertThat(res.created()).isZero();
         assertThat(res.skipped()).isEqualTo(1);           // company not re-created
-        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"));
+        verify(reps).inviteRepresentative(eq(cid), eq("Ion Pop"), eq("ion@acme.ro"), eq("0712345678"), eq(false));
         assertThat(res.rows()).anyMatch(x -> x.status() == Status.SKIPPED && x.message().contains("representative added"));
     }
 
@@ -142,6 +142,7 @@ class CompanyImportServiceTest {
         assertThat(res.created()).isEqualTo(1);
         verify(companies).create(eq("Beta SRL"), eq("18547290"), isNull(), eq("Bucuresti"),
                 eq("NON_VAT_PAYER"), isNull(), eq("PROFIT"), eq(false), isNull());
-        verify(reps, org.mockito.Mockito.never()).inviteRepresentative(any(), any(), any(), any());
+        verify(reps, org.mockito.Mockito.never())
+                .inviteRepresentative(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
     }
 }
