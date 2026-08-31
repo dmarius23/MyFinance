@@ -42,7 +42,7 @@ class SupabaseUserInviterTest {
 
         var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key",
                 "https://proj.supabase.co/auth/v1");
-        var inviter = new SupabaseUserInviter(props, builder);
+        var inviter = new SupabaseUserInviter(props, builder, "");
 
         var result = inviter.invite("rep@client.ro",
                 new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));
@@ -120,6 +120,6 @@ class SupabaseUserInviterTest {
     private static SupabaseUserInviter inviter(RestClient.Builder builder) {
         var props = new SupabaseProperties("https://proj.supabase.co", "test-service-key",
                 "https://proj.supabase.co/auth/v1");
-        return new SupabaseUserInviter(props, builder);
+        return new SupabaseUserInviter(props, builder, "");
     }
 }

@@ -60,6 +60,13 @@ public class RepresentativeController {
                 service.setRepresentativeActive(companyId, userId, request.active()));
     }
 
+    /** Send (or re-send) this representative their set-password / access email, on demand. */
+    @PostMapping("/{userId}/invite")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void sendInvite(@PathVariable UUID companyId, @PathVariable UUID userId) {
+        service.sendInvite(companyId, userId);
+    }
+
     @DeleteMapping("/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unassign(@PathVariable UUID companyId, @PathVariable UUID userId) {

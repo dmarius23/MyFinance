@@ -25,8 +25,12 @@ import ro.myfinance.access.application.UserInviter;
 public class SupabaseUserInviter implements UserInviter {
 
     private final RestClient client;
+    /** The app's public URL, used as {@code redirect_to} so invite / set-password links open the app
+     *  instead of Supabase's default Site URL. Blank = fall back to the project's Site URL. */
+    private final String appUrl;
 
-    public SupabaseUserInviter(SupabaseProperties props, RestClient.Builder builder) {
+    public SupabaseUserInviter(SupabaseProperties props, RestClient.Builder builder, String appUrl) {
+        this.appUrl = appUrl == null ? "" : appUrl.trim();
         this.client = builder
                 .baseUrl(props.url())
                 .defaultHeader("apikey", props.serviceRoleKey())
@@ -40,7 +44,7 @@ public class SupabaseUserInviter implements UserInviter {
         UUID userId;
         try {
             GoTrueUser invited = client.post()
-                    .uri("/auth/v1/invite")
+                    .uri(b -> withRedirect(b.path("/auth/v1/invite")).build())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("email", email))
                     .retrieve()
@@ -107,6 +111,23 @@ public class SupabaseUserInviter implements UserInviter {
             m.put("company_id", claims.companyId().toString());
         }
         return m;
+    }
+
+    /** Add {@code redirect_to=<appUrl>} so the email link opens the app; no-op when appUrl is blank. */
+    private org.springframework.web.util.UriBuilder withRedirect(org.springframework.web.util.UriBuilder b) {
+        return appUrl.isBlank() ? b : b.queryParam("redirect_to", appUrl);
+    }
+
+    @Override
+    public void sendInvite(String email) {
+        // A password-recovery ("set your password") email — works for a user that already exists (unlike
+        // /invite, which rejects an already-registered address). The redirect opens the app.
+        client.post()
+                .uri(b -> withRedirect(b.path("/auth/v1/recover")).build())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("email", email))
+                .retrieve()
+                .toBodilessEntity();
     }
 
     @Override

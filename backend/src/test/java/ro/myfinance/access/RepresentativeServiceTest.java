@@ -120,4 +120,13 @@ class RepresentativeServiceTest {
 
         verify(inviter, never()).updateEmail(any(), any());
     }
+
+    @Test
+    void sendInviteEmailsTheRepViaTheInviter() {
+        assignedRep("rep@client.ro");
+
+        service.sendInvite(companyId, externalId);
+
+        verify(inviter).sendInvite("rep@client.ro"); // on-demand set-password email
+    }
 }

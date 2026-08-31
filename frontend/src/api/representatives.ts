@@ -28,4 +28,7 @@ export const representativesApi = {
     }),
   remove: (companyId: string, userId: string) =>
     api<void>(`/api/v1/companies/${companyId}/representatives/${userId}`, { method: "DELETE" }),
+  // On-demand: email this rep a set-password / access link.
+  sendInvite: (companyId: string, userId: string) =>
+    api<void>(`/api/v1/companies/${companyId}/representatives/${userId}/invite`, { method: "POST" }),
 };

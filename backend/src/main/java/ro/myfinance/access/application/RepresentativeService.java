@@ -137,6 +137,16 @@ public class RepresentativeService {
         return rep;
     }
 
+    /**
+     * On-demand "Send invite": email a representative a set-password / access link. Used for reps who were
+     * bulk-provisioned without an email (CSV import) — the accountant chooses when to send it.
+     */
+    public void sendInvite(UUID companyId, UUID userId) {
+        AppUser rep = requireRepOfCompany(companyId, userId);
+        inviter.sendInvite(rep.getEmail());
+        audit.record("REPRESENTATIVE_INVITE_SENT", "company", companyId);
+    }
+
     /** Remove a representative's assignment to one company (the user and other assignments remain). */
     public void unassignRepresentative(UUID companyId, UUID userId) {
         RepresentativeLink link = links.findByUserIdAndCompanyId(userId, companyId)
