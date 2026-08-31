@@ -23,6 +23,14 @@ public class LoggingUserInviter implements UserInviter {
     }
 
     @Override
+    public InvitedUser provision(String email, InviteClaims claims) {
+        UUID id = UUID.randomUUID();
+        log.info("[DEV INVITE] would provision (no email) {} as {} (tenant {}, company {}) -> {}",
+                email, claims.role(), claims.tenantId(), claims.companyId(), id);
+        return new InvitedUser(id, true);
+    }
+
+    @Override
     public void updateEmail(UUID externalUserId, String newEmail) {
         log.info("[DEV INVITE] would set auth user {} email -> {}", externalUserId, newEmail);
     }
