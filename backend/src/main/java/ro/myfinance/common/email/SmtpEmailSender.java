@@ -1,16 +1,11 @@
 package ro.myfinance.common.email;
 
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
-import java.nio.charset.StandardCharsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 
 /**
  * Production {@link EmailSender} that delivers over plain SMTP via Spring's {@link JavaMailSender} — the
@@ -47,37 +42,10 @@ public class SmtpEmailSender {
 
         @Override
         public void send(Message message) {
-            try {
-                MimeMessage mime = mail.createMimeMessage();
-                boolean multipart = !message.attachments().isEmpty();
-                MimeMessageHelper helper =
-                        new MimeMessageHelper(mime, multipart, StandardCharsets.UTF_8.name());
-
-                if (message.fromName() != null && !message.fromName().isBlank()) {
-                    helper.setFrom(message.fromEmail(), message.fromName());
-                } else {
-                    helper.setFrom(message.fromEmail());
-                }
-                helper.setTo(InternetAddress.parse(message.to())); // tolerant of a comma-separated list
-                helper.setSubject(message.subject() == null ? "" : message.subject());
-                helper.setText(message.body() == null ? "" : message.body(), false); // plain text
-
-                for (Attachment a : message.attachments()) {
-                    String type = a.contentType() == null || a.contentType().isBlank()
-                            ? "application/octet-stream" : a.contentType();
-                    helper.addAttachment(a.filename(), new ByteArrayResource(a.bytes()), type);
-                }
-
-                mail.send(mime);
-                log.info("[email:smtp] sent to={} subjectChars={} attachments={}",
-                        EmailAddresses.mask(message.to()),
-                        message.subject() == null ? 0 : message.subject().length(), message.attachments().size());
-            } catch (RuntimeException e) {
-                throw e; // MailException from the transport — let the relay see the real failure
-            } catch (Exception e) {
-                // Wrap checked MIME/address errors so callers see a single delivery-failure signal.
-                throw new IllegalStateException("Failed to build/send email via SMTP", e);
-            }
+            SmtpDelivery.send(mail, message);
+            log.info("[email:smtp] sent to={} subjectChars={} attachments={}",
+                    EmailAddresses.mask(message.to()),
+                    message.subject() == null ? 0 : message.subject().length(), message.attachments().size());
         }
     }
 }
