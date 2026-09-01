@@ -2,7 +2,6 @@ package ro.myfinance.common.email;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +18,6 @@ public class LoggingEmailSender {
     private static final Logger log = LoggerFactory.getLogger(LoggingEmailSender.class);
 
     @Bean
-    @ConditionalOnMissingBean(EmailSender.class)
     @ConditionalOnProperty(name = "myfinance.email.provider", havingValue = "logging", matchIfMissing = true)
     public EmailSender defaultEmailSender() {
         return message -> log.info(

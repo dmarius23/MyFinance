@@ -122,6 +122,11 @@ myfinance:
   # link opens the app (not Supabase's default Site URL). Per-environment (prod = the deployed host).
   app:
     url: ${MYFINANCE_APP_URL:}
+  # Master key for AES-256-GCM envelope encryption of per-tenant provider secrets (SMTP password,
+  # WhatsApp/Twilio auth token). Base64 of exactly 32 random bytes (generate: `openssl rand -base64 32`).
+  # Blank → SecretCipher is unconfigured and refuses to store/read provider credentials (fail-closed).
+  secret:
+    key: ${MYFINANCE_SECRET_KEY:}
   supabase:
     url: ${SUPABASE_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
