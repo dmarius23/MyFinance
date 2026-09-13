@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { taxPaymentsApi, type Unconfigured } from "../api/taxes";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -21,6 +22,7 @@ interface Draft { recipient: string; body: string; total: number; loading: boole
 export function EmailPreviewModal({ targets, period, onClose, onSent }:
   { targets: PreviewTarget[]; period: string; onClose: () => void; onSent: () => void }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [sending, setSending] = useState(false);
 
@@ -114,7 +116,8 @@ export function EmailPreviewModal({ targets, period, onClose, onSent }:
           <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.eachLogged")}</span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose}>{t("common.cancel")}</button>
-            <button className="primary" onClick={sendAll} disabled={sending || allSent}>
+            <button className="primary" onClick={sendAll} disabled={sending || allSent || !emailConfigured}
+              title={emailConfigured ? undefined : t("email.smtpRequired")}>
               <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
               {sending ? t("taxes.sending") : t("email.sendN", { n: targets.length })}
             </button>

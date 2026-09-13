@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { payrollApi, type PayrollEmailView } from "../api/payroll";
 import { Icon } from "./Icon";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 
 const dt = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
 const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
@@ -10,6 +11,7 @@ const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2
 export function PayrollLogModal({ companyId, companyName, period, onClose, onCompose }:
   { companyId: string; companyName: string; period: string; onClose: () => void; onCompose: () => void }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["payroll-history", companyId, period],
@@ -47,8 +49,9 @@ export function PayrollLogModal({ companyId, companyName, period, onClose, onCom
             {t("taxes.sendNew")}
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            <button className="primary" onClick={() => { onClose(); onCompose(); }}>
-              <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("taxes.sendNow")}
+            <button className="primary" onClick={() => { onClose(); onCompose(); }}
+              disabled={!emailConfigured} title={emailConfigured ? undefined : t("email.smtpRequired")}>
+              <Icon name={emailConfigured ? "mail" : "alert"} size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("taxes.sendNow")}
             </button>
             <button disabled style={{ display: "flex", alignItems: "center", gap: 6, borderStyle: "dashed" }}>
               WhatsApp <span className="pill purple" style={{ fontSize: 9 }}>SOON</span>
@@ -66,7 +69,8 @@ export function PayrollLogModal({ companyId, companyName, period, onClose, onCom
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 600 }}>{e.documentIds.length} {t("payroll.attachments").toLowerCase()}</div>
                 <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("taxes.to")} {e.recipient ?? "—"}</div>
-                <button onClick={() => resend.mutate(e)} disabled={resend.isPending} style={linkBtn}>{t("taxes.resend")}</button>
+                <button onClick={() => resend.mutate(e)} disabled={resend.isPending || !emailConfigured}
+                  title={emailConfigured ? undefined : t("email.smtpRequired")} style={linkBtn}>{t("taxes.resend")}</button>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{dt(e.sentAt)}</div>

@@ -11,6 +11,7 @@ import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { explicitValidity } from "../lib/validity";
 import { Field } from "../components/Field";
 import { Icon } from "../components/Icon";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 
 const EDIT_FORM_ID = "company-edit-form";
 
@@ -165,6 +166,7 @@ const REP_GRID = "minmax(120px,1.3fr) minmax(160px,1.6fr) minmax(110px,1fr) 90px
 
 function RepresentativesSection({ companyId }: { companyId: string }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const qc = useQueryClient();
   const reps = useQuery({ queryKey: ["reps", companyId], queryFn: () => representativesApi.list(companyId) });
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
@@ -232,8 +234,10 @@ function RepresentativesSection({ companyId }: { companyId: string }) {
                 <span style={{ color: "var(--text-muted)" }}>{r.phone ?? "—"}</span>
                 <span><span className="pill round" style={{ fontSize: 11 }}>{t(`team.st.${r.status}`, { defaultValue: r.status })}</span></span>
                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                  <button type="button" disabled={sendInvite.isPending}
+                  <button type="button" disabled={sendInvite.isPending || !emailConfigured}
+                    title={emailConfigured ? undefined : t("email.smtpRequired")}
                     onClick={() => { if (window.confirm(t("company.inviteConfirm", { name: r.name ?? r.email }))) sendInvite.mutate(r.id); }}>
+                    {!emailConfigured && <Icon name="alert" size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />}
                     {t("company.sendInvite")}
                   </button>
                   <button type="button" onClick={() => setEditing({ id: r.id, name: r.name ?? "", email: r.email, phone: r.phone ?? "" })}>

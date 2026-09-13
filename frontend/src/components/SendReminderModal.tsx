@@ -5,6 +5,7 @@ import { bankApi, type BankTransaction } from "../api/bank";
 import { remindersApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { reminderBody } from "../lib/reminderBody";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -31,6 +32,7 @@ interface Draft { recipient: string; body: string; loading: boolean; sent: boole
 export function SendReminderModal({ companies, period, onClose }:
   { companies: ReminderTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const qc = useQueryClient();
   const month = period.slice(0, 7);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
@@ -163,7 +165,8 @@ export function SendReminderModal({ companies, period, onClose }:
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
               <button onClick={onClose}>{t("email.cancel")}</button>
-              <button className="primary" onClick={sendAll} disabled={sending || allSent}>
+              <button className="primary" onClick={sendAll} disabled={sending || allSent || !emailConfigured}
+                title={emailConfigured ? undefined : t("email.smtpRequired")}>
                 ✉ {sending ? t("taxes.sending") : t("email.sendNow")}
               </button>
             </div>
