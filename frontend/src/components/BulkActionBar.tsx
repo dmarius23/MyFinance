@@ -9,7 +9,7 @@ import { Icon } from "./Icon";
  * The outer wrapper is click-through (pointer-events: none) so only the pill itself is interactive — the
  * header/table underneath stay clickable in the flanks.
  */
-export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp }: {
+export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp, emailDisabled }: {
   count: number;
   /** Already-pluralized noun after the count, e.g. "companies selected". */
   label: string;
