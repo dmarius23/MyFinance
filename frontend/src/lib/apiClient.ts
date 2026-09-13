@@ -52,10 +52,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, message, detail);
   }
 
+  // Void endpoints (e.g. send-test-email, send-invite) return 200/204 with an empty body — parsing that
+  // as JSON would throw and surface a successful call as a failure. Return undefined when there's no body.
   if (res.status === 204) {
     return undefined as T;
   }
-  return (await res.json()) as T;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /** Resolves the current Supabase access token, or null. */
