@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { payrollApi, type PayrollDoc } from "../api/payroll";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -19,6 +20,7 @@ interface Draft { recipient: string; body: string; loading: boolean; sent: boole
 export function PayrollEmailModal({ targets, period, onClose }:
   { targets: PayrollTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(targets.map((x) => [x.companyId, { recipient: "", body: "", loading: true, sent: false, docIds: x.documents.map((d) => d.id) }])),
@@ -138,7 +140,8 @@ export function PayrollEmailModal({ targets, period, onClose }:
           <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.eachLogged")}</span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose}>{t("common.cancel")}</button>
-            <button className="primary" onClick={sendAll} disabled={sending || allSent}>
+            <button className="primary" onClick={sendAll} disabled={sending || allSent || !emailConfigured}
+              title={emailConfigured ? undefined : t("email.smtpRequired")}>
               <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
               {sending ? t("taxes.sending") : t("email.sendN", { n: targets.length })}
             </button>

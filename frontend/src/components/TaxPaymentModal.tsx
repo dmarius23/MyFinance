@@ -5,6 +5,7 @@ import { taxPaymentsApi, type EmailView } from "../api/taxes";
 import { documentsApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { Icon } from "./Icon";
 
 const money = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 0 });
@@ -15,6 +16,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: 
 export function TaxPaymentModal({ companyId, companyName, period, onClose }:
   { companyId: string; companyName: string; period: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -118,7 +120,8 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                       ))}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
                         <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{selected.size} {t("taxes.selected")}</span>
-                        <button className="primary" disabled={selected.size === 0 || preview.isPending}
+                        <button className="primary" disabled={selected.size === 0 || preview.isPending || !emailConfigured}
+                          title={emailConfigured ? undefined : t("email.smtpRequired")}
                           onClick={() => openCompose([...selected])}>
                           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
                           {t("taxes.composeSelected", { n: selected.size })}
@@ -145,7 +148,8 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                       {composeError && <p style={{ color: "var(--danger-fg)" }}>{composeError}</p>}
                       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
                         <button onClick={() => setCompose(null)}>{t("common.cancel")}</button>
-                        <button className="primary" disabled={send.isPending || !compose.body.trim()}
+                        <button className="primary" disabled={send.isPending || !compose.body.trim() || !emailConfigured}
+                          title={emailConfigured ? undefined : t("email.smtpRequired")}
                           onClick={() => send.mutate(compose)}>{send.isPending ? t("taxes.sending") : t("taxes.send")}</button>
                       </div>
                     </div>

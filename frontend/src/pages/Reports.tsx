@@ -7,6 +7,7 @@ import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
+import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { InfoTip } from "../components/InfoTip";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
@@ -24,6 +25,7 @@ import { attachmentsNote } from "../lib/attachmentsNote";
 /** MOD-06 Reports — monthly hub: manage trial balance, download branded report, charts, email to rep. */
 export function Reports() {
   const { t } = useTranslation();
+  const emailConfigured = useEmailConfigured();
   const { period } = usePeriod();
   const { focusCompany, focusRef, openModal } = useCompanyFocus();
   const qc = useQueryClient();
@@ -102,7 +104,8 @@ export function Reports() {
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
         onClear={() => setSelected(new Set())}
         onEmail={() => setSendList([...selected].map(target))}
-        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))} />
+        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))}
+        emailDisabled={!emailConfigured} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 900 }}>
@@ -146,7 +149,10 @@ export function Reports() {
                 <div>
                   <RowActions>
                     <ActionBtn icon="upload" title={t("channel.upload")} onClick={manage} />
-                    <ActionBtn icon="mail" title={t("channel.email")} onClick={() => setSendList([target(r.companyId)])} />
+                    <ActionBtn icon={emailConfigured ? "mail" : "alert"}
+                      title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
+                      disabled={!emailConfigured}
+                      onClick={() => setSendList([target(r.companyId)])} />
                     <WhatsAppAction onClick={() => setWaFor({ id: r.companyId, name: r.companyName })} />
                   </RowActions>
                 </div>

@@ -16,6 +16,8 @@ export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp }: {
   onClear: () => void;
   onEmail: () => void;
   onWhatsapp: () => void;
+  /** When true, the bulk-email button is disabled with a warning (tenant SMTP not configured). */
+  emailDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   if (count <= 0) return null;
@@ -27,8 +29,10 @@ export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp }: {
         </span>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={onClear} style={ghost}>{t("email.clear")}</button>
-          <button className="primary" onClick={onEmail}>
-            <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: count })}
+          <button className="primary" onClick={onEmail} disabled={emailDisabled}
+            title={emailDisabled ? t("email.smtpRequired") : undefined}
+            style={emailDisabled ? { opacity: 0.5, cursor: "default" } : undefined}>
+            <Icon name={emailDisabled ? "alert" : "mail"} size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: count })}
           </button>
           <button onClick={onWhatsapp} style={waBtn}>
             <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsappN", { n: count })}
