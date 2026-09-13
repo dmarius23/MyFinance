@@ -22,11 +22,12 @@ public interface UserInviter {
     InvitedUser provision(String email, InviteClaims claims);
 
     /**
-     * Send an existing user a "set your password" / access email (a recovery link to the app). Used by the
-     * on-demand "Send invite" action for a representative who was provisioned without one — so the accountant
-     * decides when each rep is emailed. Idempotent from the caller's view; safe to re-send.
+     * Generate a "set your password" (recovery) action link for an existing user <b>without sending any
+     * email</b>, so the application can deliver its own MyFinance- and firm-branded invitation (through the
+     * tenant's own email provider) instead of the identity provider's generic reset-password message. The
+     * link opens the app ({@code redirect_to=<appUrl>}). Safe to call repeatedly; each call mints a fresh link.
      */
-    void sendInvite(String email);
+    String generateSetPasswordLink(String email);
 
     /**
      * Change an existing auth user's email (admin-set, already-confirmed). Used when an accountant corrects

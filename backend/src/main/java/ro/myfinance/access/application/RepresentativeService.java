@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.audit.AuditRecorder;
+import ro.myfinance.common.email.EmailSender;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
@@ -16,6 +17,8 @@ import ro.myfinance.access.domain.AppUser;
 import ro.myfinance.access.domain.RepresentativeLink;
 import ro.myfinance.access.domain.UserStatus;
 import ro.myfinance.company.application.CompanyDirectory;
+import ro.myfinance.company.domain.Company;
+import ro.myfinance.tenant.application.TenantDirectory;
 
 /**
  * MOD-02 — managing a company's representatives. Invites go through the {@link UserInviter}
@@ -33,16 +36,24 @@ public class RepresentativeService {
     private final UserInviter inviter;
     private final AuthUserCleanup authCleanup;
     private final AuditRecorder audit;
+    private final TenantDirectory tenants;
+    private final EmailEnvelopeService envelope;
+    private final EmailSender emailSender;
 
     public RepresentativeService(CompanyDirectory companies, AppUserRepository users,
                                  RepresentativeLinkRepository links, UserInviter inviter,
-                                 AuthUserCleanup authCleanup, AuditRecorder audit) {
+                                 AuthUserCleanup authCleanup, AuditRecorder audit,
+                                 TenantDirectory tenants, EmailEnvelopeService envelope,
+                                 EmailSender emailSender) {
         this.companies = companies;
         this.users = users;
         this.links = links;
         this.inviter = inviter;
         this.authCleanup = authCleanup;
         this.audit = audit;
+        this.tenants = tenants;
+        this.envelope = envelope;
+        this.emailSender = emailSender;
     }
 
     /**
@@ -139,11 +150,25 @@ public class RepresentativeService {
 
     /**
      * On-demand "Send invite": email a representative a set-password / access link. Used for reps who were
-     * bulk-provisioned without an email (CSV import) — the accountant chooses when to send it.
+     * bulk-provisioned without an email (CSV import) — the accountant chooses when to send it. The email is
+     * MyFinance- and firm-branded and delivered through the tenant's own email provider (per-tenant SMTP,
+     * platform fallback), not the identity provider's generic reset-password message. Sent synchronously so
+     * the accountant sees success/failure immediately; audited only after a successful send.
      */
     public void sendInvite(UUID companyId, UUID userId) {
         AppUser rep = requireRepOfCompany(companyId, userId);
-        inviter.sendInvite(rep.getEmail());
+        String firmName = tenants.current().map(TenantDirectory.CurrentTenant::name).orElse(null);
+        String companyName = companies.findById(companyId).map(Company::getLegalName).orElse(null);
+        String link = inviter.generateSetPasswordLink(rep.getEmail());
+
+        // From: firm name (display) + the firm's configured sender address; recipient = the rep.
+        EmailEnvelopeService.Envelope env = envelope.system(rep.getEmail());
+        String fromName = (firmName != null && !firmName.isBlank()) ? firmName : "MyFinance";
+        emailSender.send(new EmailSender.Message(
+                fromName, env.fromEmail(), rep.getEmail(),
+                InviteMessageFactory.subject(firmName),
+                InviteMessageFactory.body(firmName, companyName, rep.getName(), link),
+                java.util.List.of()));
         audit.record("REPRESENTATIVE_INVITE_SENT", "company", companyId);
     }
 

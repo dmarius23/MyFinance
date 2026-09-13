@@ -119,15 +119,26 @@ public class SupabaseUserInviter implements UserInviter {
     }
 
     @Override
-    public void sendInvite(String email) {
-        // A password-recovery ("set your password") email — works for a user that already exists (unlike
-        // /invite, which rejects an already-registered address). The redirect opens the app.
-        client.post()
-                .uri(b -> withRedirect(b.path("/auth/v1/recover")).build())
+    public String generateSetPasswordLink(String email) {
+        // Admin generate_link mints a recovery ("set your password") action link WITHOUT sending an email,
+        // so the app can deliver its own branded invitation. Works for an already-registered user (unlike
+        // /invite). redirect_to (in the body) makes the link open the app.
+        Map<String, Object> body = new HashMap<>();
+        body.put("type", "recovery");
+        body.put("email", email);
+        if (!appUrl.isBlank()) {
+            body.put("redirect_to", appUrl);
+        }
+        GenerateLinkResponse resp = client.post()
+                .uri("/auth/v1/admin/generate_link")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("email", email))
+                .body(body)
                 .retrieve()
-                .toBodilessEntity();
+                .body(GenerateLinkResponse.class);
+        if (resp == null || resp.actionLink() == null || resp.actionLink().isBlank()) {
+            throw new IllegalStateException("Supabase generate_link returned no action_link for " + email);
+        }
+        return resp.actionLink();
     }
 
     @Override
@@ -187,4 +198,5 @@ public class SupabaseUserInviter implements UserInviter {
     record GoTrueUser(UUID id) {}
     record UsersPage(List<AdminUser> users) {}
     record AdminUser(UUID id, String email) {}
+    record GenerateLinkResponse(@com.fasterxml.jackson.annotation.JsonProperty("action_link") String actionLink) {}
 }
