@@ -1,9 +1,6 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
-import { ApiError } from "../lib/apiClient";
-import { Field } from "../components/Field";
 import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /** Treasury IBAN columns, in the requested order: CAM, impozite, CASS, CAS, TVA. */
@@ -19,7 +16,8 @@ const hint: React.CSSProperties = { color: "var(--text-muted)", fontSize: 13, ma
 
 /**
  * Tenant-level settings. Tax rates + treasury accounts are GLOBAL (SUPER_ADMIN-managed) and shown
- * read-only here; only the firm's sender email is editable per-tenant.
+ * read-only here; the firm's outbound email/WhatsApp providers are configured per-tenant. The From
+ * identity comes from the SMTP provider's "from address" (below) — there is no separate sender-email field.
  */
 export function Settings() {
   const { t } = useTranslation();
@@ -28,53 +26,10 @@ export function Settings() {
       <div className="card">
         <h1 style={{ marginTop: 0 }}>{t("nav.settings")}</h1>
       </div>
-      <SenderEmailSection />
       <EmailProviderSection />
       <WhatsAppProviderSection />
       <RatesSection />
       <TreasurySection />
-    </div>
-  );
-}
-
-function SenderEmailSection() {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery({ queryKey: ["settings"], queryFn: settingsApi.get });
-  const [value, setValue] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const email = value ?? data?.senderEmail ?? "";
-
-  const save = useMutation({
-    mutationFn: () => settingsApi.updateSenderEmail(email || null),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["settings"] });
-      setValue(null);
-      setError(null);
-    },
-    onError: (e) => setError(e instanceof ApiError ? e.message : "Failed to save"),
-  });
-
-  return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>{t("settings.senderEmail")}</h2>
-      {isLoading ? (
-        <p>{t("common.loading")}</p>
-      ) : (
-        <form
-          onSubmit={(e) => { e.preventDefault(); setError(null); save.mutate(); }}
-          style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}
-        >
-          <Field label={t("settings.senderEmail")}>
-            <input type="email" placeholder="contact@firma-contabila.ro" value={email}
-              onChange={(e) => setValue(e.target.value)} style={{ minWidth: 240 }} />
-          </Field>
-          <button className="primary" type="submit" disabled={save.isPending} style={{ marginBottom: 10 }}>
-            {save.isPending ? "Saving…" : t("common.save")}
-          </button>
-        </form>
-      )}
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
     </div>
   );
 }
