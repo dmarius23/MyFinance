@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { Field } from "../components/Field";
+import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /** Treasury IBAN columns, in the requested order: CAM, impozite, CASS, CAS, TVA. */
 const IBAN_COLS = [
@@ -28,6 +29,8 @@ export function Settings() {
         <h1 style={{ marginTop: 0 }}>{t("nav.settings")}</h1>
       </div>
       <SenderEmailSection />
+      <EmailProviderSection />
+      <WhatsAppProviderSection />
       <RatesSection />
       <TreasurySection />
     </div>
