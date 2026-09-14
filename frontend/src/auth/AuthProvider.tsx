@@ -13,6 +13,10 @@ export interface AuthState {
   role: Role | null;
   tenantId: string | null;
   companyId: string | null;
+  /** True after following an invitation / reset link — the user must set a password before entering. */
+  recovery: boolean;
+  /** Clear the recovery flag once the password has been set. */
+  clearRecovery: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -25,6 +29,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovery, setRecovery] = useState(false);
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -32,7 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next);
+      // Invitation / reset links arrive as a recovery session — force the set-password step instead of
+      // dropping the user straight into the app.
+      if (event === "PASSWORD_RECOVERY") {
+        setRecovery(true);
+      }
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -46,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       tenantId: (jwtClaims.tenant_id ?? claims.tenant_id ?? null) as string | null,
       companyId: (jwtClaims.company_id ?? claims.company_id ?? null) as string | null,
+      recovery,
+      clearRecovery: () => setRecovery(false),
       signOut: async () => {
         // Shared-device safety: unsubscribe this browser from push while the token is still valid.
         await unsubscribePushOnLogout();
@@ -53,9 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Drop the cached company hint and every cached API response.
         setActiveCompanyId(null);
         qc.clear();
+        setRecovery(false);
       },
     };
-  }, [session, loading, qc]);
+  }, [session, loading, recovery, qc]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

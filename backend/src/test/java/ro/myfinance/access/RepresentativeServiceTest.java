@@ -55,7 +55,8 @@ class RepresentativeServiceTest {
         TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         when(companies.findById(companyId)).thenReturn(Optional.of(mock(Company.class)));
         when(users.findByEmail("rep@client.ro")).thenReturn(Optional.empty()); // new invite path
-        when(inviter.invite(any(), any())).thenReturn(new UserInviter.InvitedUser(externalId, true));
+        // New reps are always PROVISIONED (no identity-provider email); the branded invite is sent by us.
+        when(inviter.provision(any(), any())).thenReturn(new UserInviter.InvitedUser(externalId, true));
     }
 
     @AfterEach
@@ -71,6 +72,38 @@ class RepresentativeServiceTest {
 
         org.assertj.core.api.Assertions.assertThat(rep.getId()).isEqualTo(externalId);
         verify(authCleanup, never()).scheduleDelete(any());
+    }
+
+    @Test
+    void addingRepInAppAutoSendsTheBrandedInvite() {
+        when(users.saveAndFlush(any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
+        when(tenants.current()).thenReturn(Optional.of(
+                new ro.myfinance.tenant.application.TenantDirectory.CurrentTenant("Contabil Expert SRL", "RO1")));
+        when(inviter.generateSetPasswordLink("rep@client.ro")).thenReturn("https://app.example/set#token");
+        when(envelope.system("rep@client.ro"))
+                .thenReturn(new EmailEnvelopeService.Envelope("MyFinance", "noreply@firma.ro", "rep@client.ro"));
+
+        service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678"); // in-app add → sendEmail=true
+
+        verify(inviter).provision(any(), any());
+        verify(inviter, never()).invite(any(), any()); // no identity-provider email
+        var captor = org.mockito.ArgumentCaptor.forClass(ro.myfinance.common.email.EmailSender.Message.class);
+        verify(emailSender).send(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().body())
+                .contains("https://app.example/set#token");
+    }
+
+    @Test
+    void addingRepSucceedsEvenIfTheInviteEmailFails() {
+        when(users.saveAndFlush(any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
+        when(inviter.generateSetPasswordLink("rep@client.ro"))
+                .thenThrow(new IllegalStateException("SMTP down"));
+
+        // Best-effort delivery: the rep is still created; the accountant can re-send via "Send invite".
+        AppUser rep = service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678");
+
+        org.assertj.core.api.Assertions.assertThat(rep.getId()).isEqualTo(externalId);
+        verify(authCleanup, never()).scheduleDelete(any()); // email failure must not compensate the rep
     }
 
     @Test

@@ -3,6 +3,7 @@ import { FirmLayout } from "./components/FirmLayout";
 import { RequireRole } from "./auth/RequireRole";
 import { useAuth, type Role } from "./auth/AuthProvider";
 import { Login } from "./pages/Login";
+import { SetPassword } from "./pages/SetPassword";
 import { Companies } from "./pages/Companies";
 import { Dashboard } from "./pages/Dashboard";
 import { CompanyDetail } from "./pages/CompanyDetail";
@@ -43,6 +44,12 @@ function RoleHome() {
  * access via RLS + role checks.
  */
 export default function App() {
+  // Following an invitation / reset link lands the user in a recovery session — make them set a password
+  // before anything else, regardless of the target route (they'd otherwise be dropped into the app).
+  const { recovery } = useAuth();
+  if (recovery) {
+    return <SetPassword />;
+  }
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
