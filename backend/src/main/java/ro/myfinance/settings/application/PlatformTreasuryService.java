@@ -24,12 +24,44 @@ public class PlatformTreasuryService {
         this.accounts = accounts;
     }
 
-    /** The treasury account in force for {@code residence} at {@code period}, if any. */
+    /**
+     * The treasury account in force for {@code residence} at {@code period}, if any. Matching is
+     * diacritic- and separator-insensitive so a company's locality ({@code "Cluj-Napoca"}, {@code
+     * "București"}) resolves against the ANAF catalogue's spelling ({@code "Cluj Napoca"}, {@code
+     * "Bucuresti"}). Only an EXACT normalized match is accepted — never a fuzzy/substring guess, since a
+     * wrong treasury IBAN would misdirect a real tax payment.
+     */
     public Optional<PlatformTreasuryAccount> accountFor(String residence, LocalDate period) {
         if (residence == null || residence.isBlank() || period == null) {
             return Optional.empty();
         }
-        return accounts.findTopByResidenceAndValidFromLessThanEqualOrderByValidFromDesc(residence, period);
+        // Fast path: exact spelling already matches.
+        Optional<PlatformTreasuryAccount> exact =
+                accounts.findTopByResidenceAndValidFromLessThanEqualOrderByValidFromDesc(residence, period);
+        if (exact.isPresent()) {
+            return exact;
+        }
+        // Fallback: compare normalized names against the residences in force for the period.
+        String target = normalizeResidence(residence);
+        if (target.isEmpty()) {
+            return Optional.empty();
+        }
+        return listEffective(period).stream()
+                .filter(a -> normalizeResidence(a.getResidence()).equals(target))
+                .findFirst();
+    }
+
+    /** Lowercased, diacritics stripped, hyphens/underscores → spaces, whitespace collapsed. */
+    static String normalizeResidence(String s) {
+        if (s == null) {
+            return "";
+        }
+        String noDiacritics = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return noDiacritics.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[-_]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     /**
