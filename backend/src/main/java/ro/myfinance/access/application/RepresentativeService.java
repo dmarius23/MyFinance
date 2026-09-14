@@ -87,22 +87,22 @@ public class RepresentativeService {
             return existing;
         }
 
-        // The external invite (Supabase auth user + email) happens before the local persistence, and the
-        // GoTrue-generated id becomes the app_user PK — so we can't reverse the order. Instead we make it
-        // atomic by compensation: if any local write below fails, the transaction rolls back AND we durably
-        // schedule the deletion of the just-created auth user (own tx via the outbox, so it survives this
-        // rollback and is retried) — leaving no orphaned auth user. saveAndFlush surfaces constraint
-        // failures here, inside the try, rather than at commit.
+        // Always PROVISION the auth user (no identity-provider email) before local persistence — the
+        // GoTrue-generated id becomes the app_user PK, so we can't reverse the order. Atomicity is by
+        // compensation: if any local write below fails, the transaction rolls back AND we durably schedule
+        // the deletion of the just-created auth user (own tx via the outbox, so it survives this rollback
+        // and is retried) — leaving no orphaned auth user. The invitation email is sent by US (branded,
+        // via the tenant's provider) AFTER the rep is persisted, not by the identity provider.
         InviteClaims claims = new InviteClaims(tenantId, Role.REPRESENTATIVE, companyId);
-        var invited = sendEmail ? inviter.invite(email, claims) : inviter.provision(email, claims);
+        var invited = inviter.provision(email, claims);
+        AppUser rep;
         try {
-            AppUser rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
+            rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
             rep.setPhone(phone);
             rep.setStatus(UserStatus.INVITED);
             users.saveAndFlush(rep);
             links.saveAndFlush(new RepresentativeLink(tenantId, rep.getId(), companyId));
             audit.record("REPRESENTATIVE_INVITED", "company", companyId);
-            return rep;
         } catch (RuntimeException e) {
             // Only compensate for an auth user WE created — never delete a pre-existing one we reused.
             if (invited.created()) {
@@ -115,6 +115,19 @@ public class RepresentativeService {
             }
             throw e;
         }
+
+        // Reps added in-app get the branded invitation immediately; bulk CSV import (sendEmail=false)
+        // defers it (the accountant sends it later via "Send invite"). Best-effort: a delivery problem
+        // must not undo the representative we just created — it's recoverable with the manual re-send.
+        if (sendEmail) {
+            try {
+                sendBrandedInvite(companyId, rep.getEmail(), rep.getName());
+            } catch (RuntimeException mailEx) {
+                log.warn("Representative {} created but the invitation email failed to send: {}",
+                        rep.getId(), mailEx.getMessage());
+            }
+        }
+        return rep;
     }
 
     /**
@@ -157,19 +170,29 @@ public class RepresentativeService {
      */
     public void sendInvite(UUID companyId, UUID userId) {
         AppUser rep = requireRepOfCompany(companyId, userId);
+        sendBrandedInvite(companyId, rep.getEmail(), rep.getName());
+        audit.record("REPRESENTATIVE_INVITE_SENT", "company", companyId);
+    }
+
+    /**
+     * Send the MyFinance- and firm-branded invitation email (a "set your password" link) to a
+     * representative, through the tenant's own email provider. Shared by the on-demand "Send invite" action
+     * and the auto-send when a rep is added in-app. Throws on a delivery failure so the caller can decide
+     * whether to surface it (manual send) or swallow it (best-effort during rep creation).
+     */
+    private void sendBrandedInvite(UUID companyId, String repEmail, String repName) {
         String firmName = tenants.current().map(TenantDirectory.CurrentTenant::name).orElse(null);
         String companyName = companies.findById(companyId).map(Company::getLegalName).orElse(null);
-        String link = inviter.generateSetPasswordLink(rep.getEmail());
+        String link = inviter.generateSetPasswordLink(repEmail);
 
         // From: firm name (display) + the firm's configured sender address; recipient = the rep.
-        EmailEnvelopeService.Envelope env = envelope.system(rep.getEmail());
+        EmailEnvelopeService.Envelope env = envelope.system(repEmail);
         String fromName = (firmName != null && !firmName.isBlank()) ? firmName : "MyFinance";
         emailSender.send(new EmailSender.Message(
-                fromName, env.fromEmail(), rep.getEmail(),
+                fromName, env.fromEmail(), repEmail,
                 InviteMessageFactory.subject(firmName),
-                InviteMessageFactory.body(firmName, companyName, rep.getName(), link),
+                InviteMessageFactory.body(firmName, companyName, repName, link),
                 java.util.List.of()));
-        audit.record("REPRESENTATIVE_INVITE_SENT", "company", companyId);
     }
 
     /** Remove a representative's assignment to one company (the user and other assignments remain). */
