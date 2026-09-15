@@ -175,7 +175,28 @@ public class IngestionService {
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false, null, null);
+        SyncResult r = doSync(conn, null, java.util.Set.of(current, prev), null, prev, true,
+                conn.getRootFolderId(), false, null, null);
+        // Refresh the per-(module, month) sync status the module screens display, for both months this run
+        // covered — so an unattended nightly run shows "last synced = tonight", not the last manual sync.
+        recordAutoSyncStatus(conn, r, current, prev);
+        return r;
+    }
+
+    /** Mark the module-month slots this connection's nightly poll covered as synced-now. */
+    private void recordAutoSyncStatus(SourceConnection conn, SyncResult r, LocalDate current, LocalDate prev) {
+        String summary = r.summary();
+        if ("ACCOUNTING".equalsIgnoreCase(conn.getPurpose())) {
+            syncStatus.markSyncedNow(ACCOUNTING_SLOT, current.withDayOfMonth(1), summary);
+            syncStatus.markSyncedNow(ACCOUNTING_SLOT, prev.withDayOfMonth(1), summary);
+        } else {
+            // The declarations drive carries payroll, fiscal declarations and interim trial balances.
+            for (DocumentType module : java.util.List.of(
+                    DocumentType.PAYROLL, DocumentType.DECLARATION, DocumentType.TRIAL_BALANCE)) {
+                syncStatus.markSyncedNow(module.name(), statusPeriod(module, current), summary);
+                syncStatus.markSyncedNow(module.name(), statusPeriod(module, prev), summary);
+            }
+        }
     }
 
     /**

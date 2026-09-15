@@ -74,6 +74,23 @@ public class ModuleSyncStatusService {
         });
     }
 
+    /**
+     * Record a completed sync for a (module, month) WITHOUT a preceding {@link #markStart} — used by the
+     * unattended nightly poll, which has no interactive "running" phase but must still refresh the
+     * last-synced timestamp the module screens display. Upserts: creates the row if this month was never
+     * synced before.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markSyncedNow(String module, LocalDate period, String result) {
+        UUID tenantId = TenantContext.tenantId().orElseThrow();
+        ModuleSyncStatus s = repo.findByModuleAndPeriodMonth(module, period)
+                .orElseGet(() -> new ModuleSyncStatus(tenantId, module, period));
+        s.setRunning(false);
+        s.setLastSyncedAt(Instant.now());
+        s.setLastResult(result);
+        repo.save(s);
+    }
+
     @Transactional(readOnly = true)
     public View get(String module, LocalDate period) {
         return repo.findByModuleAndPeriodMonth(module, period)
