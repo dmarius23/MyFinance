@@ -8,6 +8,7 @@ import { ApiError } from "../lib/apiClient";
 import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
@@ -72,6 +73,7 @@ function DeclStack({ cells, missingLabel, naLabel }: { cells: DeclarationCell[];
 export function TaxPayments() {
   const { t, i18n } = useTranslation();
   const emailConfigured = useEmailConfigured();
+  const whatsappConfigured = useWhatsAppConfigured();
   const qc = useQueryClient();
   const { period } = usePeriod();
   const { focusCompany, focusRef, openModal } = useCompanyFocus();
@@ -171,7 +173,7 @@ export function TaxPayments() {
       {/* Floating bulk bar */}
       <BulkActionBar count={selected.size} label={t("taxes.companiesSelected")}
         onClear={() => setSelected(new Set())} onEmail={openBulk} onWhatsapp={openWaBulk}
-        emailDisabled={!emailConfigured} />
+        emailDisabled={!emailConfigured} whatsappDisabled={!whatsappConfigured} />
 
       {/* List */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -228,7 +230,7 @@ export function TaxPayments() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })} />
-                    <WhatsAppAction onClick={() => setWaFor({ id: row.companyId, name: row.companyName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: row.companyId, name: row.companyName })} />
                   </RowActions>
                 </div>
               </div>

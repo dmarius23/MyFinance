@@ -8,6 +8,7 @@ import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { InfoTip } from "../components/InfoTip";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
@@ -26,6 +27,7 @@ import { attachmentsNote } from "../lib/attachmentsNote";
 export function Reports() {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
+  const whatsappConfigured = useWhatsAppConfigured();
   const { period } = usePeriod();
   const { focusCompany, focusRef, openModal } = useCompanyFocus();
   const qc = useQueryClient();
@@ -105,7 +107,7 @@ export function Reports() {
         onClear={() => setSelected(new Set())}
         onEmail={() => setSendList([...selected].map(target))}
         onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))}
-        emailDisabled={!emailConfigured} />
+        emailDisabled={!emailConfigured} whatsappDisabled={!whatsappConfigured} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 900 }}>
@@ -153,7 +155,7 @@ export function Reports() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setSendList([target(r.companyId)])} />
-                    <WhatsAppAction onClick={() => setWaFor({ id: r.companyId, name: r.companyName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: r.companyId, name: r.companyName })} />
                   </RowActions>
                 </div>
               </div>

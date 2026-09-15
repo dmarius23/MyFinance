@@ -10,6 +10,7 @@ import { usePeriod } from "../lib/period";
 import { reminderBody } from "../lib/reminderBody";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
@@ -52,6 +53,7 @@ function StatusPill({ label, kind, title }:
 export function Statements() {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
+  const whatsappConfigured = useWhatsAppConfigured();
   const { period } = usePeriod();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -144,7 +146,7 @@ export function Statements() {
         onClear={() => setSelected(new Set())}
         onEmail={() => setSendList([...selected].map(target))}
         onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))}
-        emailDisabled={!emailConfigured} />
+        emailDisabled={!emailConfigured} whatsappDisabled={!whatsappConfigured} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1040 }}>
@@ -231,7 +233,7 @@ export function Statements() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>
