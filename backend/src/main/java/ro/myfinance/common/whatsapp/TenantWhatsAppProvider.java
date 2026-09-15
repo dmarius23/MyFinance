@@ -64,4 +64,21 @@ public class TenantWhatsAppProvider {
     public String getFromNumber() { return fromNumber; }
     public void setFromNumber(String fromNumber) { this.fromNumber = fromNumber; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    /**
+     * Whether this tenant can send WhatsApp: TWILIO needs account SID + auth token + sender number;
+     * CLICK_TO_CHAT is always usable (a manual wa.me link needs no credentials); OFF cannot send.
+     * Drives the UI gate on WhatsApp-send actions, mirroring {@code TenantEmailProvider.isSendable()}.
+     */
+    public boolean isSendable() {
+        return switch (getMode()) {
+            case TWILIO -> notBlank(accountSid) && notBlank(authTokenEnc) && notBlank(fromNumber);
+            case CLICK_TO_CHAT -> true;
+            case OFF -> false;
+        };
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
 }

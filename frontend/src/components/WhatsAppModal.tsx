@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -18,6 +19,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   { companyId: string; companyName: string; kind: WhatsAppKind; period: string;
     loadBody?: () => Promise<string>; onClose: () => void }) {
   const { t } = useTranslation();
+  const whatsappConfigured = useWhatsAppConfigured();
   const qc = useQueryClient();
   const [phone, setPhone] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -73,7 +75,9 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
             style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>}
           <div style={{ marginTop: 10 }}>
-            <button className="primary" disabled={send.isPending || !body.trim() || !(phone ?? "").trim()}
+            <button className="primary"
+              disabled={send.isPending || !body.trim() || !(phone ?? "").trim() || !whatsappConfigured}
+              title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}
               onClick={() => send.mutate()}>
               <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsapp")}
             </button>

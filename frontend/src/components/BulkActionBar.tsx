@@ -9,7 +9,7 @@ import { Icon } from "./Icon";
  * The outer wrapper is click-through (pointer-events: none) so only the pill itself is interactive — the
  * header/table underneath stay clickable in the flanks.
  */
-export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp, emailDisabled }: {
+export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp, emailDisabled, whatsappDisabled }: {
   count: number;
   /** Already-pluralized noun after the count, e.g. "companies selected". */
   label: string;
@@ -18,6 +18,8 @@ export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp, emai
   onWhatsapp: () => void;
   /** When true, the bulk-email button is disabled with a warning (tenant SMTP not configured). */
   emailDisabled?: boolean;
+  /** When true, the bulk-WhatsApp button is disabled with a warning (tenant WhatsApp not configured). */
+  whatsappDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   if (count <= 0) return null;
@@ -34,8 +36,10 @@ export function BulkActionBar({ count, label, onClear, onEmail, onWhatsapp, emai
             style={emailDisabled ? { opacity: 0.5, cursor: "default" } : undefined}>
             <Icon name={emailDisabled ? "alert" : "mail"} size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("email.sendN", { n: count })}
           </button>
-          <button onClick={onWhatsapp} style={waBtn}>
-            <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsappN", { n: count })}
+          <button onClick={onWhatsapp} disabled={whatsappDisabled}
+            title={whatsappDisabled ? t("channel.whatsappRequired") : undefined}
+            style={whatsappDisabled ? { ...waBtn, opacity: 0.5, cursor: "default" } : waBtn}>
+            <Icon name={whatsappDisabled ? "alert" : "whatsapp"} size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsappN", { n: count })}
           </button>
         </div>
       </div>

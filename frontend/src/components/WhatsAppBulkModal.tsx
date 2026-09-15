@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -23,6 +24,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
   { targets: WhatsAppTarget[]; kind: WhatsAppKind; period: string;
     loadBody: (companyId: string) => Promise<string>; onClose: () => void; onSent?: () => void }) {
   const { t } = useTranslation();
+  const whatsappConfigured = useWhatsAppConfigured();
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false }])),
@@ -121,7 +123,9 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
           <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.eachLogged")}</span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose}>{t("common.cancel")}</button>
-            <button style={waBtnPrimary} onClick={sendAll} disabled={sending || allSent || sendableCount === 0}>
+            <button style={waBtnPrimary} onClick={sendAll}
+              disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured}
+              title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}>
               <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
               {sending ? t("taxes.sending") : t("channel.sendWhatsappN", { n: sendableCount })}
             </button>
