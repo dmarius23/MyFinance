@@ -3,11 +3,16 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi } from "../api/ingestion";
 
-/** The module list query a finished sync should refresh, keyed by Drive module type. */
+/**
+ * The module list query a finished sync should refresh, keyed by Drive module type. These MUST match the
+ * first element of each page's list queryKey — all three became paginated ("…-page") when search +
+ * infinite-scroll landed, so a stale key here silently invalidates nothing and the list only updates on a
+ * manual page refresh.
+ */
 const MODULE_QUERY_KEY: Record<string, string> = {
-  PAYROLL: "payroll",
-  DECLARATION: "tax-list-page", // paginated tax list (renamed from "tax-list" when search/infinite-scroll landed)
-  TRIAL_BALANCE: "reports",
+  PAYROLL: "payroll-page",
+  DECLARATION: "tax-list-page",
+  TRIAL_BALANCE: "reports-page",
 };
 
 /**
