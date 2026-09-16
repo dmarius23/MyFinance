@@ -50,13 +50,35 @@ Create an account, verify a sender address/domain, and grab the SMTP host/port/u
   ```
   (Re-runnable/idempotent. Override `DEPLOY_USER`, `APP_DIR`, `SWAP_GB` via env if needed.)
 
-### 4. DNS (no domain yet → sslip.io)
-Use the VM IP directly as a hostname:
-- `APP_HOST = <IP>.sslip.io`  (e.g. `203.0.113.10.sslip.io`)
-- `API_HOST = api.<IP>.sslip.io`
+### 4. DNS (a real domain — **not** sslip.io)
+Create two A-records at the registrar, both pointing at the VM's public IP:
 
-Later, swapping to a real domain = point `app.` / `api.` A-records at the VM, change `APP_HOST/API_HOST`
-+ `CORS_ALLOWED_ORIGINS` in `.env`, set the `VITE_*` GitHub variables to the new URLs, redeploy.
+| Record | Type | Value |
+| --- | --- | --- |
+| `app` | A | `<VM IP>` |
+| `api` | A | `<VM IP>` |
+
+- `APP_HOST = app.<domain>`
+- `API_HOST = api.<domain>`
+
+> **Do not use `sslip.io` (or `nip.io`, or any wildcard-DNS service) for a host real users visit.**
+> Security vendors classify those zones as dynamic-DNS/anonymiser and block them wholesale — corporate
+> firewalls, mobile-carrier filters and DNS filters (Umbrella, Fortinet, NextDNS, Quad9…). Users get an
+> "access not authorized" block page *before the app loads*, on every device and network that filters,
+> while the server itself is perfectly healthy. It is fine for a private smoke test, never for a pilot.
+
+If DNS is delegated to Cloudflare, keep both records **DNS-only (grey cloud)**, not proxied — Caddy needs
+a direct inbound path for the Let's Encrypt HTTP-01 challenge.
+
+#### Changing domain later
+Cutover is config-only (the Caddyfile and CD workflow are already env-driven — no code change):
+1. Add the new A-records; wait for them to resolve.
+2. On the VM, in `/opt/myfinance/.env`: `APP_HOST`, `API_HOST`, `CORS_ALLOWED_ORIGINS`, `MYFINANCE_APP_URL`.
+3. Set the `VITE_API_BASE_URL` GitHub **variable** to `https://<new API_HOST>` and **rebuild the frontend
+   image** — this value is baked in at build time, so a restart alone will not pick it up.
+4. Supabase → Authentication → URL Configuration: set Site URL and add the new origin to Redirect URLs.
+5. Redeploy. Caddy issues fresh certs automatically for the new hostnames.
+6. **Re-send any outstanding invitations** — links already in inboxes carry the old host.
 
 ### 5. Put config on the VM
 Copy this folder's `docker-compose.prod.yml` + `Caddyfile` to `/opt/myfinance/`, then create
