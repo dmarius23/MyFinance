@@ -9,6 +9,8 @@ import { usePeriod } from "../lib/period";
 import { useCompanyFocus } from "../lib/useCompanyFocus";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { InfoTip } from "../components/InfoTip";
 import { TaxPaymentModal } from "../components/TaxPaymentModal";
@@ -74,6 +76,8 @@ export function TaxPayments() {
   const { t, i18n } = useTranslation();
   const emailConfigured = useEmailConfigured();
   const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const openWa = useOpenWhatsApp();
   const qc = useQueryClient();
   const { period } = usePeriod();
   const { focusCompany, focusRef, openModal } = useCompanyFocus();
@@ -230,7 +234,10 @@ export function TaxPayments() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setEmailFor({ id: row.companyId, name: row.companyName })} />
-                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: row.companyId, name: row.companyName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured}
+                      onClick={() => waMode === "CLICK_TO_CHAT"
+                        ? openWa(row.companyId, () => waBody(row.companyId))
+                        : setWaFor({ id: row.companyId, name: row.companyName })} />
                   </RowActions>
                 </div>
               </div>

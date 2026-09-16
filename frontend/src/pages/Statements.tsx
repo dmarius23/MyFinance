@@ -11,6 +11,8 @@ import { reminderBody } from "../lib/reminderBody";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
@@ -54,6 +56,8 @@ export function Statements() {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
   const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const openWa = useOpenWhatsApp();
   const { period } = usePeriod();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -233,7 +237,10 @@ export function Statements() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured}
+                      onClick={() => waMode === "CLICK_TO_CHAT"
+                        ? openWa(c.id, () => waBody(c.id))
+                        : setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>
