@@ -25,9 +25,11 @@ public class PaymentEmailBuilder {
      * @param period      the reporting period
      * @param treasury    beneficiary treasury office, e.g. "Trezoreria Cluj Napoca"
      * @param lines       computed payment lines
+     * @param senderName  the logged-in accountant; omitted from the sign-off when blank
+     * @param firmName    the accounting firm (tenant) name — always the last line
      */
     public String build(String companyName, String cui, YearMonth period, String treasury,
-                        List<PaymentLine> lines) {
+                        List<PaymentLine> lines, String senderName, String firmName) {
         StringBuilder sb = new StringBuilder();
         sb.append("Bună ziua,\n\n");
         sb.append("Sumele de plată pentru luna ").append(monthYearSpace(period))
@@ -46,7 +48,8 @@ public class PaymentEmailBuilder {
                 sb.append("- Scadență: ").append(formatRo(l.scadenta())).append('\n');
             }
         }
-        sb.append("\nO zi plăcută,\n");
+        sb.append('\n').append(ro.myfinance.common.email.SignOff.block("O zi plăcută,", senderName, firmName))
+                .append('\n');
         return sb.toString();
     }
 

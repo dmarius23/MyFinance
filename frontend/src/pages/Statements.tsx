@@ -12,6 +12,7 @@ import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell 
 import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useFirmName } from "../lib/useFirmName";
 import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
@@ -57,6 +58,7 @@ export function Statements() {
   const emailConfigured = useEmailConfigured();
   const whatsappConfigured = useWhatsAppConfigured();
   const waMode = useWhatsAppMode();
+  const firmName = useFirmName();
   const openWa = useOpenWhatsApp();
   const { period } = usePeriod();
   const navigate = useNavigate();
@@ -130,7 +132,7 @@ export function Statements() {
     const hasBank = byCompany.get(id)?.hasBankStatement ?? false;
     const txns = hasBank ? await bankApi.transactions(id, period) : [];
     const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
-    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
+    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null, firmName);
   };
 
   return (

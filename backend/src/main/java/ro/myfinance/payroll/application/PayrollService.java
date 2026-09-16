@@ -184,10 +184,10 @@ public class PayrollService {
                 .stream().map(d -> new PayrollDoc(d.getId(), d.getOriginalFilename())).toList();
     }
 
-    /** Default editable email body for a company/period — signed with the logged-in user's name. */
+    /** Default editable email body for a company/period — signed by the logged-in user, then the firm. */
     @Transactional(readOnly = true)
     public String composeBody(UUID companyId, LocalDate period) {
-        return PayrollEmailBuilder.body(period, envelopes.currentUserName());
+        return PayrollEmailBuilder.body(period, envelopes.currentUserName(), envelopes.firmName());
     }
 
     /** Full send history for a company + period (newest first). */

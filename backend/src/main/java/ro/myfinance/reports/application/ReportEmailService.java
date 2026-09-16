@@ -50,11 +50,12 @@ public class ReportEmailService {
         }
     }
 
-    /** Default editable body for a company/period (signed with the logged-in user's name). */
+    /** Default editable body for a company/period (signed by the logged-in user, then the firm). */
     @Transactional(readOnly = true)
     public String composeBody(UUID companyId, LocalDate period) {
         ReportData r = reports.report(companyId, period);
-        return ReportEmailBuilder.body(period.withDayOfMonth(1), r, envelopes.currentUserName());
+        return ReportEmailBuilder.body(period.withDayOfMonth(1), r,
+                envelopes.currentUserName(), envelopes.firmName());
     }
 
     @Transactional(readOnly = true)
