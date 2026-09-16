@@ -54,9 +54,11 @@ class TaxPaymentServiceTest {
     @Mock TaxDeclarationRepository declarations;
     @Mock EmailHistoryRepository emails;
 
+    @Mock ro.myfinance.access.application.EmailEnvelopeService envelopes;
+
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
-                new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder());
+                new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder(), envelopes);
     }
 
     private byte[] fixture(String name) throws IOException {

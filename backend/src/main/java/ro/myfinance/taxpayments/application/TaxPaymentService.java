@@ -52,11 +52,13 @@ public class TaxPaymentService {
     private final AnafDeclarationExtractor extractor;
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
+    private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
     public TaxPaymentService(CompanyDirectory companies, DocumentService documents,
                              PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
                              EmailHistoryRepository emails, AnafDeclarationExtractor extractor,
-                             PaymentCalculator calculator, PaymentEmailBuilder emailBuilder) {
+                             PaymentCalculator calculator, PaymentEmailBuilder emailBuilder,
+                             ro.myfinance.access.application.EmailEnvelopeService envelopes) {
         this.companies = companies;
         this.documents = documents;
         this.treasury = treasury;
@@ -65,6 +67,7 @@ public class TaxPaymentService {
         this.extractor = extractor;
         this.calculator = calculator;
         this.emailBuilder = emailBuilder;
+        this.envelopes = envelopes;
     }
 
     /** The result of computing payment lines + email body over a set of declarations. */
@@ -293,7 +296,8 @@ public class TaxPaymentService {
         String beneficiary = beneficiary(company.getLocality());
         YearMonth emailPeriod = period == null ? null : YearMonth.from(period);
         String body = (beneficiary != null && !configured.isEmpty() && emailPeriod != null)
-                ? emailBuilder.build(company.getLegalName(), company.getCui(), emailPeriod, beneficiary, configured)
+                ? emailBuilder.build(company.getLegalName(), company.getCui(), emailPeriod, beneficiary,
+                        configured, envelopes.currentUserName(), envelopes.firmName())
                 : null;
         return new Computation(beneficiary, configured, unconfigured, total, body);
     }
