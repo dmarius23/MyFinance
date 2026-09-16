@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { waMeUrl } from "../lib/whatsapp";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -25,6 +27,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
     loadBody: (companyId: string) => Promise<string>; onClose: () => void; onSent?: () => void }) {
   const { t } = useTranslation();
   const whatsappConfigured = useWhatsAppConfigured();
+  const clickToChat = useWhatsAppMode() === "CLICK_TO_CHAT";
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false }])),
@@ -111,6 +114,12 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
                       <textarea value={d.body} disabled={d.sent}
                         onChange={(e) => patch(x.companyId, { body: e.target.value })}
                         style={{ ...input, minHeight: 150, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
+                      {clickToChat && d.phone.trim() && (
+                        <a href={waMeUrl(d.phone, d.body)} target="_blank" rel="noopener noreferrer"
+                          style={{ ...waBtnPrimary, display: "inline-flex", alignItems: "center", marginTop: 8, textDecoration: "none" }}>
+                          <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.openWhatsapp")}
+                        </a>
+                      )}
                     </>
                   )}
                 </div>
@@ -120,15 +129,19 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
         </div>
 
         <div style={footer}>
-          <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.eachLogged")}</span>
+          <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
+            {clickToChat ? t("channel.openWhatsapp") : t("taxes.eachLogged")}
+          </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose}>{t("common.cancel")}</button>
-            <button style={waBtnPrimary} onClick={sendAll}
-              disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured}
-              title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}>
-              <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-              {sending ? t("taxes.sending") : t("channel.sendWhatsappN", { n: sendableCount })}
-            </button>
+            {!clickToChat && (
+              <button style={waBtnPrimary} onClick={sendAll}
+                disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured}
+                title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}>
+                <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                {sending ? t("taxes.sending") : t("channel.sendWhatsappN", { n: sendableCount })}
+              </button>
+            )}
           </div>
         </div>
       </div>

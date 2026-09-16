@@ -32,14 +32,15 @@ public class MeController {
     }
 
     public record MeResponse(String tenantName, String cui, boolean emailConfigured,
-                             boolean whatsappConfigured) {}
+                             boolean whatsappConfigured, String whatsappMode) {}
 
     @GetMapping
     public MeResponse me() {
         boolean emailConfigured = emailStatus.configuredForCurrentTenant();
         boolean whatsappConfigured = whatsappStatus.configuredForCurrentTenant();
+        String whatsappMode = whatsappStatus.modeForCurrentTenant().name();
         return tenants.current()
-                .map(t -> new MeResponse(t.name(), t.cui(), emailConfigured, whatsappConfigured))
-                .orElse(new MeResponse(null, null, emailConfigured, whatsappConfigured));
+                .map(t -> new MeResponse(t.name(), t.cui(), emailConfigured, whatsappConfigured, whatsappMode))
+                .orElse(new MeResponse(null, null, emailConfigured, whatsappConfigured, whatsappMode));
     }
 }

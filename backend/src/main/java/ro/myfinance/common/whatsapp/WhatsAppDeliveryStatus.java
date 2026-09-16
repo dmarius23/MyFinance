@@ -25,4 +25,16 @@ public class WhatsAppDeliveryStatus {
                 .map(TenantWhatsAppProvider::isSendable)
                 .orElse(false);
     }
+
+    /**
+     * The current tenant's WhatsApp mode ({@code OFF} / {@code TWILIO} / {@code CLICK_TO_CHAT}) — the UI
+     * branches on it: CLICK_TO_CHAT opens a wa.me deep link instead of sending through the backend.
+     */
+    @Transactional(readOnly = true)
+    public TenantWhatsAppProvider.Mode modeForCurrentTenant() {
+        return TenantContext.tenantId()
+                .flatMap(providers::findById)
+                .map(TenantWhatsAppProvider::getMode)
+                .orElse(TenantWhatsAppProvider.Mode.OFF);
+    }
 }

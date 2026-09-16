@@ -9,6 +9,8 @@ import { Icon } from "../components/Icon";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { InfoTip } from "../components/InfoTip";
 import { ReportChartsModal } from "../components/ReportChartsModal";
 import { ReportEmailModal, type ReportTarget } from "../components/ReportEmailModal";
@@ -28,6 +30,8 @@ export function Reports() {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
   const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const openWa = useOpenWhatsApp();
   const { period } = usePeriod();
   const { focusCompany, focusRef, openModal } = useCompanyFocus();
   const qc = useQueryClient();
@@ -155,7 +159,10 @@ export function Reports() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setSendList([target(r.companyId)])} />
-                    <WhatsAppAction disabled={!whatsappConfigured} onClick={() => setWaFor({ id: r.companyId, name: r.companyName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured}
+                      onClick={() => waMode === "CLICK_TO_CHAT"
+                        ? openWa(r.companyId, () => waBody(r.companyId))
+                        : setWaFor({ id: r.companyId, name: r.companyName })} />
                   </RowActions>
                 </div>
               </div>
