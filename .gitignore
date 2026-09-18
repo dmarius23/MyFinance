@@ -60,3 +60,6 @@ backend/src/test/resources/fixtures/reports/
 # CI/CD deploy SSH keypair (secret — never commit; matches any directory)
 deploy_ci
 deploy_ci.pub
+
+# Real client statement/receipt fixtures (PII) — local only, never commit
+backend/src/test/resources/fixtures/bank/
