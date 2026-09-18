@@ -81,7 +81,9 @@ public class MessagingSettingsService {
     public void sendTestEmail(String toEmail) {
         TenantEmailProvider p = getEmail();
         if (!p.isSendable()) {
-            throw new IllegalStateException("Configure and enable an email provider (host + from address) first");
+            // The tenant's own config, fixable from Settings → 409, not a server fault.
+            throw new ro.myfinance.common.web.ConflictException(
+                    "Configure and enable an email provider (host + from address) first");
         }
         String fromName = (p.getFromName() == null || p.getFromName().isBlank()) ? "MyFinance" : p.getFromName();
         emailSender.send(EmailSender.Message.of(fromName, p.getFromEmail(), toEmail,
@@ -89,9 +91,14 @@ public class MessagingSettingsService {
                 "This is a test message from MyFinance confirming your email (SMTP) settings work."));
     }
 
+    /**
+     * Provider secrets are stored AES-GCM-encrypted, so a missing master key must fail before we persist
+     * anything. This is a deployment gap, not user error — surface it as 503 naming the setting, so the
+     * operator sees what to fix instead of an opaque 500.
+     */
     private void requireCipherWhenSecret(String secret) {
         if (secret != null && !secret.isBlank() && !cipher.isConfigured()) {
-            throw new IllegalStateException(
+            throw new ro.myfinance.common.web.MisconfiguredException(
                     "Server secret key (MYFINANCE_SECRET_KEY) is not configured — cannot store provider credentials");
         }
     }
