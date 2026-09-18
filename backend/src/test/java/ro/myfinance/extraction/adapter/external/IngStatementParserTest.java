@@ -101,4 +101,58 @@ class IngStatementParserTest {
     void doesNotSupportNonIngText() {
         assertThat(parser.supports("BRD-Net Transactions List Settlement date")).isFalse();
     }
+
+    // Newer ING layout: the processing date, payee, signed amount and running balance are printed on ONE
+    // line ("<date> <payee> <amount> <balance>"), with the bank reference + counterparty IBAN on the next.
+    // The date-alone parser saw zero date lines here and extracted nothing; both layouts must now work.
+    private static final String ING_INLINE = String.join("\n",
+            "Extras de cont",
+            "Nr.8 / 31.01.2026",
+            "ING Bank N.V. Amsterdam Sucursala Bucuresti | RON",
+            "RO98 INGB 0000 9999 0547 3924",
+            "BIC code (SWIFT): INGBROBU",
+            "Sold initial:  Total creditari (2):  Total debitari (1): Sold final: Perioada",
+            "12,645.36 1,028.50 -775.71 12,898.15   01 - 31.01.2026",
+            "Data procesarii Beneficiar / Ordonator Debitari Creditari Sold intermediar",
+            "01.01.2026 DR. PET S.R.L. 302.50 12,947.86",
+            "9201 RO85INGB0000999917661723",
+            "CUI:51805196",
+            "Incasare",
+            "MERIC1941",
+            "01.01.2026 REVISALPLUS -775.71 12,172.15",
+            "9203 Cumparare POS",
+            "ROGOZAN IOANA",
+            "Nr. Card: **** 0436",
+            "03.01.2026 MADE TO MEZUM S R L 726.00 12,898.15",
+            "9207 RO15BTRLRONCRT0648848101",
+            "CUI:46277353",
+            "Incasare",
+            "/ROC/Factura MERIC1927");
+
+    @Test
+    void parsesInlineDatePayeeAmountLayout() {
+        assertThat(parser.supports(ING_INLINE)).isTrue();
+        ParsedStatement s = parser.parse(ING_INLINE);
+
+        assertThat(s.transactions()).hasSize(3);
+        assertThat(s.openingBalance()).isEqualByComparingTo("12645.36");
+        assertThat(s.closingBalance()).isEqualByComparingTo("12898.15");
+
+        ParsedTransaction credit = s.transactions().get(0);
+        assertThat(credit.date()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(credit.amount()).isEqualByComparingTo("302.50");      // credit positive
+        assertThat(credit.balanceAfter()).isEqualByComparingTo("12947.86");
+        assertThat(credit.partnerName()).isEqualTo("DR. PET S.R.L.");    // payee from the date line
+        assertThat(credit.partnerIban()).isEqualTo("RO85INGB0000999917661723");
+        assertThat(credit.ref()).isEqualTo("9201");                     // leading ref token on next line
+
+        ParsedTransaction debit = s.transactions().get(1);
+        assertThat(debit.amount()).isEqualByComparingTo("-775.71");     // debit printed negative
+        assertThat(debit.partnerName()).isEqualTo("REVISALPLUS");
+
+        // Cross-check: opening + Σ(signed amounts) == closing == last running balance.
+        BigDecimal sum = s.transactions().stream().map(ParsedTransaction::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(s.openingBalance().add(sum)).isEqualByComparingTo("12898.15");
+    }
 }
