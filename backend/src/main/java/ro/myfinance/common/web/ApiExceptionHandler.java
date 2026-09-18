@@ -32,6 +32,15 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    /**
+     * Server-side configuration gap (e.g. MYFINANCE_SECRET_KEY unset). The message names the missing
+     * setting — never its value — so an operator can act on it instead of digging into an opaque 500.
+     */
+    @ExceptionHandler(MisconfiguredException.class)
+    ProblemDetail handleMisconfigured(MisconfiguredException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access denied");
