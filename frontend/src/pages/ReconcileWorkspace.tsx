@@ -9,6 +9,7 @@ import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { usePeriod, monthLabel as monthLabelLong } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
+import { FilesModal } from "../components/FilesModal";
 import { SendReminderModal } from "../components/SendReminderModal";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
@@ -67,6 +68,7 @@ export function ReconcileWorkspace() {
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<{ documentId: string; filename: string | null; invoiceId?: string } | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const [uploadToast, setUploadToast] = useState<{ tone: "ok" | "warn" | "info"; msg: string }[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stmtFileRef = useRef<HTMLInputElement>(null);
@@ -285,6 +287,8 @@ export function ReconcileWorkspace() {
           <span style={{ color: "var(--warn-fg, #92400e)" }}>{counts.partial} {t("recon.partialShort")}</span>
           <span style={{ color: "var(--danger-fg, #991b1b)" }}>{counts.need} {t("recon.needDoc")}</span>
         </div>
+        <button onClick={() => setFilesOpen(true)} disabled={!c} title={t("files.title")} aria-label={t("files.title")}
+          style={{ ...iconBtn, width: 34, height: 34 }}><Icon name="folder" size={17} /></button>
         <button className="primary" disabled={!c} onClick={() => setRequesting(true)}>
           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
           {t("recon.requestClient")}{counts.need + counts.partial > 0 ? ` · ${counts.need + counts.partial}` : ""}
@@ -522,6 +526,10 @@ export function ReconcileWorkspace() {
       </div>
 
       {preview && <DocumentPreviewModal companyId={companyId} documentId={preview.documentId} filename={preview.filename} onClose={() => setPreview(null)} />}
+      {filesOpen && c && (
+        <FilesModal companyId={companyId} companyName={c.legalName} companyCui={c.cui} period={period}
+          onClose={() => { setFilesOpen(false); invalidate(); }} />
+      )}
       {requesting && c && (
         <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />
       )}
