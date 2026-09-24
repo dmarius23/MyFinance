@@ -50,7 +50,9 @@ abstract class ClaudeReceiptExtractor implements ReceiptExtractor {
             "11/09/2026 06:15"); on an invoice it is the "Data"/"Data facturii". IMPORTANT: do NOT take \
             the year from a company REGISTRATION NUMBER such as "Cod inregistrare"/"Nr. Reg. Com."/ \
             "J12/131/2007" (the 2007 there is the registration year, NOT the receipt date), nor from a \
-            street address (e.g. "B-dul 21 Decembrie 1989" is an ADDRESS). Use only the explicit DATA/Data line.
+            street address (e.g. "B-dul 21 Decembrie 1989" is an ADDRESS). Use only the explicit DATA/Data line. \
+            Romanian dates are written DAY/MONTH/YEAR (dd/mm/yyyy or dd.mm.yyyy), so "11/09/2026" means \
+            11 September 2026 → "2026-09-11", NOT 9 November — never swap the day and month.
             - receiptNumber: the receipt or invoice number (BF / AMEF / RL / Nr. factură) if present, else null
             - confidence: your overall confidence 0..1
             Transcribe all digits EXACTLY as printed; never invent. The supplier and the buyer are \
