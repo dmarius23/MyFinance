@@ -11,6 +11,14 @@ import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
 import { FilesModal } from "../components/FilesModal";
 import { SendReminderModal } from "../components/SendReminderModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppAction } from "../components/RowActions";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
+import { useFirmName } from "../lib/useFirmName";
+import { emailApi } from "../api/email";
+import { reminderBody } from "../lib/reminderBody";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 
@@ -53,6 +61,10 @@ export function ReconcileWorkspace() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { run } = useSyncTracker();
+  const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const openWa = useOpenWhatsApp();
+  const firmName = useFirmName();
 
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
@@ -69,6 +81,7 @@ export function ReconcileWorkspace() {
   const [preview, setPreview] = useState<{ documentId: string; filename: string | null; invoiceId?: string } | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
   const [uploadToast, setUploadToast] = useState<{ tone: "ok" | "warn" | "info"; msg: string }[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stmtFileRef = useRef<HTMLInputElement>(null);
@@ -272,6 +285,19 @@ export function ReconcileWorkspace() {
     f.mine ? t("recon.byYou") : f.source === "DRIVE" ? t("recon.fromDrive") : t("recon.byColleague");
   const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
 
+  // WhatsApp document-reminder: same body as the email "Request from client" (shared reminderBody), so
+  // both channels read identically. Click-to-chat opens wa.me directly; Twilio mode opens the compose modal.
+  const waLoadBody = async (): Promise<string> => {
+    const env = await emailApi.envelope(companyId).catch(() => null);
+    const missing = (txns.data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
+    return reminderBody(t, period.slice(0, 7), hasStatement, missing, env?.fromName ?? null, firmName);
+  };
+  const onWhatsapp = () => {
+    if (!c) return;
+    if (waMode === "CLICK_TO_CHAT") openWa(companyId, waLoadBody);
+    else setWaOpen(true);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 46px)", minHeight: 0 }}>
       {/* ===== header ===== */}
@@ -293,6 +319,7 @@ export function ReconcileWorkspace() {
           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
           {t("recon.requestClient")}{counts.need + counts.partial > 0 ? ` · ${counts.need + counts.partial}` : ""}
         </button>
+        <WhatsAppAction disabled={!c || !whatsappConfigured} onClick={onWhatsapp} />
       </div>
 
       {/* ===== statement files strip / empty upload ===== */}
@@ -529,6 +556,10 @@ export function ReconcileWorkspace() {
       {filesOpen && c && (
         <FilesModal companyId={companyId} companyName={c.legalName} companyCui={c.cui} period={period}
           onClose={() => { setFilesOpen(false); invalidate(); }} />
+      )}
+      {waOpen && c && (
+        <WhatsAppModal companyId={companyId} companyName={c.legalName} kind="DOCUMENT_REMINDER" period={period}
+          loadBody={waLoadBody} onClose={() => setWaOpen(false)} />
       )}
       {requesting && c && (
         <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />
