@@ -36,7 +36,8 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
 
   const upload = useMutation({
     mutationFn: (file: File) => documentsApi.upload(companyId, period, file),
-    onSuccess: () => { setUploadError(null); refresh(); },
+    // Re-arm auto-compose so a newly uploaded declaration is folded into the email text automatically.
+    onSuccess: () => { setUploadError(null); autoComposed.current = false; refresh(); },
     onError: (e) => setUploadError(e instanceof ApiError ? e.message : "Upload failed"),
   });
   const preview = useMutation({ mutationFn: (ids: string[]) => taxPaymentsApi.previewEmail(companyId, ids) });
@@ -50,7 +51,6 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
   const decls = data?.declarations ?? [];
   // Selection removed (client request): every uploaded declaration is included automatically; duplicates
   // are excluded so the same declaration isn't counted twice.
-  const composableIds = decls.filter((d) => !d.duplicate).map((d) => d.id);
   const previewMutate = preview.mutate;
   const openCompose = useCallback((ids: string[]) => {
     if (!ids.length) return;
@@ -127,14 +127,6 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                           </div>
                         </div>
                       ))}
-                      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: 8 }}>
-                        <button className="primary" disabled={composableIds.length === 0 || preview.isPending || !emailConfigured}
-                          title={emailConfigured ? undefined : t("email.smtpRequired")}
-                          onClick={() => openCompose(composableIds)}>
-                          <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-                          {t("taxes.composeSelected", { n: composableIds.length })}
-                        </button>
-                      </div>
                     </>
                   )}
                 </section>
