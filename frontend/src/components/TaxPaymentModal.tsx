@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { taxPaymentsApi, type EmailView } from "../api/taxes";
@@ -20,8 +20,8 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [compose, setCompose] = useState<{ declarationIds: string[]; recipient: string; body: string } | null>(null);
+  const autoComposed = useRef(false);
   const [composeError, setComposeError] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -48,11 +48,14 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
   });
 
   const decls = data?.declarations ?? [];
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const openCompose = (ids: string[]) => {
+  // Selection removed (client request): every uploaded declaration is included automatically; duplicates
+  // are excluded so the same declaration isn't counted twice.
+  const composableIds = decls.filter((d) => !d.duplicate).map((d) => d.id);
+  const previewMutate = preview.mutate;
+  const openCompose = useCallback((ids: string[]) => {
     if (!ids.length) return;
     setComposeError(null);
-    preview.mutate(ids, {
+    previewMutate(ids, {
       onSuccess: (p) => {
         setCompose({ declarationIds: ids, recipient: "", body: p.body ?? "" });
         // Prefill the company's representative as recipient.
@@ -61,7 +64,15 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
           .catch(() => undefined);
       },
     });
-  };
+  }, [companyId, previewMutate]);
+  // Show the email text the moment the workspace opens — for all uploaded declarations, no manual pick.
+  useEffect(() => {
+    if (autoComposed.current || !data) return;
+    const ids = (data.declarations ?? []).filter((d) => !d.duplicate).map((d) => d.id);
+    if (!ids.length) return;
+    autoComposed.current = true;
+    openCompose(ids);
+  }, [data, openCompose]);
   const resend = (e: EmailView) => {
     setComposeError(null);
     setCompose({ declarationIds: e.declarationIds, recipient: e.recipient ?? "", body: e.body });
@@ -94,21 +105,19 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                 <section style={panel}>
                   <div style={panelHead}>
                     <b>{t("taxes.declarations")}</b>
-                    <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.selectToCompose")}</span>
+                    <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>{t("taxes.allIncluded")}</span>
                   </div>
                   {decls.length === 0 ? (
                     <div style={empty}>{t("taxes.noDeclarations")}</div>
                   ) : (
                     <>
                       <div style={{ ...declRow, ...thRow }}>
-                        <div /><div>{t("taxes.form")}</div>
+                        <div>{t("taxes.form")}</div>
                         <div style={{ textAlign: "right" }}>{t("taxes.amount")}</div>
                         <div style={{ textAlign: "right" }}>{t("taxes.sent")}</div>
                       </div>
                       {decls.map((d) => (
                         <div key={d.id} style={{ ...declRow, opacity: d.duplicate ? 0.5 : 1 }}>
-                          <input type="checkbox" checked={selected.has(d.id) && !d.duplicate} disabled={d.duplicate}
-                            title={d.duplicate ? t("taxes.duplicateTip") : ""} onChange={() => toggle(d.id)} />
                           <div><b>{d.type}</b>{d.duplicate && <span style={{ color: "var(--text-muted)", fontSize: 11 }}> · {t("taxes.duplicate")}</span>}</div>
                           <div className="mono" style={{ textAlign: "right" }}>
                             {money(d.computedTotal)}{d.mismatch && <span title={t("taxes.mismatchTip", { declared: d.declaredTotal })} style={{ color: "#b45309" }}> ⚠</span>}
@@ -118,13 +127,12 @@ export function TaxPaymentModal({ companyId, companyName, period, onClose }:
                           </div>
                         </div>
                       ))}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{selected.size} {t("taxes.selected")}</span>
-                        <button className="primary" disabled={selected.size === 0 || preview.isPending || !emailConfigured}
+                      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: 8 }}>
+                        <button className="primary" disabled={composableIds.length === 0 || preview.isPending || !emailConfigured}
                           title={emailConfigured ? undefined : t("email.smtpRequired")}
-                          onClick={() => openCompose([...selected])}>
+                          onClick={() => openCompose(composableIds)}>
                           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-                          {t("taxes.composeSelected", { n: selected.size })}
+                          {t("taxes.composeSelected", { n: composableIds.length })}
                         </button>
                       </div>
                     </>
@@ -249,7 +257,7 @@ const closeBtn: React.CSSProperties = { background: "none", border: "none", colo
 const panel: React.CSSProperties = { border: "1px solid var(--border)", borderRadius: 11, padding: 12 };
 const panelHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 };
 const empty: React.CSSProperties = { color: "var(--text-muted)", fontSize: 12.5, padding: "6px 0" };
-const declRow: React.CSSProperties = { display: "grid", gridTemplateColumns: "20px 1fr 110px 90px", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--hair)" };
+const declRow: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 110px 90px", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid var(--hair)" };
 const payRow: React.CSSProperties = { display: "grid", gridTemplateColumns: "1.4fr 1.6fr 60px 90px", alignItems: "center", gap: 8, padding: "7px 4px", borderTop: "1px solid var(--hair)", fontSize: 12.5 };
 const thRow: React.CSSProperties = { borderTop: "none", background: "var(--th-bg-sub)", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)" };
 const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 };
