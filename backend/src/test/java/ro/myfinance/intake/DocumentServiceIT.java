@@ -188,6 +188,9 @@ class DocumentServiceIT extends AbstractPostgresIT {
                 .contains("extras-Ianuarie.png").contains("2026-01");
         assertThat(s.duplicateCount()).isEqualTo(1);
         assertThat(s.duplicateFiles()).singleElement().asString().contains("copy.png");
+        // The chip is company-level, so it must say WHICH type is duplicated (a duplicated receipt used to
+        // read as if the bank statements were duplicated).
+        assertThat(s.duplicateTypes()).containsExactly("RECEIPT");
     }
 
     @Test

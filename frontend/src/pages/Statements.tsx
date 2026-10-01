@@ -24,6 +24,7 @@ import { CompanySearch } from "../components/CompanySearch";
 import { CompletenessFilter } from "../components/CompletenessFilter";
 import type { CompletenessFilter as FilterValue } from "../api/payroll";
 import { loadAllPages } from "../lib/paging";
+import { docTypeLabels } from "../lib/docTypeLabel";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -196,7 +197,12 @@ export function Statements() {
                       )}
                       {(s?.duplicateCount ?? 0) > 0 && (
                         <InfoTip lines={s?.duplicateFiles ?? []}>
-                          <span className="pill round danger" title={t("statements.duplicate.tip")}>DUP</span>
+                          {/* Name the affected type(s): the count is company-wide, so a bare "DUP" made a
+                              duplicated receipt look like duplicated bank statements. */}
+                          <span className="pill round danger" title={t("statements.duplicate.tip")}>
+                            DUP{(s?.duplicateTypes ?? []).length > 0
+                              ? ` · ${docTypeLabels(t, s?.duplicateTypes ?? [])}` : ""}
+                          </span>
                         </InfoTip>
                       )}
                     </div>

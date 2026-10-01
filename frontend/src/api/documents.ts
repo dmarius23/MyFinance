@@ -81,6 +81,8 @@ export interface CompanyDocSummary {
   duplicateCount: number;
   /** "<filename> — <reason>" per duplicate document, for the tooltip. */
   duplicateFiles: string[];
+  /** Distinct document types among the duplicates — the chip names them (the count is company-wide). */
+  duplicateTypes: string[];
 }
 
 export const documentsSummaryApi = {

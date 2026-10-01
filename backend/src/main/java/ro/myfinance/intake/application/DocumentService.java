@@ -167,6 +167,9 @@ public class DocumentService {
                 String line = d.getOriginalFilename() + " — " + detail;
                 if (reason == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE) {
                     a.duplicates.add(line);
+                    // Which document types are affected — the chip is company-level, so without this a
+                    // duplicated receipt reads as if the bank statements were duplicated.
+                    a.duplicateTypes.add(d.getType().name());
                 } else { // WRONG_PERIOD / WRONG_COMPANY
                     a.misfiled.add(line);
                 }
@@ -178,7 +181,8 @@ public class DocumentService {
                     return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(),
                             !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
                             a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts,
-                            a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates);
+                            a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates,
+                            List.copyOf(a.duplicateTypes));
                 })
                 .toList();
     }
@@ -190,6 +194,8 @@ public class DocumentService {
         final List<String> invoiceReceipts = new java.util.ArrayList<>();
         final List<String> misfiled = new java.util.ArrayList<>();
         final List<String> duplicates = new java.util.ArrayList<>();
+        /** Distinct document types among the duplicates, in first-seen order (drives a per-type chip). */
+        final java.util.Set<String> duplicateTypes = new java.util.LinkedHashSet<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
@@ -197,7 +203,8 @@ public class DocumentService {
                                     int bankStatementCount, int invoiceReceiptCount,
                                     List<String> bankStatementFiles, List<String> invoiceReceiptFiles,
                                     int misfiledCount, List<String> misfiledFiles,
-                                    int duplicateCount, List<String> duplicateFiles) {
+                                    int duplicateCount, List<String> duplicateFiles,
+                                    List<String> duplicateTypes) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */
