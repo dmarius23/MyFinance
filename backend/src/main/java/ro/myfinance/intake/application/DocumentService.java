@@ -172,6 +172,7 @@ public class DocumentService {
                     a.duplicateTypes.add(d.getType().name());
                 } else { // WRONG_PERIOD / WRONG_COMPANY
                     a.misfiled.add(line);
+                    a.misfiledTypes.add(d.getType().name()); // same reason as duplicateTypes above
                 }
             }
         }
@@ -182,7 +183,7 @@ public class DocumentService {
                             !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
                             a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts,
                             a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates,
-                            List.copyOf(a.duplicateTypes));
+                            List.copyOf(a.duplicateTypes), List.copyOf(a.misfiledTypes));
                 })
                 .toList();
     }
@@ -196,6 +197,8 @@ public class DocumentService {
         final List<String> duplicates = new java.util.ArrayList<>();
         /** Distinct document types among the duplicates, in first-seen order (drives a per-type chip). */
         final java.util.Set<String> duplicateTypes = new java.util.LinkedHashSet<>();
+        /** Same, for the mis-filed (wrong period / wrong company) documents. */
+        final java.util.Set<String> misfiledTypes = new java.util.LinkedHashSet<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
@@ -204,7 +207,7 @@ public class DocumentService {
                                     List<String> bankStatementFiles, List<String> invoiceReceiptFiles,
                                     int misfiledCount, List<String> misfiledFiles,
                                     int duplicateCount, List<String> duplicateFiles,
-                                    List<String> duplicateTypes) {
+                                    List<String> duplicateTypes, List<String> misfiledTypes) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */
