@@ -26,19 +26,19 @@ public class BrdStatementParser implements BankStatementParser {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yy");
     private static final Pattern IBAN_HDR = Pattern.compile("Code IBAN:\\s*(RO\\w+)");
     private static final Pattern BALANCES =
-            Pattern.compile("Balance\\s+RON\\s+([\\d.,]+)\\s+Balance\\s+RON\\s+([\\d.,]+)");
+            Pattern.compile("Balance\\s++RON\\s++([\\d.,]{1,25})\\s++Balance\\s++RON\\s++([\\d.,]{1,25})");
     // Transaction header: settlement date + the account's own IBAN + optional description start.
-    private static final Pattern TXN_HEADER = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+(RO\\w+)\\s*(.*)$");
+    private static final Pattern TXN_HEADER = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s++(RO\\w++)\\s*+(.*)$");
     // Amount line: a date followed by one/two amounts then the running balance (older multi-line exports).
-    private static final Pattern AMOUNT_LINE = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+([\\d.,].*)$");
-    private static final Pattern NUMBER = Pattern.compile("[\\d.,]+");
+    private static final Pattern AMOUNT_LINE = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s++([\\d.,].*)$");
+    private static final Pattern NUMBER = Pattern.compile("[\\d.,]{1,25}");
     // A monetary value: thousands-grouped, exactly two decimals (e.g. 26,153.76 / 91.00). The trailing
     // (?!\\d) rejects a wrapped period like "03.2026" so only real amounts/balances match.
-    private static final Pattern MONEY = Pattern.compile("[\\d,]+\\.\\d{2}(?!\\d)");
+    private static final Pattern MONEY = Pattern.compile("[\\d,]{1,25}\\.\\d{2}(?!\\d)");
     // The value date + amount(s) + balance that BRD's "Transactions List" prints right after "Partner name:"
     // on the SAME row — stripped before reading the partner name from the wrapped continuation lines.
     private static final Pattern INLINE_AMOUNTS =
-            Pattern.compile("(Partner name:)\\s*\\d{2}/\\d{2}/\\d{2}(\\s+[\\d,]+\\.\\d{2}){1,3}");
+            Pattern.compile("(Partner name:)\\s*+\\d{2}/\\d{2}/\\d{2}(\\s++[\\d,]{1,25}\\.\\d{2}){1,3}");
 
     @Override
     public boolean supports(String text) {

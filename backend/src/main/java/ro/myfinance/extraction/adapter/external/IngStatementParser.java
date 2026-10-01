@@ -44,7 +44,11 @@ public class IngStatementParser implements BankStatementParser {
     private static final Pattern LEADING_REF = Pattern.compile("^\\s*(\\d{3,})\\b");
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd.MM.uuuu");
     // Signed money token (RO "1.234,56" / EN "1,234.56"); the sign carries the debit/credit direction.
-    private static final Pattern SIGNED_MONEY = Pattern.compile("(-?)(\\d[\\d.,]*[.,]\\d{2})");
+    // The integer part is spelled out unambiguously (grouped thousands OR a plain digit run) instead of a
+    // "[\d.,]*" soup: the old form let the engine re-split a long "1,1,1,…" run, costing quadratic time on
+    // semi-trusted statement text (CodeQL java/polynomial-redos).
+    private static final Pattern SIGNED_MONEY =
+            Pattern.compile("(-?)((?:\\d{1,3}(?:[.,]\\d{3}){1,6}|\\d{1,15})[.,]\\d{2})");
     // A counterparty IBAN is printed without spaces; the account's own IBAN is spaced, so it won't match.
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
     private static final Pattern ALL_DIGITS = Pattern.compile("\\d+");
@@ -171,7 +175,7 @@ public class IngStatementParser implements BankStatementParser {
                 }
                 continue; // an IBAN line isn't the name or description
             }
-            if (!line.matches(".*[A-Za-z].*")) {
+            if (!hasLetter(line)) {
                 continue; // skip lines with no letters (card mask, codes)
             }
             if (partnerName == null) {
@@ -243,6 +247,17 @@ public class IngStatementParser implements BankStatementParser {
         }
         String digits = t.replaceAll("[.,]", "");
         return new BigDecimal(digits.isEmpty() ? "0" : digits);
+    }
+
+    /** Any letter on the line? A plain scan — ".*[A-Za-z].*" with matches() re-tries every position on a
+     *  miss, which is quadratic on long lines (CodeQL java/polynomial-redos). */
+    private static boolean hasLetter(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isLetter(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private LocalDate parseDate(String token) {
