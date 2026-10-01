@@ -35,16 +35,22 @@ import ro.myfinance.extraction.application.ParsedTransaction;
 public class BancaTransilvaniaStatementParser implements BankStatementParser {
 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/uuuu");
-    /** An operation line: an OPTIONAL leading date + description + a single trailing money amount. */
-    private static final Pattern TXN = Pattern.compile("^\\s*(?:(\\d{2}/\\d{2}/\\d{4})\\s+)?(.*\\S)\\s+(\\d[\\d.,]*[.,]\\d{2})\\s*$");
+    /**
+     * An operation line: an OPTIONAL leading date + description + a single trailing money amount.
+     * Quantifiers around the fixed parts are possessive and the amount's integer part is spelled out
+     * (grouped thousands OR a plain digit run) so a non-matching line can't be re-split over and over —
+     * the old "[\d.,]*" form parsed in quadratic time (CodeQL java/polynomial-redos).
+     */
+    private static final Pattern TXN = Pattern.compile(
+            "^\\s*+(?:(\\d{2}/\\d{2}/\\d{4})\\s++)?(.*\\S)\\s++((?:\\d{1,3}(?:[.,]\\d{3}){1,6}|\\d{1,15})[.,]\\d{2})\\s*+$");
     private static final Pattern DATE_START = Pattern.compile("^\\s*(\\d{2}/\\d{2}/\\d{4})\\b");
     // A same-day follow-up operation prints no date; recognise it by its BT operation-type prefix.
     private static final Pattern OP_START = Pattern.compile("(?i)^(plata|incasare|comision|retragere|alimentare"
             + "|depunere|cumparare|transfer|impozit|rambursare|restituire|dobanda|taxa|poprire|storno|virament"
             + "|ridicare|schimb valutar)\\b");
     private static final Pattern IBAN_LABEL = Pattern.compile("Cod IBAN:\\s*(RO\\d{2}[A-Z0-9]+)");
-    private static final Pattern SOLD_ANTERIOR = Pattern.compile("SOLD ANTERIOR\\s+([\\d.,]+)");
-    private static final Pattern SOLD_FINAL = Pattern.compile("SOLD FINAL(?: ZI)?\\s+([\\d.,]+)");
+    private static final Pattern SOLD_ANTERIOR = Pattern.compile("SOLD ANTERIOR\\s++([\\d.,]{1,25})");
+    private static final Pattern SOLD_FINAL = Pattern.compile("SOLD FINAL(?: ZI)?\\s++([\\d.,]{1,25})");
     private static final Pattern REF = Pattern.compile("^REF\\.\\s*(\\S+)");
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{14,}\\b");
     private static final Pattern LEADING_DIGITS = Pattern.compile("^\\d+");
@@ -168,7 +174,7 @@ public class BancaTransilvaniaStatementParser implements BankStatementParser {
             // Strip BT's leading ordinal digits and "CHECK<n>" verification marker glued to the name.
             String seg = LEADING_DIGITS.matcher(parts[i].trim()).replaceFirst("")
                     .replaceFirst("(?i)^CHECK\\d+", "").trim();
-            if (seg.length() < 3 || !seg.matches(".*[A-Za-zĂÂÎȘȚăâîșț].*")) {
+            if (seg.length() < 3 || !hasLetter(seg)) {
                 continue;
             }
             String u = seg.toUpperCase();
@@ -177,8 +183,7 @@ public class BancaTransilvaniaStatementParser implements BankStatementParser {
                 continue; // codes, SWIFT, IBAN, our own labels — not a counterparty name
             }
             // Prefer the segment immediately before an account/IBAN-looking segment (the payer/payee).
-            boolean nextIsAccount = i + 1 < parts.length
-                    && parts[i + 1].trim().matches("(RO\\d{2})?[A-Z0-9]*RONCRT[A-Z0-9]*|RO\\d{2}[A-Z0-9]{14,}");
+            boolean nextIsAccount = i + 1 < parts.length && looksLikeAccount(parts[i + 1].trim());
             if (nextIsAccount) {
                 return seg;
             }
@@ -242,5 +247,40 @@ public class BancaTransilvaniaStatementParser implements BankStatementParser {
 
     private static String stripDiacritics(String s) {
         return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+    }
+
+    /** Does the segment contain any letter (incl. RO diacritics)? A plain scan — ".*[A-Za-z].*" with
+     *  matches() backtracks across every position on a miss (CodeQL java/polynomial-redos). */
+    private static boolean hasLetter(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isLetter(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An account-looking segment: all A-Z/0-9 and either a BT internal account (contains "RONCRT",
+     * optionally prefixed by the RO check digits) or a full IBAN body. Expressed in code rather than as
+     * "[A-Z0-9]*RONCRT[A-Z0-9]*" — the surrounding star runs overlap "RONCRT" itself, so the regex engine
+     * re-tried every split on a miss (CodeQL java/polynomial-redos).
+     */
+    private static boolean looksLikeAccount(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) {
+                return false;
+            }
+        }
+        if (s.contains("RONCRT")) {
+            return true;
+        }
+        // RO + 2 check digits + at least 14 more alphanumerics (IBAN body).
+        return s.length() >= 18 && s.startsWith("RO")
+                && Character.isDigit(s.charAt(2)) && Character.isDigit(s.charAt(3));
     }
 }
