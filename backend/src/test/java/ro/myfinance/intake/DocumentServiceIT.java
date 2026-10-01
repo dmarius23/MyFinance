@@ -112,6 +112,40 @@ class DocumentServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void deletingTheOriginalClearsTheSurvivorsStaleDuplicateFlag() {
+        // The DUPLICATE flag is decided at upload time, so deleting the original used to leave the
+        // remaining copy flagged as a duplicate of a document that no longer exists — the UI kept showing
+        // a DUP chip for what is now the only copy.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        Document first = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document second = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        assertThat(second.getDriveBlockReason()).isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+
+        documents.delete(first.getId());
+
+        Document survivor = documents.list(companyId, null).stream()
+                .filter(d -> d.getId().equals(second.getId())).findFirst().orElseThrow();
+        assertThat(survivor.getDriveBlockReason()).isNull();
+        assertThat(survivor.getDriveBlockDetail()).isNull();
+    }
+
+    @Test
+    void deletingOneOfThreeKeepsTheRemainingCopyFlagged() {
+        // Only the OLDEST survivor is the original; a still-duplicated copy must stay flagged.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        Document first = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document second = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document third = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+
+        documents.delete(third.getId()); // two copies remain → `second` is still a duplicate of `first`
+
+        Document stillDup = documents.list(companyId, null).stream()
+                .filter(d -> d.getId().equals(second.getId())).findFirst().orElseThrow();
+        assertThat(stillDup.getDriveBlockReason()).isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+        assertThat(first.getDriveBlockReason()).isNull();
+    }
+
+    @Test
     void duplicateDetectionIsTenantScoped() {
         // Same bytes in tenant A must NOT flag tenant B's upload as a duplicate (RLS-scoped dedup query).
         UUID companyA = asTenantWithCompany(TENANT_A);

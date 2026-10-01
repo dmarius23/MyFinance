@@ -228,8 +228,36 @@ public class DocumentService {
         storage.delete(doc.getStorageKey());
         String driveFileId = doc.getDriveFileId();
         documents.delete(doc);
+        documents.flush(); // the group re-check below must not see the row we just deleted
+        clearStaleDuplicateFlags(doc);
         audit.record("DOCUMENT_DELETED", "document", id);
         events.publishEvent(new DocumentDeletedEvent(id, doc.getCompanyId(), doc.getType(), driveFileId));
+    }
+
+    /**
+     * After a copy is deleted, the survivors' DUPLICATE flags can be stale: the flag is decided at upload
+     * time ("another copy already exists"), so deleting the original would leave the remaining file marked
+     * as a duplicate of a document that no longer exists — and the UI would keep showing a DUP chip for a
+     * file that is now the only copy. Re-evaluate the identical-content group: the oldest survivor IS the
+     * original, so clear its DUPLICATE flag. Only DUPLICATE is touched — WRONG_PERIOD / WRONG_COMPANY are
+     * properties of the file itself and unaffected by deleting another one.
+     */
+    private void clearStaleDuplicateFlags(Document deleted) {
+        if (deleted.getContentSha256() == null) {
+            return; // nothing to group by (pre-V54 upload)
+        }
+        List<Document> group = documents
+                .findByCompanyIdAndPeriodMonthAndTypeAndContentSha256OrderByUploadedAtAsc(
+                        deleted.getCompanyId(), deleted.getPeriodMonth(), deleted.getType(),
+                        deleted.getContentSha256());
+        if (group.isEmpty()) {
+            return;
+        }
+        Document original = group.get(0);
+        if (original.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE) {
+            original.setDriveBlockReason(null);
+            original.setDriveBlockDetail(null);
+        }
     }
 
     /**
