@@ -6,6 +6,7 @@ import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
+import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /**
  * MOD-15 — admin screen to configure document-source folders (Google Drive) and trigger a sync.
@@ -56,10 +57,15 @@ export function DataSources() {
       <div>
         <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("ingest.crumb")}</div>
         <h2 style={{ margin: "2px 0 0", fontSize: 21 }}>{t("nav.dataSources")}</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t("ingest.intro")}</p>
       </div>
 
       {error && <div className="card" style={{ color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }}>{error}</div>}
+
+      {/* The page is the firm's settings hub: document sources first, then the messaging providers. */}
+      <div>
+        <h3 style={{ margin: 0, fontSize: 16 }}>{t("ingest.sourcesHeading")}</h3>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t("ingest.intro")}</p>
+      </div>
 
       <AutoSyncCard />
 
@@ -168,6 +174,11 @@ export function DataSources() {
         </form>
       </div>
       )}
+
+      {/* The firm's outbound messaging providers live here too, so everything the firm configures is
+          on one screen (this page is "Setări"). */}
+      <EmailProviderSection />
+      <WhatsAppProviderSection />
     </div>
   );
 }
