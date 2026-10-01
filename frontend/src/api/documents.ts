@@ -77,6 +77,8 @@ export interface CompanyDocSummary {
   misfiledCount: number;
   /** "<filename> — <reason>" per mis-filed document, for the warning tooltip. */
   misfiledFiles: string[];
+  /** Distinct document types among the mis-filed — the chip names them (the count is company-wide). */
+  misfiledTypes: string[];
   /** Count of documents flagged as duplicates at upload (benign, not mirrored to Drive). */
   duplicateCount: number;
   /** "<filename> — <reason>" per duplicate document, for the tooltip. */

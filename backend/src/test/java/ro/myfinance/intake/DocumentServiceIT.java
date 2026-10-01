@@ -191,6 +191,7 @@ class DocumentServiceIT extends AbstractPostgresIT {
         // The chip is company-level, so it must say WHICH type is duplicated (a duplicated receipt used to
         // read as if the bank statements were duplicated).
         assertThat(s.duplicateTypes()).containsExactly("RECEIPT");
+        assertThat(s.misfiledTypes()).containsExactly("RECEIPT");
     }
 
     @Test

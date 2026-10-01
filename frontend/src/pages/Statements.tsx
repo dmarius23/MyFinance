@@ -190,8 +190,11 @@ export function Statements() {
                     <div style={{ marginTop: 3, display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {(s?.misfiledCount ?? 0) > 0 && (
                         <InfoTip lines={s?.misfiledFiles ?? []}>
+                          {/* Name the affected type(s) — the count is company-wide (see the DUP chip). */}
                           <span className="pill round warn" title={t("statements.misfiled.tip")}>
                             ⚠ {t("statements.misfiled", { n: s?.misfiledCount ?? 0 })}
+                            {(s?.misfiledTypes ?? []).length > 0
+                              ? ` · ${docTypeLabels(t, s?.misfiledTypes ?? [])}` : ""}
                           </span>
                         </InfoTip>
                       )}
