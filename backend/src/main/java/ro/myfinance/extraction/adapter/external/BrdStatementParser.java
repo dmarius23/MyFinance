@@ -47,14 +47,6 @@ public class BrdStatementParser implements BankStatementParser {
                 || (text.contains("Transactions List") && text.contains("BRDE"));
     }
 
-    // No \s* around the capture: group() already strips it, and under DOTALL the "\s*" runs
-    // overlapped the lazy "(.*?)" (". " matches a space), which parsed long space runs in
-    // quadratic time (CodeQL java/polynomial-redos).
-    private static final Pattern PARTNER_NAME =
-            Pattern.compile("Partner name:(.*?)Partner account:", Pattern.DOTALL);
-    private static final Pattern PARTNER_ACCT =
-            Pattern.compile("Partner account:(.*?)AccountName:", Pattern.DOTALL);
-
     @Override
     public ParsedStatement parse(String text) {
         String[] lines = text.split("\\R");
@@ -115,8 +107,8 @@ public class BrdStatementParser implements BankStatementParser {
             // so the partner name is read from the wrapped continuation, not from the amount columns.
             String full = INLINE_AMOUNTS.matcher(block.toString().strip()).replaceFirst("$1 ").strip();
 
-            String partnerName = group(PARTNER_NAME, full);
-            String partnerIban = group(PARTNER_ACCT, full);
+            String partnerName = between(full, "Partner name:", "Partner account:");
+            String partnerIban = between(full, "Partner account:", "AccountName:");
             int pn = full.indexOf("Partner name:");
             String desc = (pn >= 0 ? full.substring(0, pn) : full).strip();
 
@@ -139,9 +131,21 @@ public class BrdStatementParser implements BankStatementParser {
         return AMOUNT_LINE.matcher(line.strip()).matches();
     }
 
-    private String group(Pattern p, String text) {
-        Matcher m = p.matcher(text);
-        return m.find() ? m.group(1).strip() : null;
+    /**
+     * The text between two literal markers (the first start marker, then the next end marker after it),
+     * stripped; null when either marker is missing. Plain indexOf rather than a lazy "A(.*?)B" regex:
+     * with find() that rescans forward from every "A" occurrence, which is quadratic on a crafted
+     * statement (CodeQL java/polynomial-redos). Same result — if no end marker follows the first start
+     * marker, none follows a later one either.
+     */
+    private static String between(String text, String start, String end) {
+        int s = text.indexOf(start);
+        if (s < 0) {
+            return null;
+        }
+        int from = s + start.length();
+        int e = text.indexOf(end, from);
+        return e < 0 ? null : text.substring(from, e).strip();
     }
 
     private String blankToNull(String s) {
