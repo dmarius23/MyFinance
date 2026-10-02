@@ -47,10 +47,13 @@ public class BrdStatementParser implements BankStatementParser {
                 || (text.contains("Transactions List") && text.contains("BRDE"));
     }
 
+    // No \s* around the capture: group() already strips it, and under DOTALL the "\s*" runs
+    // overlapped the lazy "(.*?)" (". " matches a space), which parsed long space runs in
+    // quadratic time (CodeQL java/polynomial-redos).
     private static final Pattern PARTNER_NAME =
-            Pattern.compile("Partner name:\\s*(.*?)\\s*Partner account:", Pattern.DOTALL);
+            Pattern.compile("Partner name:(.*?)Partner account:", Pattern.DOTALL);
     private static final Pattern PARTNER_ACCT =
-            Pattern.compile("Partner account:\\s*(.*?)\\s*AccountName:", Pattern.DOTALL);
+            Pattern.compile("Partner account:(.*?)AccountName:", Pattern.DOTALL);
 
     @Override
     public ParsedStatement parse(String text) {
