@@ -12,16 +12,23 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * myfinance.ocr.enabled=true
  * myfinance.ocr.tesseract-cmd=tesseract      # install: brew install tesseract tesseract-lang
  * myfinance.ocr.tesseract-lang=ron+eng
+ * myfinance.ocr.max-pages=2             # classification peek
+ * myfinance.ocr.statement-max-pages=25  # bank statements are read end to end
  * </pre>
  */
 @ConfigurationProperties(prefix = "myfinance.ocr")
 public record OcrProperties(boolean enabled, String tesseractCmd, String tesseractLang, Integer dpi,
-                            Integer maxPages) {
+                            Integer maxPages, Integer statementMaxPages) {
 
     public OcrProperties {
         tesseractCmd = (tesseractCmd == null || tesseractCmd.isBlank()) ? "tesseract" : tesseractCmd;
         tesseractLang = (tesseractLang == null || tesseractLang.isBlank()) ? "ron+eng" : tesseractLang;
         dpi = dpi == null ? 200 : dpi;
+        // Classification only needs a cheap peek at the first pages…
         maxPages = maxPages == null ? 2 : maxPages;
+        // …but a bank statement must be read END TO END, or the transactions past the cap are lost and
+        // the opening + Σ == closing cross-check fails. Still bounded, so a pathological scan can't fan
+        // out into hundreds of vision calls.
+        statementMaxPages = statementMaxPages == null ? 25 : statementMaxPages;
     }
 }
