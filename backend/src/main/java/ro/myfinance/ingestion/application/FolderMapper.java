@@ -157,12 +157,27 @@ public final class FolderMapper {
      * modified month when the path carries no period.
      */
     public static LocalDate resolvePeriod(RemoteFile file) {
+        return periodFromPath(file).orElseGet(() -> {
+            LocalDate d = file.modifiedTime() != null
+                    ? file.modifiedTime().atZone(ZoneOffset.UTC).toLocalDate()
+                    : LocalDate.now(ZoneOffset.UTC);
+            return d.withDayOfMonth(1);
+        });
+    }
+
+    /**
+     * The period stated by the FOLDER PATH, or empty when the path names no month. Separate from
+     * {@link #resolvePeriod} because each client organises their own folders — some keep a year-only
+     * folder — and "the path says nothing" must be distinguishable from "the path says January", so the
+     * caller can fall back to the document's own content instead of the file's modified date.
+     */
+    public static Optional<LocalDate> periodFromPath(RemoteFile file) {
         List<String> segs = segments(file);
         // 1) Year + month in one segment.
         for (String s : segs) {
             Matcher m = COMBINED.matcher(s);
             if (m.find()) {
-                return ym(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+                return Optional.of(ym(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))));
             }
         }
         // 2) Separate year and month segments.
@@ -183,7 +198,7 @@ public final class FolderMapper {
             }
         }
         if (year != null && month != null) {
-            return ym(year, month);
+            return Optional.of(ym(year, month));
         }
         // 2b) Interim-balance folders carry a trimester, not a calendar month: "Bilant interimar T2 an 2026".
         //     Map the quarter to its end month (T1→Mar, T2→Jun, T3→Sep, T4→Dec).
@@ -191,15 +206,11 @@ public final class FolderMapper {
             for (String s : segs) {
                 Integer quarter = quarterOf(s);
                 if (quarter != null) {
-                    return ym(year, quarter * 3);
+                    return Optional.of(ym(year, quarter * 3));
                 }
             }
         }
-        // 3) Fallback: the file's modified month.
-        LocalDate d = file.modifiedTime() != null
-                ? file.modifiedTime().atZone(ZoneOffset.UTC).toLocalDate()
-                : LocalDate.now(ZoneOffset.UTC);
-        return d.withDayOfMonth(1);
+        return Optional.empty();
     }
 
     /**
@@ -246,13 +257,13 @@ public final class FolderMapper {
     }
 
     /**
-     * Period for a file on the ACCOUNTING drive. The firm names statements for their month
-     * ("BT_august 2026_Extras cont…") but files them under a YEAR-only folder
-     * ("Extrase de cont/2026 Extrase de cont/BT"), so the filename is the more reliable signal and is
-     * tried first; the folder path is the fallback (which itself ends at the file's modified month).
+     * The month STATED for a file on the ACCOUNTING drive — the filename first (the firm names statements
+     * "BT_august 2026_Extras cont…"), then the folder path. Empty when neither names one: each client
+     * organises their own folders and some keep only a year folder, in which case the caller falls back
+     * to the document's own content rather than the file's modified month.
      */
-    public static LocalDate resolveAccountingPeriod(RemoteFile file) {
-        return periodFromText(file.name()).orElseGet(() -> resolvePeriod(file));
+    public static Optional<LocalDate> statedAccountingPeriod(RemoteFile file) {
+        return periodFromText(file.name()).or(() -> periodFromPath(file));
     }
 
     private static LocalDate ym(int year, int month) {
