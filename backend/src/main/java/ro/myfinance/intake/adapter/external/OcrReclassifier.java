@@ -32,7 +32,7 @@ import ro.myfinance.intake.domain.DocumentType;
  * output is itself unreadable. Classification of the recovered text stays deterministic.
  */
 @Component
-public class OcrReclassifier implements DocumentReclassifier {
+public class OcrReclassifier implements DocumentReclassifier, ro.myfinance.common.pdf.PdfTextRecoverer {
 
     private static final Logger log = LoggerFactory.getLogger(OcrReclassifier.class);
 
@@ -75,6 +75,29 @@ public class OcrReclassifier implements DocumentReclassifier {
         } catch (Exception e) {
             log.warn("OCR reclassification failed", e);
             return Optional.empty();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Used by the bank-statement extractor for scanned statements: a photo/scan PDF yields no text,
+     * so every parser declines and the statement lands empty. Recovering the text here lets the normal
+     * deterministic parsers run on it.
+     */
+    @Override
+    public String recoverText(byte[] bytes) {
+        if (!props.enabled() || bytes == null || bytes.length == 0) {
+            return "";
+        }
+        try (PDDocument pdf = Loader.loadPDF(bytes)) {
+            if (isReadable(new PDFTextStripper().getText(pdf))) {
+                return ""; // the text layer is fine — the caller already had it
+            }
+            return ocr(pdf);
+        } catch (Exception e) {
+            log.warn("OCR text recovery failed", e);
+            return "";
         }
     }
 
