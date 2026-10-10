@@ -97,6 +97,35 @@ class IngStatementParserTest {
         assertThat(fx.balanceAfter()).isEqualByComparingTo("17049.80");
     }
 
+    // A real PRO ASSET statement opened in the red (-65.22). The parser stored +65.22, so
+    // opening + Σ != closing and a perfectly good parse was parked in NEEDS_REVIEW.
+    private static final String ING_NEGATIVE_OPENING = String.join("\n",
+            "Extras de cont",
+            "BIC code (SWIFT): INGBROBU",
+            "Sold initial:  Total creditari (1):  Total debitari (2): Sold final: Perioada",
+            "-65.22 300.00 -30.95 203.83   01 - 30.09.2026",
+            "Data procesarii Beneficiar / Ordonator Debitari Creditari Sold intermediar",
+            "22.09.2026 PRO ASSET MANAGEMENT S R L 300.00 234.78",
+            "9301 Incasare",
+            "30.09.2026 Comision pe operatiune -30.00 204.78",
+            "9302 Comision",
+            "30.09.2026 Actualizare dobanda -0.95 203.83",
+            "9303 Dobanda");
+
+    @Test
+    void keepsTheMinusSignOnANegativeOpeningBalance() {
+        ParsedStatement s = parser.parse(ING_NEGATIVE_OPENING);
+
+        assertThat(s.openingBalance()).isEqualByComparingTo("-65.22"); // not +65.22
+        assertThat(s.closingBalance()).isEqualByComparingTo("203.83");
+        assertThat(s.transactions()).hasSize(3);
+
+        // The point of the fix: with the sign kept, the statement reconciles.
+        BigDecimal sum = s.transactions().stream().map(ParsedTransaction::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(s.openingBalance().add(sum)).isEqualByComparingTo("203.83");
+    }
+
     @Test
     void doesNotSupportNonIngText() {
         assertThat(parser.supports("BRD-Net Transactions List Settlement date")).isFalse();
