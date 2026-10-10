@@ -22,7 +22,9 @@ import ro.myfinance.ingestion.application.CloudFolderConnector.RemoteFile;
 public final class FolderMapper {
 
     /** Year + month together in one segment, e.g. 2026-05, 2026_05, 202605. */
-    private static final Pattern COMBINED = Pattern.compile("(20\\d{2})[-_.]?(0[1-9]|1[0-2])(?!\\d)");
+    // The month may be written without its leading zero — the firm files invoices under "2026_9".
+    // A following digit still disqualifies it, so a longer number ("202612345") is not read as a month.
+    private static final Pattern COMBINED = Pattern.compile("(20\\d{2})[-_.]?(0?[1-9]|1[0-2])(?!\\d)");
     private static final Pattern YEAR = Pattern.compile("(?<!\\d)(20\\d{2})(?!\\d)");
     /** A leading month number not part of a longer number, e.g. "04 Aprilie" → 04, "12" → 12. */
     private static final Pattern LEAD_MONTH = Pattern.compile("^\\s*(0?[1-9]|1[0-2])(?!\\d)");
@@ -80,10 +82,12 @@ public final class FolderMapper {
      */
     public static Optional<UUID> resolveAccountingCompany(RemoteFile file, List<Company> companies) {
         for (String seg : segments(file)) {
-            for (Company c : companies) {
-                if (isAccountingCompanyFolder(seg, c)) {
-                    return Optional.of(c.getId());
-                }
+            // Collect ALL companies this segment could be. Matching ignores the legal-form suffix, so two
+            // firms differing only by it ("ALPHA SRL" / "ALPHA SA") would both match — that is ambiguous,
+            // and guessing would file documents under the wrong company. Skip the segment instead.
+            List<Company> hits = companies.stream().filter(c -> isAccountingCompanyFolder(seg, c)).toList();
+            if (hits.size() == 1) {
+                return Optional.of(hits.get(0).getId());
             }
         }
         return Optional.empty();
@@ -95,12 +99,19 @@ public final class FolderMapper {
      * substring test — {@code Contabilitate ALPHA SRL} matches only ALPHA SRL, not ALPHABET SRL.
      */
     public static boolean isAccountingCompanyFolder(String segment, Company c) {
-        String name = StringNormalizer.alnumUpper(c.getLegalName() == null ? "" : c.getLegalName());
-        if (name.isBlank()) {
+        String name = coreName(c.getLegalName());
+        if (name == null) {
             return false;
         }
         String seg = StringNormalizer.alnumUpper(segment == null ? "" : segment);
-        return seg.equals(name) || seg.equals("CONTABILITATE" + name);
+        // The firm labels each client folder "Contabilitate <name>" (occasionally "<name> - contabilitate"),
+        // and writes the name informally — usually WITHOUT the legal form: the folder
+        // "Contabilitate PRO ASSET MANAGEMENT" holds "PRO ASSET MANAGEMENT SRL". Drop the label from either
+        // end, then compare on the suffix-free core (coreName also strips SRL/SA/PFA/… and a leading SC).
+        seg = seg.replaceFirst("^CONTABILITATE", "").replaceFirst("CONTABILITATE$", "");
+        String segCore = coreName(seg);
+        // Whole-string on the core — still NOT a substring test, so "ALPHA" never matches "ALPHABET".
+        return segCore != null && segCore.equals(name);
     }
 
     /** Company identity from a FILENAME: the embedded CUI, or a distinctive (≥6-char) name core. The length
@@ -221,7 +232,27 @@ public final class FolderMapper {
                 return Optional.empty();
             }
         }
+        // A Romanian month name beside a year — "BT_august 2026_Extras cont", "Septembrie 2026_Extras".
+        Matcher y = YEAR.matcher(text);
+        if (y.find()) {
+            String upper = StringNormalizer.alnumUpper(text);
+            for (java.util.Map.Entry<String, Integer> e : RO_MONTHS.entrySet()) {
+                if (upper.contains(e.getKey())) {
+                    return Optional.of(ym(Integer.parseInt(y.group(1)), e.getValue()));
+                }
+            }
+        }
         return Optional.empty();
+    }
+
+    /**
+     * Period for a file on the ACCOUNTING drive. The firm names statements for their month
+     * ("BT_august 2026_Extras cont…") but files them under a YEAR-only folder
+     * ("Extrase de cont/2026 Extrase de cont/BT"), so the filename is the more reliable signal and is
+     * tried first; the folder path is the fallback (which itself ends at the file's modified month).
+     */
+    public static LocalDate resolveAccountingPeriod(RemoteFile file) {
+        return periodFromText(file.name()).orElseGet(() -> resolvePeriod(file));
     }
 
     private static LocalDate ym(int year, int month) {

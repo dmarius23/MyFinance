@@ -691,7 +691,7 @@ public class IngestionService {
         // file is only ever attributed to the company whose folder it actually sits in.
         Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
                 : FolderMapper.resolveAccountingCompany(f, tenantCompanies);
-        LocalDate period = FolderMapper.resolvePeriod(f);
+        LocalDate period = FolderMapper.resolveAccountingPeriod(f);
         if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
             return Outcome.PASS;
         }
