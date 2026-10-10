@@ -11,6 +11,12 @@ package ro.myfinance.common.pdf;
  */
 public interface PdfTextRecoverer {
 
-    /** OCR-recovered text, or "" when OCR is disabled / unnecessary / unsuccessful. */
+    /** A cheap peek — the first few pages only. Enough to classify a document. */
     String recoverText(byte[] pdf);
+
+    /**
+     * The whole document (bounded by config). A bank statement must be read end to end: transactions
+     * past a page cap are silently lost and the opening + Σ == closing cross-check then fails.
+     */
+    String recoverFullText(byte[] pdf);
 }

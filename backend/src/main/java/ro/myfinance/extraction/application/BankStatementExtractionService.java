@@ -99,7 +99,7 @@ public class BankStatementExtractionService {
         // vision fallback) and let the normal deterministic parsers run on it.
         if (!ro.myfinance.common.pdf.PdfImages.isReadable(text)) {
             ro.myfinance.common.pdf.PdfTextRecoverer recoverer = ocr.getIfAvailable();
-            String recovered = recoverer == null ? "" : recoverer.recoverText(bytes);
+            String recovered = recoverer == null ? "" : recoverer.recoverFullText(bytes);
             if (!recovered.isBlank()) {
                 log.info("Statement document {} had no text layer — OCR recovered {} chars",
                         documentId, recovered.length());
