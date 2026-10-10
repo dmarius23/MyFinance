@@ -98,4 +98,17 @@ class BancaTransilvaniaStatementParserTest {
         return s.transactions().stream().filter(t -> t.date().equals(date)).findFirst()
                 .map(ParsedTransaction::partnerName).orElseThrow();
     }
+    @Test
+    void keepsTheMinusSignOnANegativeSoldAnterior() {
+        // An account can open in the red; dropping the sign breaks the opening + Σ == closing check.
+        String text = String.join("\n",
+                "Banca Transilvania EXTRAS CONT",
+                "Cod IBAN: RO63BTRLRONCRT0DB1914301",
+                "SOLD ANTERIOR -65,22",
+                "03/09/2026 Incasare factura 300,00",
+                "SOLD FINAL ZI 234,78");
+        ParsedStatement s = new BancaTransilvaniaStatementParser().parse(text);
+        assertThat(s.openingBalance()).isEqualByComparingTo("-65.22");
+        assertThat(s.closingBalance()).isEqualByComparingTo("234.78");
+    }
 }

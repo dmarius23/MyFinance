@@ -49,8 +49,8 @@ public class BancaTransilvaniaStatementParser implements BankStatementParser {
             + "|depunere|cumparare|transfer|impozit|rambursare|restituire|dobanda|taxa|poprire|storno|virament"
             + "|ridicare|schimb valutar)\\b");
     private static final Pattern IBAN_LABEL = Pattern.compile("Cod IBAN:\\s*(RO\\d{2}[A-Z0-9]+)");
-    private static final Pattern SOLD_ANTERIOR = Pattern.compile("SOLD ANTERIOR\\s++([\\d.,]{1,25})");
-    private static final Pattern SOLD_FINAL = Pattern.compile("SOLD FINAL(?: ZI)?\\s++([\\d.,]{1,25})");
+    private static final Pattern SOLD_ANTERIOR = Pattern.compile("SOLD ANTERIOR\\s++(-?[\\d.,]{1,25})");
+    private static final Pattern SOLD_FINAL = Pattern.compile("SOLD FINAL(?: ZI)?\\s++(-?[\\d.,]{1,25})");
     private static final Pattern REF = Pattern.compile("^REF\\.\\s*(\\S+)");
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{14,}\\b");
     private static final Pattern LEADING_DIGITS = Pattern.compile("^\\d+");

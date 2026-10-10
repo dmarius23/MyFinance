@@ -215,7 +215,10 @@ public class IngStatementParser implements BankStatementParser {
                 for (int j = i + 1; j < Math.min(lines.length, i + 3); j++) {
                     List<String> vals = signedTokens(lines[j]);
                     if (vals.size() >= 4) {
-                        return new BigDecimal[] {magnitude(vals.get(0)), magnitude(vals.get(3))};
+                        // signedAmount, NOT magnitude: an account can legitimately open or close
+                        // in the red ("-65,22"), and stripping that minus breaks the
+                        // opening + Σ == closing cross-check, parking a correct parse in NEEDS_REVIEW.
+                        return new BigDecimal[] {signedAmount(vals.get(0)), signedAmount(vals.get(3))};
                     }
                 }
             }
