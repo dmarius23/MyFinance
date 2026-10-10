@@ -35,19 +35,22 @@ public class BankStatementExtractionService {
     private final ReconciliationService reconciliation;
     private final AuditRecorder audit;
     private final ro.myfinance.intake.application.DocumentDirectory documents;
+    private final org.springframework.beans.factory.ObjectProvider<ro.myfinance.common.pdf.PdfTextRecoverer> ocr;
 
     public BankStatementExtractionService(BankStatementParserRegistry registry,
                                           BankStatementRepository statements,
                                           BankTransactionRepository transactions,
                                           ReconciliationService reconciliation,
                                           AuditRecorder audit,
-                                          ro.myfinance.intake.application.DocumentDirectory documents) {
+                                          ro.myfinance.intake.application.DocumentDirectory documents,
+                                          org.springframework.beans.factory.ObjectProvider<ro.myfinance.common.pdf.PdfTextRecoverer> ocr) {
         this.registry = registry;
         this.statements = statements;
         this.transactions = transactions;
         this.reconciliation = reconciliation;
         this.audit = audit;
         this.documents = documents;
+        this.ocr = ocr;
     }
 
     /**
@@ -91,6 +94,18 @@ public class BankStatementExtractionService {
         }
 
         String text = registry.extractText(bytes);
+        // A scanned statement (photo/scan PDF, no text layer) yields nothing, so every parser declines
+        // and the statement would land empty with no explanation. Recover the text via OCR (Tesseract,
+        // vision fallback) and let the normal deterministic parsers run on it.
+        if (!ro.myfinance.common.pdf.PdfImages.isReadable(text)) {
+            ro.myfinance.common.pdf.PdfTextRecoverer recoverer = ocr.getIfAvailable();
+            String recovered = recoverer == null ? "" : recoverer.recoverText(bytes);
+            if (!recovered.isBlank()) {
+                log.info("Statement document {} had no text layer — OCR recovered {} chars",
+                        documentId, recovered.length());
+                text = recovered;
+            }
+        }
         Optional<BankStatementParser> parser = registry.find(text);
         if (parser.isEmpty()) {
             statements.save(new BankStatement(tenantId, documentId, companyId, periodMonth,

@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
+import { bankApi, invoicesApi, reconciliationApi, type BankStatement, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
 import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
@@ -298,6 +298,63 @@ export function ReconcileWorkspace() {
     else setWaOpen(true);
   };
 
+  // One group per bank statement (a company may hold accounts at several banks). null => a single
+  // statement, so the flat list stays as-is and no marker clutters the common case.
+  const txnGroups = useMemo(() => {
+    const stmts = statements.data ?? [];
+    if (stmts.length < 2) return null;
+    const known = new Set(stmts.map((s) => s.id));
+    const groups: { stmt: BankStatement | null; txns: BankTransaction[] }[] =
+      stmts.map((s) => ({ stmt: s, txns: shownTxns.filter((tx) => tx.statementId === s.id) }));
+    const orphans = shownTxns.filter((tx) => !known.has(tx.statementId));
+    if (orphans.length) groups.push({ stmt: null, txns: orphans });
+    return groups;
+  }, [statements.data, shownTxns]);
+
+  const renderTxn = (tx: BankTransaction) => {
+                const sel = tx.id === selectedTxnId;
+                const accent = sel ? "var(--primary)" : tx.fullyAllocated ? "var(--dot-green, #16a34a)" : needsDoc(tx) ? "var(--dot-red, #dc2626)" : "transparent";
+                return (
+                  <div key={tx.id} onClick={() => selectTxn(tx.id)}
+                    style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid var(--hair)", padding: "9px 12px", cursor: "pointer", background: sel ? "var(--row-active, #ecf7f5)" : undefined }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
+                      {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
+                      <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
+                    {/* status */}
+                    {tx.matched ? (
+                      <div style={{ marginTop: 5, display: "grid", gap: 3 }}>
+                        {tx.matchedInvoices.map((mi) => (
+                          <div key={mi.invoiceId} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ok-bg, #dcfce7)", border: "1px solid var(--ok-bd, #bbf7d0)", borderRadius: 7, padding: "3px 8px", fontSize: 11.5 }}>
+                            <span style={{ color: "var(--ok-fg, #166534)" }}>✓</span>
+                            <span style={{ flex: 1, minWidth: 0, color: "var(--ok-fg, #166534)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mi.filename ?? "factura"}</span>
+                            <span className="mono" style={{ color: "var(--text-muted)" }}>{mi.allocatedAmount != null ? money(mi.allocatedAmount) : ""}</span>
+                            <button onClick={(e) => { e.stopPropagation(); unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId }); }} style={linkBtn}>{t("recon.unmap")}</button>
+                          </div>
+                        ))}
+                        {!tx.fullyAllocated && (
+                          <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
+                        )}
+                      </div>
+                    ) : tx.requiresDocument ? (
+                      <div style={{ marginTop: 4, fontSize: 11.5, color: sel ? "var(--warn-fg, #92400e)" : "var(--danger-fg, #991b1b)" }}>
+                        ● {sel ? t("recon.matchingNow") : t("recon.needsDoc")}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>{t("recon.notNeeded")} · {tx.reason}</span>
+                        <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: true }); }} style={linkBtn}>{t("recon.markNeedsDoc")}</button>
+                      </div>
+                    )}
+                    {tx.requiresDocument && !tx.matched && (
+                      <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: false }); }} style={{ ...linkBtn, marginTop: 2 }}>{t("recon.markNoDoc")}</button>
+                    )}
+                  </div>
+                );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 46px)", minHeight: 0 }}>
       {/* ===== header ===== */}
@@ -386,49 +443,30 @@ export function ReconcileWorkspace() {
           <ColHeader title={t("recon.bankTransactions")} filter={txnFilter} setFilter={setTxnFilter} t={t} />
           <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
             {shownTxns.length === 0 && <Empty text={txnFilter === "unmapped" ? t("recon.allReconciled") : t("recon.noTxns")} />}
-            {shownTxns.map((tx) => {
-              const sel = tx.id === selectedTxnId;
-              const accent = sel ? "var(--primary)" : tx.fullyAllocated ? "var(--dot-green, #16a34a)" : needsDoc(tx) ? "var(--dot-red, #dc2626)" : "transparent";
-              return (
-                <div key={tx.id} onClick={() => selectTxn(tx.id)}
-                  style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid var(--hair)", padding: "9px 12px", cursor: "pointer", background: sel ? "var(--row-active, #ecf7f5)" : undefined }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
-                    {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
-                    <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
-                  </div>
-                  <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
-                  {/* status */}
-                  {tx.matched ? (
-                    <div style={{ marginTop: 5, display: "grid", gap: 3 }}>
-                      {tx.matchedInvoices.map((mi) => (
-                        <div key={mi.invoiceId} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ok-bg, #dcfce7)", border: "1px solid var(--ok-bd, #bbf7d0)", borderRadius: 7, padding: "3px 8px", fontSize: 11.5 }}>
-                          <span style={{ color: "var(--ok-fg, #166534)" }}>✓</span>
-                          <span style={{ flex: 1, minWidth: 0, color: "var(--ok-fg, #166534)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mi.filename ?? "factura"}</span>
-                          <span className="mono" style={{ color: "var(--text-muted)" }}>{mi.allocatedAmount != null ? money(mi.allocatedAmount) : ""}</span>
-                          <button onClick={(e) => { e.stopPropagation(); unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId }); }} style={linkBtn}>{t("recon.unmap")}</button>
-                        </div>
-                      ))}
-                      {!tx.fullyAllocated && (
-                        <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
-                      )}
-                    </div>
-                  ) : tx.requiresDocument ? (
-                    <div style={{ marginTop: 4, fontSize: 11.5, color: sel ? "var(--warn-fg, #92400e)" : "var(--danger-fg, #991b1b)" }}>
-                      ● {sel ? t("recon.matchingNow") : t("recon.needsDoc")}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>{t("recon.notNeeded")} · {tx.reason}</span>
-                      <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: true }); }} style={linkBtn}>{t("recon.markNeedsDoc")}</button>
-                    </div>
-                  )}
-                  {tx.requiresDocument && !tx.matched && (
-                    <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: false }); }} style={{ ...linkBtn, marginTop: 2 }}>{t("recon.markNoDoc")}</button>
-                  )}
+            {/* Transactions are grouped per bank statement: a company can hold accounts at several
+                banks, so each statement gets its own marker — and a statement that yielded no
+                transactions is still shown, so an unreadable upload cannot go unnoticed. */}
+            {txnGroups === null ? shownTxns.map((tx) => renderTxn(tx)) : txnGroups.map((g) => (
+              <Fragment key={g.stmt?.id ?? "unknown"}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 12px",
+                  background: "var(--th-bg)", borderBottom: "1px solid var(--hair)", fontSize: 11.5 }}>
+                  <b style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {g.stmt?.bankCode || t("recon.stmtUnknownBank")}
+                    {g.stmt?.accountIban ? ` · ${maskIban(g.stmt.accountIban)}` : ""}
+                  </b>
+                  <span className="mono" style={{ color: "var(--text-muted)" }}>
+                    {t("recon.stmtTxnCount", { n: g.txns.length })}
+                  </span>
                 </div>
-              );
-            })}
+                {g.txns.length === 0 && (
+                  <div style={{ padding: "8px 12px", fontSize: 11.5, color: "var(--danger-fg, #991b1b)",
+                    borderBottom: "1px solid var(--hair)" }}>
+                    ⚠ {t("recon.stmtNoTxns")}
+                  </div>
+                )}
+                {g.txns.map((tx) => renderTxn(tx))}
+              </Fragment>
+            ))}
           </div>
         </div>
 
