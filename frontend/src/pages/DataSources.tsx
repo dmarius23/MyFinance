@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
 import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
+import { Icon } from "../components/Icon";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
@@ -235,6 +236,10 @@ function AutoSyncCard() {
   );
 }
 
+/** Backend marker for a PDF locked with an open password (IngestionService.PASSWORD_PROTECTED). */
+const LOCKED_MARKER = "protejat cu parolă";
+const isLocked = (detail: string | null) => !!detail && detail.includes(LOCKED_MARKER);
+
 function ImportsPanel({ connectionId }: { connectionId: string }) {
   const { t } = useTranslation();
   const imports = useQuery({ queryKey: ["ingestion-imports", connectionId], queryFn: () => ingestionApi.imports(connectionId) });
@@ -246,7 +251,13 @@ function ImportsPanel({ connectionId }: { connectionId: string }) {
       {(imports.data ?? []).map((r) => (
         <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <span className="mono" style={{ color: "var(--text-muted)" }}>{r.sourcePath}/</span>{r.filename}
+            {/* A password-locked PDF can't be read at all, so name it plainly with a padlock rather than
+                leaving it among the generic "unclassified" rejects. */}
+            {isLocked(r.detail) && (
+              <Icon name="lock" size={12} style={{ verticalAlign: "-1px", marginRight: 4, color: "#92400e" }} />
+            )}
+            <span className="mono" style={{ color: "var(--text-muted)" }}>{r.sourcePath}/</span>
+            <b style={{ fontWeight: isLocked(r.detail) ? 600 : 400 }}>{r.filename}</b>
             {r.detail && <span style={{ color: "#92400e" }}> — {r.detail}</span>}
           </span>
           <span style={{ flex: "none", fontWeight: 700, color: tone(r.status), fontSize: 10.5, textTransform: "uppercase" }}>{r.status}</span>
