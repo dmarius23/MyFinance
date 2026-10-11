@@ -21,6 +21,7 @@ import { DataSources } from "./pages/DataSources";
 import { AdminReference } from "./pages/AdminReference";
 import { AdminTenants } from "./pages/AdminTenants";
 import { TreasurySyncAdmin } from "./pages/TreasurySyncAdmin";
+import { GmailOAuthCallback } from "./pages/GmailOAuthCallback";
 
 /** Where a signed-in user belongs based on their role (reps → portal, super admin → platform
  *  admin, tenant staff → dashboard). A super admin has no tenant, so it never lands on a
@@ -79,6 +80,7 @@ export default function App() {
       <Route element={<RequireRole allow={["TENANT_ADMIN"]} />}>
         <Route element={<FirmLayout />}>
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/email-connections/gmail/callback" element={<GmailOAuthCallback />} />
           <Route path="/team" element={<Team />} />
           <Route path="/data-sources" element={<DataSources />} />
         </Route>

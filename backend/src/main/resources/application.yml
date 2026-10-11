@@ -101,7 +101,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:
@@ -127,6 +127,17 @@ myfinance:
   # Blank → SecretCipher is unconfigured and refuses to store/read provider credentials (fail-closed).
   secret:
     key: ${MYFINANCE_SECRET_KEY:}
+  # Gmail OAuth web-client credentials. The client secret stays in environment/config only.
+  ingestion:
+    gmail:
+      client-id: ${GMAIL_CLIENT_ID:}
+      client-secret: ${GMAIL_CLIENT_SECRET:}
+      redirect-uri: ${GMAIL_REDIRECT_URI:http://localhost:5173/settings/email-connections/gmail/callback}
+      pub-sub-topic: ${GMAIL_PUBSUB_TOPIC:}
+      pub-sub-audience: ${GMAIL_PUBSUB_AUDIENCE:}
+      pub-sub-service-account: ${GMAIL_PUBSUB_SERVICE_ACCOUNT:}
+      watch-renewal-enabled: ${GMAIL_WATCH_RENEWAL_ENABLED:false}
+      watch-renewal-cron: ${GMAIL_WATCH_RENEWAL_CRON:0 15 * * * *}
   supabase:
     url: ${SUPABASE_URL:}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}

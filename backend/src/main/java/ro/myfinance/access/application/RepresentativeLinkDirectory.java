@@ -35,4 +35,9 @@ public class RepresentativeLinkDirectory {
     public List<RepresentativeLink> findByUserId(UUID userId) {
         return links.findByUserId(userId);
     }
+
+    /** Tenant-local representative links matching an email sender, case-insensitively. */
+    public List<RepresentativeLink> findByRepresentativeEmail(String email) {
+        return email == null || email.isBlank() ? List.of() : links.findByRepresentativeEmail(email.trim());
+    }
 }

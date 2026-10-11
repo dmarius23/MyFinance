@@ -6,6 +6,7 @@ import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
+import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
 
 /**
  * MOD-15 — admin screen to configure document-source folders (Google Drive) and trigger a sync.
@@ -62,6 +63,7 @@ export function DataSources() {
       {error && <div className="card" style={{ color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }}>{error}</div>}
 
       <AutoSyncCard />
+      <GmailConnectionsCard />
 
       {/* existing connections */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
