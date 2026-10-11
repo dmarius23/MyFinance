@@ -107,18 +107,22 @@ class FolderMapperTest {
     void accountingPeriodPrefersTheFilenameMonth() {
         // Statements are named for their month but filed under a YEAR-only folder, so the path alone would
         // fall back to the file's modified month (June here) and file them wrong.
-        assertThat(FolderMapper.resolveAccountingPeriod(file(
+        assertThat(FolderMapper.statedAccountingPeriod(file(
                 "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026 Extrase de cont/BT",
                 "BT_august 2026_Extras cont_Pro Asset Management.pdf")))
-                .isEqualTo(LocalDate.of(2026, 8, 1));
-        assertThat(FolderMapper.resolveAccountingPeriod(file(
+                .contains(LocalDate.of(2026, 8, 1));
+        assertThat(FolderMapper.statedAccountingPeriod(file(
                 "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026 Extrase de cont/ING",
                 "Septembrie 2026_Extras de cont Pro Asset Management.pdf")))
-                .isEqualTo(LocalDate.of(2026, 9, 1));
+                .contains(LocalDate.of(2026, 9, 1));
         // No month in the filename → the folder path still decides.
-        assertThat(FolderMapper.resolveAccountingPeriod(file(
+        assertThat(FolderMapper.statedAccountingPeriod(file(
                 "Contabilitate PRO ASSET MANAGEMENT/Facturi de achizitii/2026/2026_9", "factura.pdf")))
-                .isEqualTo(LocalDate.of(2026, 9, 1));
+                .contains(LocalDate.of(2026, 9, 1));
+        // Year-only folder AND an uninformative filename → nothing stated; the caller then asks the
+        // document itself (each client organises their own folders, so this is common).
+        assertThat(FolderMapper.statedAccountingPeriod(file(
+                "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026", "extras.pdf"))).isEmpty();
     }
 
     @Test

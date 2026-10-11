@@ -691,11 +691,18 @@ public class IngestionService {
         // file is only ever attributed to the company whose folder it actually sits in.
         Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
                 : FolderMapper.resolveAccountingCompany(f, tenantCompanies);
-        LocalDate period = FolderMapper.resolveAccountingPeriod(f);
+        // Each client organises their own folders — year-only, year/month, or a type folder in between —
+        // so the month is taken from whichever source actually states it: the filename first (the firm
+        // names statements "BT_august 2026…"), then the folder path. When NEITHER does, the document's own
+        // content decides below; the file's modified month is only the last resort.
+        Optional<LocalDate> stated = FolderMapper.statedAccountingPeriod(f);
+        LocalDate period = stated.orElseGet(() -> FolderMapper.resolvePeriod(f));
         if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
             return Outcome.PASS;
         }
-        if (onlyPeriods != null && !onlyPeriods.contains(period)) {
+        // Only skip on the month filter when the month is actually known up front; otherwise the real
+        // month comes from the content below, so the decision has to wait until after the download.
+        if (onlyPeriods != null && stated.isPresent() && !onlyPeriods.contains(period)) {
             return Outcome.PASS;
         }
         ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
@@ -721,6 +728,16 @@ public class IngestionService {
         // Content confirmation: the file's own content must belong to THIS company (exact name/CUI) and month.
         // A file that landed in the wrong company's folder — or a wrong-month file — is flagged, not loaded.
         Company company = companies.findById(cid.get()).orElse(null);
+        // Neither the filename nor the path named a month → let the document say which month it is about.
+        if (stated.isEmpty()) {
+            LocalDate fromContent = validator.contentPeriod(ct, bytes, company).orElse(null);
+            if (fromContent != null) {
+                period = fromContent;
+            }
+            if (onlyPeriods != null && !onlyPeriods.contains(period)) {
+                return Outcome.PASS; // deferred month filter, now that the real month is known
+            }
+        }
         if (company != null) {
             DocumentValidator.Result v = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
             if (v != null && (v.blockReason() == DriveBlockReason.WRONG_COMPANY || v.blockReason() == DriveBlockReason.WRONG_PERIOD)) {
