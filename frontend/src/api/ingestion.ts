@@ -58,6 +58,9 @@ export const ingestionApi = {
   remove: (id: string) => api<void>(`${base}/${id}`, { method: "DELETE" }),
   sync: (id: string) => api<SyncResult>(`${base}/${id}/sync`, { method: "POST" }),
   imports: (id: string) => api<ImportRow[]>(`${base}/${id}/imports`),
+  /** Drive files for a company + month that did NOT import (locked PDF, unreadable, wrong party). */
+  unresolved: (companyId: string, period: string) =>
+    api<ImportRow[]>(`/api/v1/ingestion/unresolved?companyId=${companyId}&period=${period}`),
 
   // Staff-facing: is this document type sourced from a cloud folder, and scoped per-company sync.
   source: (type: string) => api<{ driveEnabled: boolean; driveWrite: boolean }>(`/api/v1/ingestion/source?type=${type}`),

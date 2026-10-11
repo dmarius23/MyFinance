@@ -58,6 +58,11 @@ class HeuristicDocumentClassifierTest {
         assertThat(classifier.classify("OP 13.08.2026 Somatie Anaf.pdf", "application/pdf",
                 pdfWithText("ORDIN DE PLATA nr 4177 catre ANAF Banca Transilvania")))
                 .isEqualTo(DocumentType.RECEIPT);
+        // The real file from the firm's Drive is a BT "Confirmare tranzactie" — it says neither
+        // "ordin de plata" nor "factura", which is why it kept reading as a statement.
+        assertThat(classifier.classify("OP 13.08.2026.pdf", "application/pdf",
+                pdfWithText("Banca Transilvania Confirmare tranzactie Platitor Beneficiar Trezoreria Brasov")))
+                .isEqualTo(DocumentType.RECEIPT);
         // A real statement from the same bank is still a statement...
         assertThat(classifier.classify("extras.pdf", "application/pdf",
                 pdfWithText("Extras de cont Banca Transilvania SOLD ANTERIOR")))

@@ -133,6 +133,16 @@ public class IngestionService {
         return ledger.findByConnectionIdOrderByCreatedAtDesc(connectionId);
     }
 
+    /**
+     * Drive files for this company + month that did NOT become documents — a locked PDF, an unreadable
+     * scan, a wrong-party file. Shown on the reconcile screen: the accountant notices a MISSING statement
+     * there, not in the Drive-connection admin list, so the reason has to be visible in the same place.
+     */
+    public List<ImportFile> unresolvedFor(UUID companyId, LocalDate periodMonth) {
+        return ledger.findByCompanyIdAndPeriodMonthAndStatusNotOrderByCreatedAtDesc(
+                companyId, periodMonth.withDayOfMonth(1), ImportFile.Status.IMPORTED.name());
+    }
+
     /** Outcome of one sync run, surfaced to the admin / payroll screen. {@code issues} names the files
      *  that were flagged (wrong period / unclassified) rather than imported. */
     public record SyncResult(int imported, int needsReview, int skipped, int failed, List<Issue> issues) {

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.ingestion.adapter.web.IngestionDtos.ConnectionView;
 import ro.myfinance.ingestion.adapter.web.IngestionDtos.CreateConnectionRequest;
@@ -74,5 +75,15 @@ public class IngestionController {
     @GetMapping("/{id}/imports")
     public List<ImportView> imports(@PathVariable UUID id) {
         return ingestion.imports(id).stream().map(ImportView::from).toList();
+    }
+
+    /** Drive files for a company + month that did not import (locked, unreadable, wrong party). */
+    @GetMapping("/unresolved")
+    public List<ImportView> unresolved(@RequestParam("companyId") UUID companyId,
+                                       @RequestParam("period")
+                                       @org.springframework.format.annotation.DateTimeFormat(iso =
+                                               org.springframework.format.annotation.DateTimeFormat.ISO.DATE)
+                                       java.time.LocalDate period) {
+        return ingestion.unresolvedFor(companyId, period).stream().map(ImportView::from).toList();
     }
 }

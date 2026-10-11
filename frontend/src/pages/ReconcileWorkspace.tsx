@@ -72,6 +72,9 @@ export function ReconcileWorkspace() {
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
   const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period, 18, true) });
   const suggestionsQ = useQuery({ queryKey: ["match-suggestions", companyId, period], queryFn: () => reconciliationApi.suggestions(companyId, period) });
+  // Drive files that did NOT import for this company+month. The accountant notices a MISSING statement
+  // here, not in the Drive-connection admin list, so the reason has to be visible in the same place.
+  const unresolvedQ = useQuery({ queryKey: ["ingest-unresolved", companyId, period], queryFn: () => ingestionApi.unresolved(companyId, period) });
 
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -378,6 +381,24 @@ export function ReconcileWorkspace() {
         </button>
         <WhatsAppAction disabled={!c || !whatsappConfigured} onClick={onWhatsapp} />
       </div>
+
+      {/* Drive files that could not be imported — named, with a padlock when the PDF is locked. */}
+      {(unresolvedQ.data ?? []).length > 0 && (
+        <div style={{ margin: "0 18px 10px", ...card, padding: "8px 12px", borderColor: "var(--warn-bd, #fde68a)", background: "var(--warn-bg, #fffbeb)" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--warn-fg, #92400e)", marginBottom: 4 }}>
+            {t("recon.notImported")}
+          </div>
+          {(unresolvedQ.data ?? []).map((r) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 12, padding: "2px 0" }}>
+              {(r.detail ?? "").includes("protejat cu parolă") && (
+                <Icon name="lock" size={12} style={{ verticalAlign: "-1px", color: "var(--warn-fg, #92400e)" }} />
+              )}
+              <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.filename}</b>
+              <span style={{ color: "var(--text-muted)" }}>— {r.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ===== statement files strip / empty upload ===== */}
       {hasStatement ? (
