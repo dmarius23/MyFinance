@@ -1,15 +1,24 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bankApi, invoicesApi, reconciliationApi, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
+import { bankApi, invoicesApi, reconciliationApi, type BankStatement, type BankTransaction, type OpenInvoice, type MatchSuggestion, type StatementFile } from "../api/bank";
 import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { usePeriod, monthLabel as monthLabelLong } from "../lib/period";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
+import { FilesModal } from "../components/FilesModal";
 import { SendReminderModal } from "../components/SendReminderModal";
+import { WhatsAppModal } from "../components/WhatsAppModal";
+import { WhatsAppAction } from "../components/RowActions";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
+import { useFirmName } from "../lib/useFirmName";
+import { emailApi } from "../api/email";
+import { reminderBody } from "../lib/reminderBody";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 
@@ -52,6 +61,10 @@ export function ReconcileWorkspace() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { run } = useSyncTracker();
+  const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const openWa = useOpenWhatsApp();
+  const firmName = useFirmName();
 
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
@@ -59,6 +72,9 @@ export function ReconcileWorkspace() {
   const txns = useQuery({ queryKey: ["bank-txns", companyId, period], queryFn: () => bankApi.transactions(companyId, period) });
   const openQ = useQuery({ queryKey: ["open-invoices", companyId, period], queryFn: () => invoicesApi.open(companyId, period, 18, true) });
   const suggestionsQ = useQuery({ queryKey: ["match-suggestions", companyId, period], queryFn: () => reconciliationApi.suggestions(companyId, period) });
+  // Drive files that did NOT import for this company+month. The accountant notices a MISSING statement
+  // here, not in the Drive-connection admin list, so the reason has to be visible in the same place.
+  const unresolvedQ = useQuery({ queryKey: ["ingest-unresolved", companyId, period], queryFn: () => ingestionApi.unresolved(companyId, period) });
 
   const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -67,6 +83,8 @@ export function ReconcileWorkspace() {
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<{ documentId: string; filename: string | null; invoiceId?: string } | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
   const [uploadToast, setUploadToast] = useState<{ tone: "ok" | "warn" | "info"; msg: string }[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const stmtFileRef = useRef<HTMLInputElement>(null);
@@ -270,6 +288,76 @@ export function ReconcileWorkspace() {
     f.mine ? t("recon.byYou") : f.source === "DRIVE" ? t("recon.fromDrive") : t("recon.byColleague");
   const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
 
+  // WhatsApp document-reminder: same body as the email "Request from client" (shared reminderBody), so
+  // both channels read identically. Click-to-chat opens wa.me directly; Twilio mode opens the compose modal.
+  const waLoadBody = async (): Promise<string> => {
+    const env = await emailApi.envelope(companyId).catch(() => null);
+    const missing = (txns.data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
+    return reminderBody(t, period.slice(0, 7), hasStatement, missing, env?.fromName ?? null, firmName);
+  };
+  const onWhatsapp = () => {
+    if (!c) return;
+    if (waMode === "CLICK_TO_CHAT") openWa(companyId, waLoadBody);
+    else setWaOpen(true);
+  };
+
+  // One group per bank statement (a company may hold accounts at several banks). null => a single
+  // statement, so the flat list stays as-is and no marker clutters the common case.
+  const txnGroups = useMemo(() => {
+    const stmts = statements.data ?? [];
+    if (stmts.length < 2) return null;
+    const known = new Set(stmts.map((s) => s.id));
+    const groups: { stmt: BankStatement | null; txns: BankTransaction[] }[] =
+      stmts.map((s) => ({ stmt: s, txns: shownTxns.filter((tx) => tx.statementId === s.id) }));
+    const orphans = shownTxns.filter((tx) => !known.has(tx.statementId));
+    if (orphans.length) groups.push({ stmt: null, txns: orphans });
+    return groups;
+  }, [statements.data, shownTxns]);
+
+  const renderTxn = (tx: BankTransaction) => {
+                const sel = tx.id === selectedTxnId;
+                const accent = sel ? "var(--primary)" : tx.fullyAllocated ? "var(--dot-green, #16a34a)" : needsDoc(tx) ? "var(--dot-red, #dc2626)" : "transparent";
+                return (
+                  <div key={tx.id} onClick={() => selectTxn(tx.id)}
+                    style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid var(--hair)", padding: "9px 12px", cursor: "pointer", background: sel ? "var(--row-active, #ecf7f5)" : undefined }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
+                      {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
+                      <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
+                    </div>
+                    <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
+                    {/* status */}
+                    {tx.matched ? (
+                      <div style={{ marginTop: 5, display: "grid", gap: 3 }}>
+                        {tx.matchedInvoices.map((mi) => (
+                          <div key={mi.invoiceId} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ok-bg, #dcfce7)", border: "1px solid var(--ok-bd, #bbf7d0)", borderRadius: 7, padding: "3px 8px", fontSize: 11.5 }}>
+                            <span style={{ color: "var(--ok-fg, #166534)" }}>✓</span>
+                            <span style={{ flex: 1, minWidth: 0, color: "var(--ok-fg, #166534)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mi.filename ?? "factura"}</span>
+                            <span className="mono" style={{ color: "var(--text-muted)" }}>{mi.allocatedAmount != null ? money(mi.allocatedAmount) : ""}</span>
+                            <button onClick={(e) => { e.stopPropagation(); unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId }); }} style={linkBtn}>{t("recon.unmap")}</button>
+                          </div>
+                        ))}
+                        {!tx.fullyAllocated && (
+                          <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
+                        )}
+                      </div>
+                    ) : tx.requiresDocument ? (
+                      <div style={{ marginTop: 4, fontSize: 11.5, color: sel ? "var(--warn-fg, #92400e)" : "var(--danger-fg, #991b1b)" }}>
+                        ● {sel ? t("recon.matchingNow") : t("recon.needsDoc")}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>{t("recon.notNeeded")} · {tx.reason}</span>
+                        <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: true }); }} style={linkBtn}>{t("recon.markNeedsDoc")}</button>
+                      </div>
+                    )}
+                    {tx.requiresDocument && !tx.matched && (
+                      <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: false }); }} style={{ ...linkBtn, marginTop: 2 }}>{t("recon.markNoDoc")}</button>
+                    )}
+                  </div>
+                );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 46px)", minHeight: 0 }}>
       {/* ===== header ===== */}
@@ -285,11 +373,32 @@ export function ReconcileWorkspace() {
           <span style={{ color: "var(--warn-fg, #92400e)" }}>{counts.partial} {t("recon.partialShort")}</span>
           <span style={{ color: "var(--danger-fg, #991b1b)" }}>{counts.need} {t("recon.needDoc")}</span>
         </div>
+        <button onClick={() => setFilesOpen(true)} disabled={!c} title={t("files.title")} aria-label={t("files.title")}
+          style={{ ...iconBtn, width: 34, height: 34 }}><Icon name="folder" size={17} /></button>
         <button className="primary" disabled={!c} onClick={() => setRequesting(true)}>
           <Icon name="mail" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
           {t("recon.requestClient")}{counts.need + counts.partial > 0 ? ` · ${counts.need + counts.partial}` : ""}
         </button>
+        <WhatsAppAction disabled={!c || !whatsappConfigured} onClick={onWhatsapp} />
       </div>
+
+      {/* Drive files that could not be imported — named, with a padlock when the PDF is locked. */}
+      {(unresolvedQ.data ?? []).length > 0 && (
+        <div style={{ margin: "0 18px 10px", ...card, padding: "8px 12px", borderColor: "var(--warn-bd, #fde68a)", background: "var(--warn-bg, #fffbeb)" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--warn-fg, #92400e)", marginBottom: 4 }}>
+            {t("recon.notImported")}
+          </div>
+          {(unresolvedQ.data ?? []).map((r) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 12, padding: "2px 0" }}>
+              {(r.detail ?? "").includes("protejat cu parolă") && (
+                <Icon name="lock" size={12} style={{ verticalAlign: "-1px", color: "var(--warn-fg, #92400e)" }} />
+              )}
+              <b style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.filename}</b>
+              <span style={{ color: "var(--text-muted)" }}>— {r.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ===== statement files strip / empty upload ===== */}
       {hasStatement ? (
@@ -355,49 +464,30 @@ export function ReconcileWorkspace() {
           <ColHeader title={t("recon.bankTransactions")} filter={txnFilter} setFilter={setTxnFilter} t={t} />
           <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
             {shownTxns.length === 0 && <Empty text={txnFilter === "unmapped" ? t("recon.allReconciled") : t("recon.noTxns")} />}
-            {shownTxns.map((tx) => {
-              const sel = tx.id === selectedTxnId;
-              const accent = sel ? "var(--primary)" : tx.fullyAllocated ? "var(--dot-green, #16a34a)" : needsDoc(tx) ? "var(--dot-red, #dc2626)" : "transparent";
-              return (
-                <div key={tx.id} onClick={() => selectTxn(tx.id)}
-                  style={{ borderLeft: `3px solid ${accent}`, borderBottom: "1px solid var(--hair)", padding: "9px 12px", cursor: "pointer", background: sel ? "var(--row-active, #ecf7f5)" : undefined }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
-                    {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
-                    <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
-                  </div>
-                  <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
-                  {/* status */}
-                  {tx.matched ? (
-                    <div style={{ marginTop: 5, display: "grid", gap: 3 }}>
-                      {tx.matchedInvoices.map((mi) => (
-                        <div key={mi.invoiceId} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ok-bg, #dcfce7)", border: "1px solid var(--ok-bd, #bbf7d0)", borderRadius: 7, padding: "3px 8px", fontSize: 11.5 }}>
-                          <span style={{ color: "var(--ok-fg, #166534)" }}>✓</span>
-                          <span style={{ flex: 1, minWidth: 0, color: "var(--ok-fg, #166534)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mi.filename ?? "factura"}</span>
-                          <span className="mono" style={{ color: "var(--text-muted)" }}>{mi.allocatedAmount != null ? money(mi.allocatedAmount) : ""}</span>
-                          <button onClick={(e) => { e.stopPropagation(); unmatch.mutate({ txnId: tx.id, invoiceId: mi.invoiceId }); }} style={linkBtn}>{t("recon.unmap")}</button>
-                        </div>
-                      ))}
-                      {!tx.fullyAllocated && (
-                        <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
-                      )}
-                    </div>
-                  ) : tx.requiresDocument ? (
-                    <div style={{ marginTop: 4, fontSize: 11.5, color: sel ? "var(--warn-fg, #92400e)" : "var(--danger-fg, #991b1b)" }}>
-                      ● {sel ? t("recon.matchingNow") : t("recon.needsDoc")}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>{t("recon.notNeeded")} · {tx.reason}</span>
-                      <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: true }); }} style={linkBtn}>{t("recon.markNeedsDoc")}</button>
-                    </div>
-                  )}
-                  {tx.requiresDocument && !tx.matched && (
-                    <button onClick={(e) => { e.stopPropagation(); setReq.mutate({ id: tx.id, requiresDocument: false }); }} style={{ ...linkBtn, marginTop: 2 }}>{t("recon.markNoDoc")}</button>
-                  )}
+            {/* Transactions are grouped per bank statement: a company can hold accounts at several
+                banks, so each statement gets its own marker — and a statement that yielded no
+                transactions is still shown, so an unreadable upload cannot go unnoticed. */}
+            {txnGroups === null ? shownTxns.map((tx) => renderTxn(tx)) : txnGroups.map((g) => (
+              <Fragment key={g.stmt?.id ?? "unknown"}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "6px 12px",
+                  background: "var(--th-bg)", borderBottom: "1px solid var(--hair)", fontSize: 11.5 }}>
+                  <b style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {g.stmt?.bankCode || t("recon.stmtUnknownBank")}
+                    {g.stmt?.accountIban ? ` · ${maskIban(g.stmt.accountIban)}` : ""}
+                  </b>
+                  <span className="mono" style={{ color: "var(--text-muted)" }}>
+                    {t("recon.stmtTxnCount", { n: g.txns.length })}
+                  </span>
                 </div>
-              );
-            })}
+                {g.txns.length === 0 && (
+                  <div style={{ padding: "8px 12px", fontSize: 11.5, color: "var(--danger-fg, #991b1b)",
+                    borderBottom: "1px solid var(--hair)" }}>
+                    ⚠ {t("recon.stmtNoTxns")}
+                  </div>
+                )}
+                {g.txns.map((tx) => renderTxn(tx))}
+              </Fragment>
+            ))}
           </div>
         </div>
 
@@ -522,6 +612,14 @@ export function ReconcileWorkspace() {
       </div>
 
       {preview && <DocumentPreviewModal companyId={companyId} documentId={preview.documentId} filename={preview.filename} onClose={() => setPreview(null)} />}
+      {filesOpen && c && (
+        <FilesModal companyId={companyId} companyName={c.legalName} companyCui={c.cui} period={period}
+          onClose={() => { setFilesOpen(false); invalidate(); }} />
+      )}
+      {waOpen && c && (
+        <WhatsAppModal companyId={companyId} companyName={c.legalName} kind="DOCUMENT_REMINDER" period={period}
+          loadBody={waLoadBody} onClose={() => setWaOpen(false)} />
+      )}
       {requesting && c && (
         <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />
       )}

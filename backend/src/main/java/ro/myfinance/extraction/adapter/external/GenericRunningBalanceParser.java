@@ -27,7 +27,9 @@ import ro.myfinance.extraction.application.ParsedTransaction;
 public class GenericRunningBalanceParser implements BankStatementParser {
 
     // Monetary token: ends with a decimal separator + exactly 2 digits (excludes IBANs/account nos).
-    private static final Pattern MONEY = Pattern.compile("\\d[\\d.,]*[.,]\\d{2}");
+    // The integer part is unambiguous (grouped thousands OR a plain digit run) so the engine cannot
+    // re-split a long "1,1,1,…" run — the old "[\d.,]*" form was quadratic (CodeQL java/polynomial-redos).
+    private static final Pattern MONEY = Pattern.compile("(?:\\d{1,3}(?:[.,]\\d{3}){1,6}|\\d{1,15})[.,]\\d{2}");
     // Numeric date: dd/MM/yyyy, dd.MM.yyyy (RO/EU) or yyyy-MM-dd (ISO, used by Revolut CSV exports).
     private static final Pattern DATE = Pattern.compile(
             "(\\d{4})-(\\d{2})-(\\d{2})|(\\d{2})[/.](\\d{2})[/.](\\d{2,4})");

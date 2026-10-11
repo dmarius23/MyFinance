@@ -18,8 +18,7 @@ public final class ReportEmailBuilder {
         return "Raport financiar — " + monthYear(period);
     }
 
-    public static String body(LocalDate period, ReportData r, String accountantName) {
-        String name = accountantName == null || accountantName.isBlank() ? "[Numele contabilului]" : accountantName;
+    public static String body(LocalDate period, ReportData r, String accountantName, String firmName) {
         var pl = r.profitLoss();
         return String.join("\n",
                 "Bună ziua,",
@@ -33,7 +32,6 @@ public final class ReportEmailBuilder {
                 "",
                 "Detaliile complete și graficele se găsesc în documentele atașate.",
                 "",
-                "O zi bună,",
-                name);
+                ro.myfinance.common.email.SignOff.block("O zi bună,", accountantName, firmName));
     }
 }

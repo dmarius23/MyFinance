@@ -16,4 +16,9 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, UUID> {
             UUID connectionId, UUID companyId, LocalDate periodMonth, String contentSha256, String status);
 
     List<ImportFile> findByConnectionIdOrderByCreatedAtDesc(UUID connectionId);
+
+    /** Files that did NOT import for one company + month — surfaced on the screen where the accountant
+     *  looks for them, so a locked or unreadable file is visibly missing instead of silently absent. */
+    List<ImportFile> findByCompanyIdAndPeriodMonthAndStatusNotOrderByCreatedAtDesc(
+            UUID companyId, java.time.LocalDate periodMonth, String status);
 }

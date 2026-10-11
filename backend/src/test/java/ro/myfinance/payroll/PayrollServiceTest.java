@@ -57,7 +57,7 @@ class PayrollServiceTest {
 
     @Test
     void composesStandardRomanianBody() {
-        String body = PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), "Maria Pop");
+        String body = PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), "Maria Pop", "ContaZone SRL");
         assertThat(body).contains("luna Aprilie 2026");
         assertThat(body).contains("statul de plată, fluturașul de salariu și pontajul");
         assertThat(body).contains("până în data de 25 Aprilie 2026");
@@ -65,8 +65,18 @@ class PayrollServiceTest {
         assertThat(PayrollEmailBuilder.subject(LocalDate.of(2026, 4, 1))).isEqualTo("State de plată — Aprilie 2026");
     }
 
+    /** The firm the client actually contracts with must always be the last thing they read. */
     @Test
-    void bodyUsesPlaceholderWhenNoAccountantName() {
-        assertThat(PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), null)).contains("[Numele contabilului]");
+    void bodyEndsWithSenderThenFirmName() {
+        assertThat(PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), "Maria Pop", "ContaZone SRL"))
+                .endsWith("O zi bună,\nMaria Pop\nContaZone SRL");
+    }
+
+    /** No accountant name resolved → the firm still signs; never an unfilled placeholder. */
+    @Test
+    void bodyEndsWithFirmNameWhenNoAccountantName() {
+        String body = PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), null, "ContaZone SRL");
+        assertThat(body).endsWith("O zi bună,\nContaZone SRL");
+        assertThat(body).doesNotContain("[Numele contabilului]");
     }
 }

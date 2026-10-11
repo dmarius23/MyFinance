@@ -30,14 +30,25 @@ export function ActionBtn({ icon, title, onClick, disabled, emphasis }:
 }
 
 /** WhatsApp send action — scaffolded, not yet wired to a backend channel. */
-/** WhatsApp send action. When {@code onClick} is given it's enabled; otherwise it renders as "soon". */
-export function WhatsAppAction({ onClick }: { onClick?: () => void }) {
+/**
+ * WhatsApp send action. Renders as "soon" when no {@code onClick} is given; disabled with a warning
+ * (⚠ + tooltip) when {@code disabled} (the tenant hasn't configured a WhatsApp provider); otherwise enabled.
+ */
+export function WhatsAppAction({ onClick, disabled }: { onClick?: () => void; disabled?: boolean }) {
   const { t } = useTranslation();
   if (!onClick) {
     return (
       <button type="button" title={t("channel.whatsappSoon")} disabled
         style={{ ...actionBtn, opacity: 0.45, cursor: "default" }}>
         <Icon name="whatsapp" size={15} />
+      </button>
+    );
+  }
+  if (disabled) {
+    return (
+      <button type="button" title={t("channel.whatsappRequired")} disabled
+        style={{ ...actionBtn, opacity: 0.4, cursor: "default" }}>
+        <Icon name="alert" size={15} />
       </button>
     );
   }

@@ -36,10 +36,19 @@ import ro.myfinance.extraction.application.ParsedTransaction;
 @Order(20)
 public class IngStatementParser implements BankStatementParser {
 
-    private static final Pattern DATE_LINE = Pattern.compile("^\\s*(\\d{2}\\.\\d{2}\\.\\d{4})\\s*$");
+    // A transaction block starts at a line that BEGINS with a processing date. Two ING layouts exist:
+    //   (A) the date alone on its line, amount+balance on a later line;
+    //   (B) "<date> <payee> <amount> <balance>" all on the start line (newer statements).
+    private static final Pattern DATE_START = Pattern.compile("^\\s*(\\d{2}\\.\\d{2}\\.\\d{4})(?=\\s|$)");
+    // Bank reference at the start of the second block line (e.g. "9201 RO85INGB…" in layout B).
+    private static final Pattern LEADING_REF = Pattern.compile("^\\s*(\\d{3,})\\b");
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd.MM.uuuu");
     // Signed money token (RO "1.234,56" / EN "1,234.56"); the sign carries the debit/credit direction.
-    private static final Pattern SIGNED_MONEY = Pattern.compile("(-?)(\\d[\\d.,]*[.,]\\d{2})");
+    // The integer part is spelled out unambiguously (grouped thousands OR a plain digit run) instead of a
+    // "[\d.,]*" soup: the old form let the engine re-split a long "1,1,1,…" run, costing quadratic time on
+    // semi-trusted statement text (CodeQL java/polynomial-redos).
+    private static final Pattern SIGNED_MONEY =
+            Pattern.compile("(-?)((?:\\d{1,3}(?:[.,]\\d{3}){1,6}|\\d{1,15})[.,]\\d{2})");
     // A counterparty IBAN is printed without spaces; the account's own IBAN is spaced, so it won't match.
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
     private static final Pattern ALL_DIGITS = Pattern.compile("\\d+");
@@ -55,10 +64,11 @@ public class IngStatementParser implements BankStatementParser {
         String accountIban = accountIban(lines);
         BigDecimal[] summary = openingClosing(lines);
 
-        // Every stand-alone date line starts a transaction block; add a sentinel to bound the last one.
+        // Every line that BEGINS with a processing date starts a transaction block (covers both layouts);
+        // add a sentinel to bound the last one.
         List<Integer> starts = new ArrayList<>();
         for (int i = 0; i < lines.length; i++) {
-            if (DATE_LINE.matcher(lines[i]).matches()) {
+            if (DATE_START.matcher(lines[i]).find()) {
                 starts.add(i);
             }
         }
@@ -74,40 +84,89 @@ public class IngStatementParser implements BankStatementParser {
         return new ParsedStatement("INGB", accountIban, summary[0], summary[1], txns);
     }
 
-    /** Parse one block [from, to); returns null when no amount+balance line is present. */
+    /**
+     * Parse one block [from, to); returns null when no amount+balance can be found. Handles both ING
+     * layouts: (A) the amount+balance sits on a later line; (B) the start line already carries
+     * "&lt;date&gt; &lt;payee&gt; &lt;amount&gt; &lt;balance&gt;" (its two rightmost money tokens).
+     */
     private ParsedTransaction parseBlock(String[] lines, int from, int to) {
-        LocalDate date = parseDate(lines[from].trim());
+        Matcher dm = DATE_START.matcher(lines[from]);
+        if (!dm.find()) {
+            return null;
+        }
+        LocalDate date = parseDate(dm.group(1));
         if (date == null) {
             return null;
         }
-        // The amount+balance line is the first block line with exactly two money tokens (the summary
-        // line has four; "Suma …"/"Rata …" FX lines have one), so it can't be confused with them.
-        int balIdx = -1;
-        List<String> amounts = null;
-        for (int i = from + 1; i < to; i++) {
-            List<String> m = signedTokens(lines[i]);
-            if (m.size() == 2) {
-                balIdx = i;
-                amounts = m;
-                break;
+        String startRest = lines[from].substring(dm.end());
+
+        BigDecimal amount;
+        BigDecimal balance;
+        int bodyEnd;             // description scan runs [from+1, bodyEnd)
+        String startPayee = null;
+
+        // Layout B: money tokens already on the start line — the last two are amount + running balance.
+        List<String> startTokens = new ArrayList<>();
+        List<Integer> startPos = new ArrayList<>();
+        for (Matcher m = SIGNED_MONEY.matcher(startRest); m.find(); ) {
+            startTokens.add(m.group());
+            startPos.add(m.start());
+        }
+        if (startTokens.size() >= 2) {
+            int ai = startTokens.size() - 2;
+            amount = signedAmount(startTokens.get(ai));
+            balance = magnitude(startTokens.get(ai + 1));
+            String p = startRest.substring(0, startPos.get(ai)).trim();
+            startPayee = p.isEmpty() ? null : p;
+            bodyEnd = to;        // payee/description continue on the following lines
+        } else {
+            // Layout A: date alone; amount+balance is the first later line with exactly two money tokens
+            // (the summary line has four; "Suma …"/"Rata …" FX lines have one).
+            int balIdx = -1;
+            List<String> amounts = null;
+            for (int i = from + 1; i < to; i++) {
+                List<String> m = signedTokens(lines[i]);
+                if (m.size() == 2) {
+                    balIdx = i;
+                    amounts = m;
+                    break;
+                }
+            }
+            if (balIdx < 0) {
+                return null;
+            }
+            amount = signedAmount(amounts.get(0));
+            balance = magnitude(amounts.get(1));
+            bodyEnd = balIdx;
+        }
+
+        // Reference: a whole-line digit run (layout A) or the leading digit token (layout B, "9201 RO85…").
+        String ref = null;
+        if (from + 1 < to) {
+            String next = lines[from + 1].trim();
+            if (ALL_DIGITS.matcher(next).matches()) {
+                ref = next;
+            } else {
+                Matcher lr = LEADING_REF.matcher(lines[from + 1]);
+                if (lr.find()) {
+                    ref = lr.group(1);
+                }
             }
         }
-        if (balIdx < 0) {
-            return null;
-        }
-        BigDecimal amount = signedAmount(amounts.get(0));
-        BigDecimal balance = magnitude(amounts.get(1));
 
-        String ref = from + 1 < to && ALL_DIGITS.matcher(lines[from + 1].trim()).matches()
-                ? lines[from + 1].trim() : null;
-
-        String partnerName = null;
+        String partnerName = startPayee;
         String partnerIban = null;
         StringBuilder desc = new StringBuilder();
-        for (int i = from + 1; i < balIdx; i++) {
+        if (startPayee != null) {
+            desc.append(startPayee);
+        }
+        for (int i = from + 1; i < bodyEnd; i++) {
             String line = lines[i].trim();
             if (line.isEmpty() || line.equals(ref)) {
                 continue;
+            }
+            if (ref != null && line.startsWith(ref + " ")) {
+                line = line.substring(ref.length()).trim(); // strip the leading ref (layout B first body line)
             }
             Matcher ib = IBAN.matcher(line);
             if (ib.find()) {
@@ -116,7 +175,7 @@ public class IngStatementParser implements BankStatementParser {
                 }
                 continue; // an IBAN line isn't the name or description
             }
-            if (!line.matches(".*[A-Za-z].*")) {
+            if (!hasLetter(line)) {
                 continue; // skip lines with no letters (card mask, codes)
             }
             if (partnerName == null) {
@@ -156,7 +215,10 @@ public class IngStatementParser implements BankStatementParser {
                 for (int j = i + 1; j < Math.min(lines.length, i + 3); j++) {
                     List<String> vals = signedTokens(lines[j]);
                     if (vals.size() >= 4) {
-                        return new BigDecimal[] {magnitude(vals.get(0)), magnitude(vals.get(3))};
+                        // signedAmount, NOT magnitude: an account can legitimately open or close
+                        // in the red ("-65,22"), and stripping that minus breaks the
+                        // opening + Σ == closing cross-check, parking a correct parse in NEEDS_REVIEW.
+                        return new BigDecimal[] {signedAmount(vals.get(0)), signedAmount(vals.get(3))};
                     }
                 }
             }
@@ -188,6 +250,17 @@ public class IngStatementParser implements BankStatementParser {
         }
         String digits = t.replaceAll("[.,]", "");
         return new BigDecimal(digits.isEmpty() ? "0" : digits);
+    }
+
+    /** Any letter on the line? A plain scan — ".*[A-Za-z].*" with matches() re-tries every position on a
+     *  miss, which is quadratic on long lines (CodeQL java/polynomial-redos). */
+    private static boolean hasLetter(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isLetter(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private LocalDate parseDate(String token) {

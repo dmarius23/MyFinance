@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
-import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /** Treasury IBAN columns, in the requested order: CAM, impozite, CASS, CAS, TVA. */
 const IBAN_COLS = [
@@ -15,9 +14,9 @@ const IBAN_COLS = [
 const hint: React.CSSProperties = { color: "var(--text-muted)", fontSize: 13, marginTop: 0 };
 
 /**
- * Tenant-level settings. Tax rates + treasury accounts are GLOBAL (SUPER_ADMIN-managed) and shown
- * read-only here; the firm's outbound email/WhatsApp providers are configured per-tenant. The From
- * identity comes from the SMTP provider's "from address" (below) — there is no separate sender-email field.
+ * Rates & treasury reference data: GLOBAL (SUPER_ADMIN-managed) and shown read-only here. The firm's own
+ * outbound email/WhatsApp providers are configured on the Setări page (DataSources) alongside the
+ * document sources, so everything the firm itself sets up lives on one screen.
  */
 export function Settings() {
   const { t } = useTranslation();
@@ -26,8 +25,6 @@ export function Settings() {
       <div className="card">
         <h1 style={{ marginTop: 0 }}>{t("nav.settings")}</h1>
       </div>
-      <EmailProviderSection />
-      <WhatsAppProviderSection />
       <RatesSection />
       <TreasurySection />
     </div>

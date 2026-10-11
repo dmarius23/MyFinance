@@ -28,7 +28,7 @@ First launch opens the browser to sign in to your Anthropic account (uses your M
 ## 3. Initialize the repo
 
 ```bash
-cd "~/Documents/personal/projects/MyFinance"
+cd "~/dev/MyFinance"
 git init
 git add . && git commit -m "Planning docs, specs, prototype (pre-build)"
 claude

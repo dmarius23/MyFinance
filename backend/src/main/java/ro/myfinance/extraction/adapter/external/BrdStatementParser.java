@@ -26,19 +26,19 @@ public class BrdStatementParser implements BankStatementParser {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yy");
     private static final Pattern IBAN_HDR = Pattern.compile("Code IBAN:\\s*(RO\\w+)");
     private static final Pattern BALANCES =
-            Pattern.compile("Balance\\s+RON\\s+([\\d.,]+)\\s+Balance\\s+RON\\s+([\\d.,]+)");
+            Pattern.compile("Balance\\s++RON\\s++([\\d.,]{1,25})\\s++Balance\\s++RON\\s++([\\d.,]{1,25})");
     // Transaction header: settlement date + the account's own IBAN + optional description start.
-    private static final Pattern TXN_HEADER = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+(RO\\w+)\\s*(.*)$");
+    private static final Pattern TXN_HEADER = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s++(RO\\w++)\\s*+(.*)$");
     // Amount line: a date followed by one/two amounts then the running balance (older multi-line exports).
-    private static final Pattern AMOUNT_LINE = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s+([\\d.,].*)$");
-    private static final Pattern NUMBER = Pattern.compile("[\\d.,]+");
+    private static final Pattern AMOUNT_LINE = Pattern.compile("^(\\d{2}/\\d{2}/\\d{2})\\s++([\\d.,].*)$");
+    private static final Pattern NUMBER = Pattern.compile("[\\d.,]{1,25}");
     // A monetary value: thousands-grouped, exactly two decimals (e.g. 26,153.76 / 91.00). The trailing
     // (?!\\d) rejects a wrapped period like "03.2026" so only real amounts/balances match.
-    private static final Pattern MONEY = Pattern.compile("[\\d,]+\\.\\d{2}(?!\\d)");
+    private static final Pattern MONEY = Pattern.compile("[\\d,]{1,25}\\.\\d{2}(?!\\d)");
     // The value date + amount(s) + balance that BRD's "Transactions List" prints right after "Partner name:"
     // on the SAME row — stripped before reading the partner name from the wrapped continuation lines.
     private static final Pattern INLINE_AMOUNTS =
-            Pattern.compile("(Partner name:)\\s*\\d{2}/\\d{2}/\\d{2}(\\s+[\\d,]+\\.\\d{2}){1,3}");
+            Pattern.compile("(Partner name:)\\s*+\\d{2}/\\d{2}/\\d{2}(\\s++[\\d,]{1,25}\\.\\d{2}){1,3}");
 
     @Override
     public boolean supports(String text) {
@@ -46,11 +46,6 @@ public class BrdStatementParser implements BankStatementParser {
                 || text.contains("BRD-Net")
                 || (text.contains("Transactions List") && text.contains("BRDE"));
     }
-
-    private static final Pattern PARTNER_NAME =
-            Pattern.compile("Partner name:\\s*(.*?)\\s*Partner account:", Pattern.DOTALL);
-    private static final Pattern PARTNER_ACCT =
-            Pattern.compile("Partner account:\\s*(.*?)\\s*AccountName:", Pattern.DOTALL);
 
     @Override
     public ParsedStatement parse(String text) {
@@ -112,8 +107,8 @@ public class BrdStatementParser implements BankStatementParser {
             // so the partner name is read from the wrapped continuation, not from the amount columns.
             String full = INLINE_AMOUNTS.matcher(block.toString().strip()).replaceFirst("$1 ").strip();
 
-            String partnerName = group(PARTNER_NAME, full);
-            String partnerIban = group(PARTNER_ACCT, full);
+            String partnerName = between(full, "Partner name:", "Partner account:");
+            String partnerIban = between(full, "Partner account:", "AccountName:");
             int pn = full.indexOf("Partner name:");
             String desc = (pn >= 0 ? full.substring(0, pn) : full).strip();
 
@@ -136,9 +131,21 @@ public class BrdStatementParser implements BankStatementParser {
         return AMOUNT_LINE.matcher(line.strip()).matches();
     }
 
-    private String group(Pattern p, String text) {
-        Matcher m = p.matcher(text);
-        return m.find() ? m.group(1).strip() : null;
+    /**
+     * The text between two literal markers (the first start marker, then the next end marker after it),
+     * stripped; null when either marker is missing. Plain indexOf rather than a lazy "A(.*?)B" regex:
+     * with find() that rescans forward from every "A" occurrence, which is quadratic on a crafted
+     * statement (CodeQL java/polynomial-redos). Same result — if no end marker follows the first start
+     * marker, none follows a later one either.
+     */
+    private static String between(String text, String start, String end) {
+        int s = text.indexOf(start);
+        if (s < 0) {
+            return null;
+        }
+        int from = s + start.length();
+        int e = text.indexOf(end, from);
+        return e < 0 ? null : text.substring(from, e).strip();
     }
 
     private String blankToNull(String s) {

@@ -38,7 +38,7 @@ final class InviteMessageFactory {
         b.append(link).append("\n\n");
         b.append("Linkul este valabil o perioadă limitată. ")
                 .append("Dacă nu așteptați această invitație, puteți ignora acest mesaj.\n\n");
-        b.append("Cu stimă,\n").append(firm).append(" · MyFinance");
+        b.append(ro.myfinance.common.email.SignOff.block("Cu stimă,", null, firm));
         return b.toString();
     }
 

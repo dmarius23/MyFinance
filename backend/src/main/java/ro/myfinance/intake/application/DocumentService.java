@@ -167,8 +167,12 @@ public class DocumentService {
                 String line = d.getOriginalFilename() + " — " + detail;
                 if (reason == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE) {
                     a.duplicates.add(line);
+                    // Which document types are affected — the chip is company-level, so without this a
+                    // duplicated receipt reads as if the bank statements were duplicated.
+                    a.duplicateTypes.add(d.getType().name());
                 } else { // WRONG_PERIOD / WRONG_COMPANY
                     a.misfiled.add(line);
+                    a.misfiledTypes.add(d.getType().name()); // same reason as duplicateTypes above
                 }
             }
         }
@@ -178,7 +182,8 @@ public class DocumentService {
                     return new CompanyDocSummary(e.getKey(), !a.bankStatements.isEmpty(),
                             !a.invoiceReceipts.isEmpty(), a.fileCount, a.bankStatements.size(),
                             a.invoiceReceipts.size(), a.bankStatements, a.invoiceReceipts,
-                            a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates);
+                            a.misfiled.size(), a.misfiled, a.duplicates.size(), a.duplicates,
+                            List.copyOf(a.duplicateTypes), List.copyOf(a.misfiledTypes));
                 })
                 .toList();
     }
@@ -190,6 +195,10 @@ public class DocumentService {
         final List<String> invoiceReceipts = new java.util.ArrayList<>();
         final List<String> misfiled = new java.util.ArrayList<>();
         final List<String> duplicates = new java.util.ArrayList<>();
+        /** Distinct document types among the duplicates, in first-seen order (drives a per-type chip). */
+        final java.util.Set<String> duplicateTypes = new java.util.LinkedHashSet<>();
+        /** Same, for the mis-filed (wrong period / wrong company) documents. */
+        final java.util.Set<String> misfiledTypes = new java.util.LinkedHashSet<>();
     }
 
     public record CompanyDocSummary(java.util.UUID companyId, boolean hasBankStatement,
@@ -197,7 +206,8 @@ public class DocumentService {
                                     int bankStatementCount, int invoiceReceiptCount,
                                     List<String> bankStatementFiles, List<String> invoiceReceiptFiles,
                                     int misfiledCount, List<String> misfiledFiles,
-                                    int duplicateCount, List<String> duplicateFiles) {
+                                    int duplicateCount, List<String> duplicateFiles,
+                                    List<String> duplicateTypes, List<String> misfiledTypes) {
     }
 
     /** All documents of a given type for a company + period (e.g. payroll files). */
@@ -228,8 +238,36 @@ public class DocumentService {
         storage.delete(doc.getStorageKey());
         String driveFileId = doc.getDriveFileId();
         documents.delete(doc);
+        documents.flush(); // the group re-check below must not see the row we just deleted
+        clearStaleDuplicateFlags(doc);
         audit.record("DOCUMENT_DELETED", "document", id);
         events.publishEvent(new DocumentDeletedEvent(id, doc.getCompanyId(), doc.getType(), driveFileId));
+    }
+
+    /**
+     * After a copy is deleted, the survivors' DUPLICATE flags can be stale: the flag is decided at upload
+     * time ("another copy already exists"), so deleting the original would leave the remaining file marked
+     * as a duplicate of a document that no longer exists — and the UI would keep showing a DUP chip for a
+     * file that is now the only copy. Re-evaluate the identical-content group: the oldest survivor IS the
+     * original, so clear its DUPLICATE flag. Only DUPLICATE is touched — WRONG_PERIOD / WRONG_COMPANY are
+     * properties of the file itself and unaffected by deleting another one.
+     */
+    private void clearStaleDuplicateFlags(Document deleted) {
+        if (deleted.getContentSha256() == null) {
+            return; // nothing to group by (pre-V54 upload)
+        }
+        List<Document> group = documents
+                .findByCompanyIdAndPeriodMonthAndTypeAndContentSha256OrderByUploadedAtAsc(
+                        deleted.getCompanyId(), deleted.getPeriodMonth(), deleted.getType(),
+                        deleted.getContentSha256());
+        if (group.isEmpty()) {
+            return;
+        }
+        Document original = group.get(0);
+        if (original.getDriveBlockReason() == ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE) {
+            original.setDriveBlockReason(null);
+            original.setDriveBlockDetail(null);
+        }
     }
 
     /**

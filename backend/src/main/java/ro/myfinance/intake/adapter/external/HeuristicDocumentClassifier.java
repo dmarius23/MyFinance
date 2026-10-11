@@ -55,6 +55,16 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
 
     /** The deterministic text-marker rules, applied to already-normalised text. */
     private DocumentType classifyMarkers(String text) {
+        // A payment proof — an "ordin de plata", or the bank's own "Confirmare tranzactie" printout — is
+        // neither a statement nor a declaration. Tested FIRST because one settling an ANAF debt names ANAF
+        // (→ would read as a declaration) and prints the bank's name without ever saying "factura" (→ would
+        // fall to the bank-name rule below and read as a statement). Guarded by the statement markers so a
+        // genuine statement that happens to use the phrase still wins. (Text is diacritic-folded already.)
+        boolean statementLike = containsAny(text, "extras de cont", "sold anterior", "sold final", "rulaj");
+        if (!statementLike && containsAny(text, "ordin de plata", "ordinul de plata", "payment order",
+                "confirmare tranzactie", "transaction confirmation", "dispozitie de plata")) {
+            return DocumentType.RECEIPT;
+        }
         if (containsAny(text, "a.n.a.f", "anaf", "declarat", "d212", "d300", "d301", "d112")) {
             return DocumentType.DECLARATION;
         }

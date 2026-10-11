@@ -26,6 +26,7 @@ class MeControllerIT extends AbstractPostgresIT {
 
     private static final UUID TENANT_NO_EMAIL = UUID.fromString("cccccccc-0000-0000-0000-0000000000e1");
     private static final UUID TENANT_WITH_EMAIL = UUID.fromString("cccccccc-0000-0000-0000-0000000000e2");
+    private static final UUID TENANT_WITH_WHATSAPP = UUID.fromString("cccccccc-0000-0000-0000-0000000000e3");
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -58,12 +59,27 @@ class MeControllerIT extends AbstractPostgresIT {
                 .authorities(new SimpleGrantedAuthority("ROLE_TENANT_ADMIN"));
     }
 
+    private void seedTwilioWhatsAppProvider(UUID tenant) {
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        try {
+            jdbc.update("""
+                    insert into tenant_whatsapp_provider(tenant_id, mode, account_sid, auth_token_enc, from_number, updated_at)
+                    values (?, 'TWILIO', 'AC123', 'enc', '+14155238886', now())
+                    on conflict (tenant_id) do update set mode = excluded.mode,
+                        account_sid = excluded.account_sid, auth_token_enc = excluded.auth_token_enc,
+                        from_number = excluded.from_number""", tenant);
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
     @Test
     void emailNotConfiguredWhenNoProvider() throws Exception {
         seedTenant(TENANT_NO_EMAIL);
         mvc.perform(get("/api/v1/me").with(admin(TENANT_NO_EMAIL)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.emailConfigured").value(false));
+                .andExpect(jsonPath("$.emailConfigured").value(false))
+                .andExpect(jsonPath("$.whatsappConfigured").value(false));
     }
 
     @Test
@@ -73,5 +89,14 @@ class MeControllerIT extends AbstractPostgresIT {
         mvc.perform(get("/api/v1/me").with(admin(TENANT_WITH_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.emailConfigured").value(true));
+    }
+
+    @Test
+    void whatsappConfiguredWhenTwilioProviderComplete() throws Exception {
+        seedTenant(TENANT_WITH_WHATSAPP);
+        seedTwilioWhatsAppProvider(TENANT_WITH_WHATSAPP);
+        mvc.perform(get("/api/v1/me").with(admin(TENANT_WITH_WHATSAPP)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.whatsappConfigured").value(true));
     }
 }

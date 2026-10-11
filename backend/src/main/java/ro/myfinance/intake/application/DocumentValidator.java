@@ -180,6 +180,29 @@ public class DocumentValidator {
     }
 
     /** The bank statement's own month (dominant transaction month), or null when it can't be parsed. */
+    /**
+     * The month the document itself is about — a statement's dominant transaction month, or an invoice's
+     * date. Each client organises their own Drive folders (some keep only a year folder), so when neither
+     * the path nor the filename names a month, the document's own content is the last reliable signal;
+     * anything else would file it under the file's modified month. Empty when it can't be read.
+     */
+    public java.util.Optional<LocalDate> contentPeriod(DocumentType type, byte[] bytes, Company company) {
+        try {
+            return switch (type) {
+                case BANK_STATEMENT -> java.util.Optional.ofNullable(statementMonth(bytes));
+                case INVOICE -> {
+                    ParsedInvoice inv = invoices.extract(bytes, company == null ? null : company.getLegalName());
+                    yield inv == null || inv.invoiceDate() == null
+                            ? java.util.Optional.<LocalDate>empty()
+                            : java.util.Optional.of(inv.invoiceDate().withDayOfMonth(1));
+                }
+                default -> java.util.Optional.<LocalDate>empty();
+            };
+        } catch (RuntimeException e) {
+            return java.util.Optional.empty(); // fail open — the caller keeps its best guess
+        }
+    }
+
     private LocalDate statementMonth(byte[] bytes) {
         String text = statements.extractText(bytes);
         BankStatementParser parser = statements.find(text).orElse(null);

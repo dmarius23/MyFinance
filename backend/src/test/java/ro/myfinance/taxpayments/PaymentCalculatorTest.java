@@ -67,7 +67,7 @@ class PaymentCalculatorTest {
     void emailBodyContainsAmountsAccountsAndBeneficiary() {
         List<PaymentLine> lines = calc.compute(List.of(d112()), ibans());
         String body = email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                "Trezoreria Cluj Napoca", lines);
+                "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL");
 
         assertThat(body).contains("firmei INNOVATECODE IT SRL");
         assertThat(body).contains("Contribuții sociale: 1685");
@@ -76,6 +76,20 @@ class PaymentCalculatorTest {
         assertThat(body).contains("91 lei in contul " + CAM_IBAN);
         assertThat(body).contains("CUI Beneficiar: 49443957");
         assertThat(body).contains("Trezoreria Cluj Napoca");
+    }
+
+    /** The client must always see which accounting firm sent the payment obligations. */
+    @Test
+    void emailBodySignsWithSenderThenFirmName() {
+        List<PaymentLine> lines = calc.compute(List.of(d112()), ibans());
+
+        assertThat(email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
+                "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL"))
+                .contains("O zi plăcută,\nMaria Pop\nContaZone SRL");
+
+        assertThat(email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
+                "Trezoreria Cluj Napoca", lines, null, "ContaZone SRL"))
+                .contains("O zi plăcută,\nContaZone SRL");
     }
 
     @Test

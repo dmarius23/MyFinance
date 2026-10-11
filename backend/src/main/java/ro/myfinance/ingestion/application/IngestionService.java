@@ -44,6 +44,7 @@ public class IngestionService {
     private final DocumentService documents;
     private final ConnectorRegistry registry;
     private final ro.myfinance.intake.application.DocumentClassifier classifier;
+    private final ro.myfinance.intake.application.DocumentReclassifier reclassifier;
     private final ro.myfinance.intake.application.DocumentValidator validator;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
@@ -54,6 +55,7 @@ public class IngestionService {
                             CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry,
                             ro.myfinance.intake.application.DocumentClassifier classifier,
+                            ro.myfinance.intake.application.DocumentReclassifier reclassifier,
                             ro.myfinance.intake.application.DocumentValidator validator, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications,
                             ModuleSyncStatusService syncStatus,
@@ -65,6 +67,7 @@ public class IngestionService {
         this.documents = documents;
         this.registry = registry;
         this.classifier = classifier;
+        this.reclassifier = reclassifier;
         this.validator = validator;
         this.audit = audit;
         this.notifications = notifications;
@@ -130,6 +133,16 @@ public class IngestionService {
         return ledger.findByConnectionIdOrderByCreatedAtDesc(connectionId);
     }
 
+    /**
+     * Drive files for this company + month that did NOT become documents — a locked PDF, an unreadable
+     * scan, a wrong-party file. Shown on the reconcile screen: the accountant notices a MISSING statement
+     * there, not in the Drive-connection admin list, so the reason has to be visible in the same place.
+     */
+    public List<ImportFile> unresolvedFor(UUID companyId, LocalDate periodMonth) {
+        return ledger.findByCompanyIdAndPeriodMonthAndStatusNotOrderByCreatedAtDesc(
+                companyId, periodMonth.withDayOfMonth(1), ImportFile.Status.IMPORTED.name());
+    }
+
     /** Outcome of one sync run, surfaced to the admin / payroll screen. {@code issues} names the files
      *  that were flagged (wrong period / unclassified) rather than imported. */
     public record SyncResult(int imported, int needsReview, int skipped, int failed, List<Issue> issues) {
@@ -175,7 +188,28 @@ public class IngestionService {
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
         LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        return doSync(conn, null, java.util.Set.of(current, prev), null, prev, true, conn.getRootFolderId(), false, null, null);
+        SyncResult r = doSync(conn, null, java.util.Set.of(current, prev), null, prev, true,
+                conn.getRootFolderId(), false, null, null);
+        // Refresh the per-(module, month) sync status the module screens display, for both months this run
+        // covered — so an unattended nightly run shows "last synced = tonight", not the last manual sync.
+        recordAutoSyncStatus(conn, r, current, prev);
+        return r;
+    }
+
+    /** Mark the module-month slots this connection's nightly poll covered as synced-now. */
+    private void recordAutoSyncStatus(SourceConnection conn, SyncResult r, LocalDate current, LocalDate prev) {
+        String summary = r.summary();
+        if ("ACCOUNTING".equalsIgnoreCase(conn.getPurpose())) {
+            syncStatus.markSyncedNow(ACCOUNTING_SLOT, current.withDayOfMonth(1), summary);
+            syncStatus.markSyncedNow(ACCOUNTING_SLOT, prev.withDayOfMonth(1), summary);
+        } else {
+            // The declarations drive carries payroll, fiscal declarations and interim trial balances.
+            for (DocumentType module : java.util.List.of(
+                    DocumentType.PAYROLL, DocumentType.DECLARATION, DocumentType.TRIAL_BALANCE)) {
+                syncStatus.markSyncedNow(module.name(), statusPeriod(module, current), summary);
+                syncStatus.markSyncedNow(module.name(), statusPeriod(module, prev), summary);
+            }
+        }
     }
 
     /**
@@ -296,6 +330,8 @@ public class IngestionService {
 
     /** The status slot for the combined bank-statement + invoice ("MIXED") accounting sync. */
     private static final String ACCOUNTING_SLOT = "MIXED";
+    /** Marker prefix for a locked PDF — the imports list keys its padlock icon off this. */
+    public static final String PASSWORD_PROTECTED = "Document protejat cu parolă";
 
     /** The crawl + import for a claimed (module, month) slot; always releases the slot via markFinish. */
     private void runModuleSync(SourceConnection conn, DocumentType module, LocalDate targetPeriod, String startFolder) {
@@ -670,11 +706,18 @@ public class IngestionService {
         // file is only ever attributed to the company whose folder it actually sits in.
         Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
                 : FolderMapper.resolveAccountingCompany(f, tenantCompanies);
-        LocalDate period = FolderMapper.resolvePeriod(f);
+        // Each client organises their own folders — year-only, year/month, or a type folder in between —
+        // so the month is taken from whichever source actually states it: the filename first (the firm
+        // names statements "BT_august 2026…"), then the folder path. When NEITHER does, the document's own
+        // content decides below; the file's modified month is only the last resort.
+        Optional<LocalDate> stated = FolderMapper.statedAccountingPeriod(f);
+        LocalDate period = stated.orElseGet(() -> FolderMapper.resolvePeriod(f));
         if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
             return Outcome.PASS;
         }
-        if (onlyPeriods != null && !onlyPeriods.contains(period)) {
+        // Only skip on the month filter when the month is actually known up front; otherwise the real
+        // month comes from the content below, so the decision has to wait until after the download.
+        if (onlyPeriods != null && stated.isPresent() && !onlyPeriods.contains(period)) {
             return Outcome.PASS;
         }
         ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
@@ -690,9 +733,22 @@ public class IngestionService {
         }
         byte[] bytes = connector.download(conn, f);
         String sha = sha256(bytes);
+        // A password-locked PDF can't be read at all — not its text, not its pages for OCR — so say so
+        // instead of letting it fall through as "unclassified"; the review list marks it with a padlock.
+        if (ro.myfinance.common.pdf.PdfImages.isPasswordProtected(bytes)) {
+            String reason = PASSWORD_PROTECTED + " — " + f.name();
+            writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
+            issues.add(new SyncResult.Issue(f.name(), reason));
+            return Outcome.NEEDS_REVIEW;
+        }
         DocumentType ct = classifier.classify(f.name(), mime(f), bytes);
-        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE) {
-            String reason = "Doar extrase de cont și facturi sunt acceptate din acest folder (detectat: " + ct + ")";
+        // A scanned statement/invoice has no text layer, so the marker rules see nothing. Recover the text
+        // by OCR and classify that — the same fallback the manual upload path already uses.
+        if (ct == DocumentType.UNCLASSIFIED) {
+            ct = reclassifier.tryClassify(mime(f), bytes).orElse(ct);
+        }
+        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE && ct != DocumentType.RECEIPT) {
+            String reason = "Doar extrase de cont, facturi și chitanțe/OP sunt acceptate din acest folder (detectat: " + ct + ")";
             writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
             issues.add(new SyncResult.Issue(f.name(), reason));
             return Outcome.NEEDS_REVIEW;
@@ -700,6 +756,16 @@ public class IngestionService {
         // Content confirmation: the file's own content must belong to THIS company (exact name/CUI) and month.
         // A file that landed in the wrong company's folder — or a wrong-month file — is flagged, not loaded.
         Company company = companies.findById(cid.get()).orElse(null);
+        // Neither the filename nor the path named a month → let the document say which month it is about.
+        if (stated.isEmpty()) {
+            LocalDate fromContent = validator.contentPeriod(ct, bytes, company).orElse(null);
+            if (fromContent != null) {
+                period = fromContent;
+            }
+            if (onlyPeriods != null && !onlyPeriods.contains(period)) {
+                return Outcome.PASS; // deferred month filter, now that the real month is known
+            }
+        }
         if (company != null) {
             DocumentValidator.Result v = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
             if (v != null && (v.blockReason() == DriveBlockReason.WRONG_COMPANY || v.blockReason() == DriveBlockReason.WRONG_PERIOD)) {

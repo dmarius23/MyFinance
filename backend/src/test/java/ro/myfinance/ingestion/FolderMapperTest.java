@@ -77,6 +77,55 @@ class FolderMapperTest {
     }
 
     @Test
+    void accountingFolderMayOmitTheLegalFormSuffix() {
+        // The firm's real Drive: "Contabilitate PRO ASSET MANAGEMENT" holds "PRO ASSET MANAGEMENT SRL".
+        // Requiring the suffix meant NOTHING matched and nothing was ever imported.
+        UUID id = UUID.randomUUID();
+        List<Company> cos = List.of(company(id, "PRO ASSET MANAGEMENT SRL", "48556230"));
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026"), cos)).contains(id);
+        // Dotted legal form, and the label written as a SUFFIX, both resolve too.
+        UUID vibe = UUID.randomUUID();
+        List<Company> cos2 = List.of(company(vibe, "Vibe Software SRL", "123456"));
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate VIBE SOFTWARE S.R.L./2026-05"), cos2)).contains(vibe);
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Vibe Software - contabilitate/2026-05"), cos2)).contains(vibe);
+    }
+
+    @Test
+    void accountingSkipsAFolderTwoCompaniesCouldClaim() {
+        // Ignoring the legal form makes "ALPHA SRL" and "ALPHA SA" indistinguishable from "Contabilitate
+        // ALPHA" — guessing would file documents under the wrong company, so neither is chosen.
+        List<Company> cos = List.of(company(UUID.randomUUID(), "ALPHA SRL", "111"),
+                company(UUID.randomUUID(), "ALPHA SA", "222"));
+        assertThat(FolderMapper.resolveAccountingCompany(
+                file("Contabilitate ALPHA/2026-05"), cos)).isEmpty();
+    }
+
+    @Test
+    void accountingPeriodPrefersTheFilenameMonth() {
+        // Statements are named for their month but filed under a YEAR-only folder, so the path alone would
+        // fall back to the file's modified month (June here) and file them wrong.
+        assertThat(FolderMapper.statedAccountingPeriod(file(
+                "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026 Extrase de cont/BT",
+                "BT_august 2026_Extras cont_Pro Asset Management.pdf")))
+                .contains(LocalDate.of(2026, 8, 1));
+        assertThat(FolderMapper.statedAccountingPeriod(file(
+                "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026 Extrase de cont/ING",
+                "Septembrie 2026_Extras de cont Pro Asset Management.pdf")))
+                .contains(LocalDate.of(2026, 9, 1));
+        // No month in the filename → the folder path still decides.
+        assertThat(FolderMapper.statedAccountingPeriod(file(
+                "Contabilitate PRO ASSET MANAGEMENT/Facturi de achizitii/2026/2026_9", "factura.pdf")))
+                .contains(LocalDate.of(2026, 9, 1));
+        // Year-only folder AND an uninformative filename → nothing stated; the caller then asks the
+        // document itself (each client organises their own folders, so this is common).
+        assertThat(FolderMapper.statedAccountingPeriod(file(
+                "Contabilitate PRO ASSET MANAGEMENT/Extrase de cont/2026", "extras.pdf"))).isEmpty();
+    }
+
+    @Test
     void matchesCompanyByCuiInFolder() {
         UUID id = UUID.randomUUID();
         List<Company> cos = List.of(company(id, "INNOVATECODE IT SRL", "49443957"),

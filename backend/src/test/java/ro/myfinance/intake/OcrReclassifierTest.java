@@ -18,7 +18,7 @@ import ro.myfinance.intake.adapter.external.OcrReclassifier;
 class OcrReclassifierTest {
 
     private OcrReclassifier reclassifier(boolean enabled) {
-        var props = new OcrProperties(enabled, "tesseract", "ron+eng", 150, 1);
+        var props = new OcrProperties(enabled, "tesseract", "ron+eng", 150, 1, 25);
         var receipt = new ReceiptProperties("anthropic", "", "", "", "", 0.6); // blank key → no vision calls
         return new OcrReclassifier(new HeuristicDocumentClassifier(), props, receipt, RestClient.builder());
     }
@@ -62,5 +62,17 @@ class OcrReclassifierTest {
     @Test
     void nonPdfReturnsEmpty() {
         assertThat(reclassifier(true).tryClassify("image/png", new byte[]{1, 2, 3})).isEmpty();
+    }
+    @Test
+    void statementRecoveryUsesItsOwnHigherPageCap() {
+        // Classification only peeks at the first pages; a bank statement must be read end to end, so the
+        // two entry points must NOT share the same cap (transactions past it would be silently lost).
+        var props = new OcrProperties(true, "tesseract", "ron+eng", 150, 2, 25);
+        assertThat(props.maxPages()).isEqualTo(2);
+        assertThat(props.statementMaxPages()).isEqualTo(25);
+        // Defaults keep the same split when nothing is configured.
+        var defaults = new OcrProperties(true, null, null, null, null, null);
+        assertThat(defaults.maxPages()).isEqualTo(2);
+        assertThat(defaults.statementMaxPages()).isEqualTo(25);
     }
 }

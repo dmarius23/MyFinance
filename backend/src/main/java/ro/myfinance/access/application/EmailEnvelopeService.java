@@ -29,12 +29,15 @@ public class EmailEnvelopeService {
     private final AppUserRepository users;
     private final RepresentativeLinkRepository links;
     private final SettingsService settings;
+    private final ro.myfinance.tenant.application.TenantDirectory tenants;
 
     public EmailEnvelopeService(AppUserRepository users, RepresentativeLinkRepository links,
-                                SettingsService settings) {
+                                SettingsService settings,
+                                ro.myfinance.tenant.application.TenantDirectory tenants) {
         this.users = users;
         this.links = links;
         this.settings = settings;
+        this.tenants = tenants;
     }
 
     /** From name + email + recipient for a company. {@code recipientOverride} wins over the representative. */
@@ -55,6 +58,17 @@ public class EmailEnvelopeService {
      */
     public Envelope system(String recipient) {
         return new Envelope("MyFinance", settings.senderEmail(), recipient);
+    }
+
+    /**
+     * The accounting firm's (tenant's) own name — the last line of every client-facing message, so the
+     * client sees which firm is writing rather than only which staff member. Null for a SUPER_ADMIN,
+     * who has no tenant.
+     */
+    public String firmName() {
+        return tenants.current()
+                .map(ro.myfinance.tenant.application.TenantDirectory.CurrentTenant::name)
+                .orElse(null);
     }
 
     /** The logged-in user's display name (falls back to their email, then null). */

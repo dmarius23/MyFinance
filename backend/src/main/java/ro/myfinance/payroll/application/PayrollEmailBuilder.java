@@ -22,12 +22,11 @@ public final class PayrollEmailBuilder {
         return "State de plată — " + monthYear(period);
     }
 
-    /** The standard body for a company/period. {@code accountantName} may be blank (left as a placeholder). */
-    public static String body(LocalDate period, String accountantName) {
+    /** The standard body for a company/period. {@code accountantName} may be blank (then only the firm signs). */
+    public static String body(LocalDate period, String accountantName, String firmName) {
         LocalDate p = period.withDayOfMonth(1);
         String my = monthYear(p);
         String deadline = "25 " + my;
-        String name = accountantName == null || accountantName.isBlank() ? "[Numele contabilului]" : accountantName;
         return String.join("\n",
                 "Bună ziua,",
                 "",
@@ -43,7 +42,6 @@ public final class PayrollEmailBuilder {
                 "În ceea ce privește sumele care se plătesc către Trezorerie, precum și conturile "
                         + "aferente, vom reveni cu un email separat.",
                 "",
-                "O zi bună,",
-                name);
+                ro.myfinance.common.email.SignOff.block("O zi bună,", accountantName, firmName));
     }
 }

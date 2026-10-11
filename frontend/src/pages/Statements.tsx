@@ -10,6 +10,10 @@ import { usePeriod } from "../lib/period";
 import { reminderBody } from "../lib/reminderBody";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
+import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
+import { useFirmName } from "../lib/useFirmName";
+import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
 import { ReminderLogModal } from "../components/ReminderLogModal";
@@ -20,6 +24,7 @@ import { CompanySearch } from "../components/CompanySearch";
 import { CompletenessFilter } from "../components/CompletenessFilter";
 import type { CompletenessFilter as FilterValue } from "../api/payroll";
 import { loadAllPages } from "../lib/paging";
+import { docTypeLabels } from "../lib/docTypeLabel";
 
 type DotKind = "green" | "orange" | "red";
 const DOT_COLOR: Record<DotKind, string> = { green: "var(--dot-green)", orange: "var(--dot-orange)", red: "var(--dot-red)" };
@@ -52,6 +57,10 @@ function StatusPill({ label, kind, title }:
 export function Statements() {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
+  const whatsappConfigured = useWhatsAppConfigured();
+  const waMode = useWhatsAppMode();
+  const firmName = useFirmName();
+  const openWa = useOpenWhatsApp();
   const { period } = usePeriod();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -124,7 +133,7 @@ export function Statements() {
     const hasBank = byCompany.get(id)?.hasBankStatement ?? false;
     const txns = hasBank ? await bankApi.transactions(id, period) : [];
     const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
-    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null);
+    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null, firmName);
   };
 
   return (
@@ -144,7 +153,7 @@ export function Statements() {
         onClear={() => setSelected(new Set())}
         onEmail={() => setSendList([...selected].map(target))}
         onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))}
-        emailDisabled={!emailConfigured} />
+        emailDisabled={!emailConfigured} whatsappDisabled={!whatsappConfigured} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ minWidth: 1040 }}>
@@ -181,14 +190,22 @@ export function Statements() {
                     <div style={{ marginTop: 3, display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {(s?.misfiledCount ?? 0) > 0 && (
                         <InfoTip lines={s?.misfiledFiles ?? []}>
+                          {/* Name the affected type(s) — the count is company-wide (see the DUP chip). */}
                           <span className="pill round warn" title={t("statements.misfiled.tip")}>
                             ⚠ {t("statements.misfiled", { n: s?.misfiledCount ?? 0 })}
+                            {(s?.misfiledTypes ?? []).length > 0
+                              ? ` · ${docTypeLabels(t, s?.misfiledTypes ?? [])}` : ""}
                           </span>
                         </InfoTip>
                       )}
                       {(s?.duplicateCount ?? 0) > 0 && (
                         <InfoTip lines={s?.duplicateFiles ?? []}>
-                          <span className="pill round danger" title={t("statements.duplicate.tip")}>DUP</span>
+                          {/* Name the affected type(s): the count is company-wide, so a bare "DUP" made a
+                              duplicated receipt look like duplicated bank statements. */}
+                          <span className="pill round danger" title={t("statements.duplicate.tip")}>
+                            DUP{(s?.duplicateTypes ?? []).length > 0
+                              ? ` · ${docTypeLabels(t, s?.duplicateTypes ?? [])}` : ""}
+                          </span>
                         </InfoTip>
                       )}
                     </div>
@@ -231,7 +248,10 @@ export function Statements() {
                       title={emailConfigured ? t("channel.email") : t("email.smtpRequired")}
                       disabled={!emailConfigured}
                       onClick={() => setSendList([target(c.id)])} />
-                    <WhatsAppAction onClick={() => setWaFor({ id: c.id, name: c.legalName })} />
+                    <WhatsAppAction disabled={!whatsappConfigured}
+                      onClick={() => waMode === "CLICK_TO_CHAT"
+                        ? openWa(c.id, () => waBody(c.id))
+                        : setWaFor({ id: c.id, name: c.legalName })} />
                   </RowActions>
                 </div>
               </div>

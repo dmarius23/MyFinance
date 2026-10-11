@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
 import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
+import { Icon } from "../components/Icon";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
+import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /**
  * MOD-15 — admin screen to configure document-source folders (Google Drive) and trigger a sync.
@@ -57,10 +59,15 @@ export function DataSources() {
       <div>
         <div style={{ color: "var(--text-secondary)", fontSize: 12.5 }}>{t("ingest.crumb")}</div>
         <h2 style={{ margin: "2px 0 0", fontSize: 21 }}>{t("nav.dataSources")}</h2>
-        <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t("ingest.intro")}</p>
       </div>
 
       {error && <div className="card" style={{ color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }}>{error}</div>}
+
+      {/* The page is the firm's settings hub: document sources first, then the messaging providers. */}
+      <div>
+        <h3 style={{ margin: 0, fontSize: 16 }}>{t("ingest.sourcesHeading")}</h3>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 6 }}>{t("ingest.intro")}</p>
+      </div>
 
       <AutoSyncCard />
       <GmailConnectionsCard />
@@ -170,6 +177,11 @@ export function DataSources() {
         </form>
       </div>
       )}
+
+      {/* The firm's outbound messaging providers live here too, so everything the firm configures is
+          on one screen (this page is "Setări"). */}
+      <EmailProviderSection />
+      <WhatsAppProviderSection />
     </div>
   );
 }
@@ -226,6 +238,10 @@ function AutoSyncCard() {
   );
 }
 
+/** Backend marker for a PDF locked with an open password (IngestionService.PASSWORD_PROTECTED). */
+const LOCKED_MARKER = "protejat cu parolă";
+const isLocked = (detail: string | null) => !!detail && detail.includes(LOCKED_MARKER);
+
 function ImportsPanel({ connectionId }: { connectionId: string }) {
   const { t } = useTranslation();
   const imports = useQuery({ queryKey: ["ingestion-imports", connectionId], queryFn: () => ingestionApi.imports(connectionId) });
@@ -237,7 +253,13 @@ function ImportsPanel({ connectionId }: { connectionId: string }) {
       {(imports.data ?? []).map((r) => (
         <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            <span className="mono" style={{ color: "var(--text-muted)" }}>{r.sourcePath}/</span>{r.filename}
+            {/* A password-locked PDF can't be read at all, so name it plainly with a padlock rather than
+                leaving it among the generic "unclassified" rejects. */}
+            {isLocked(r.detail) && (
+              <Icon name="lock" size={12} style={{ verticalAlign: "-1px", marginRight: 4, color: "#92400e" }} />
+            )}
+            <span className="mono" style={{ color: "var(--text-muted)" }}>{r.sourcePath}/</span>
+            <b style={{ fontWeight: isLocked(r.detail) ? 600 : 400 }}>{r.filename}</b>
             {r.detail && <span style={{ color: "#92400e" }}> — {r.detail}</span>}
           </span>
           <span style={{ flex: "none", fontWeight: 700, color: tone(r.status), fontSize: 10.5, textTransform: "uppercase" }}>{r.status}</span>

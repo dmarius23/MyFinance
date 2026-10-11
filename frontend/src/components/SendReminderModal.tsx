@@ -6,6 +6,7 @@ import { remindersApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
+import { useFirmName } from "../lib/useFirmName";
 import { reminderBody } from "../lib/reminderBody";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -33,6 +34,7 @@ export function SendReminderModal({ companies, period, onClose }:
   { companies: ReminderTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
+  const firmName = useFirmName();
   const qc = useQueryClient();
   const month = period.slice(0, 7);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
@@ -70,7 +72,7 @@ export function SendReminderModal({ companies, period, onClose }:
   });
 
   const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string =>
-    reminderBody(t, month, c.hasBankStatement, missing, fromName);
+    reminderBody(t, month, c.hasBankStatement, missing, fromName, firmName);
 
   // Populate each company's body once its transactions AND the envelope (sender name) have loaded,
   // so the signature carries the logged-in user's name.

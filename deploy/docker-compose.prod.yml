@@ -22,8 +22,8 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      APP_HOST: ${APP_HOST}       # e.g. 1.2.3.4.sslip.io      -> frontend
-      API_HOST: ${API_HOST}       # e.g. api.1.2.3.4.sslip.io  -> backend
+      APP_HOST: ${APP_HOST}       # e.g. app.example.ro  -> frontend
+      API_HOST: ${API_HOST}       # e.g. api.example.ro  -> backend
       ACME_EMAIL: ${ACME_EMAIL}   # Let's Encrypt account email
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

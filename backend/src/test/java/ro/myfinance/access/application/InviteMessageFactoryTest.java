@@ -31,6 +31,15 @@ class InviteMessageFactoryTest {
                 .contains("MyFinance");
     }
 
+    /** The firm signs off, not the product — the client is the firm's client. */
+    @Test
+    void bodyEndsWithTheFirmName() {
+        assertThat(InviteMessageFactory.body("Contabil Expert SRL", "ACME SRL", "Ana Pop",
+                "https://app.example/set#token"))
+                .endsWith("Cu stimă,\nContabil Expert SRL")
+                .doesNotContain("· MyFinance");
+    }
+
     @Test
     void bodyDegradesWhenOptionalFieldsMissing() {
         String body = InviteMessageFactory.body(null, null, null, "https://app.example/set#token");

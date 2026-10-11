@@ -110,7 +110,11 @@ public class InvoiceExtractionService {
     }
 
     private Fields fromReceiptImages(java.util.List<byte[]> images, String mediaType, String ownCui) {
-        ParsedReceipt r = receipts.extract(images, mediaType, ownCui);
+        // Rotate sideways phone photos upright (EXIF) before OCR — no-op for already-upright images and
+        // PDF-rendered pages (no EXIF), so mediaType stays valid.
+        java.util.List<byte[]> upright = images.stream()
+                .map(ro.myfinance.common.image.ImageOrientation::normalize).toList();
+        ParsedReceipt r = receipts.extract(upright, mediaType, ownCui);
         boolean ok = r.total() != null && r.issueDate() != null && r.confidence() >= receiptProps.confidenceThreshold();
         // Receipt CIFs are easily misread; trust the model's match verdict (tolerant of a misread digit).
         Boolean wrongParty = r.clientMatchesCompany() == null ? null : !r.clientMatchesCompany();

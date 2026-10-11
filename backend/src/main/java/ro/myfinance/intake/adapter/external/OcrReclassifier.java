@@ -32,7 +32,7 @@ import ro.myfinance.intake.domain.DocumentType;
  * output is itself unreadable. Classification of the recovered text stays deterministic.
  */
 @Component
-public class OcrReclassifier implements DocumentReclassifier {
+public class OcrReclassifier implements DocumentReclassifier, ro.myfinance.common.pdf.PdfTextRecoverer {
 
     private static final Logger log = LoggerFactory.getLogger(OcrReclassifier.class);
 
@@ -65,7 +65,7 @@ public class OcrReclassifier implements DocumentReclassifier {
             if (isReadable(new PDFTextStripper().getText(pdf))) {
                 return Optional.empty(); // text was fine; the classifier already had its chance
             }
-            String text = ocr(pdf);
+            String text = ocr(pdf, props.maxPages());
             if (text.isBlank()) {
                 return Optional.empty();
             }
@@ -78,10 +78,46 @@ public class OcrReclassifier implements DocumentReclassifier {
         }
     }
 
-    /** OCR the first pages: Tesseract, falling back to Anthropic vision when its output is weak. */
-    private String ocr(PDDocument pdf) throws Exception {
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Used by the bank-statement extractor for scanned statements: a photo/scan PDF yields no text,
+     * so every parser declines and the statement lands empty. Recovering the text here lets the normal
+     * deterministic parsers run on it.
+     */
+    @Override
+    public String recoverText(byte[] bytes) {
+        return recover(bytes, props.maxPages());
+    }
+
+    @Override
+    public String recoverFullText(byte[] bytes) {
+        return recover(bytes, props.statementMaxPages());
+    }
+
+    private String recover(byte[] bytes, int maxPages) {
+        if (!props.enabled() || bytes == null || bytes.length == 0) {
+            return "";
+        }
+        try (PDDocument pdf = Loader.loadPDF(bytes)) {
+            if (isReadable(new PDFTextStripper().getText(pdf))) {
+                return ""; // the text layer is fine — the caller already had it
+            }
+            if (pdf.getNumberOfPages() > maxPages) {
+                log.warn("Scanned PDF has {} pages but the OCR cap is {} — the tail will be missing",
+                        pdf.getNumberOfPages(), maxPages);
+            }
+            return ocr(pdf, maxPages);
+        } catch (Exception e) {
+            log.warn("OCR text recovery failed", e);
+            return "";
+        }
+    }
+
+    /** OCR up to {@code maxPages}: Tesseract, falling back to Anthropic vision when its output is weak. */
+    private String ocr(PDDocument pdf, int maxPages) throws Exception {
         PDFRenderer renderer = new PDFRenderer(pdf);
-        int pages = Math.min(props.maxPages(), pdf.getNumberOfPages());
+        int pages = Math.min(maxPages, pdf.getNumberOfPages());
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < pages; i++) {
             BufferedImage img = renderer.renderImageWithDPI(i, props.dpi(), ImageType.RGB);
