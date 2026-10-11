@@ -52,6 +52,23 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void paymentOrderIsAReceiptNotAStatement() throws Exception {
+        // An "ordin de plata" prints the bank's name and never says "factura", so the weak bank-name
+        // fallback used to file it as a bank statement. It is proof of payment — a receipt.
+        assertThat(classifier.classify("OP 13.08.2026 Somatie Anaf.pdf", "application/pdf",
+                pdfWithText("ORDIN DE PLATA nr 4177 catre ANAF Banca Transilvania")))
+                .isEqualTo(DocumentType.RECEIPT);
+        // A real statement from the same bank is still a statement...
+        assertThat(classifier.classify("extras.pdf", "application/pdf",
+                pdfWithText("Extras de cont Banca Transilvania SOLD ANTERIOR")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+        // ...and a genuine ANAF declaration is still a declaration (the OP rule must not swallow it).
+        assertThat(classifier.classify("d112.pdf", "application/pdf",
+                pdfWithText("Declaratie D112 ANAF privind obligatiile de plata")))
+                .isEqualTo(DocumentType.DECLARATION);
+    }
+
+    @Test
     void trialBalanceByText() throws Exception {
         assertThat(classifier.classify("x.pdf", "application/pdf", pdfWithText("Balanta de verificare")))
                 .isEqualTo(DocumentType.TRIAL_BALANCE);

@@ -36,6 +36,23 @@ public final class PdfImages {
     }
 
     /** True when this PDF's text is genuinely readable (so no OCR is needed). */
+    /**
+     * Is this PDF locked with an open password? Such a file cannot be read at all — not its text, not its
+     * pages for OCR — so it must be reported as "protected" rather than silently becoming UNCLASSIFIED.
+     */
+    public static boolean isPasswordProtected(byte[] pdf) {
+        if (pdf == null || pdf.length < 4) {
+            return false;
+        }
+        try (org.apache.pdfbox.pdmodel.PDDocument doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+            return doc.isEncrypted();
+        } catch (org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException e) {
+            return true;
+        } catch (Exception e) {
+            return false; // unreadable for some other reason — not a password problem
+        }
+    }
+
     public static boolean isTextReadable(byte[] pdf) {
         return isReadable(extractText(pdf));
     }

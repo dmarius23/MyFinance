@@ -44,6 +44,7 @@ public class IngestionService {
     private final DocumentService documents;
     private final ConnectorRegistry registry;
     private final ro.myfinance.intake.application.DocumentClassifier classifier;
+    private final ro.myfinance.intake.application.DocumentReclassifier reclassifier;
     private final ro.myfinance.intake.application.DocumentValidator validator;
     private final AuditRecorder audit;
     private final ro.myfinance.notifications.application.NotificationService notifications;
@@ -54,6 +55,7 @@ public class IngestionService {
                             CompanyDirectory companies, DocumentService documents,
                             ConnectorRegistry registry,
                             ro.myfinance.intake.application.DocumentClassifier classifier,
+                            ro.myfinance.intake.application.DocumentReclassifier reclassifier,
                             ro.myfinance.intake.application.DocumentValidator validator, AuditRecorder audit,
                             ro.myfinance.notifications.application.NotificationService notifications,
                             ModuleSyncStatusService syncStatus,
@@ -65,6 +67,7 @@ public class IngestionService {
         this.documents = documents;
         this.registry = registry;
         this.classifier = classifier;
+        this.reclassifier = reclassifier;
         this.validator = validator;
         this.audit = audit;
         this.notifications = notifications;
@@ -317,6 +320,8 @@ public class IngestionService {
 
     /** The status slot for the combined bank-statement + invoice ("MIXED") accounting sync. */
     private static final String ACCOUNTING_SLOT = "MIXED";
+    /** Marker prefix for a locked PDF — the imports list keys its padlock icon off this. */
+    public static final String PASSWORD_PROTECTED = "Document protejat cu parolă";
 
     /** The crawl + import for a claimed (module, month) slot; always releases the slot via markFinish. */
     private void runModuleSync(SourceConnection conn, DocumentType module, LocalDate targetPeriod, String startFolder) {
@@ -718,9 +723,22 @@ public class IngestionService {
         }
         byte[] bytes = connector.download(conn, f);
         String sha = sha256(bytes);
+        // A password-locked PDF can't be read at all — not its text, not its pages for OCR — so say so
+        // instead of letting it fall through as "unclassified"; the review list marks it with a padlock.
+        if (ro.myfinance.common.pdf.PdfImages.isPasswordProtected(bytes)) {
+            String reason = PASSWORD_PROTECTED + " — " + f.name();
+            writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
+            issues.add(new SyncResult.Issue(f.name(), reason));
+            return Outcome.NEEDS_REVIEW;
+        }
         DocumentType ct = classifier.classify(f.name(), mime(f), bytes);
-        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE) {
-            String reason = "Doar extrase de cont și facturi sunt acceptate din acest folder (detectat: " + ct + ")";
+        // A scanned statement/invoice has no text layer, so the marker rules see nothing. Recover the text
+        // by OCR and classify that — the same fallback the manual upload path already uses.
+        if (ct == DocumentType.UNCLASSIFIED) {
+            ct = reclassifier.tryClassify(mime(f), bytes).orElse(ct);
+        }
+        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE && ct != DocumentType.RECEIPT) {
+            String reason = "Doar extrase de cont, facturi și chitanțe/OP sunt acceptate din acest folder (detectat: " + ct + ")";
             writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
             issues.add(new SyncResult.Issue(f.name(), reason));
             return Outcome.NEEDS_REVIEW;

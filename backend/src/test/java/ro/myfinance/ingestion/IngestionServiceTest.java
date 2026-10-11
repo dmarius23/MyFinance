@@ -48,6 +48,8 @@ class IngestionServiceTest {
     private final ConnectorRegistry registry = mock(ConnectorRegistry.class);
     private final ro.myfinance.intake.application.DocumentClassifier classifier =
             mock(ro.myfinance.intake.application.DocumentClassifier.class);
+    private final ro.myfinance.intake.application.DocumentReclassifier reclassifier =
+            mock(ro.myfinance.intake.application.DocumentReclassifier.class);
     private final ro.myfinance.intake.application.DocumentValidator validator =
             mock(ro.myfinance.intake.application.DocumentValidator.class);
     private final AuditRecorder audit = mock(AuditRecorder.class);
@@ -58,7 +60,7 @@ class IngestionServiceTest {
             mock(ro.myfinance.ingestion.application.ModuleSyncStatusService.class);
     private final FakeConnector fake = new FakeConnector();
     // Inline executor: module-month syncs run synchronously in the test thread (deterministic).
-    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, classifier, validator, audit, notifications, syncStatus, Runnable::run);
+    private final IngestionService service = new IngestionService(connections, ledger, companies, documents, registry, classifier, reclassifier, validator, audit, notifications, syncStatus, Runnable::run);
 
     private SourceConnection conn() {
         SourceConnection c = new SourceConnection(TENANT, "FAKE", "Drive payroll", "root", "PAYROLL");
