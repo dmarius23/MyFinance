@@ -23,9 +23,13 @@ export interface RegistryCompany {
   regNo: string | null;
   caen: string | null;
   address: string | null;
-  /** Fiscal domicile — the residence treasury-account matching needs, not the registered office. */
+  /** Fiscal domicile locality — often a commune with no treasury of its own. */
   fiscalLocality: string | null;
   fiscalCounty: string | null;
+  /** ANAF's competent fiscal authority (organFiscalCompetent). */
+  fiscalAuthority: string | null;
+  /** The above mapped onto a residence that exists in the treasury reference; null when none matched. */
+  treasuryResidence: string | null;
   vatPayer: boolean | null;
   inactive: boolean;
   eFacturaRegistered: boolean;

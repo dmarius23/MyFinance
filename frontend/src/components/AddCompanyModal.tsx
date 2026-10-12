@@ -35,13 +35,18 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
       setForm((f) => ({
         ...f,
         legalName: f.legalName?.trim() ? f.legalName : (r.legalName ?? ""),
-        locality: f.locality?.trim() ? f.locality : (r.fiscalLocality ?? ""),
+        // The treasury accounts key on a residence that HAS a treasury; ANAF's own locality is often a
+        // commune (Sat Floreşti…) that has none, so prefer the resolved one and keep ANAF's as a fallback.
+        locality: f.locality?.trim() ? f.locality : (r.treasuryResidence ?? r.fiscalLocality ?? ""),
         entityType: f.entityType || entityTypeOf(r.legalName),
         vatStatus: f.vatStatus || (r.vatPayer == null ? "" : r.vatPayer ? "VAT_PAYER" : "NON_VAT_PAYER"),
       }));
       setLookupNote(r.inactive
         ? { tone: "warn", msg: t("company.anafInactive") }
-        : { tone: "ok", msg: t("company.anafFilled") });
+        : !r.treasuryResidence
+          // Without a treasury residence the tax emails can't show payment accounts — say so now, not later.
+          ? { tone: "warn", msg: t("company.anafNoTreasury", { locality: r.fiscalLocality ?? "—" }) }
+          : { tone: "ok", msg: t("company.anafFilled") });
     },
     onError: () => setLookupNote({ tone: "warn", msg: t("company.anafNotFound") }),
   });
