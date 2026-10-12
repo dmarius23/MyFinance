@@ -20,6 +20,7 @@ import ro.myfinance.company.adapter.web.CompanyDtos.CompanyResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.CreateCompanyRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.SetStatusRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.UpdateCompanyRequest;
+import ro.myfinance.company.application.CompanyRegistryLookup;
 import ro.myfinance.company.application.CompanyService;
 
 /** Client company management. Firm staff (admin/employee) only. */
@@ -29,9 +30,21 @@ import ro.myfinance.company.application.CompanyService;
 public class CompanyController {
 
     private final CompanyService service;
+    private final CompanyRegistryLookup registry;
 
-    public CompanyController(CompanyService service) {
+    public CompanyController(CompanyService service, CompanyRegistryLookup registry) {
         this.service = service;
+        this.registry = registry;
+    }
+
+    /**
+     * Official data for a fiscal code, to prefill the add-company form. 404 when the registry doesn't
+     * know the CUI or is unreachable — the caller then just keeps typing; this never blocks creation.
+     */
+    @GetMapping("/lookup")
+    public CompanyRegistryLookup.RegistryCompany lookup(@RequestParam("cui") String cui) {
+        return registry.byCui(cui).orElseThrow(() ->
+                new ro.myfinance.common.web.NotFoundException("CUI not found in the ANAF registry: " + cui));
     }
 
     @GetMapping
