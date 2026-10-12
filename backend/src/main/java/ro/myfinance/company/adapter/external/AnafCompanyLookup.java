@@ -82,6 +82,8 @@ public class AnafCompanyLookup implements CompanyRegistryLookup {
                 text(general, "adresa"),
                 locality,
                 county,
+                text(general, "organFiscalCompetent"),
+                null, // resolved by the caller against the treasury reference list
                 vat.hasNonNull("scpTVA") ? vat.path("scpTVA").asBoolean() : null,
                 inactive.path("statusInactivi").asBoolean(false)
                         || !blank(text(inactive, "dataRadiere")),
