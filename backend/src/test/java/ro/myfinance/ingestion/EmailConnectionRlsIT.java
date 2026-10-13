@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,24 @@ import ro.myfinance.support.AbstractPostgresIT;
 class EmailConnectionRlsIT extends AbstractPostgresIT {
 
     @Autowired EmailConnectionRepository connections;
+
+    /**
+     * ⚠️ A plain {@code @Autowired JdbcTemplate} is the ADMIN template on the migration role
+     * ({@code adminJdbcTemplate} in {@code DataSourceConfig}), because Spring Boot's
+     * {@code JdbcTemplateAutoConfiguration} is {@code @ConditionalOnMissingBean(JdbcOperations.class)}
+     * and backs off once that bean exists. It runs as {@code postgres} and therefore BYPASSES RLS, with
+     * {@code app.tenant_id} never set. Use it only to seed fixtures across tenants — never to assert
+     * isolation, or the assertion passes vacuously.
+     */
     @Autowired JdbcTemplate jdbc;
+
+    /** Tenant-scoped template over the @Primary RlsDataSource — this is what isolation must be asserted on. */
+    private JdbcTemplate rlsJdbc;
+
+    @Autowired
+    void initRlsJdbc(DataSource rlsDataSource) {
+        this.rlsJdbc = new JdbcTemplate(rlsDataSource);
+    }
 
     @AfterEach
     void clearTenant() {
@@ -63,22 +81,26 @@ class EmailConnectionRlsIT extends AbstractPostgresIT {
 
         asTenant(tenantB);
 
-        assertThat(jdbc.queryForObject("select count(*) from email_message", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("select count(*) from email_attachment", Integer.class)).isZero();
-        assertThatThrownBy(() -> jdbc.update("""
+        assertThat(rlsJdbc.queryForObject("select count(*) from email_message", Integer.class)).isZero();
+        assertThat(rlsJdbc.queryForObject("select count(*) from email_attachment", Integer.class)).isZero();
+        assertThatThrownBy(() -> rlsJdbc.update("""
                 insert into email_message(id, tenant_id, connection_id, gmail_message_id,
                     sender_email, status)
                 values (?, ?, ?, ?, ?, 'RECEIVED')
                 """, UUID.randomUUID(), tenantA, connection.getId(), "cross-tenant",
                 "sender@example.com"))
-                .hasMessageContaining("row-level security");
-        assertThatThrownBy(() -> jdbc.update("""
+                // Postgres' "violates row-level security policy" text is on the CAUSE; Spring's
+                // BadSqlGrammarException message only carries the SQL, so assert the whole chain.
+                .hasStackTraceContaining("violates row-level security policy");
+        assertThatThrownBy(() -> rlsJdbc.update("""
                 insert into email_attachment(id, tenant_id, message_id, gmail_attachment_id,
                     filename, status)
                 values (?, ?, ?, ?, ?, 'RECEIVED')
                 """, UUID.randomUUID(), tenantA, messageId, "cross-tenant",
                 "statement.pdf"))
-                .hasMessageContaining("row-level security");
+                // Postgres' "violates row-level security policy" text is on the CAUSE; Spring's
+                // BadSqlGrammarException message only carries the SQL, so assert the whole chain.
+                .hasStackTraceContaining("violates row-level security policy");
     }
 
     private void asTenant(UUID tenantId) {
