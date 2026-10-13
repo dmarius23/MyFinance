@@ -21,6 +21,8 @@ import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -53,7 +55,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
                         "/actuator/health", "/actuator/health/**", "/actuator/info",
-                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                        "/api/v1/ingestion/gmail/pubsub")
                 .permitAll()
                 // Fail-safe role backstop at the filter layer, in addition to per-method @PreAuthorize:
                 // a controller that forgets its annotation still cannot expose a surface to the wrong role.
@@ -65,11 +68,21 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "EMPLOYEE", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
+                // Pub/Sub carries a Google OIDC bearer token, not a Supabase access token. The public
+                // webhook validates that token in GmailPubSubTokenVerifier instead.
+                .bearerTokenResolver(bearerTokenResolver())
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
             .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
             // After the tenant identity is bound, so upload/email limits are keyed per tenant+user.
             .addFilterAfter(new RateLimitFilter(rateLimiter), TenantContextFilter.class);
         return http.build();
+    }
+
+    @Bean
+    BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+        return request -> "/api/v1/ingestion/gmail/pubsub".equals(request.getRequestURI())
+                ? null : delegate.resolve(request);
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {

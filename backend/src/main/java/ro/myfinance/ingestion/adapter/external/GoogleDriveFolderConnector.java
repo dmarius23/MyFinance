@@ -2,14 +2,9 @@ package ro.myfinance.ingestion.adapter.external;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.Signature;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Deque;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -30,18 +25,12 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
     private static final String FOLDER_MIME = "application/vnd.google-apps.folder";
     private static final int MAX_DEPTH = 6;
 
-    private final GoogleIngestionProperties props;
+    private final GoogleDriveTokens tokens;
     private final RestClient http;
     private final ObjectMapper json = new ObjectMapper();
 
-    // A minted access token is valid for 1h and identical for every call (single service account), yet a
-    // sync mints one per subfolders/list/download round-trip — several seconds of avoidable token exchanges.
-    // Cache it and reuse until shortly before expiry.
-    private volatile String cachedToken;
-    private volatile long cachedTokenExpiry; // epoch seconds when the cached token stops being usable
-
-    public GoogleDriveFolderConnector(GoogleIngestionProperties props, RestClient.Builder builder) {
-        this.props = props;
+    public GoogleDriveFolderConnector(GoogleDriveTokens tokens, RestClient.Builder builder) {
+        this.tokens = tokens;
         this.http = builder.build();
     }
 
@@ -141,67 +130,10 @@ public class GoogleDriveFolderConnector implements CloudFolderConnector {
 
     /** A valid access token, reusing the cached one until ~5 min before it expires. */
     private String accessToken() {
-        long now = Instant.now().getEpochSecond();
-        String tok = cachedToken;
-        if (tok != null && now < cachedTokenExpiry) {
-            return tok;
-        }
-        synchronized (this) {
-            if (cachedToken != null && Instant.now().getEpochSecond() < cachedTokenExpiry) {
-                return cachedToken;
-            }
-            String fresh = mintToken();
-            cachedToken = fresh;
-            cachedTokenExpiry = Instant.now().getEpochSecond() + 3600 - 300; // 1h lifetime, refresh 5 min early
-            return fresh;
-        }
-    }
-
-    /** Mint a short-lived access token from the service-account key (JWT-bearer grant). */
-    private String mintToken() {
-        if (!props.isConfigured()) {
+        if (!tokens.isConfigured()) {
             throw new IllegalStateException("Google Drive ingestion is not configured (service-account key missing)");
         }
-        long now = Instant.now().getEpochSecond();
-        String header = b64(json("{\"alg\":\"RS256\",\"typ\":\"JWT\"}"));
-        String claims = b64(json("{\"iss\":\"" + props.clientEmail() + "\",\"scope\":\"" + SCOPE
-                + "\",\"aud\":\"https://oauth2.googleapis.com/token\",\"iat\":" + now + ",\"exp\":" + (now + 3600) + "}"));
-        String signingInput = header + "." + claims;
-        String jwt = signingInput + "." + b64(sign(signingInput.getBytes(StandardCharsets.UTF_8)));
-
-        String resp = http.post().uri("https://oauth2.googleapis.com/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=" + jwt)
-                .retrieve().body(String.class);
-        try {
-            return json.readTree(resp).path("access_token").asText();
-        } catch (Exception e) {
-            throw new IllegalStateException("Google token exchange failed", e);
-        }
-    }
-
-    private byte[] sign(byte[] data) {
-        try {
-            String pem = props.privateKey().replace("\\n", "\n")
-                    .replaceAll("-----BEGIN (.*)-----", "").replaceAll("-----END (.*)-----", "")
-                    .replaceAll("\\s", "");
-            var key = KeyFactory.getInstance("RSA")
-                    .generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pem)));
-            Signature s = Signature.getInstance("SHA256withRSA");
-            s.initSign(key);
-            s.update(data);
-            return s.sign();
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to sign Google JWT", e);
-        }
-    }
-
-    private static byte[] json(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static String b64(byte[] b) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
+        return tokens.accessToken(SCOPE);
     }
 
     private static Instant parseTime(String s) {

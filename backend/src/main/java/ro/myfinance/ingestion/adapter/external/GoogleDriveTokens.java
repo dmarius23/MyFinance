@@ -1,79 +1,71 @@
 package ro.myfinance.ingestion.adapter.external;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.Signature;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.Instant;
-import java.util.Base64;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 /**
- * Mints short-lived Google access tokens from the service-account key (JWT-bearer grant). Shared by the
- * read-only ingestion connector and the Drive document writer — the caller passes the OAuth scope
- * ({@code drive.readonly} for reads, {@code drive} for writes).
+ * Provides short-lived Google access tokens from service-account credentials. Google Auth Library owns
+ * JWT construction, signing, token exchange and expiry handling; callers pass only the required scope.
  */
 @Component
 public class GoogleDriveTokens {
 
     private final GoogleIngestionProperties props;
-    private final RestClient http;
-    private final ObjectMapper json = new ObjectMapper();
+    private final ConcurrentMap<String, GoogleCredentials> credentials = new ConcurrentHashMap<>();
 
-    public GoogleDriveTokens(GoogleIngestionProperties props, RestClient.Builder builder) {
+    public GoogleDriveTokens(GoogleIngestionProperties props) {
         this.props = props;
-        this.http = builder.build();
     }
 
     public boolean isConfigured() {
         return props.isConfigured();
     }
 
-    /** Mint an access token for {@code scope} (e.g. {@code https://www.googleapis.com/auth/drive}). */
+    /** Get an access token for {@code scope} (e.g. {@code https://www.googleapis.com/auth/drive}). */
     public String accessToken(String scope) {
         if (!props.isConfigured()) {
             throw new IllegalStateException("Google service account not configured");
         }
-        long now = Instant.now().getEpochSecond();
-        String header = b64(bytes("{\"alg\":\"RS256\",\"typ\":\"JWT\"}"));
-        String claims = b64(bytes("{\"iss\":\"" + props.clientEmail() + "\",\"scope\":\"" + scope
-                + "\",\"aud\":\"https://oauth2.googleapis.com/token\",\"iat\":" + now + ",\"exp\":" + (now + 3600) + "}"));
-        String signingInput = header + "." + claims;
-        String jwt = signingInput + "." + b64(sign(signingInput.getBytes(StandardCharsets.UTF_8)));
-        String resp = http.post().uri("https://oauth2.googleapis.com/token")
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .body("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=" + jwt)
-                .retrieve().body(String.class);
         try {
-            return json.readTree(resp).path("access_token").asText();
+            GoogleCredentials googleCredentials = credentials.computeIfAbsent(scope, this::loadCredentials);
+            googleCredentials.refreshIfExpired();
+            AccessToken token = googleCredentials.getAccessToken();
+            if (token == null || token.getTokenValue() == null || token.getTokenValue().isBlank()) {
+                googleCredentials.refresh();
+                token = googleCredentials.getAccessToken();
+            }
+            if (token == null || token.getTokenValue() == null || token.getTokenValue().isBlank()) {
+                throw new IllegalStateException("Google did not return an access token");
+            }
+            return token.getTokenValue();
         } catch (Exception e) {
-            throw new IllegalStateException("Google token exchange failed", e);
+            throw new IllegalStateException("Google service-account authentication failed", e);
         }
     }
 
-    private byte[] sign(byte[] data) {
+    private GoogleCredentials loadCredentials(String scope) {
         try {
-            String pem = props.privateKey().replace("\\n", "\n")
-                    .replaceAll("-----BEGIN (.*)-----", "").replaceAll("-----END (.*)-----", "")
-                    .replaceAll("\\s", "");
-            var key = KeyFactory.getInstance("RSA")
-                    .generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pem)));
-            Signature s = Signature.getInstance("SHA256withRSA");
-            s.initSign(key);
-            s.update(data);
-            return s.sign();
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to sign Google JWT", e);
+            String privateKey = props.privateKey().replace("\\n", "\n");
+            Map<String, Object> serviceAccount = Map.of(
+                    "type", "service_account",
+                    "private_key_id", "managed-by-myfinance",
+                    "private_key", privateKey,
+                    "client_email", props.clientEmail(),
+                    "client_id", "managed-by-myfinance",
+                    "token_uri", "https://oauth2.googleapis.com/token");
+            byte[] json = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .writeValueAsBytes(serviceAccount);
+            return GoogleCredentials.fromStream(new ByteArrayInputStream(json))
+                    .createScoped(List.of(scope));
+        } catch (IOException e) {
+            throw new IllegalStateException("Google service-account credentials are invalid", e);
         }
-    }
-
-    private static byte[] bytes(String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static String b64(byte[] b) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
     }
 }

@@ -7,6 +7,7 @@ import { ApiError } from "../lib/apiClient";
 import { Icon } from "../components/Icon";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
+import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
 import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
 
 /**
@@ -69,6 +70,7 @@ export function DataSources() {
       </div>
 
       <AutoSyncCard />
+      <GmailConnectionsCard />
 
       {/* existing connections */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>

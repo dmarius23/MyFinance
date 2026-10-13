@@ -129,6 +129,55 @@ public class NotificationService {
         }
     }
 
+    /** Notify firm staff that the email agent imported or flagged an attachment. */
+    public void emailDocumentImported(UUID companyId, UUID documentId, String filename,
+                                      boolean needsReview) {
+        try {
+            UUID tenantId = TenantContext.tenantId().orElseThrow();
+            Company company = companies.findById(companyId).orElse(null);
+            String companyName = company == null ? "—" : company.getLegalName();
+            String title = needsReview ? "Document email în verificare" : "Document importat din email";
+            String body = (needsReview ? "Necesită verificare: " : "Importat automat: ")
+                    + filename + " (" + companyName + ")";
+
+            UUID responsibleId = company == null ? null : company.getResponsibleUserId();
+            AppUser accountant = responsibleId == null ? null : users.findById(responsibleId).orElse(null);
+            List<AppUser> recipients = accountant != null
+                    ? List.of(accountant) : users.findByRoleIn(List.of(Role.TENANT_ADMIN));
+            for (AppUser recipient : recipients) {
+                persist(new Notification(tenantId, recipient.getId(),
+                        needsReview ? "EMAIL_DOCUMENT_REVIEW" : "EMAIL_DOCUMENT_IMPORTED",
+                        title, body, companyId, companyName, documentId));
+            }
+            if (!needsReview && documentId != null && accountant != null
+                    && accountant.getEmail() != null) {
+                var env = envelopes.system(accountant.getEmail());
+                dispatch.queue(documentId.toString(), EmailSender.Message.of(
+                        env.fromName(), env.fromEmail(), env.recipient(), title + " — " + companyName, body));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to create email-agent notification for company {}", companyId, e);
+        }
+    }
+
+    /** Alerts every tenant administrator when an email cannot be safely mapped to a company. */
+    public void emailSenderNeedsReview(String senderEmail, String subject, String reason) {
+        try {
+            UUID tenantId = TenantContext.tenantId().orElseThrow();
+            String safeSender = senderEmail == null || senderEmail.isBlank() ? "(necunoscut)" : senderEmail;
+            String title = "Expeditor email necesită verificare";
+            String body = "Mesajul de la " + safeSender + " nu a fost importat"
+                    + (subject == null || subject.isBlank() ? "" : ": " + subject)
+                    + ". " + reason;
+            for (AppUser admin : users.findByRoleIn(List.of(Role.TENANT_ADMIN))) {
+                persist(new Notification(tenantId, admin.getId(), "EMAIL_SENDER_REVIEW",
+                        title, body, null, null, null));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to notify tenant administrators about an email sender review");
+        }
+    }
+
     /** In-app nudge when a task is assigned to a staff member (no email). No-op for self-assignment. */
     public void taskAssigned(UUID assigneeUserId, String taskTitle, UUID companyId, String companyName) {
         UUID self = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
