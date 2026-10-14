@@ -10,8 +10,6 @@ export function GmailConnectionsCard() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const connections = useQuery({ queryKey, queryFn: gmailApi.list });
-  const [displayName, setDisplayName] = useState("");
-  const [mailboxAddress, setMailboxAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const refresh = () => { void qc.invalidateQueries({ queryKey }); setError(null); };
   const message = (e: unknown) => e instanceof ApiError ? e.message : "Acțiunea nu a reușit.";
@@ -24,13 +22,11 @@ export function GmailConnectionsCard() {
     },
     onError: (e) => setError(message(e)),
   });
-  const create = useMutation({
-    mutationFn: () => gmailApi.create({ displayName, mailboxAddress }),
-    onSuccess: (connection) => {
-      setDisplayName("");
-      setMailboxAddress("");
-      refresh();
-      start.mutate(connection);
+  const connect = useMutation({
+    mutationFn: gmailApi.startNewOAuth,
+    onSuccess: (result) => {
+      window.localStorage.setItem("myfinance.gmail.oauth.connection", result.connectionId);
+      window.location.assign(result.authorizationUrl);
     },
     onError: (e) => setError(message(e)),
   });
@@ -63,7 +59,7 @@ export function GmailConnectionsCard() {
         </p>
       </div>
       {error && <div style={{ color: "#b91c1c", fontSize: 12.5 }}>{error}</div>}
-      {(connections.data ?? []).map((connection) => (
+      {(connections.data ?? []).filter((connection) => !connection.mailboxAddress.startsWith("pending+")).map((connection) => (
         <div key={connection.id} style={{ borderTop: "1px solid var(--hair)", paddingTop: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
             <div>
@@ -99,17 +95,11 @@ export function GmailConnectionsCard() {
           </div>
         </div>
       ))}
-      <form style={{ display: "grid", gap: 8, borderTop: "1px solid var(--hair)", paddingTop: 10 }}
-        onSubmit={(event) => { event.preventDefault(); create.mutate(); }}>
-        <strong style={{ fontSize: 13 }}>{t("gmail.add")}</strong>
-        <input required placeholder="Nume conexiune" value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)} />
-        <input required type="email" placeholder="documente@firma.ro" value={mailboxAddress}
-          onChange={(event) => setMailboxAddress(event.target.value)} />
-        <button className="primary" type="submit" disabled={create.isPending}>
-          {create.isPending ? t("gmail.creating") : t("gmail.create")}
+      <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--hair)", paddingTop: 10 }}>
+        <button className="primary" type="button" onClick={() => connect.mutate()} disabled={connect.isPending}>
+          {connect.isPending ? t("gmail.connecting") : t("gmail.connect")}
         </button>
-      </form>
+      </div>
     </div>
   );
 }

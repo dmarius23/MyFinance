@@ -35,6 +35,15 @@ public class EmailConnectionService {
                 mailboxAddress.trim().toLowerCase()));
     }
 
+    public EmailConnection createPending() {
+        UUID tenantId = TenantContext.tenantId()
+                .orElseThrow(() -> new IllegalStateException("No tenant bound"));
+        EmailConnection connection = new EmailConnection(tenantId, "Gmail",
+                "pending+" + UUID.randomUUID() + "@invalid");
+        connection.setStatus("PENDING");
+        return connections.save(connection);
+    }
+
     public void disconnect(UUID connectionId, GmailMailboxClient gmail) {
         UUID tenantId = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));

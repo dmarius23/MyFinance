@@ -64,7 +64,7 @@ public class GmailOAuthService {
                 .build()
                 .encode()
                 .toUriString();
-        return new AuthorizationStart(url, Instant.now().plus(Duration.ofMinutes(10)));
+        return new AuthorizationStart(connectionId, url, Instant.now().plus(Duration.ofMinutes(10)));
     }
 
     public void complete(UUID connectionId, String state, String authorizationCode) {
@@ -91,8 +91,11 @@ public class GmailOAuthService {
                 .body(form)
                 .retrieve()
                 .body(String.class);
-        String refreshToken = refreshToken(response);
+        TokenResponse tokens = tokens(response);
+        String refreshToken = tokens.refreshToken();
         connection.setRefreshTokenEncrypted(cipher.encrypt(refreshToken));
+        connection.setMailboxAddress(mailboxAddress(tokens.accessToken()));
+        connection.setDisplayName(connection.getMailboxAddress());
         connection.setOauthStateHash(null);
         connection.setOauthStateExpiresAt(null);
         connection.setStatus("ACTIVE");
@@ -117,19 +120,41 @@ public class GmailOAuthService {
         }
     }
 
-    private String refreshToken(String response) {
+    private TokenResponse tokens(String response) {
         try {
             JsonNode node = json.readTree(response);
-            String token = node.path("refresh_token").asText(null);
-            if (token == null || token.isBlank()) {
+            String refreshToken = node.path("refresh_token").asText(null);
+            String accessToken = node.path("access_token").asText(null);
+            if (refreshToken == null || refreshToken.isBlank()
+                    || accessToken == null || accessToken.isBlank()) {
                 throw new IllegalStateException("Google did not return a refresh token");
             }
-            return token;
+            return new TokenResponse(refreshToken, accessToken);
         } catch (Exception e) {
             if (e instanceof IllegalStateException state) {
                 throw state;
             }
             throw new IllegalStateException("Invalid Google token response", e);
+        }
+    }
+
+    private String mailboxAddress(String accessToken) {
+        String response = http.get()
+                .uri("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(String.class);
+        try {
+            String email = json.readTree(response).path("emailAddress").asText(null);
+            if (email == null || email.isBlank()) {
+                throw new IllegalStateException("Google did not return the Gmail address");
+            }
+            return email.trim().toLowerCase();
+        } catch (Exception e) {
+            if (e instanceof IllegalStateException state) {
+                throw state;
+            }
+            throw new IllegalStateException("Invalid Gmail profile response", e);
         }
     }
 
@@ -148,6 +173,9 @@ public class GmailOAuthService {
         }
     }
 
-    public record AuthorizationStart(String authorizationUrl, Instant expiresAt) {
+    public record AuthorizationStart(UUID connectionId, String authorizationUrl, Instant expiresAt) {
+    }
+
+    private record TokenResponse(String refreshToken, String accessToken) {
     }
 }
