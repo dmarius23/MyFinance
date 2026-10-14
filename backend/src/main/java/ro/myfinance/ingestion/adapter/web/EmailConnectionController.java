@@ -54,6 +54,11 @@ public class EmailConnectionController {
         return ConnectionView.from(connections.create(request.displayName(), request.mailboxAddress()));
     }
 
+    @PostMapping("/oauth/start")
+    public GmailOAuthService.AuthorizationStart startNewOAuth() {
+        return oauth.start(connections.createPending().getId());
+    }
+
     @PostMapping("/{id}/oauth/start")
     public GmailOAuthService.AuthorizationStart startOAuth(@PathVariable UUID id) {
         return oauth.start(id);

@@ -21,6 +21,11 @@ const base = "/api/v1/ingestion/email-connections";
 
 export const gmailApi = {
   list: () => api<GmailConnection[]>(base),
+  startNewOAuth: () =>
+    api<{ connectionId: string; authorizationUrl: string; expiresAt: string }>(
+      `${base}/oauth/start`,
+      { method: "POST" },
+    ),
   create: (input: { displayName: string; mailboxAddress: string }) =>
     api<GmailConnection>(base, { method: "POST", body: JSON.stringify(input) }),
   startOAuth: (id: string) =>
