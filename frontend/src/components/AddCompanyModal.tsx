@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { companiesApi, TAX_REGIMES, taxRegimeKey, type CreateCompanyInput } from "../api/companies";
+import { Icon } from "./Icon";
 import { ApiError } from "../lib/apiClient";
 import { VAT_STATUSES, vatStatusKey } from "../domain/vat";
 import { ENTITY_TYPES, CUI_PATTERN } from "../domain/company";
@@ -10,11 +11,45 @@ import { ROMANIAN_LOCALITIES } from "../domain/localities";
 import { explicitValidity } from "../lib/validity";
 import { Field } from "./Field";
 
+/** SRL / SA / PFA from the legal name's suffix — ANAF returns the form inside the name, not as a field. */
+function entityTypeOf(legalName: string | null): string {
+  const n = (legalName ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+  if (n.endsWith("SRL")) return "SRL";
+  if (n.endsWith("SA")) return "SA";
+  if (n.includes("PFA") || n.includes("PERSOANAFIZICAAUTORIZATA")) return "PFA";
+  return "";
+}
+
 export function AddCompanyModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [form, setForm] = useState<CreateCompanyInput>({ legalName: "", cui: "" });
   const [error, setError] = useState<string | null>(null);
+  const [lookupNote, setLookupNote] = useState<{ tone: "ok" | "warn"; msg: string } | null>(null);
+
+  // Pull the official record from ANAF and prefill. Only ever FILLS — a value the user already typed is
+  // left alone, so the button can't silently overwrite a deliberate correction.
+  const lookup = useMutation({
+    mutationFn: () => companiesApi.lookup(form.cui),
+    onSuccess: (r) => {
+      setForm((f) => ({
+        ...f,
+        legalName: f.legalName?.trim() ? f.legalName : (r.legalName ?? ""),
+        // The treasury accounts key on a residence that HAS a treasury; ANAF's own locality is often a
+        // commune (Sat Floreşti…) that has none, so prefer the resolved one and keep ANAF's as a fallback.
+        locality: f.locality?.trim() ? f.locality : (r.treasuryResidence ?? r.fiscalLocality ?? ""),
+        entityType: f.entityType || entityTypeOf(r.legalName),
+        vatStatus: f.vatStatus || (r.vatPayer == null ? "" : r.vatPayer ? "VAT_PAYER" : "NON_VAT_PAYER"),
+      }));
+      setLookupNote(r.inactive
+        ? { tone: "warn", msg: t("company.anafInactive") }
+        : !r.treasuryResidence
+          // Without a treasury residence the tax emails can't show payment accounts — say so now, not later.
+          ? { tone: "warn", msg: t("company.anafNoTreasury", { locality: r.fiscalLocality ?? "—" }) }
+          : { tone: "ok", msg: t("company.anafFilled") });
+    },
+    onError: () => setLookupNote({ tone: "warn", msg: t("company.anafNotFound") }),
+  });
 
   const mutation = useMutation({
     mutationFn: () => companiesApi.create(form),
@@ -48,8 +83,23 @@ export function AddCompanyModal({ onClose }: { onClose: () => void }) {
             value={form.legalName} onChange={set("legalName")} />
         </Field>
         <Field label="CUI *">
-          <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")}
-            {...explicitValidity(t("company.cuiInvalid"))} value={form.cui} onChange={set("cui")} />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input required pattern={CUI_PATTERN} title={t("company.cuiInvalid")} style={{ flex: 1, minWidth: 0 }}
+              {...explicitValidity(t("company.cuiInvalid"))} value={form.cui}
+              onChange={(e) => { setLookupNote(null); set("cui")(e); }} />
+            <button type="button" style={{ flex: "none" }} title={t("company.anafLookupHint")}
+              disabled={!form.cui.trim() || lookup.isPending}
+              onClick={() => { setLookupNote(null); lookup.mutate(); }}>
+              <Icon name="search" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+              {lookup.isPending ? "…" : t("company.anafLookup")}
+            </button>
+          </div>
+          {lookupNote && (
+            <div style={{ marginTop: 4, fontSize: 11.5,
+              color: lookupNote.tone === "ok" ? "var(--ok-fg, #166534)" : "var(--warn-fg, #92400e)" }}>
+              {lookupNote.msg}
+            </div>
+          )}
         </Field>
         <Field label={t("company.entityType")}>
           <select value={form.entityType ?? ""} onChange={set("entityType")}>

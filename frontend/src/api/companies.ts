@@ -16,6 +16,25 @@ export interface Company {
   createdAt: string;
 }
 
+/** Official company data from the ANAF registry, used to prefill the add-company form. */
+export interface RegistryCompany {
+  cui: string;
+  legalName: string | null;
+  regNo: string | null;
+  caen: string | null;
+  address: string | null;
+  /** Fiscal domicile locality — often a commune with no treasury of its own. */
+  fiscalLocality: string | null;
+  fiscalCounty: string | null;
+  /** ANAF's competent fiscal authority (organFiscalCompetent). */
+  fiscalAuthority: string | null;
+  /** The above mapped onto a residence that exists in the treasury reference; null when none matched. */
+  treasuryResidence: string | null;
+  vatPayer: boolean | null;
+  inactive: boolean;
+  eFacturaRegistered: boolean;
+}
+
 export interface CreateCompanyInput {
   legalName: string;
   cui: string;
@@ -71,6 +90,8 @@ export interface ImportResult {
 }
 
 export const companiesApi = {
+  /** ANAF lookup by CUI; 404 when unknown or the registry is unreachable. */
+  lookup: (cui: string) => api<RegistryCompany>(`/api/v1/companies/lookup?cui=${encodeURIComponent(cui)}`),
   list: () => api<Company[]>("/api/v1/companies"),
   /** Bulk-onboard companies from an accountant CSV (multipart). Partial import → per-row report. */
   importCsv: (file: File) => {

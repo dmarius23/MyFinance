@@ -20,6 +20,8 @@ import ro.myfinance.company.adapter.web.CompanyDtos.CompanyResponse;
 import ro.myfinance.company.adapter.web.CompanyDtos.CreateCompanyRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.SetStatusRequest;
 import ro.myfinance.company.adapter.web.CompanyDtos.UpdateCompanyRequest;
+import ro.myfinance.company.application.CompanyRegistryLookup;
+import ro.myfinance.settings.application.TreasuryResidenceResolver;
 import ro.myfinance.company.application.CompanyService;
 
 /** Client company management. Firm staff (admin/employee) only. */
@@ -29,9 +31,30 @@ import ro.myfinance.company.application.CompanyService;
 public class CompanyController {
 
     private final CompanyService service;
+    private final CompanyRegistryLookup registry;
+    private final TreasuryResidenceResolver residences;
 
-    public CompanyController(CompanyService service) {
+    public CompanyController(CompanyService service, CompanyRegistryLookup registry,
+                             TreasuryResidenceResolver residences) {
         this.service = service;
+        this.registry = registry;
+        this.residences = residences;
+    }
+
+    /**
+     * Official data for a fiscal code, to prefill the add-company form. 404 when the registry doesn't
+     * know the CUI or is unreachable — the caller then just keeps typing; this never blocks creation.
+     */
+    @GetMapping("/lookup")
+    public CompanyRegistryLookup.RegistryCompany lookup(@RequestParam("cui") String cui) {
+        CompanyRegistryLookup.RegistryCompany c = registry.byCui(cui).orElseThrow(() ->
+                new ro.myfinance.common.web.NotFoundException("CUI not found in the ANAF registry: " + cui));
+        // ANAF's fiscal locality is often a commune with no treasury of its own, so map it onto a residence
+        // that actually exists in the treasury reference — that is the value the payment accounts key on.
+        return residences.resolve(c.fiscalAuthority(), c.fiscalLocality(), c.fiscalCounty(),
+                        java.time.LocalDate.now())
+                .map(c::withTreasuryResidence)
+                .orElse(c);
     }
 
     @GetMapping

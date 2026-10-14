@@ -2,6 +2,7 @@ package ro.myfinance.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,7 +83,9 @@ class GmailIngestionServiceTest {
         assertThat(result.imported()).isEqualTo(1);
         assertThat(connection.getGmailHistoryId()).isEqualTo("12");
         assertThat(connection.getStatus()).isEqualTo("ACTIVE");
-        verify(connections).save(connection);
+        // syncClaimed persists twice by design: once to flag SYNCING, once with the final ACTIVE state
+        // and the advanced cursor. The end state is asserted above, so don't pin the exact save count.
+        verify(connections, atLeastOnce()).save(connection);
         verify(claims).release(connection.getId());
     }
 }
