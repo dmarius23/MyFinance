@@ -93,7 +93,6 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("f1", "stat_salarii.pdf",
                 "INNOVATECODE IT SRL/2026-05", "application/pdf", 200, "e1", Instant.now()));
         when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("stat_salarii.pdf"),
@@ -168,7 +167,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("b", "Stat_salarii_2026_05.pdf", "INNOVATECODE IT SRL/2026/05 Mai", "application/pdf", 100, "eb", null),
                 new CloudFolderConnector.RemoteFile("c", "Stat_salarii_2026_04.pdf", "Lumina Verde SRL/2026/04 Aprilie", "application/pdf", 100, "ec", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 4, 1)), eq("Stat_salarii_2026_04.pdf"), any(), any(),
@@ -198,7 +196,6 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("m1", "extras.pdf",
                 "INNOVATECODE IT SRL/2026/05 Mai/acte contabile", "application/pdf", 100, "e1", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"), any(), any(),
@@ -238,7 +235,6 @@ class IngestionServiceTest {
             return DocumentType.UNCLASSIFIED;
         });
         when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(acct.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), any(), any(), any(), any(), eq(DocumentSource.DRIVE))).thenReturn(doc);
@@ -301,7 +297,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("wp", "Pontaj_2026_05.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e2", null),
                 new CloudFolderConnector.RemoteFile("uc", "some_invoice.pdf", "INNOVATECODE IT SRL/2026/04 Aprilie", "application/pdf", 100, "e3", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
         lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
@@ -331,7 +326,6 @@ class IngestionServiceTest {
         fake.files = List.of(new CloudFolderConnector.RemoteFile("p", "Stat_salarii_" + prev.getYear() + "_" + mm + ".pdf",
                 "INNOVATECODE IT SRL/" + prev.getYear() + "/" + mm + " luna", "application/pdf", 100, "e1", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
@@ -359,8 +353,6 @@ class IngestionServiceTest {
         fake.filesByFolder.put("cf1", List.of(new CloudFolderConnector.RemoteFile(
                 "s1", "extras.pdf", "2026/05 Mai/acte contabile", "application/pdf", 100, "e1", null)));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("extras.pdf"),
@@ -403,8 +395,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("f4",
                         "D700_44570402_2026_07 - x.pdf", "D060", "application/pdf", 100, "e4", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
@@ -442,8 +432,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("b3", "Hotararea AGA print pdf.pdf",
                         "Bilant interimar T2 an 2026/STONEAGE INDUSTRY SRL", "application/pdf", 100, "e3", null));
         when(ledger.findByConnectionIdAndSourceRef(eq(c.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("balanta_de_verificare iunie 2026.pdf"),
@@ -480,8 +468,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("d", "D112_49443957_2026_07.pdf",
                         "D 112", "application/pdf", 100, "e2", null)));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 7, 1)),
@@ -519,8 +505,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("f2", "INNOVATECODE IT SRL_D112_062026_49443957.PDF", "D112",
                         "application/pdf", 100, "e2", null)));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 6, 1)), eq("D112_49443957_2026_06.pdf"),
@@ -559,8 +543,6 @@ class IngestionServiceTest {
         ImportFile prior = new ImportFile(TENANT, c.getId(), "f1", "OLD-etag", "oldsha", "stat_salarii.pdf",
                 "INNOVATECODE IT SRL/2026-05", COMPANY, LocalDate.of(2026, 5, 1), oldDoc, ImportFile.Status.IMPORTED, null);
         when(ledger.findByConnectionIdAndSourceRef(c.getId(), "f1")).thenReturn(Optional.of(prior));
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(c.getId()), any(), any(), any(), any())).thenReturn(false);
         Document newDoc = mock(Document.class);
         when(newDoc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 5, 1)), eq("stat_salarii.pdf"), any(), any(),
@@ -592,8 +574,6 @@ class IngestionServiceTest {
                 new CloudFolderConnector.RemoteFile("f", "Fluturasi_EVTIMIA SRL_2026_04_final.pdf",
                         "State de plata", "application/pdf", 100, "e2", null)));
         when(ledger.findByConnectionIdAndSourceRef(eq(drive.getId()), any())).thenReturn(Optional.empty());
-        when(ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                eq(drive.getId()), any(), any(), any(), any())).thenReturn(false);
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
         when(documents.upload(eq(evtimia), eq(LocalDate.of(2026, 4, 1)), eq("Fluturasi_EVTIMIA SRL_2026_04_final.pdf"),

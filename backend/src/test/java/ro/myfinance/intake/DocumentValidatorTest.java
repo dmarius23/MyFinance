@@ -2,7 +2,10 @@ package ro.myfinance.intake;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -55,12 +58,55 @@ class DocumentValidatorTest {
 
     @Test
     void identical_bytes_are_a_duplicate_for_any_type() {
-        when(documents.existsByCompanyIdAndPeriodMonthAndTypeAndContentSha256(any(), any(), any(), any()))
-                .thenReturn(true);
+        when(documents.existsByCompanyIdAndContentSha256(any(), any())).thenReturn(true);
         var r = validator.validate(company("49443957", "ACME SRL"), JUNE, DocumentType.TRIAL_BALANCE,
                 "balanta.pdf", "application/pdf", new byte[]{1, 2, 3}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.DUPLICATE);
         assertThat(r.contentSha256()).isNotBlank();
+    }
+
+    @Test
+    void duplicate_lookup_ignores_period_and_type() {
+        // The whole point of the global key: the caller must NOT be able to dodge dedup by filing the same
+        // bytes under another month or letting classification land on a different type. Those are inferred
+        // per ingestion path, so including them in the key is what allowed two copies to coexist unflagged.
+        when(documents.existsByCompanyIdAndContentSha256(any(), any())).thenReturn(true);
+        var company = company("49443957", "ACME SRL");
+
+        for (DocumentType type : List.of(DocumentType.INVOICE, DocumentType.RECEIPT,
+                DocumentType.BANK_STATEMENT, DocumentType.UNCLASSIFIED)) {
+            for (LocalDate period : List.of(JUNE, APRIL)) {
+                assertThat(validator.validate(company, period, type, "f.pdf", "application/pdf",
+                        new byte[]{1, 2, 3}, null).blockReason())
+                        .as("%s in %s", type, period)
+                        .isEqualTo(DriveBlockReason.DUPLICATE);
+            }
+        }
+        verify(documents, never()).existsByCompanyIdAndContentSha256AndIdNot(any(), any(), any());
+    }
+
+    @Test
+    void duplicateOnly_is_what_the_drive_path_uses_and_still_hashes_a_clean_file() {
+        // Files ingested FROM Drive skip the per-type content checks but must not skip dedup.
+        when(documents.existsByCompanyIdAndContentSha256(any(), any())).thenReturn(false);
+        var clean = validator.duplicateOnly(company("49443957", "ACME SRL"), new byte[]{9, 9, 9});
+        assertThat(clean.blockReason()).isNull();
+        assertThat(clean.contentSha256()).isNotBlank(); // hash still persisted, so later copies match it
+
+        when(documents.existsByCompanyIdAndContentSha256(any(), any())).thenReturn(true);
+        assertThat(validator.duplicateOnly(company("49443957", "ACME SRL"), new byte[]{9, 9, 9}).blockReason())
+                .isEqualTo(DriveBlockReason.DUPLICATE);
+    }
+
+    @Test
+    void a_re_evaluated_document_does_not_count_itself() {
+        // Move-period / change-type re-runs validation on a document that is already persisted.
+        UUID self = UUID.randomUUID();
+        when(documents.existsByCompanyIdAndContentSha256AndIdNot(any(), any(), eq(self))).thenReturn(false);
+        var r = validator.validate(company("49443957", "ACME SRL"), JUNE, DocumentType.TRIAL_BALANCE,
+                "balanta.pdf", "application/pdf", new byte[]{1, 2, 3}, self);
+        assertThat(r.blockReason()).isNull();
+        verify(documents, never()).existsByCompanyIdAndContentSha256(any(), any());
     }
 
     @Test

@@ -637,16 +637,11 @@ public class IngestionService {
 
                 byte[] bytes = connector.download(conn, f);
                 String sha = sha256(bytes);
-                // Content-hash dedupe scoped to this company + period: identical bytes already imported for
-                // the SAME company/month → skip. The same bytes in another month import as their own document.
-                if (ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                        conn.getId(), companyId.get(), period, sha, ImportFile.Status.IMPORTED.name())) {
-                    writeLedger(prior, tenantId, conn, f, sha, companyId.get(), period, null,
-                            ImportFile.Status.DUPLICATE, "Identical file already imported for this month");
-                    skipped++;
-                    continue;
-                }
-
+                // Content duplicates are no longer skipped here. This ledger check could only see files
+                // imported through THIS connection, so it missed copies that arrived manually, by email, or
+                // via the firm's other Drive (DECLARATIONS vs ACCOUNTING are separate connections). Dedup
+                // now runs centrally in DocumentService against the document table, and a duplicate is
+                // imported and flagged rather than dropped, so the accountant sees it.
                 var doc = documents.upload(companyId.get(), period, f.name(),
                         mime(f), bytes, fileType, DocumentSource.DRIVE);
                 // Re-import of a file whose Drive content changed (etag differs, bytes differ): the file was
@@ -779,12 +774,8 @@ public class IngestionService {
                 return Outcome.NEEDS_REVIEW;
             }
         }
-        if (ledger.existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-                conn.getId(), cid.get(), period, sha, ImportFile.Status.IMPORTED.name())) {
-            writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null,
-                    ImportFile.Status.DUPLICATE, "Identical file already imported for this month");
-            return Outcome.SKIPPED;
-        }
+        // As in doSync: the per-connection content check is gone. DocumentService dedupes centrally against
+        // the document table, so a duplicate is imported and flagged (visible DUP chip) instead of dropped.
         var doc = documents.upload(cid.get(), period, f.name(), mime(f), bytes, ct, DocumentSource.DRIVE);
         if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
                 && prior.getDocumentId() != null && !prior.getDocumentId().equals(doc.getId())) {

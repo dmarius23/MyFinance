@@ -51,12 +51,31 @@ public class DocumentValidator {
         this.statements = statements;
     }
 
+    /**
+     * Shown on the DUP chip. No longer says "and month": the check is per company over the whole history,
+     * because identical bytes are the same document whatever month each path inferred for them.
+     */
+    static final String DUPLICATE_DETAIL = "Fișier identic există deja pentru această firmă.";
+
     /** The validation outcome + Drive-routing metadata to persist on the document. */
     public record Result(String contentSha256, DriveBlockReason blockReason, String blockDetail,
                          String declKind, String dominantObligationCod) {
         public boolean blocked() {
             return blockReason != null;
         }
+    }
+
+    /**
+     * Duplicate check alone, for files ingested FROM Drive. Those skip the heavy per-type content checks
+     * (they are never mirrored back, and ingestion already screened them for wrong company/period), but
+     * they must NOT skip dedup: a file can reach us manually, from a Drive folder and by email, and before
+     * this the Drive path was the one direction that never looked, so manual-then-Drive stored two copies.
+     */
+    public Result duplicateOnly(Company company, byte[] bytes) {
+        String sha = ContentHash.sha256(bytes);
+        return isDuplicate(company.getId(), sha, null)
+                ? new Result(sha, DriveBlockReason.DUPLICATE, DUPLICATE_DETAIL, null, null)
+                : new Result(sha, null, null, null, null);
     }
 
     /**
@@ -70,9 +89,8 @@ public class DocumentValidator {
         String declKind = null;
         String dominantCod = null;
 
-        if (isDuplicate(company.getId(), period, type, sha, excludeDocId)) {
-            return new Result(sha, DriveBlockReason.DUPLICATE,
-                    "Fișier identic deja încărcat pentru această firmă și lună.", null, null);
+        if (isDuplicate(company.getId(), sha, excludeDocId)) {
+            return new Result(sha, DriveBlockReason.DUPLICATE, DUPLICATE_DETAIL, null, null);
         }
 
         DriveBlockReason reason = null;
@@ -142,11 +160,10 @@ public class DocumentValidator {
         return new Result(sha, reason, detail, declKind, dominantCod);
     }
 
-    private boolean isDuplicate(UUID companyId, LocalDate period, DocumentType type, String sha, UUID excludeDocId) {
+    private boolean isDuplicate(UUID companyId, String sha, UUID excludeDocId) {
         return excludeDocId == null
-                ? documents.existsByCompanyIdAndPeriodMonthAndTypeAndContentSha256(companyId, period, type, sha)
-                : documents.existsByCompanyIdAndPeriodMonthAndTypeAndContentSha256AndIdNot(
-                        companyId, period, type, sha, excludeDocId);
+                ? documents.existsByCompanyIdAndContentSha256(companyId, sha)
+                : documents.existsByCompanyIdAndContentSha256AndIdNot(companyId, sha, excludeDocId);
     }
 
     /** The largest-amount payable obligation's code (D100 sub-routing), or null. */
