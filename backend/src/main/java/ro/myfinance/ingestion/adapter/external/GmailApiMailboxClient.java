@@ -72,7 +72,13 @@ public class GmailApiMailboxClient implements GmailMailboxClient {
 
     @Override
     public void revoke(EmailConnection connection) {
-        requireConfigured(connection);
+        if (connection.getRefreshTokenEncrypted() == null
+                || connection.getRefreshTokenEncrypted().isBlank()) {
+            return;
+        }
+        if (!properties.isConfigured() || !cipher.isConfigured()) {
+            throw new IllegalStateException("Gmail OAuth is not configured");
+        }
         String refreshToken = cipher.decrypt(connection.getRefreshTokenEncrypted());
         if (refreshToken == null || refreshToken.isBlank()) {
             return;
