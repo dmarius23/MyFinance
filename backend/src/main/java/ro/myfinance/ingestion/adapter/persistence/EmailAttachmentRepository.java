@@ -9,5 +9,4 @@ public interface EmailAttachmentRepository extends JpaRepository<EmailAttachment
 
     Optional<EmailAttachment> findByMessageIdAndGmailAttachmentId(UUID messageId, String attachmentId);
 
-    boolean existsByContentSha256AndStatus(String contentSha256, String status);
 }
