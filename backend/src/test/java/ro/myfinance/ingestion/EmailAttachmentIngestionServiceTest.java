@@ -59,7 +59,6 @@ class EmailAttachmentIngestionServiceTest {
                 .thenReturn(Optional.empty());
         when(messages.save(any(EmailMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(attachments.findByMessageIdAndGmailAttachmentId(any(), any())).thenReturn(Optional.empty());
-        when(attachments.existsByContentSha256AndStatus(any(), any())).thenReturn(false);
         when(attachments.save(any(EmailAttachment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         Document document = mock(Document.class);
         UUID documentId = UUID.randomUUID();
@@ -110,7 +109,6 @@ class EmailAttachmentIngestionServiceTest {
                 .thenReturn(Optional.empty());
         when(messages.save(any(EmailMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(attachments.findByMessageIdAndGmailAttachmentId(any(), any())).thenReturn(Optional.empty());
-        when(attachments.existsByContentSha256AndStatus(any(), any())).thenReturn(false);
         when(attachments.save(any(EmailAttachment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(documents.upload(any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("unsupported document"));

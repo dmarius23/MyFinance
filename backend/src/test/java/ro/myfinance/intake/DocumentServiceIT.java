@@ -157,6 +157,72 @@ class DocumentServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void aDriveImportOfBytesAlreadyHeldIsFlaggedDuplicate() {
+        // THE regression this dedup work exists for. The Drive path used to skip the duplicate check
+        // entirely (it only stored the hash), so dedup worked in one direction only: Drive-then-manual was
+        // caught, but manual-or-email-then-Drive silently stored a second copy. The same file sitting in a
+        // Drive folder AND uploaded by the rep is the everyday case.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+
+        Document fromDrive = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png",
+                png(), null, ro.myfinance.intake.domain.DocumentSource.DRIVE);
+
+        assertThat(fromDrive.getDriveBlockReason())
+                .isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+        assertThat(fromDrive.getContentSha256()).isNotBlank();
+    }
+
+    @Test
+    void identicalBytesFiledUnderAnotherMonthAreStillADuplicate() {
+        // period_month is INFERRED, not a property of the file: a manual upload uses the month the user
+        // picked while a Drive import derives it from filename/path/content/modified date. When it was part
+        // of the dedup key, the same bytes under a different month produced two unflagged copies.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+
+        Document otherMonth = documents.upload(companyId, LocalDate.of(2026, 9, 1), "r.png", "image/png", png());
+
+        assertThat(otherMonth.getDriveBlockReason())
+                .isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+    }
+
+    @Test
+    void identicalBytesClassifiedAsAnotherTypeAreStillADuplicate() {
+        // type comes from adaptive classification and the paths can disagree — the real "OP ... Somatie
+        // Anaf" file was taken for a bank statement when it was a payment order. A disagreement must not
+        // buy a second copy.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png(),
+                ro.myfinance.intake.domain.DocumentType.RECEIPT);
+
+        Document asOther = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png(),
+                ro.myfinance.intake.domain.DocumentType.UNCLASSIFIED);
+
+        assertThat(asOther.getDriveBlockReason())
+                .isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+    }
+
+    @Test
+    void deletingTheOriginalClearsAStaleFlagEvenAcrossMonths() {
+        // The stale-flag group query moved to the same (company, hash) key. If it had stayed on
+        // period+type it would no longer find the group the dedup check matched on, and the survivor would
+        // keep a DUP chip forever.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        Document june = documents.upload(companyId, LocalDate.of(2026, 6, 1), "r.png", "image/png", png());
+        Document september = documents.upload(companyId, LocalDate.of(2026, 9, 1), "r.png", "image/png", png());
+        assertThat(september.getDriveBlockReason())
+                .isEqualTo(ro.myfinance.intake.domain.DriveBlockReason.DUPLICATE);
+
+        documents.delete(june.getId());
+
+        Document survivor = documents.list(companyId, null).stream()
+                .filter(d -> d.getId().equals(september.getId())).findFirst().orElseThrow();
+        assertThat(survivor.getDriveBlockReason()).isNull();
+        assertThat(survivor.getDriveBlockDetail()).isNull();
+    }
+
+    @Test
     void tenantBCannotSeeOrDeleteTenantADocuments() {
         UUID companyA = asTenantWithCompany(TENANT_A);
         Document docA = documents.upload(companyA, LocalDate.of(2026, 6, 1), "a.png", "image/png", png());

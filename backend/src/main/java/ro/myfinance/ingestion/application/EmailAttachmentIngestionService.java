@@ -19,6 +19,7 @@ import ro.myfinance.ingestion.domain.EmailMessage;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
+import ro.myfinance.intake.domain.DriveBlockReason;
 import ro.myfinance.notifications.application.NotificationService;
 
 /**
@@ -145,24 +146,29 @@ public class EmailAttachmentIngestionService {
                 continue;
             }
 
-            String hash = ContentHash.sha256(bytes);
-            attachment.setContentSha256(hash);
-            if (attachments.existsByContentSha256AndStatus(hash, EmailAttachment.Status.IMPORTED.name())) {
-                attachment.setStatus(EmailAttachment.Status.DUPLICATE);
-                attachment.setDetail("Attachment content was already imported");
-                attachments.save(attachment);
-                duplicates++;
-                continue;
-            }
-
+            attachment.setContentSha256(ContentHash.sha256(bytes));
+            // The content check that used to sit here compared the hash against every IMPORTED attachment
+            // in the tenant, with no company scope — so an identical file legitimately belonging to a
+            // DIFFERENT company was marked DUPLICATE and never imported, losing a document. It also only
+            // saw email attachments, missing manual and Drive copies. DocumentService now owns dedup
+            // (per company, across all three sources) and flags instead of dropping; we mirror its verdict
+            // onto the attachment row so the mailbox view still shows which ones were duplicates.
             try {
                 Document document = documents.upload(companyId, periodMonth, input.filename(),
                         input.contentType(), bytes, classification.forcedType(), DocumentSource.EMAIL_AGENT);
                 attachment.setDocumentId(document.getId());
-                attachment.setStatus(EmailAttachment.Status.IMPORTED);
+                boolean duplicate = document.getDriveBlockReason() == DriveBlockReason.DUPLICATE;
+                attachment.setStatus(duplicate
+                        ? EmailAttachment.Status.DUPLICATE : EmailAttachment.Status.IMPORTED);
+                attachment.setDetail(duplicate
+                        ? "Imported and flagged: identical content already exists for this company" : null);
                 attachments.save(attachment);
                 notifications.emailDocumentImported(companyId, document.getId(), input.filename(), false);
-                imported++;
+                if (duplicate) {
+                    duplicates++;
+                } else {
+                    imported++;
+                }
             } catch (RuntimeException ex) {
                 attachment.setStatus(EmailAttachment.Status.NEEDS_REVIEW);
                 attachment.setDetail("Attachment requires review");

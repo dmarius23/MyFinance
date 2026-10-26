@@ -11,9 +11,10 @@ public interface ImportFileRepository extends JpaRepository<ImportFile, UUID> {
 
     Optional<ImportFile> findByConnectionIdAndSourceRef(UUID connectionId, String sourceRef);
 
-    /** Content-hash dedupe scoped to one company + period — identical bytes in another month import separately. */
-    boolean existsByConnectionIdAndCompanyIdAndPeriodMonthAndContentSha256AndStatus(
-            UUID connectionId, UUID companyId, LocalDate periodMonth, String contentSha256, String status);
+    // A content-hash dedupe used to live here, scoped to one connection + company + period. Removed: it
+    // could not see copies that arrived manually, by email, or through the firm's OTHER Drive connection
+    // (DECLARATIONS and ACCOUNTING are separate). DocumentService now dedupes centrally against the
+    // document table, per company, across all three ingestion sources.
 
     List<ImportFile> findByConnectionIdOrderByCreatedAtDesc(UUID connectionId);
 

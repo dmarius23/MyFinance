@@ -111,13 +111,14 @@ public class DocumentService {
                 DocumentStatus.UPLOADED, filename, contentType, bytes.length, key, uploadedBy);
         // Common validation (duplicate / wrong company / wrong month) gates the Drive mirror — the file is
         // always stored here, but a blocked one is not written to Drive. Files ingested FROM Drive skip the
-        // heavy per-type checks (ingestion already deduped/flagged them and they are never mirrored back);
-        // we still hash them so a later manual upload of the same bytes is detected as a duplicate.
-        if (source == DocumentSource.DRIVE) {
-            doc.setContentSha256(ro.myfinance.common.hash.ContentHash.sha256(bytes));
-        } else {
-            applyValidation(doc, validator.validate(company, period, type, filename, contentType, bytes, null));
-        }
+        // heavy per-type checks (they are never mirrored back, and ingestion already screened them for
+        // wrong company/period) but they must still be DEDUPED: this method is the one chokepoint all three
+        // ingestion paths pass through, so the duplicate check has to run here for every source. It used to
+        // be skipped for Drive, which made dedup one-directional — Drive-then-manual was caught, but
+        // manual-or-email-then-Drive silently stored a second copy.
+        applyValidation(doc, source == DocumentSource.DRIVE
+                ? validator.duplicateOnly(company, bytes)
+                : validator.validate(company, period, type, filename, contentType, bytes, null));
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
         events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));
@@ -256,10 +257,8 @@ public class DocumentService {
         if (deleted.getContentSha256() == null) {
             return; // nothing to group by (pre-V54 upload)
         }
-        List<Document> group = documents
-                .findByCompanyIdAndPeriodMonthAndTypeAndContentSha256OrderByUploadedAtAsc(
-                        deleted.getCompanyId(), deleted.getPeriodMonth(), deleted.getType(),
-                        deleted.getContentSha256());
+        List<Document> group = documents.findByCompanyIdAndContentSha256OrderByUploadedAtAsc(
+                deleted.getCompanyId(), deleted.getContentSha256());
         if (group.isEmpty()) {
             return;
         }
