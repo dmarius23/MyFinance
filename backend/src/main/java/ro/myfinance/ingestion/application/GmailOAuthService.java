@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import ro.myfinance.common.crypto.SecretCipher;
 import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.common.web.MisconfiguredException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.ingestion.adapter.external.GmailOAuthProperties;
 import ro.myfinance.ingestion.adapter.persistence.EmailConnectionRepository;
@@ -46,7 +47,7 @@ public class GmailOAuthService {
     }
 
     public AuthorizationStart start(UUID connectionId) {
-        requireConfigured();
+        ensureConfigured();
         EmailConnection connection = ownedConnection(connectionId);
         String state = randomState();
         connection.setOauthStateHash(hash(state));
@@ -68,7 +69,7 @@ public class GmailOAuthService {
     }
 
     public void complete(UUID connectionId, String state, String authorizationCode) {
-        requireConfigured();
+        ensureConfigured();
         if (state == null || state.isBlank() || authorizationCode == null || authorizationCode.isBlank()) {
             throw new IllegalArgumentException("OAuth state and authorization code are required");
         }
@@ -111,12 +112,19 @@ public class GmailOAuthService {
                 .orElseThrow(() -> new NotFoundException("Email connection not found"));
     }
 
-    private void requireConfigured() {
+    /**
+     * A deployment that never provisioned the Google OAuth client is an operator problem, not a server
+     * fault — surface it as 503 naming the missing settings, so "Connect Gmail" explains itself instead of
+     * answering an opaque 500. Public so the caller can fail before it persists a pending connection.
+     */
+    public void ensureConfigured() {
         if (!properties.isConfigured()) {
-            throw new IllegalStateException("Gmail OAuth is not configured");
+            throw new MisconfiguredException("Gmail OAuth is not configured — set GMAIL_CLIENT_ID, "
+                    + "GMAIL_CLIENT_SECRET and GMAIL_REDIRECT_URI");
         }
         if (!cipher.isConfigured()) {
-            throw new IllegalStateException("Secret encryption is not configured");
+            throw new MisconfiguredException("Server secret key (MYFINANCE_SECRET_KEY) is not configured "
+                    + "— cannot store the Gmail refresh token");
         }
     }
 

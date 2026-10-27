@@ -54,8 +54,14 @@ public class EmailConnectionController {
         return ConnectionView.from(connections.create(request.displayName(), request.mailboxAddress()));
     }
 
+    /**
+     * Config is checked first on purpose: {@code createPending} commits in its own transaction, so a
+     * misconfigured deployment would otherwise leak a {@code pending+<uuid>@invalid} connection on every
+     * click — rows the UI filters out of the list, so they accumulate unseen.
+     */
     @PostMapping("/oauth/start")
     public GmailOAuthService.AuthorizationStart startNewOAuth() {
+        oauth.ensureConfigured();
         return oauth.start(connections.createPending().getId());
     }
 
