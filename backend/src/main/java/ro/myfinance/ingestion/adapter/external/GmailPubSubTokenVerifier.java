@@ -44,14 +44,22 @@ public class GmailPubSubTokenVerifier {
         if (properties.pubSubAudience() == null || properties.pubSubAudience().isBlank()) {
             throw new AccessDeniedException("Gmail Pub/Sub audience is not configured");
         }
+        // The audience alone is NOT an authenticator: any Google service account can mint an OIDC
+        // token for an arbitrary audience, so without pinning the caller's identity this endpoint
+        // accepts forged notifications from anyone with a GCP account. Treating the pin as optional
+        // meant the weaker configuration was also the easier one — so it is now required, and the
+        // endpoint fails closed until it is set.
+        String expectedServiceAccount = properties.pubSubServiceAccount();
+        if (expectedServiceAccount == null || expectedServiceAccount.isBlank()) {
+            throw new AccessDeniedException("Gmail Pub/Sub service account is not configured — set "
+                    + "GMAIL_PUBSUB_SERVICE_ACCOUNT to the push identity's email");
+        }
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             throw new AccessDeniedException("Missing Pub/Sub bearer token");
         }
         try {
             Jwt jwt = decoder.decode(authorizationHeader.substring("Bearer ".length()).trim());
-            String expectedServiceAccount = properties.pubSubServiceAccount();
-            if (expectedServiceAccount != null && !expectedServiceAccount.isBlank()
-                    && !expectedServiceAccount.equalsIgnoreCase(jwt.getClaimAsString("email"))) {
+            if (!expectedServiceAccount.equalsIgnoreCase(jwt.getClaimAsString("email"))) {
                 throw new AccessDeniedException("Unexpected Pub/Sub service account");
             }
             return jwt;

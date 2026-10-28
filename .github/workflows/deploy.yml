@@ -11,7 +11,9 @@ name: Deploy
 # App config synced into the VM's ./.env by the deploy job below — all must be SECRETS, never
 # variables: variables are plaintext and are NOT masked in logs, which on a public repo publishes
 # them (this happened twice to GMAIL_CLIENT_SECRET on 2026-10-28).
-#   Secrets:   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI, GMAIL_PUBSUB_TOPIC
+#   Secrets:   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI,
+#              GMAIL_PUBSUB_TOPIC, GMAIL_PUBSUB_AUDIENCE, GMAIL_PUBSUB_SERVICE_ACCOUNT
+#   Variable:  GMAIL_WATCH_RENEWAL_ENABLED (defaults to true; Gmail watches lapse after 7 days)
 #
 # NOT synced on purpose: MYFINANCE_SECRET_KEY. It is the AES-256-GCM master key for per-tenant
 # SMTP/WhatsApp secrets and stays server-owned — pushing a value that differs by one character
@@ -154,6 +156,14 @@ jobs:
           # Pub/Sub topic path, not a credential, but now stored as a Secret so it is masked too.
           # Blank is valid and means "no push notifications" — the loop below skips blanks.
           GMAIL_PUBSUB_TOPIC: ${{ secrets.GMAIL_PUBSUB_TOPIC || vars.GMAIL_PUBSUB_TOPIC }}
+          # Pub/Sub push verification. The audience is the webhook URL on the API host; the service
+          # account is the push identity whose OIDC token we pin. Both are required for push to work
+          # — the verifier fails closed without them, because the audience alone authenticates
+          # nothing (any GCP account can mint a token for any audience).
+          GMAIL_PUBSUB_AUDIENCE: ${{ secrets.GMAIL_PUBSUB_AUDIENCE || vars.GMAIL_PUBSUB_AUDIENCE }}
+          GMAIL_PUBSUB_SERVICE_ACCOUNT: ${{ secrets.GMAIL_PUBSUB_SERVICE_ACCOUNT || vars.GMAIL_PUBSUB_SERVICE_ACCOUNT }}
+          # Gmail watches expire after 7 days; without renewal push silently stops after a week.
+          GMAIL_WATCH_RENEWAL_ENABLED: ${{ vars.GMAIL_WATCH_RENEWAL_ENABLED || 'true' }}
           # Non-secret boolean: did the previous step rewrite the client secret? Used to force a
           # recreate even when nothing else in .env changed.
           SECRET_CHANGED: ${{ steps.sync_secret.outputs.changed }}
@@ -161,7 +171,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,SECRET_CHANGED
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,GMAIL_PUBSUB_AUDIENCE,GMAIL_PUBSUB_SERVICE_ACCOUNT,GMAIL_WATCH_RENEWAL_ENABLED,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
@@ -175,7 +185,8 @@ jobs:
             umask 077
             touch .env
             env_before=$(sha256sum .env | cut -d' ' -f1)
-            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC; do
+            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC \
+                       GMAIL_PUBSUB_AUDIENCE GMAIL_PUBSUB_SERVICE_ACCOUNT GMAIL_WATCH_RENEWAL_ENABLED; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then
                 echo "  $key: not configured in GitHub — leaving .env untouched"
