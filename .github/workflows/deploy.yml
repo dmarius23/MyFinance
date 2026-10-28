@@ -7,6 +7,15 @@ name: Deploy
 #   Secrets:   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
 #   Variables: VITE_API_BASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY   (public, build-time)
 #   Environment `production` with a required reviewer (the manual approval gate).
+#
+# App config synced into the VM's ./.env by the deploy job below — all must be SECRETS, never
+# variables: variables are plaintext and are NOT masked in logs, which on a public repo publishes
+# them (this happened twice to GMAIL_CLIENT_SECRET on 2026-10-28).
+#   Secrets:   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI, GMAIL_PUBSUB_TOPIC
+#
+# NOT synced on purpose: MYFINANCE_SECRET_KEY. It is the AES-256-GCM master key for per-tenant
+# SMTP/WhatsApp secrets and stays server-owned — pushing a value that differs by one character
+# makes every existing encrypted row undecryptable. Keep it in Secrets as a backup copy only.
 
 on:
   push:
@@ -73,21 +82,37 @@ jobs:
     runs-on: ubuntu-latest
     environment: production      # <- manual approval gate (required reviewer)
     steps:
-      # The OAuth client secret is written in its own step, over raw ssh with the value fed on
-      # STDIN. It must not go anywhere near appleboy/ssh-action: that action echoes both its
-      # `envs:` values AND the `script:` body into the log, so a secret placed in either leaks
-      # verbatim. On 2026-10-28 exactly that leaked GMAIL_CLIENT_SECRET in plaintext on this
-      # PUBLIC repo. A `run:` step never prints its own environment, and the remote command line
-      # here carries no value — only the pipe does.
-      - name: Sync Gmail client secret to server (value never echoed)
+      # MUST come from `secrets.`, never `vars.`. GMAIL_CLIENT_SECRET leaked in plaintext on this
+      # PUBLIC repo TWICE on 2026-10-28, both times because it was stored as a repository VARIABLE:
+      #
+      #   1. via appleboy/ssh-action, which echoes its `envs:` values and its `script:` body;
+      #   2. via this step's own `env:` block — GitHub Actions renders a step's env mapping into
+      #      the log. A `run:` step does NOT hide its environment; assuming so was the mistake.
+      #
+      # The only thing that actually protects the value is GitHub's log masking, and masking
+      # applies to Secrets only. There is no safe way to pass a variable-sourced credential:
+      # `env:` is echoed, and inlining `${{ vars.X }}` is worse because the script body is echoed
+      # too. So the fallback to `vars.` is gone and a variable-only configuration fails the
+      # deploy loudly instead of printing the credential.
+      - name: Sync Gmail client secret to server (secret-sourced only)
         id: sync_secret
         env:
-          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET || vars.GMAIL_CLIENT_SECRET }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          # Presence flag only — never the value. `!= ''` yields a boolean, so a variable-sourced
+          # credential can be detected and rejected without ever expanding it into the log.
+          CLIENT_SECRET_IN_VARS: ${{ vars.GMAIL_CLIENT_SECRET != '' }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           set -euo pipefail
+          if [ -z "${GMAIL_CLIENT_SECRET}" ] && [ "${CLIENT_SECRET_IN_VARS}" = "true" ]; then
+            echo "::error::GMAIL_CLIENT_SECRET is a repository VARIABLE. Variables are stored in" \
+                 "plaintext and are NOT masked in logs — on a public repo that publishes the" \
+                 "credential. Delete the variable and create a Secret of the same name:" \
+                 "gh variable delete GMAIL_CLIENT_SECRET && gh secret set GMAIL_CLIENT_SECRET"
+            exit 1
+          fi
           if [ -z "${GMAIL_CLIENT_SECRET}" ]; then
             echo "GMAIL_CLIENT_SECRET not configured — leaving .env untouched"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -126,6 +151,9 @@ jobs:
           # redirect), so they are safe. GMAIL_CLIENT_SECRET is handled in the step above.
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID || vars.GMAIL_CLIENT_ID }}
           GMAIL_REDIRECT_URI: ${{ secrets.GMAIL_REDIRECT_URI || vars.GMAIL_REDIRECT_URI }}
+          # Pub/Sub topic path, not a credential, but now stored as a Secret so it is masked too.
+          # Blank is valid and means "no push notifications" — the loop below skips blanks.
+          GMAIL_PUBSUB_TOPIC: ${{ secrets.GMAIL_PUBSUB_TOPIC || vars.GMAIL_PUBSUB_TOPIC }}
           # Non-secret boolean: did the previous step rewrite the client secret? Used to force a
           # recreate even when nothing else in .env changed.
           SECRET_CHANGED: ${{ steps.sync_secret.outputs.changed }}
@@ -133,7 +161,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,SECRET_CHANGED
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
@@ -147,7 +175,7 @@ jobs:
             umask 077
             touch .env
             env_before=$(sha256sum .env | cut -d' ' -f1)
-            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI; do
+            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then
                 echo "  $key: not configured in GitHub — leaving .env untouched"
