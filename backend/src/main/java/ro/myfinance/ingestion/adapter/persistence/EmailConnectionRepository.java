@@ -13,4 +13,7 @@ public interface EmailConnectionRepository extends JpaRepository<EmailConnection
     List<EmailConnection> findByStatus(String status);
 
     Optional<EmailConnection> findByOauthStateHash(String oauthStateHash);
+
+    /** Guards the {@code uq_email_connection_mailbox} constraint; RLS already scopes this to the tenant. */
+    Optional<EmailConnection> findByMailboxAddress(String mailboxAddress);
 }

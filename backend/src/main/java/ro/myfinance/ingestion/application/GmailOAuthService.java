@@ -13,9 +13,11 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 import ro.myfinance.common.crypto.SecretCipher;
 import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.MisconfiguredException;
 import ro.myfinance.common.web.NotFoundException;
 import ro.myfinance.ingestion.adapter.external.GmailOAuthProperties;
@@ -86,17 +88,31 @@ public class GmailOAuthService {
         form.add("code", authorizationCode);
         form.add("grant_type", "authorization_code");
         form.add("redirect_uri", properties.redirectUri());
-        String response = http.post()
-                .uri(TOKEN_ENDPOINT)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(form)
-                .retrieve()
-                .body(String.class);
+        String response;
+        try {
+            response = http.post()
+                    .uri(TOKEN_ENDPOINT)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            throw googleRejected("token exchange", e);
+        }
         TokenResponse tokens = tokens(response);
         String refreshToken = tokens.refreshToken();
+        String mailbox = mailboxAddress(tokens.accessToken());
+        // (tenant_id, mailbox_address) is UNIQUE. Reconnecting the same mailbox through a fresh
+        // pending row would otherwise fail as an opaque 500 at save time.
+        connections.findByMailboxAddress(mailbox)
+                .filter(existing -> !existing.getId().equals(connection.getId()))
+                .ifPresent(existing -> {
+                    throw new ConflictException(mailbox + " is already connected. Disconnect the "
+                            + "existing connection before linking this mailbox again.");
+                });
         connection.setRefreshTokenEncrypted(cipher.encrypt(refreshToken));
-        connection.setMailboxAddress(mailboxAddress(tokens.accessToken()));
-        connection.setDisplayName(connection.getMailboxAddress());
+        connection.setMailboxAddress(mailbox);
+        connection.setDisplayName(mailbox);
         connection.setOauthStateHash(null);
         connection.setOauthStateExpiresAt(null);
         connection.setStatus("ACTIVE");
@@ -135,34 +151,80 @@ public class GmailOAuthService {
             String accessToken = node.path("access_token").asText(null);
             if (refreshToken == null || refreshToken.isBlank()
                     || accessToken == null || accessToken.isBlank()) {
-                throw new IllegalStateException("Google did not return a refresh token");
+                // Google omits refresh_token when the mailbox already granted this client and the
+                // request did not force a fresh consent. Without it we cannot sync unattended, so
+                // this is a hard failure — but an actionable one, not a server fault.
+                throw new ConflictException("Google did not return a refresh token. Remove MyFinance "
+                        + "from the account's third-party access (myaccount.google.com/permissions) "
+                        + "and connect again.");
             }
             return new TokenResponse(refreshToken, accessToken);
+        } catch (RuntimeException e) {
+            // Only JSON parsing is being guarded here. Our own mapped exceptions carry the actionable
+            // message and must pass through untouched — re-wrapping them would undo the mapping and
+            // put the caller back at an opaque 500.
+            throw e;
         } catch (Exception e) {
-            if (e instanceof IllegalStateException state) {
-                throw state;
-            }
-            throw new IllegalStateException("Invalid Google token response", e);
+            throw new MisconfiguredException("Google returned an unreadable token response");
         }
     }
 
+    /**
+     * Translates a Google error response into something an operator can act on. Google states the
+     * problem precisely — {@code invalid_client} for a wrong client secret, {@code SERVICE_DISABLED}
+     * when the Gmail API was never enabled on the project — and that text is the whole value here, so
+     * it is passed through rather than collapsed into a generic failure. Never includes our request,
+     * so the client secret cannot be echoed back.
+     *
+     * <p>An expired or replayed authorization code is the user's problem (click Connect again), so it
+     * maps to 400; everything else is a deployment gap and maps to 503.
+     */
+    private RuntimeException googleRejected(String stage, RestClientResponseException e) {
+        String code = "";
+        String detail = "";
+        try {
+            JsonNode node = json.readTree(e.getResponseBodyAsString());
+            // OAuth errors: {"error":"invalid_client","error_description":"..."}
+            // API errors:   {"error":{"status":"PERMISSION_DENIED","message":"..."}}
+            code = node.path("error").isTextual()
+                    ? node.path("error").asText("")
+                    : node.path("error").path("status").asText("");
+            detail = node.path("error_description").asText(
+                    node.path("error").path("message").asText(""));
+        } catch (Exception ignored) {
+            // Non-JSON body (e.g. an HTML error page) — fall back to the status line below.
+        }
+        String summary = (code.isBlank() ? e.getStatusText() : code)
+                + (detail.isBlank() ? "" : " — " + detail);
+        if ("invalid_grant".equals(code)) {
+            return new IllegalArgumentException(
+                    "Google rejected the authorization code (" + summary + "). It expires quickly and is "
+                            + "single-use — start the Gmail connection again.");
+        }
+        return new MisconfiguredException("Google rejected the Gmail " + stage + ": " + summary);
+    }
+
     private String mailboxAddress(String accessToken) {
-        String response = http.get()
-                .uri("https://gmail.googleapis.com/gmail/v1/users/me/profile")
-                .header("Authorization", "Bearer " + accessToken)
-                .retrieve()
-                .body(String.class);
+        String response;
+        try {
+            response = http.get()
+                    .uri("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            throw googleRejected("profile lookup", e);
+        }
         try {
             String email = json.readTree(response).path("emailAddress").asText(null);
             if (email == null || email.isBlank()) {
-                throw new IllegalStateException("Google did not return the Gmail address");
+                throw new MisconfiguredException("Google did not return the Gmail address");
             }
             return email.trim().toLowerCase();
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
-            if (e instanceof IllegalStateException state) {
-                throw state;
-            }
-            throw new IllegalStateException("Invalid Gmail profile response", e);
+            throw new MisconfiguredException("Google returned an unreadable Gmail profile response");
         }
     }
 
