@@ -104,14 +104,24 @@ Invalid signature or expiry → reject
    ```
 
 8. Create the HTTPS Pub/Sub push subscription. The OIDC service account in this command is the identity
-   that must be configured as `GMAIL_PUBSUB_SERVICE_ACCOUNT`:
+   that must be configured as `GMAIL_PUBSUB_SERVICE_ACCOUNT`.
+
+   > ⚠️ **The push endpoint is on the API host, not the app host.** Caddy routes `APP_HOST` to the
+   > frontend container and only `API_HOST` to the backend, and the frontend's nginx has no `/api`
+   > proxy — just `try_files $uri /index.html`. A push sent to `app.…` therefore matches the SPA
+   > fallback and returns **HTTP 200 with index.html**; Pub/Sub treats that as successful delivery
+   > and discards the message. Every Gmail notification would vanish with no error, no retry and
+   > no dead-letter. This document specified `app.…` until 2026-10-28.
+   >
+   > Note `GMAIL_REDIRECT_URI` *is* on `APP_HOST` — that callback is a frontend route. The two
+   > intentionally live on different hosts; do not "correct" one to match the other.
 
    ```bash
    gcloud pubsub subscriptions create gmail-webhook-production \
      --topic="projects/${PROJECT_ID}/topics/gmail-notifications" \
-     --push-endpoint=https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub \
+     --push-endpoint=https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub \
      --push-auth-service-account="${PUSH_SERVICE_ACCOUNT}" \
-     --push-auth-token-audience=https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub \
+     --push-auth-token-audience=https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub \
      --ack-deadline=30 \
      --project="$PROJECT_ID"
    ```
@@ -154,7 +164,7 @@ Invalid signature or expiry → reject
 
    ```text
    GMAIL_PUBSUB_TOPIC=projects/PROJECT_ID/topics/gmail-notifications
-   GMAIL_PUBSUB_AUDIENCE=https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
+   GMAIL_PUBSUB_AUDIENCE=https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
    GMAIL_PUBSUB_SERVICE_ACCOUNT=myfinance-pubsub-push@PROJECT_ID.iam.gserviceaccount.com
    ```
 
@@ -350,7 +360,7 @@ project or an equivalent least-privilege custom role.
 5. Set the endpoint to:
 
    ```text
-   https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
+   https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
    ```
 
 6. Enable **Authentication** or **Authenticated push**.
@@ -363,7 +373,7 @@ project or an equivalent least-privilege custom role.
 8. Set the audience to the exact same webhook URL:
 
    ```text
-   https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
+   https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
    ```
 
 9. Set the acknowledgement deadline to 30 seconds.
@@ -374,7 +384,7 @@ project or an equivalent least-privilege custom role.
 Set the matching backend value:
 
 ```text
-GMAIL_PUBSUB_AUDIENCE=https://app.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
+GMAIL_PUBSUB_AUDIENCE=https://api.mycompanyfinance.ro/api/v1/ingestion/gmail/pubsub
 ```
 
 The audience is case-sensitive and must not differ by a trailing slash.
