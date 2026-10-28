@@ -7,6 +7,15 @@ name: Deploy
 #   Secrets:   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
 #   Variables: VITE_API_BASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY   (public, build-time)
 #   Environment `production` with a required reviewer (the manual approval gate).
+#
+# App config synced into the VM's ./.env by the deploy job below — all must be SECRETS, never
+# variables: variables are plaintext and are NOT masked in logs, which on a public repo publishes
+# them (this happened twice to GMAIL_CLIENT_SECRET on 2026-10-28).
+#   Secrets:   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI, GMAIL_PUBSUB_TOPIC
+#
+# NOT synced on purpose: MYFINANCE_SECRET_KEY. It is the AES-256-GCM master key for per-tenant
+# SMTP/WhatsApp secrets and stays server-owned — pushing a value that differs by one character
+# makes every existing encrypted row undecryptable. Keep it in Secrets as a backup copy only.
 
 on:
   push:
@@ -142,6 +151,9 @@ jobs:
           # redirect), so they are safe. GMAIL_CLIENT_SECRET is handled in the step above.
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID || vars.GMAIL_CLIENT_ID }}
           GMAIL_REDIRECT_URI: ${{ secrets.GMAIL_REDIRECT_URI || vars.GMAIL_REDIRECT_URI }}
+          # Pub/Sub topic path, not a credential, but now stored as a Secret so it is masked too.
+          # Blank is valid and means "no push notifications" — the loop below skips blanks.
+          GMAIL_PUBSUB_TOPIC: ${{ secrets.GMAIL_PUBSUB_TOPIC || vars.GMAIL_PUBSUB_TOPIC }}
           # Non-secret boolean: did the previous step rewrite the client secret? Used to force a
           # recreate even when nothing else in .env changed.
           SECRET_CHANGED: ${{ steps.sync_secret.outputs.changed }}
@@ -149,7 +161,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,SECRET_CHANGED
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
@@ -163,7 +175,7 @@ jobs:
             umask 077
             touch .env
             env_before=$(sha256sum .env | cut -d' ' -f1)
-            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI; do
+            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then
                 echo "  $key: not configured in GitHub — leaving .env untouched"
