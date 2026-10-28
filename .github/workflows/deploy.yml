@@ -73,42 +73,84 @@ jobs:
     runs-on: ubuntu-latest
     environment: production      # <- manual approval gate (required reviewer)
     steps:
+      # The OAuth client secret is written in its own step, over raw ssh with the value fed on
+      # STDIN. It must not go anywhere near appleboy/ssh-action: that action echoes both its
+      # `envs:` values AND the `script:` body into the log, so a secret placed in either leaks
+      # verbatim. On 2026-10-28 exactly that leaked GMAIL_CLIENT_SECRET in plaintext on this
+      # PUBLIC repo. A `run:` step never prints its own environment, and the remote command line
+      # here carries no value — only the pipe does.
+      - name: Sync Gmail client secret to server (value never echoed)
+        id: sync_secret
+        env:
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET || vars.GMAIL_CLIENT_SECRET }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GMAIL_CLIENT_SECRET}" ]; then
+            echo "GMAIL_CLIENT_SECRET not configured — leaving .env untouched"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          umask 077
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/dk"
+          chmod 600 "$RUNNER_TEMP/dk"
+          # Remote reads one line from stdin; an unset value was already rejected above, so it
+          # can never blank a working secret on the server.
+          result=$(printf '%s\n' "$GMAIL_CLIENT_SECRET" | ssh -i "$RUNNER_TEMP/dk" \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'set -eu; cd /opt/myfinance; umask 077; touch .env;
+             before=$(sha256sum .env | cut -d" " -f1);
+             IFS= read -r v;
+             grep -v "^GMAIL_CLIENT_SECRET=" .env > .env.new || true;
+             printf "GMAIL_CLIENT_SECRET=%s\n" "$v" >> .env.new;
+             chmod 600 .env.new; mv .env.new .env;
+             after=$(sha256sum .env | cut -d" " -f1);
+             [ "$before" = "$after" ] && echo unchanged || echo changed')
+          rm -f "$RUNNER_TEMP/dk"
+          echo "GMAIL_CLIENT_SECRET: $result"
+          [ "$result" = "changed" ] && echo "changed=true" >> "$GITHUB_OUTPUT" \
+                                    || echo "changed=false" >> "$GITHUB_OUTPUT"
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1
         env:
           # CI-owned app config. Everything else in ./.env stays hand-maintained on the VM;
-          # these three are synced from GitHub so a re-provisioned box cannot silently lose
-          # them (an unset GMAIL_CLIENT_ID makes "Connect Gmail" answer 503).
+          # these are synced from GitHub so a re-provisioned box cannot silently lose them
+          # (an unset GMAIL_CLIENT_ID makes "Connect Gmail" answer 503).
           #
-          # `secrets.X || vars.X` because these currently live as repository VARIABLES. Prefer
-          # a Secret when one exists: variables are NOT masked in workflow logs and are
-          # readable in plaintext by anyone who can see repo settings. GMAIL_CLIENT_ID and
-          # GMAIL_REDIRECT_URI are public by nature (they ship in the browser redirect), but
-          # GMAIL_CLIENT_SECRET is a true credential and belongs in Secrets.
+          # ONLY non-secret values may appear here — this action echoes its `envs:` into the
+          # log. The client id and redirect URI are public by nature (both ship in the browser
+          # redirect), so they are safe. GMAIL_CLIENT_SECRET is handled in the step above.
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID || vars.GMAIL_CLIENT_ID }}
-          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET || vars.GMAIL_CLIENT_SECRET }}
           GMAIL_REDIRECT_URI: ${{ secrets.GMAIL_REDIRECT_URI || vars.GMAIL_REDIRECT_URI }}
+          # Non-secret boolean: did the previous step rewrite the client secret? Used to force a
+          # recreate even when nothing else in .env changed.
+          SECRET_CHANGED: ${{ steps.sync_secret.outputs.changed }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_CLIENT_SECRET,GMAIL_REDIRECT_URI
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # ---- Sync CI-owned secrets into ./.env -------------------------------------
-            # Values are never echoed (only key names), and GitHub masks them in logs anyway.
-            # An unset secret is SKIPPED, never written as empty — otherwise a missing secret
+            # ---- Sync CI-owned NON-SECRET config into ./.env ---------------------------
+            # Only public values here. GMAIL_CLIENT_SECRET is written by the preceding job step
+            # over raw ssh, because this action echoes its envs and script into the log.
+            # An unset value is SKIPPED, never written as empty — otherwise a missing variable
             # would silently blank a working value on the server.
             umask 077
             touch .env
             env_before=$(sha256sum .env | cut -d' ' -f1)
-            for key in GMAIL_CLIENT_ID GMAIL_CLIENT_SECRET GMAIL_REDIRECT_URI; do
+            for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then
-                echo "  $key: not set in GitHub secrets — leaving .env untouched"
+                echo "  $key: not configured in GitHub — leaving .env untouched"
                 continue
               fi
               grep -v "^${key}=" .env > .env.new || true
@@ -122,7 +164,8 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             # env_file is read only when a container is CREATED, so a plain `up -d` will not
             # pick up .env edits when the image is unchanged. Force the two JVM services.
-            if [ "$env_before" != "$env_after" ]; then
+            # SECRET_CHANGED covers the client secret, rewritten before this step ran.
+            if [ "$env_before" != "$env_after" ] || [ "${SECRET_CHANGED:-false}" = "true" ]; then
               echo ".env changed — recreating backend + worker so env_file is re-read"
               docker compose -f docker-compose.prod.yml up -d --force-recreate backend worker
             fi
