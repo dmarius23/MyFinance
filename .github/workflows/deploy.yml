@@ -73,21 +73,37 @@ jobs:
     runs-on: ubuntu-latest
     environment: production      # <- manual approval gate (required reviewer)
     steps:
-      # The OAuth client secret is written in its own step, over raw ssh with the value fed on
-      # STDIN. It must not go anywhere near appleboy/ssh-action: that action echoes both its
-      # `envs:` values AND the `script:` body into the log, so a secret placed in either leaks
-      # verbatim. On 2026-10-28 exactly that leaked GMAIL_CLIENT_SECRET in plaintext on this
-      # PUBLIC repo. A `run:` step never prints its own environment, and the remote command line
-      # here carries no value — only the pipe does.
-      - name: Sync Gmail client secret to server (value never echoed)
+      # MUST come from `secrets.`, never `vars.`. GMAIL_CLIENT_SECRET leaked in plaintext on this
+      # PUBLIC repo TWICE on 2026-10-28, both times because it was stored as a repository VARIABLE:
+      #
+      #   1. via appleboy/ssh-action, which echoes its `envs:` values and its `script:` body;
+      #   2. via this step's own `env:` block — GitHub Actions renders a step's env mapping into
+      #      the log. A `run:` step does NOT hide its environment; assuming so was the mistake.
+      #
+      # The only thing that actually protects the value is GitHub's log masking, and masking
+      # applies to Secrets only. There is no safe way to pass a variable-sourced credential:
+      # `env:` is echoed, and inlining `${{ vars.X }}` is worse because the script body is echoed
+      # too. So the fallback to `vars.` is gone and a variable-only configuration fails the
+      # deploy loudly instead of printing the credential.
+      - name: Sync Gmail client secret to server (secret-sourced only)
         id: sync_secret
         env:
-          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET || vars.GMAIL_CLIENT_SECRET }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          # Presence flag only — never the value. `!= ''` yields a boolean, so a variable-sourced
+          # credential can be detected and rejected without ever expanding it into the log.
+          CLIENT_SECRET_IN_VARS: ${{ vars.GMAIL_CLIENT_SECRET != '' }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           set -euo pipefail
+          if [ -z "${GMAIL_CLIENT_SECRET}" ] && [ "${CLIENT_SECRET_IN_VARS}" = "true" ]; then
+            echo "::error::GMAIL_CLIENT_SECRET is a repository VARIABLE. Variables are stored in" \
+                 "plaintext and are NOT masked in logs — on a public repo that publishes the" \
+                 "credential. Delete the variable and create a Secret of the same name:" \
+                 "gh variable delete GMAIL_CLIENT_SECRET && gh secret set GMAIL_CLIENT_SECRET"
+            exit 1
+          fi
           if [ -z "${GMAIL_CLIENT_SECRET}" ]; then
             echo "GMAIL_CLIENT_SECRET not configured — leaving .env untouched"
             echo "changed=false" >> "$GITHUB_OUTPUT"
