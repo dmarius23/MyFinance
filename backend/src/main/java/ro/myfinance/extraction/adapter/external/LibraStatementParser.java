@@ -63,15 +63,25 @@ public class LibraStatementParser implements BankStatementParser {
      */
     private static final String AMOUNT = "(?:\\d{1,3}(?:,\\d{3}){0,6}|\\d{1,15})\\.\\d{2}";
 
-    /** {@code <date> <description…> [<operare date>] <debit> <credit>} — anchored on the two amounts. */
-    private static final Pattern ROW = Pattern.compile(
-            "^(\\d{2}/\\d{2}/\\d{4})\\s+(.+?)\\s+(" + AMOUNT + ")\\s+(" + AMOUNT + ")\\s*$");
-
-    private static final Pattern OPENING = Pattern.compile("^SOLD INITIAL\\s+(" + AMOUNT + ")\\s*$");
-    private static final Pattern TOTALS = Pattern.compile(
-            "^TOTAL\\s+(" + AMOUNT + ")\\s+(" + AMOUNT + ")\\s+(" + AMOUNT + ")\\s+(" + AMOUNT + ")\\s*$");
-    /** Trailing "Data Operare" value, when PDFBox did not mangle it into the description. */
-    private static final Pattern TRAILING_DATE = Pattern.compile("\\s*\\d{2}/\\d{2}/\\d{4}\\s*$");
+    /**
+     * Rows are recognised by TOKENISING, not by one regex over the whole line. The natural spelling,
+     * {@code ^(date)\s+(.+?)\s+(AMOUNT)\s+(AMOUNT)\s*$}, is quadratic: the lazy {@code (.+?)} advances
+     * one character at a time and at each position {@code \s+} backtracks across the whitespace run,
+     * so a line padded with ~40k spaces takes seconds. Splitting on whitespace is linear, and each
+     * token is then matched against an anchored, bounded pattern.
+     */
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final Pattern AMOUNT_TOKEN = Pattern.compile(AMOUNT);
+    private static final int MIN_ROW_TOKENS = 4; // date + ≥1 description token + debit + credit
+    /**
+     * A bare {@code dd/MM/yyyy}, matched against a fixed 10-character slice — never scanned across a
+     * whole line. The obvious spelling, {@code replaceAll("\\s*\\d{2}/\\d{2}/\\d{4}\\s*$")}, is
+     * quadratic: replaceAll retries at every index and the leading {@code \s*} can consume a long run
+     * of spaces before failing at each one (CodeQL java/polynomial-redos, high). Statement text is
+     * only semi-trusted, so that is a worker-hanging DoS vector, not a theoretical one.
+     */
+    private static final Pattern BARE_DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{4}");
+    private static final int DATE_LENGTH = 10;
     private static final Pattern IBAN = Pattern.compile("\\bRO\\d{2}[A-Z0-9]{10,}\\b");
     /** Libra's own transaction reference, e.g. {@code (FT26110DSVSV)}. */
     private static final Pattern REF = Pattern.compile("\\((FT[A-Z0-9]+)\\)");
@@ -106,23 +116,27 @@ public class LibraStatementParser implements BankStatementParser {
             if (line.startsWith("MISCARI PE CONT")) {
                 break; // per-day summary follows; same shape as rows, must not be parsed as such
             }
-            if (opening == null) {
-                Matcher o = OPENING.matcher(line);
-                if (o.find()) {
-                    opening = money(o.group(1));
-                    continue;
-                }
+            String[] tokens = line.isEmpty() ? new String[0] : WHITESPACE.split(line);
+            if (opening == null && tokens.length == 3
+                    && "SOLD".equals(tokens[0]) && "INITIAL".equals(tokens[1])
+                    && AMOUNT_TOKEN.matcher(tokens[2]).matches()) {
+                opening = money(tokens[2]);
+                continue;
             }
-            if (line.contains("Sold nou/New balance") || FOOTER.matcher(line).find() || line.isEmpty()) {
+            if (totals == null && tokens.length == 5 && "TOTAL".equals(tokens[0])
+                    && allAmounts(tokens, 1)) {
+                totals = new BigDecimal[] {money(tokens[1]), money(tokens[2]),
+                        money(tokens[3]), money(tokens[4])};
+                current = null; // a totals row never continues a description
+                continue;
+            }
+            if (line.isEmpty() || line.contains("Sold nou/New balance") || FOOTER.matcher(line).find()) {
                 current = null; // never continue a description across page furniture
                 continue;
             }
-            Matcher m = ROW.matcher(line);
-            if (m.matches()) {
-                BigDecimal debit = money(m.group(3));
-                BigDecimal credit = money(m.group(4));
-                String description = TRAILING_DATE.matcher(m.group(2)).replaceAll("").strip();
-                current = new Row(LocalDate.parse(m.group(1), DMY), debit, credit, description);
+            Row row = row(tokens);
+            if (row != null) {
+                current = row;
                 txns.add(null); // placeholder; replaced on flush so wrapped lines can still be appended
                 current.index = txns.size() - 1;
                 flush(txns, current);
@@ -134,11 +148,17 @@ public class LibraStatementParser implements BankStatementParser {
             }
         }
 
+        // The TOTAL row lives inside the summary section, i.e. past the break above, so it needs its
+        // own pass. Tokenised for the same linear-cost reason as the transaction rows.
         for (String raw : lines) {
-            Matcher t = TOTALS.matcher(raw.strip());
-            if (t.matches()) {
-                totals = new BigDecimal[] {money(t.group(1)), money(t.group(2)),
-                        money(t.group(3)), money(t.group(4))};
+            String line = raw.strip();
+            if (!line.startsWith("TOTAL")) {
+                continue;
+            }
+            String[] tokens = WHITESPACE.split(line);
+            if (tokens.length == 5 && allAmounts(tokens, 1)) {
+                totals = new BigDecimal[] {money(tokens[1]), money(tokens[2]),
+                        money(tokens[3]), money(tokens[4])};
             }
         }
 
@@ -149,6 +169,45 @@ public class LibraStatementParser implements BankStatementParser {
                     totals == null ? null : totals[3], List.of());
         }
         return new ParsedStatement("LIBRA", iban(text), opening, totals[3], List.copyOf(txns));
+    }
+
+    /**
+     * A transaction row, or {@code null} if these tokens are not one: first token a date, last two
+     * tokens amounts. Everything between is the description — which is why the mangled operare column
+     * ({@code O01p/e0r4a/2re026}, produced when PDFBox merges the overlapping "Operare" header into
+     * the first row) costs nothing here: it is simply carried as a description token.
+     */
+    private static Row row(String[] tokens) {
+        int n = tokens.length;
+        if (n < MIN_ROW_TOKENS
+                || !isDate(tokens[0])
+                || !AMOUNT_TOKEN.matcher(tokens[n - 2]).matches()
+                || !AMOUNT_TOKEN.matcher(tokens[n - 1]).matches()) {
+            return null;
+        }
+        int end = n - 2;
+        if (isDate(tokens[end - 1])) {
+            end--; // drop the intact "Data Operare" column
+        }
+        StringBuilder description = new StringBuilder();
+        for (int i = 1; i < end; i++) {
+            description.append(i > 1 ? " " : "").append(tokens[i]);
+        }
+        return new Row(LocalDate.parse(tokens[0], DMY), money(tokens[n - 2]), money(tokens[n - 1]),
+                description.toString());
+    }
+
+    private static boolean isDate(String token) {
+        return token.length() == DATE_LENGTH && BARE_DATE.matcher(token).matches();
+    }
+
+    private static boolean allAmounts(String[] tokens, int from) {
+        for (int i = from; i < tokens.length; i++) {
+            if (!AMOUNT_TOKEN.matcher(tokens[i]).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Rewrites the placeholder for {@code row} now its description may have grown. */
