@@ -199,7 +199,7 @@ public class GmailApiMailboxClient implements GmailMailboxClient {
         collectAttachments(payload, attachments);
         long internalDate = message.path("internalDate").asLong(0);
         return new MessageRef(messageId, message.path("threadId").asText(null),
-                sender(headers.get("From")), headers.get("Subject"),
+                sender(headers.get("from")), headers.get("subject"),
                 internalDate == 0 ? null : Instant.ofEpochMilli(internalDate), attachments);
     }
 
