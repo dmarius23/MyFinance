@@ -292,6 +292,32 @@ class LibraStatementParserTest {
                 .noneMatch(t -> t.description().contains("Sold nou"));
     }
 
+    /**
+     * Statement text is only semi-trusted — it arrives as an uploaded PDF — so a quadratic regex is a
+     * worker-hanging DoS vector. The first implementation stripped the operare date with
+     * {@code replaceAll("\\s*\\d{2}/\\d{2}/\\d{4}\\s*$")}, which retries at every index and lets the
+     * leading {@code \s*} consume a long whitespace run before failing at each one
+     * (CodeQL java/polynomial-redos, high). A line padded with whitespace must stay linear.
+     */
+    @Test
+    void doesNotDegradeOnLinesPaddedWithWhitespace() {
+        String padding = " ".repeat(40_000);
+        String hostile = """
+                SOLD INITIAL 10.00
+                01/04/2026 Something%s 01/04/2026 10.00 0.00
+                TOTAL 10.00 10.00 0.00 0.00
+                """.formatted(padding);
+
+        long start = System.nanoTime();
+        ParsedStatement s = parser.parse(hostile);
+        long millis = (System.nanoTime() - start) / 1_000_000;
+
+        assertThat(s.transactions()).hasSize(1);
+        assertThat(s.transactions().getFirst().description()).isEqualTo("Something");
+        // Quadratic behaviour on 40k spaces takes many seconds; linear is single-digit milliseconds.
+        assertThat(millis).isLessThan(2_000);
+    }
+
     @Test
     void recognisesLibraAndDeclinesOtherStatements() {
         assertThat(parser.supports(fixture())).isTrue();
