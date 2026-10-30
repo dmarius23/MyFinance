@@ -168,9 +168,14 @@ export function ReconcileWorkspace() {
   // parser fix, to rebuild a statement's transactions without re-uploading.
   const reextract = useMutation({
     mutationFn: () => documentsApi.reclassify(companyId, period),
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidate();
       void qc.invalidateQueries({ predicate: (query) => query.queryKey.includes(period) || query.queryKey.includes(companyId) });
+      // A document that could not be read is skipped rather than failing the whole sweep, so say so —
+      // otherwise re-extraction looks successful while some files were silently left untouched.
+      if (result.failed > 0) {
+        window.alert(t("recon.reextractPartial", { failed: result.failed, processed: result.processed }));
+      }
     },
     onError: onErr,
   });

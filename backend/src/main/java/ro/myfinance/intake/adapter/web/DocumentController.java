@@ -101,9 +101,14 @@ public class DocumentController {
         return DocumentResponse.from(service.movePeriod(companyId, id, r.period()));
     }
 
+    /**
+     * Re-run classification + extraction over the period's stored documents. Returns counts instead of
+     * failing the request when a document cannot be read: the sweep is a recovery action, so one missing
+     * blob or one rate-limited OCR call must not abort the rest of the month.
+     */
     @PostMapping("/reclassify")
-    public int reclassify(@PathVariable UUID companyId,
-                          @RequestParam("period") LocalDate period) {
+    public DocumentService.ReclassifyResult reclassify(@PathVariable UUID companyId,
+                                                       @RequestParam("period") LocalDate period) {
         return service.reclassify(companyId, period);
     }
 }
