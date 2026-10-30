@@ -16,6 +16,15 @@ export interface Document {
   driveBlockDetail: string | null;
 }
 
+export interface ReclassifyResult {
+  /** documents whose type changed */
+  changed: number;
+  /** documents re-published for extraction */
+  processed: number;
+  /** documents skipped because they could not be read (missing blob, OCR error) */
+  failed: number;
+}
+
 export const documentsApi = {
   list: (companyId: string, period?: string) =>
     api<Document[]>(
@@ -37,8 +46,9 @@ export const documentsApi = {
       method: "PATCH",
       body: JSON.stringify({ type }),
     }),
+  /** Counts, not a failure: a document that cannot be read is skipped and reported via `failed`. */
   reclassify: (companyId: string, period: string) =>
-    api<number>(`/api/v1/companies/${companyId}/documents/reclassify?period=${period}`, {
+    api<ReclassifyResult>(`/api/v1/companies/${companyId}/documents/reclassify?period=${period}`, {
       method: "POST",
     }),
   flags: (companyId: string, period: string, type: string) =>

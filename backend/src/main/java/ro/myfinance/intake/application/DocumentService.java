@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import ro.myfinance.intake.domain.DocumentType;
 @Service
 @Transactional
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     static final long MAX_SIZE_BYTES = 20L * 1024 * 1024;
     static final Set<String> ALLOWED_CONTENT_TYPES =
@@ -357,30 +361,53 @@ public class DocumentService {
      * Re-run the classifier on every document in the period and re-extract all of them. Reclassifies
      * where the type changed, but re-publishes for every document regardless so re-extraction picks up
      * the latest parser logic (e.g. newly-extracted supplier names) without needing a re-upload.
-     * Returns the number of documents whose type changed.
+     *
+     * <p>Each document is isolated. Two calls per document reach outside the database — storage fetches
+     * the blob, and {@code tryClassify} is a live OCR request — so one missing blob or one rate-limited
+     * OCR call used to abort the whole month with an opaque 500 that named nothing. Re-extraction is a
+     * recovery action; it has to make progress on the documents it can read, and report the ones it
+     * could not.
      */
-    public int reclassify(UUID companyId, LocalDate periodMonth) {
+    public ReclassifyResult reclassify(UUID companyId, LocalDate periodMonth) {
         int changed = 0;
+        int processed = 0;
+        int failed = 0;
         for (Document doc : list(companyId, periodMonth)) {
-            byte[] bytes = storage.retrieve(doc.getStorageKey());
-            // Cheap text classify first; only spend an OCR call when the document is still UNCLASSIFIED
-            // (an already-typed doc with unreadable text keeps its type — no need to re-OCR to classify).
-            DocumentType cheap = classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
-            DocumentType newType = cheap != DocumentType.UNCLASSIFIED ? cheap
-                    : doc.getType() != DocumentType.UNCLASSIFIED ? doc.getType()
-                    : ocr.tryClassify(doc.getContentType(), bytes).orElse(DocumentType.UNCLASSIFIED);
-            if (newType != doc.getType()) {
-                doc.setType(newType);
-                changed++;
+            try {
+                byte[] bytes = storage.retrieve(doc.getStorageKey());
+                // Cheap text classify first; only spend an OCR call when the document is still
+                // UNCLASSIFIED (an already-typed doc with unreadable text keeps its type).
+                DocumentType cheap =
+                        classifier.classify(doc.getOriginalFilename(), doc.getContentType(), bytes);
+                DocumentType newType = cheap != DocumentType.UNCLASSIFIED ? cheap
+                        : doc.getType() != DocumentType.UNCLASSIFIED ? doc.getType()
+                        : ocr.tryClassify(doc.getContentType(), bytes).orElse(DocumentType.UNCLASSIFIED);
+                if (newType != doc.getType()) {
+                    doc.setType(newType);
+                    changed++;
+                }
+                // Re-publish so re-extraction picks up newer parser/OCR logic. The listener is @Async +
+                // AFTER_COMMIT, so extraction failures surface there and never on this request.
+                events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId,
+                        doc.getPeriodMonth(), doc.getType(), doc.getOriginalFilename(), bytes));
+                processed++;
+            } catch (RuntimeException e) {
+                failed++;
+                // Filename and id only — never document content, which is client PII.
+                log.warn("Re-extraction skipped document {} ({}): {}", doc.getId(),
+                        doc.getOriginalFilename(), e.toString());
             }
-            // Re-publish every document so re-extraction picks up newer parser/OCR logic (e.g. vision
-            // field recovery for non-extractable PDFs). process() upserts by document, so a single run is
-            // idempotent.
-            events.publishEvent(new DocumentUploadedEvent(doc.getId(), companyId, doc.getPeriodMonth(),
-                    doc.getType(), doc.getOriginalFilename(), bytes));
         }
         audit.record("DOCUMENTS_RECLASSIFIED", "company", companyId);
-        return changed;
+        return new ReclassifyResult(changed, processed, failed);
+    }
+
+    /**
+     * Outcome of a re-extraction sweep. {@code failed} is reported rather than thrown so the caller can
+     * distinguish "nothing needed changing" from "some documents could not be read" — previously those
+     * looked identical, or the whole request 500'd.
+     */
+    public record ReclassifyResult(int changed, int processed, int failed) {
     }
 
     private Document require(UUID id) {
