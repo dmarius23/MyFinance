@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.settings.adapter.persistence.GeneralSettingsRepository;
 import ro.myfinance.settings.domain.GeneralSettings;
+import ro.myfinance.settings.domain.InvoicePeriodMode;
 
 /**
  * Tenant-level general settings. Since tax rates and treasury accounts moved to the global,
@@ -46,6 +47,26 @@ public class SettingsService {
         s.setAutoSyncEnabled(enabled);
         s.setAutoSyncHour(hour);
         return s;
+    }
+
+    public GeneralSettings updateInvoicePeriodMode(InvoicePeriodMode mode) {
+        GeneralSettings s = getSettings();
+        s.setInvoicePeriodMode(mode);
+        return s;
+    }
+
+    public InvoicePeriodMode invoicePeriodMode() {
+        return getSettings().getInvoicePeriodMode();
+    }
+
+    /** Resolves the reporting month for an invoice received by email. */
+    public java.time.LocalDate resolveEmailInvoicePeriod(java.time.LocalDate receivedPeriod,
+                                                         java.time.LocalDate invoiceDate) {
+        GeneralSettings s = getSettings();
+        if (s.getInvoicePeriodMode() == InvoicePeriodMode.PREVIOUS_MONTH) {
+            return receivedPeriod.withDayOfMonth(1).minusMonths(1);
+        }
+        return invoiceDate == null ? receivedPeriod.withDayOfMonth(1) : invoiceDate.withDayOfMonth(1);
     }
 
     /** The accounting firm's outbound From address (null if not configured yet). */

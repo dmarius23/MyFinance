@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "../lib/apiClient";
 import { settingsApi, type TreasuryAccount, type TreasuryIbans } from "../api/settings";
 
 /** Treasury IBAN columns, in the requested order: CAM, impozite, CASS, CAS, TVA. */
@@ -25,8 +26,42 @@ export function Settings() {
       <div className="card">
         <h1 style={{ marginTop: 0 }}>{t("nav.settings")}</h1>
       </div>
+      <InvoicePeriodSection />
       <RatesSection />
       <TreasurySection />
+    </div>
+  );
+}
+
+function InvoicePeriodSection() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: settingsApi.get });
+  const mode = settings.data?.invoicePeriodMode ?? "INVOICE_DATE";
+  const save = useMutation({
+    mutationFn: (value: typeof mode) => settingsApi.updateInvoicePeriodMode(value),
+    onSuccess: (updated) => qc.setQueryData(["settings"], updated),
+  });
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>{t("settings.invoicePeriodTitle")}</h2>
+      <p style={hint}>{t("settings.invoicePeriodHint")}</p>
+      {settings.isLoading ? <p>{t("common.loading")}</p> : (
+        <label style={{ display: "grid", gap: 6, maxWidth: 420 }}>
+          <span>{t("settings.invoicePeriodMode")}</span>
+          <select value={mode} disabled={save.isPending}
+            onChange={(e) => save.mutate(e.target.value as typeof mode)}>
+            <option value="INVOICE_DATE">{t("settings.invoicePeriodByDate")}</option>
+            <option value="PREVIOUS_MONTH">{t("settings.invoicePeriodPreviousMonth")}</option>
+          </select>
+          {save.isError && (
+            <span style={{ color: "#b91c1c", fontSize: 12.5 }}>
+              {save.error instanceof ApiError ? save.error.message : t("common.error")}
+            </span>
+          )}
+        </label>
+      )}
     </div>
   );
 }

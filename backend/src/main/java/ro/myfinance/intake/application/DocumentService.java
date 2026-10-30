@@ -19,6 +19,7 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
 import ro.myfinance.intake.domain.DocumentStatus;
 import ro.myfinance.intake.domain.DocumentType;
+import ro.myfinance.settings.application.SettingsService;
 
 /**
  * Document intake: classify, store, and manage uploaded documents. Tenant-scoped via RLS; type is
@@ -44,12 +45,14 @@ public class DocumentService {
     private final AuditRecorder audit;
     private final ApplicationEventPublisher events;
     private final ro.myfinance.tenant.application.TenantDirectory tenants;
+    private final SettingsService settings;
 
     public DocumentService(CompanyDirectory companies, DocumentRepository documents,
                            DocumentStorage storage, DocumentClassifier classifier,
                            DocumentReclassifier ocr, DocumentValidator validator, AuditRecorder audit,
                            ApplicationEventPublisher events,
-                           ro.myfinance.tenant.application.TenantDirectory tenants) {
+                           ro.myfinance.tenant.application.TenantDirectory tenants,
+                           SettingsService settings) {
         this.companies = companies;
         this.documents = documents;
         this.storage = storage;
@@ -59,6 +62,7 @@ public class DocumentService {
         this.audit = audit;
         this.tenants = tenants;
         this.events = events;
+        this.settings = settings;
     }
 
     /** Classify by text, then — if unclassified — try the OCR fallback for non-extractable PDFs. */
@@ -98,9 +102,9 @@ public class DocumentService {
         UUID tenantId = currentTenant();
         var company = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
-        LocalDate period = periodMonth.withDayOfMonth(1);
-        enforceDocumentQuota(companyId, period);
         DocumentType type = forcedType != null ? forcedType : classifyWithOcr(filename, contentType, bytes);
+        LocalDate period = resolveIngestionPeriod(company, periodMonth, type, bytes, source);
+        enforceDocumentQuota(companyId, period);
         String safeName = sanitize(filename);
         UUID id = UUID.randomUUID();
         String key = "%s/%s/%s/%s-%s".formatted(tenantId, companyId, period.format(MONTH), id, safeName);
@@ -116,13 +120,35 @@ public class DocumentService {
         // ingestion paths pass through, so the duplicate check has to run here for every source. It used to
         // be skipped for Drive, which made dedup one-directional — Drive-then-manual was caught, but
         // manual-or-email-then-Drive silently stored a second copy.
+        LocalDate validationPeriod = period;
+        if (source == DocumentSource.EMAIL_AGENT && type == DocumentType.INVOICE
+                && settings.invoicePeriodMode()
+                == ro.myfinance.settings.domain.InvoicePeriodMode.PREVIOUS_MONTH) {
+            validationPeriod = validator.contentPeriod(type, bytes, company).orElse(period);
+        }
         applyValidation(doc, source == DocumentSource.DRIVE
                 ? validator.duplicateOnly(company, bytes)
-                : validator.validate(company, period, type, filename, contentType, bytes, null));
+                : validator.validate(company, validationPeriod, type, filename, contentType, bytes, null));
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
         events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));
         return saved;
+    }
+
+    /**
+     * Email imports often arrive in the current month even though the invoice belongs to an earlier month.
+     * Manual and Drive uploads keep their explicitly resolved period because that is the filing location
+     * selected by the accountant or the Drive integration.
+     */
+    private LocalDate resolveIngestionPeriod(ro.myfinance.company.domain.Company company,
+                                             LocalDate requestedPeriod, DocumentType type,
+                                             byte[] bytes, DocumentSource source) {
+        LocalDate requested = requestedPeriod.withDayOfMonth(1);
+        if (type != DocumentType.INVOICE || source != DocumentSource.EMAIL_AGENT) {
+            return requested;
+        }
+        LocalDate invoiceDate = validator.contentPeriod(type, bytes, company).orElse(null);
+        return settings.resolveEmailInvoicePeriod(requested, invoiceDate);
     }
 
     /**

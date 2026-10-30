@@ -95,6 +95,10 @@ public class Invoice {
         this.status = status;
     }
 
+    public void setPeriodMonth(LocalDate periodMonth) {
+        this.periodMonth = periodMonth;
+    }
+
     /** Receipt-specific identifiers + the wrong-party verdict (null for invoices / undetermined). */
     public void updateReceiptFields(String issuerCif, String clientCif, String receiptNumber, Boolean wrongParty) {
         this.issuerCif = issuerCif;

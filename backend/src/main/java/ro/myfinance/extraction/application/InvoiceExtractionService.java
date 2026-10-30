@@ -10,6 +10,9 @@ import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.extraction.adapter.external.ReceiptProperties;
 import ro.myfinance.extraction.adapter.persistence.InvoiceRepository;
 import ro.myfinance.extraction.domain.Invoice;
+import ro.myfinance.intake.adapter.persistence.DocumentRepository;
+import ro.myfinance.intake.domain.DocumentSource;
+import ro.myfinance.settings.application.SettingsService;
 
 /** Extracts an uploaded invoice/receipt and triggers (re)matching for its company+period. */
 @Service
@@ -20,18 +23,23 @@ public class InvoiceExtractionService {
     private final ReceiptExtractor receipts;
     private final ReceiptProperties receiptProps;
     private final InvoiceRepository invoices;
+    private final DocumentRepository documents;
     private final ReconciliationService reconciliation;
     private final CompanyDirectory companies;
+    private final SettingsService settings;
 
     public InvoiceExtractionService(InvoiceExtractor extractor, ReceiptExtractor receipts,
                                     ReceiptProperties receiptProps, InvoiceRepository invoices,
-                                    ReconciliationService reconciliation, CompanyDirectory companies) {
+                                    DocumentRepository documents, ReconciliationService reconciliation,
+                                    CompanyDirectory companies, SettingsService settings) {
         this.extractor = extractor;
         this.receipts = receipts;
         this.receiptProps = receiptProps;
         this.invoices = invoices;
+        this.documents = documents;
         this.reconciliation = reconciliation;
         this.companies = companies;
+        this.settings = settings;
     }
 
     /** Extracted fields, from either the PDF parser or the receipt-image OCR/LLM. */
@@ -78,22 +86,45 @@ public class InvoiceExtractionService {
         } else {
             f = fromReceiptImage(bytes, filename, ownCui);
         }
+        LocalDate targetPeriod = alignImportedInvoicePeriod(documentId, period, f.date());
 
         // Upsert by document: re-scan updates the existing row in place (preserving its id and any
         // matches) rather than delete+insert, which would break match FKs and trip the unique
         // document_id (Hibernate orders the insert before the delete within a shared transaction).
         invoices.findByDocumentId(documentId).ifPresentOrElse(
                 existing -> {
+                    existing.setPeriodMonth(targetPeriod);
                     existing.updateExtraction(f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
                     existing.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                 },
                 () -> {
-                    Invoice inv = new Invoice(tenantId, documentId, companyId, period,
+                    Invoice inv = new Invoice(tenantId, documentId, companyId, targetPeriod,
                             f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
                     inv.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                     invoices.save(inv);
                 });
-        reconciliation.matchPeriod(companyId, period);
+        reconciliation.matchPeriod(companyId, targetPeriod);
+    }
+
+    /**
+     * The deterministic PDF pass normally assigns the correct period before storage. This second check is
+     * needed for email-imported scanned PDFs/images where the date is recovered only by OCR in this pipeline.
+     */
+    private LocalDate alignImportedInvoicePeriod(UUID documentId, LocalDate requestedPeriod, LocalDate invoiceDate) {
+        LocalDate requested = requestedPeriod.withDayOfMonth(1);
+        if (invoiceDate == null) {
+            return requested;
+        }
+        return documents.findById(documentId)
+                .filter(doc -> doc.getSource() == DocumentSource.EMAIL_AGENT)
+                .map(doc -> {
+                    LocalDate target = settings.resolveEmailInvoicePeriod(requested, invoiceDate);
+                    if (!target.equals(doc.getPeriodMonth())) {
+                        doc.setPeriodMonth(target);
+                    }
+                    return target;
+                })
+                .orElse(requested);
     }
 
     private Fields fromPdf(byte[] bytes, String ownName, String ownCui) {

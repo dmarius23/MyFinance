@@ -13,6 +13,7 @@ export interface GeneralSettings {
   autoSyncEnabled: boolean;
   /** Local hour (0–23, Europe/Bucharest) at which the automatic sync runs. */
   autoSyncHour: number;
+  invoicePeriodMode: "INVOICE_DATE" | "PREVIOUS_MONTH";
 }
 
 /** One treasury entry per fiscal residence, with a dedicated IBAN per tax category. Read-only. */
@@ -43,6 +44,11 @@ export const settingsApi = {
     api<GeneralSettings>("/api/v1/settings/auto-sync", {
       method: "PUT",
       body: JSON.stringify({ enabled, hour }),
+    }),
+  updateInvoicePeriodMode: (mode: GeneralSettings["invoicePeriodMode"]) =>
+    api<GeneralSettings>("/api/v1/settings/invoice-period-mode", {
+      method: "PUT",
+      body: JSON.stringify({ mode }),
     }),
   listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
 };
