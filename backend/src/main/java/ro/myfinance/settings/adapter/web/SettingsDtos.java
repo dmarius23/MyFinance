@@ -3,6 +3,7 @@ package ro.myfinance.settings.adapter.web;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
+import ro.myfinance.settings.domain.InvoicePeriodMode;
 
 public final class SettingsDtos {
 
@@ -15,7 +16,8 @@ public final class SettingsDtos {
      * {@code senderEmail} is per-tenant and editable.
      */
     public record SettingsResponse(BigDecimal vatRate, BigDecimal microRate, BigDecimal profitRate,
-                                   String senderEmail, boolean autoSyncEnabled, int autoSyncHour) {
+                                   String senderEmail, boolean autoSyncEnabled, int autoSyncHour,
+                                   InvoicePeriodMode invoicePeriodMode) {
     }
 
     public record UpdateSenderEmailRequest(String senderEmail) {
@@ -24,6 +26,9 @@ public final class SettingsDtos {
     /** Nightly auto-sync schedule: on/off + the local hour (0–23, Europe/Bucharest) it runs. */
     public record UpdateAutoSyncRequest(boolean enabled,
                                         @jakarta.validation.constraints.Min(0) @jakarta.validation.constraints.Max(23) int hour) {
+    }
+
+    public record UpdateInvoicePeriodModeRequest(InvoicePeriodMode mode) {
     }
 
     /** Read-only treasury row shown on the tenant Settings page (the account in force today). */

@@ -2,6 +2,8 @@ package ro.myfinance.settings.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -36,6 +38,10 @@ public class GeneralSettings {
     @Column(name = "auto_sync_hour", nullable = false)
     private int autoSyncHour = 2;
 
+    @Column(name = "invoice_period_mode", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private InvoicePeriodMode invoicePeriodMode = InvoicePeriodMode.INVOICE_DATE;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -54,5 +60,7 @@ public class GeneralSettings {
     public void setAutoSyncEnabled(boolean autoSyncEnabled) { this.autoSyncEnabled = autoSyncEnabled; }
     public int getAutoSyncHour() { return autoSyncHour; }
     public void setAutoSyncHour(int autoSyncHour) { this.autoSyncHour = autoSyncHour; }
+    public InvoicePeriodMode getInvoicePeriodMode() { return invoicePeriodMode; }
+    public void setInvoicePeriodMode(InvoicePeriodMode invoicePeriodMode) { this.invoicePeriodMode = invoicePeriodMode; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
