@@ -43,6 +43,48 @@ class RepresentativeServiceIT extends AbstractPostgresIT {
         return companies.create(name, cuiPrefix + UUID.randomUUID(), "SRL", "Cluj", "VAT_PAYER", "MONTHLY", null, null, null).getId();
     }
 
+    /**
+     * The status change made AFTER {@code save()} must actually reach the database. {@code AppUser} has a
+     * pre-assigned id and no {@code Persistable}, so Spring Data routes {@code save()} through
+     * {@code merge()} — mutating the original reference afterwards is a silent no-op unless the managed
+     * instance is the one being mutated. Asserted with raw SQL so the JPA identity map can't mask it.
+     */
+    @Test
+    void bulkImportedRepIsStoredAsPendingInvite() {
+        UUID companyId = asTenantWithCompany();
+
+        AppUser rep = representatives.inviteRepresentative(
+                companyId, "Rep One", "pending@client.ro", "0712345678", false);
+
+        assertThat(storedStatus(rep.getId())).isEqualTo("PENDING_INVITE");
+    }
+
+    @Test
+    void inAppInviteIsStoredAsInvitedOnceTheEmailWentOut() {
+        UUID companyId = asTenantWithCompany();
+
+        AppUser rep = representatives.inviteRepresentative(
+                companyId, "Rep Two", "sent@client.ro", "0712345678");
+
+        assertThat(storedStatus(rep.getId())).isEqualTo("INVITED");
+    }
+
+    @Test
+    void sendInvitePersistsThePromotionToInvited() {
+        UUID companyId = asTenantWithCompany();
+        AppUser rep = representatives.inviteRepresentative(
+                companyId, "Rep Three", "promote@client.ro", "0712345678", false);
+
+        representatives.sendInvite(companyId, rep.getId());
+
+        assertThat(storedStatus(rep.getId())).isEqualTo("INVITED");
+    }
+
+    /** Read the persisted status straight from SQL, bypassing the JPA first-level cache. */
+    private String storedStatus(UUID userId) {
+        return jdbc.queryForObject("select status from app_user where id = ?", String.class, userId);
+    }
+
     @Test
     void invitesARepresentativeAndLinksToCompany() {
         UUID companyId = asTenantWithCompany();

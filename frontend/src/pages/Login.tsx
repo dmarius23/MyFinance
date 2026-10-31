@@ -10,12 +10,14 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (signInError) {
@@ -24,6 +26,24 @@ export function Login() {
     }
     // Role-aware landing (reps → /portal, staff → /dashboard) is resolved at "/".
     navigate("/", { replace: true });
+  }
+
+  /**
+   * Self-service password reset. The link Supabase mails is a recovery link, so following it raises
+   * PASSWORD_RECOVERY and lands the user on the set-password screen. Always report success, even for an
+   * unknown address, so this can't be used to enumerate accounts.
+   */
+  async function onForgotPassword() {
+    setError(null);
+    setNotice(null);
+    if (!email.trim()) {
+      setError(t("auth.resetNeedsEmail"));
+      return;
+    }
+    setBusy(true);
+    await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+    setBusy(false);
+    setNotice(t("auth.resetSent"));
   }
 
   return (
@@ -51,6 +71,7 @@ export function Login() {
           />
         </label>
         {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+        {notice && <p style={{ color: "var(--text-secondary)", fontSize: 13 }}>{notice}</p>}
         <button className="primary" type="submit" disabled={busy} style={{ width: "100%" }}>
           {busy ? t("common.loading") : t("auth.login")}
         </button>
@@ -60,6 +81,17 @@ export function Login() {
           onClick={() => void supabase.auth.signInWithOAuth({ provider: "google" })}
         >
           Google
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onForgotPassword()}
+          style={{
+            width: "100%", marginTop: 8, background: "none", border: "none",
+            color: "var(--primary)", textDecoration: "underline", cursor: "pointer", fontSize: 13,
+          }}
+        >
+          {t("auth.forgotPassword")}
         </button>
       </form>
     </div>

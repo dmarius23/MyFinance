@@ -23,6 +23,9 @@ export function Team() {
   const setRole = useMutation({ mutationFn: (v: { id: string; role: StaffRole }) => usersApi.setRole(v.id, v.role), onSuccess: invalidate, onError: onErr });
   const deactivate = useMutation({ mutationFn: (id: string) => usersApi.deactivate(id), onSuccess: invalidate, onError: onErr });
   const activate = useMutation({ mutationFn: (id: string) => usersApi.activate(id), onSuccess: invalidate, onError: onErr });
+  // Re-send the "set your password" link: the way back in for a staff member whose link expired or who
+  // never set a password. No invalidate — nothing about the user row changes.
+  const sendInvite = useMutation({ mutationFn: (id: string) => usersApi.sendInvite(id), onSuccess: () => window.alert(t("team.inviteSent")), onError: onErr });
 
   const staff = (users.data ?? []).filter((u) => u.role === "TENANT_ADMIN" || u.role === "EMPLOYEE");
 
@@ -67,7 +70,12 @@ export function Team() {
                 <div style={{ textAlign: "center" }} className="mono">{l?.inProgress ?? 0}</div>
                 <div style={{ textAlign: "center", color: "var(--text-muted)" }} className="mono">{l?.done ?? 0}</div>
                 <div style={{ textAlign: "center" }}>{(l?.overdue ?? 0) > 0 ? <span className="pill round danger">{l!.overdue}</span> : <span className="mono" style={{ color: "var(--text-faint)" }}>0</span>}</div>
-                <div style={{ textAlign: "right" }}>
+                <div style={{ textAlign: "right", display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  {u.status !== "INACTIVE" && (
+                    <button onClick={() => sendInvite.mutate(u.id)} disabled={sendInvite.isPending} title={t("team.resendInviteHint")}>
+                      {t("team.resendInvite")}
+                    </button>
+                  )}
                   {u.status === "INACTIVE"
                     ? <button onClick={() => activate.mutate(u.id)} disabled={activate.isPending}>{t("team.activate")}</button>
                     : <button onClick={() => deactivate.mutate(u.id)} disabled={deactivate.isPending} style={{ color: "#dc2626" }}>{t("team.deactivate")}</button>}
@@ -122,7 +130,11 @@ function InviteForm({ onDone, onError }: { onDone: () => void; onError: (e: unkn
 }
 
 function StatusBadge({ status, t }: { status: User["status"]; t: (k: string) => string }) {
-  const cls = status === "ACTIVE" ? "ok" : status === "INVITED" ? "warn" : "muted";
+  // PENDING_INVITE needs the accountant to act (send the invite), so it gets the louder colour of the two
+  // not-yet-signed-in states; INVITED is just "waiting on them".
+  const cls = status === "ACTIVE" ? "ok"
+    : status === "PENDING_INVITE" ? "warn"
+    : status === "INVITED" ? "info" : "muted";
   return <span className={`pill round ${cls}`}>{t(`team.st.${status}`)}</span>;
 }
 

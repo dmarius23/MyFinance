@@ -115,7 +115,8 @@ public class CompanyImportService {
         String repPhone = normPhone(cell(r, col, "repphone"));
         try {
             // Bulk import: provision WITHOUT an invite email — the provider rate-limits invite emails,
-            // which would otherwise drop every representative after the first.
+            // which would otherwise drop every representative after the first. The rep lands in
+            // PENDING_INVITE so the accountant can see who still has to be sent one ("Send invite").
             representatives.inviteRepresentative(company.getId(), repName, repEmail, repPhone, false);
         } catch (RuntimeException e) {
             return new RowResult(line, name, status, base + "; representative — " + e.getMessage());

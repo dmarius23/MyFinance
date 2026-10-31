@@ -20,21 +20,23 @@ import ro.myfinance.access.application.UserInviter.InviteClaims;
 
 class SupabaseUserInviterTest {
 
+    /**
+     * Provisioning must hit admin create-user, NOT /auth/v1/invite: the provider's invite email carries a
+     * type=invite link, which signs the invitee in without ever asking for a password. email_confirm=true
+     * keeps the address confirmed without a round-trip, and the claims ride along in the create body.
+     */
     @Test
-    void invitesViaGoTrueAndSetsAppMetadata() {
+    void provisionsViaGoTrueAdminWithoutSendingAnEmail() {
         UUID newUserId = UUID.fromString("99999999-9999-9999-9999-999999999999");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-        server.expect(requestTo("https://proj.supabase.co/auth/v1/invite"))
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("Authorization", "Bearer test-service-key"))
                 .andExpect(header("apikey", "test-service-key"))
                 .andExpect(jsonPath("$.email").value("rep@client.ro"))
-                .andRespond(withSuccess("{\"id\":\"" + newUserId + "\"}", MediaType.APPLICATION_JSON));
-
-        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users/" + newUserId))
-                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.email_confirm").value(true))
                 .andExpect(jsonPath("$.app_metadata.role").value("REPRESENTATIVE"))
                 .andExpect(jsonPath("$.app_metadata.company_id").exists())
                 .andExpect(jsonPath("$.app_metadata.tenant_id").exists())
@@ -44,8 +46,28 @@ class SupabaseUserInviterTest {
                 "https://proj.supabase.co/auth/v1");
         var inviter = new SupabaseUserInviter(props, builder, "");
 
-        var result = inviter.invite("rep@client.ro",
+        var result = inviter.provision("rep@client.ro",
                 new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));
+
+        assertThat(result.externalUserId()).isEqualTo(newUserId);
+        server.verify();   // no /auth/v1/invite call was made
+    }
+
+    /** Staff carry no company_id claim — only representatives are scoped to a company. */
+    @Test
+    void provisionsStaffWithoutACompanyClaim() {
+        UUID newUserId = UUID.fromString("88888888-8888-8888-8888-888888888888");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.app_metadata.role").value("EMPLOYEE"))
+                .andExpect(jsonPath("$.app_metadata.company_id").doesNotExist())
+                .andRespond(withSuccess("{\"id\":\"" + newUserId + "\"}", MediaType.APPLICATION_JSON));
+
+        var result = inviter(builder).provision("contabil@firma.ro",
+                new InviteClaims(UUID.randomUUID(), Role.EMPLOYEE, null));
 
         assertThat(result.externalUserId()).isEqualTo(newUserId);
         server.verify();
@@ -57,8 +79,8 @@ class SupabaseUserInviterTest {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-        // 1) GoTrue rejects the invite: the email already belongs to an auth user.
-        server.expect(requestTo("https://proj.supabase.co/auth/v1/invite"))
+        // 1) GoTrue rejects the create: the email already belongs to an auth user.
+        server.expect(requestTo("https://proj.supabase.co/auth/v1/admin/users"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
                         .withStatus(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
@@ -78,7 +100,7 @@ class SupabaseUserInviterTest {
                 .andExpect(jsonPath("$.app_metadata.role").value("REPRESENTATIVE"))
                 .andRespond(withSuccess());
 
-        var result = inviter(builder).invite("rep@client.ro",
+        var result = inviter(builder).provision("rep@client.ro",
                 new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));
 
         assertThat(result.externalUserId()).isEqualTo(existingId);
