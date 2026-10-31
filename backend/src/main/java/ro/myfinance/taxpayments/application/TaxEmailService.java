@@ -61,7 +61,10 @@ public class TaxEmailService {
      */
     public EmailHistory send(UUID companyId, LocalDate period, List<UUID> declarationIds, String recipient, String body) {
         LocalDate month = period.withDayOfMonth(1);
-        String subject = subject(companyId, month);
+        Computation computed = payments.composeFor(companyId, declarationIds);
+        String subject = computed.subject() != null
+                ? computed.subject()
+                : "Sume de plată — " + ro.myfinance.common.i18n.RomanianMonths.monthYear(YearMonth.from(month));
         return dispatch.dispatch(EmailKind.TAX, companyId, period, recipient, subject, body, null, declarationIds,
                 () -> notifyTaxDue(companyId, month, declarationIds));
     }
@@ -79,8 +82,4 @@ public class TaxEmailService {
         }
     }
 
-    private String subject(UUID companyId, LocalDate month) {
-        YearMonth ym = YearMonth.from(month);
-        return "Sume de plată — " + PaymentCalculator.monthYear(ym).replace('-', ' ');
-    }
 }

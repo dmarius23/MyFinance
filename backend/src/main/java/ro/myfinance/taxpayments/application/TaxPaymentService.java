@@ -33,6 +33,9 @@ import ro.myfinance.taxpayments.domain.TaxPaymentSummary;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.DeclarationSummary;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.EmailView;
 import ro.myfinance.taxpayments.domain.TaxPaymentSummary.Unconfigured;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.MessageTemplateService;
+import ro.myfinance.common.messaging.RenderedMessage;
 
 /**
  * MOD-07 — computes the Tax &amp; Payments view from the stored declarations (and re-derives payment
@@ -53,12 +56,14 @@ public class TaxPaymentService {
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes;
+    private final MessageTemplateService templates;
 
     public TaxPaymentService(CompanyDirectory companies, DocumentService documents,
                              PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
                              EmailHistoryRepository emails, AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder,
-                             ro.myfinance.access.application.EmailEnvelopeService envelopes) {
+                             ro.myfinance.access.application.EmailEnvelopeService envelopes,
+                             MessageTemplateService templates) {
         this.companies = companies;
         this.documents = documents;
         this.treasury = treasury;
@@ -68,11 +73,12 @@ public class TaxPaymentService {
         this.calculator = calculator;
         this.emailBuilder = emailBuilder;
         this.envelopes = envelopes;
+        this.templates = templates;
     }
 
     /** The result of computing payment lines + email body over a set of declarations. */
     public record Computation(String beneficiary, List<PaymentLine> lines, List<Unconfigured> unconfigured,
-                              BigDecimal total, String body) {
+                              BigDecimal total, String body, String subject) {
     }
 
     /** The monthly list: one row per company with its uploaded declarations and last-email status. */
@@ -295,11 +301,16 @@ public class TaxPaymentService {
 
         String beneficiary = beneficiary(company.getLocality());
         YearMonth emailPeriod = period == null ? null : YearMonth.from(period);
-        String body = (beneficiary != null && !configured.isEmpty() && emailPeriod != null)
-                ? emailBuilder.build(company.getLegalName(), company.getCui(), emailPeriod, beneficiary,
-                        configured, envelopes.currentUserName(), envelopes.firmName())
-                : null;
-        return new Computation(beneficiary, configured, unconfigured, total, body);
+        String body = null;
+        String subject = null;
+        if (beneficiary != null && !configured.isEmpty() && emailPeriod != null) {
+            var values = emailBuilder.values(company.getLegalName(), company.getCui(), emailPeriod,
+                    beneficiary, configured, envelopes.currentUserName(), envelopes.firmName());
+            RenderedMessage msg = templates.render(MessageTemplateKind.TAX, values);
+            body = msg.body();
+            subject = msg.subject();
+        }
+        return new Computation(beneficiary, configured, unconfigured, total, body, subject);
     }
 
     private Company company(UUID companyId) {

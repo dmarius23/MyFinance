@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import ro.myfinance.common.messaging.DefaultMessageTemplates;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.TemplateRenderer;
 import ro.myfinance.payroll.application.PayrollEmailBuilder;
 
 /**
@@ -136,9 +139,11 @@ class CurrentMessageWordingTest {
                         "RO22TREZ2212345678901234", new java.math.BigDecimal("300"),
                         java.util.List.of(ro.myfinance.taxpayments.domain.TaxCategory.IMPOZIT),
                         "Impozite Aprilie-2026", null));
-        String body = new ro.myfinance.taxpayments.application.PaymentEmailBuilder().build(
+        var values = new ro.myfinance.taxpayments.application.PaymentEmailBuilder().values(
                 "Acme SRL", "RO123456", java.time.YearMonth.of(2026, 4), "Trezoreria Cluj Napoca",
                 lines, SENDER, FIRM);
+        String body = new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(), values);
         assertThat(body).isEqualTo(EXPECTED_TAX_BODY);
     }
 }

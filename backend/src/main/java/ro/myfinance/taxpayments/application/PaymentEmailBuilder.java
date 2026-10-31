@@ -3,57 +3,73 @@ package ro.myfinance.taxpayments.application;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 import ro.myfinance.taxpayments.domain.PaymentLine;
 import ro.myfinance.taxpayments.domain.TaxCategory;
 
 /**
- * Renders the Romanian state-payment email body from computed {@link PaymentLine}s — the plain-text
- * version of the accountant's template. Money figures are never invented: they come straight from the
- * itemized declaration obligations.
+ * Renders the two system-owned blocks for the state-payment email and assembles the variable map the
+ * template renderer consumes. Money figures are never invented: they come straight from the itemized
+ * declaration obligations. Formatting stays here, never in a template — a tenant may reposition the
+ * account list but must never be able to reformat an IBAN line or an amount.
  */
 @Component
 public class PaymentEmailBuilder {
 
     private static final DateTimeFormatter SCADENTA = DateTimeFormatter.ofPattern("d MMMM yyyy");
 
-    /**
-     * @param companyName legal name of the client company
-     * @param cui         the company's own CUI (it is the beneficiary in the treasury system)
-     * @param period      the reporting period
-     * @param treasury    beneficiary treasury office, e.g. "Trezoreria Cluj Napoca"
-     * @param lines       computed payment lines
-     * @param senderName  the logged-in accountant; omitted from the sign-off when blank
-     * @param firmName    the accounting firm (tenant) name — always the last line
-     */
-    public String build(String companyName, String cui, YearMonth period, String treasury,
-                        List<PaymentLine> lines, String senderName, String firmName) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Bună ziua,\n\n");
-        sb.append("Sumele de plată pentru luna ").append(monthYearSpace(period))
-                .append(" aferente firmei ").append(companyName).append(" sunt următoarele:\n\n");
-        for (PaymentLine l : lines) {
-            sb.append(shortLabel(l.categories())).append(": ").append(plain(l)).append('\n');
-        }
-        sb.append("Conturi:\n");
-        for (PaymentLine l : lines) {
-            sb.append('\n');
-            sb.append("- ").append(plain(l)).append(" lei in contul ").append(l.iban()).append('\n');
-            sb.append("- Beneficiar: ").append(treasury).append('\n');
-            sb.append("- CUI Beneficiar: ").append(cui).append('\n');
-            sb.append("- Explicație: ").append(l.explanation()).append('\n');
-            if (l.scadenta() != null) {
-                sb.append("- Scadență: ").append(formatRo(l.scadenta())).append('\n');
-            }
-        }
-        sb.append('\n').append(ro.myfinance.common.email.SignOff.block("O zi plăcută,", senderName, firmName))
-                .append('\n');
-        return sb.toString();
+    /** The summary list: one labelled amount per payment line. No trailing newline — it is one block. */
+    public String summaryBlock(List<PaymentLine> lines) {
+        return lines.stream()
+                .map(l -> shortLabel(l.categories()) + ": " + plain(l))
+                .collect(Collectors.joining("\n"));
     }
 
-    private static String plain(PaymentLine l) {
+    /**
+     * The per-IBAN detail list. Each group is preceded by a blank line, which is what separates the
+     * groups from each other and from the {@code Conturi:} heading above them.
+     */
+    public String accountsBlock(List<PaymentLine> lines, String treasury, String cui) {
+        List<String> out = new ArrayList<>();
+        for (PaymentLine l : lines) {
+            out.add("");
+            out.add("- " + plain(l) + " lei in contul " + l.iban());
+            out.add("- Beneficiar: " + treasury);
+            out.add("- CUI Beneficiar: " + cui);
+            out.add("- Explicație: " + l.explanation());
+            if (l.scadenta() != null) {
+                out.add("- Scadență: " + formatRo(l.scadenta()));
+            }
+        }
+        return String.join("\n", out);
+    }
+
+    /** Everything a {@code TAX} template may reference. Money stays formatted here, never in a template. */
+    public Map<String, String> values(String companyName, String cui, YearMonth period,
+                                      String treasury, List<PaymentLine> lines,
+                                      String senderName, String firmName) {
+        java.math.BigDecimal total = lines.stream()
+                .map(PaymentLine::amount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        Map<String, String> v = new HashMap<>();
+        v.put("companyName", companyName == null ? "" : companyName);
+        v.put("cui", cui == null ? "" : cui);
+        v.put("month", ro.myfinance.common.i18n.RomanianMonths.monthYear(period));
+        v.put("treasury", treasury == null ? "" : treasury);
+        v.put("totalToPay", total.stripTrailingZeros().toPlainString());
+        v.put("paymentSummary", summaryBlock(lines));
+        v.put("paymentAccounts", accountsBlock(lines, treasury, cui));
+        v.put("signOff", ro.myfinance.common.email.SignOff.names(senderName, firmName));
+        return v;
+    }
+
+    static String plain(PaymentLine l) {
         return l.amount().stripTrailingZeros().toPlainString();
     }
 
@@ -73,10 +89,6 @@ public class PaymentEmailBuilder {
 
     static String shortLabel(List<TaxCategory> categories) {
         return shortLabel(Set.copyOf(categories));
-    }
-
-    private static String monthYearSpace(YearMonth period) {
-        return PaymentCalculator.monthYear(period).replace('-', ' ');
     }
 
     private static String formatRo(LocalDate d) {

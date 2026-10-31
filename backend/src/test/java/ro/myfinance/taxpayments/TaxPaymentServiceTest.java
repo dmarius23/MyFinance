@@ -28,6 +28,11 @@ import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.MessageTemplateRepository;
+import ro.myfinance.common.messaging.MessageTemplateService;
+import ro.myfinance.common.messaging.RenderedMessage;
+import ro.myfinance.common.messaging.TemplateRenderer;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
@@ -56,9 +61,16 @@ class TaxPaymentServiceTest {
 
     @Mock ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
+    private MessageTemplateService templateService() {
+        MessageTemplateRepository repo = mock(MessageTemplateRepository.class);
+        when(repo.findByTenantIdAndKind(any(), any(MessageTemplateKind.class))).thenReturn(java.util.Optional.empty());
+        return new MessageTemplateService(repo, new TemplateRenderer());
+    }
+
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
-                new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder(), envelopes);
+                new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder(),
+                envelopes, templateService());
     }
 
     private byte[] fixture(String name) throws IOException {
