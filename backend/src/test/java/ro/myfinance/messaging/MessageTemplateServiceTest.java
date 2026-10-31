@@ -1,7 +1,6 @@
 package ro.myfinance.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,6 +72,17 @@ class MessageTemplateServiceTest {
                 .isEqualTo("Raport financiar — Aprilie 2026");
     }
 
+    /** A blank (whitespace-only) subject also falls back to the built-in default. */
+    @Test
+    void blankSubjectOnTheRowFallsBackToTheDefaultSubject() {
+        MessageTemplate row = new MessageTemplate(TENANT, MessageTemplateKind.REPORT);
+        row.setSubject("   ");
+        row.setBody("Raport {{month}}");
+        when(repo.findByTenantIdAndKind(TENANT, MessageTemplateKind.REPORT)).thenReturn(Optional.of(row));
+        assertThat(service.render(MessageTemplateKind.REPORT, Map.of("month", "Aprilie 2026")).subject())
+                .isEqualTo("Raport financiar — Aprilie 2026");
+    }
+
     @Test
     void effectiveReportsWhetherTheKindIsCustomized() {
         when(repo.findByTenantIdAndKind(TENANT, MessageTemplateKind.TAX)).thenReturn(Optional.empty());
@@ -92,6 +102,41 @@ class MessageTemplateServiceTest {
         assertThat(service.effectiveAll())
                 .hasSize(MessageTemplateKind.values().length)
                 .allSatisfy(e -> assertThat(e.customized()).isFalse());
+    }
+
+    /** effectiveAll() merges customized rows over defaults: one with a row is customized, others default. */
+    @Test
+    void effectiveAllMergesCustomizedRowsWithDefaults() {
+        MessageTemplate customPayroll = new MessageTemplate(TENANT, MessageTemplateKind.PAYROLL);
+        customPayroll.setSubject("Salarii firma");
+        customPayroll.setBody("Salarii pentru luna curenta");
+        when(repo.findByTenantId(TENANT)).thenReturn(List.of(customPayroll));
+
+        List<MessageTemplateService.Effective> all = service.effectiveAll();
+
+        assertThat(all).hasSize(MessageTemplateKind.values().length);
+
+        // PAYROLL should be customized with the row's values
+        var payrollEff = all.stream()
+                .filter(e -> e.kind() == MessageTemplateKind.PAYROLL)
+                .findFirst()
+                .orElseThrow();
+        assertThat(payrollEff.customized()).isTrue();
+        assertThat(payrollEff.subject()).isEqualTo("Salarii firma");
+        assertThat(payrollEff.body()).isEqualTo("Salarii pentru luna curenta");
+
+        // TAX should NOT be customized, so its body should contain the built-in default text
+        var taxEff = all.stream()
+                .filter(e -> e.kind() == MessageTemplateKind.TAX)
+                .findFirst()
+                .orElseThrow();
+        assertThat(taxEff.customized()).isFalse();
+        assertThat(taxEff.body()).contains("Sumele de plată"); // part of the built-in TAX default, not PAYROLL
+
+        // All other non-PAYROLL entries must be customized=false
+        all.stream()
+                .filter(e -> e.kind() != MessageTemplateKind.PAYROLL)
+                .forEach(e -> assertThat(e.customized()).isFalse());
     }
 
     @Test
