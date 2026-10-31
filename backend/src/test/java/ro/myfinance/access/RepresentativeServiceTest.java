@@ -1,5 +1,6 @@
 package ro.myfinance.access;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,7 @@ import ro.myfinance.access.application.EmailEnvelopeService;
 import ro.myfinance.access.application.RepresentativeService;
 import ro.myfinance.access.application.UserInviter;
 import ro.myfinance.access.domain.AppUser;
+import ro.myfinance.access.domain.UserStatus;
 import ro.myfinance.common.audit.AuditRecorder;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
@@ -85,8 +87,7 @@ class RepresentativeServiceTest {
 
         service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678"); // in-app add → sendEmail=true
 
-        verify(inviter).provision(any(), any());
-        verify(inviter, never()).invite(any(), any()); // no identity-provider email
+        verify(inviter).provision(any(), any()); // provision sends no identity-provider email
         var captor = org.mockito.ArgumentCaptor.forClass(ro.myfinance.common.email.EmailSender.Message.class);
         verify(emailSender).send(captor.capture());
         org.assertj.core.api.Assertions.assertThat(captor.getValue().body())
@@ -104,6 +105,8 @@ class RepresentativeServiceTest {
 
         org.assertj.core.api.Assertions.assertThat(rep.getId()).isEqualTo(externalId);
         verify(authCleanup, never()).scheduleDelete(any()); // email failure must not compensate the rep
+        // Nothing reached the rep, so they belong in the "still needs an invite" bucket, not INVITED.
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.PENDING_INVITE);
     }
 
     @Test
@@ -119,9 +122,80 @@ class RepresentativeServiceTest {
         verify(authCleanup).scheduleDelete(externalId);
     }
 
+    @Test
+    void bulkImportedRepIsPendingInviteBecauseNoEmailWasSent() {
+        when(users.saveAndFlush(any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
+
+        // CSV import defers the email (provider rate limit) — the status must say so, not claim "invited".
+        AppUser rep = service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678", false);
+
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.PENDING_INVITE);
+        verify(emailSender, never()).send(any());
+    }
+
+    @Test
+    void repAddedInAppIsInvitedBecauseTheEmailWentOut() {
+        when(users.saveAndFlush(any(AppUser.class))).thenAnswer(i -> i.getArgument(0));
+        when(inviter.generateSetPasswordLink("rep@client.ro")).thenReturn("https://app.example/set#token");
+        when(envelope.system("rep@client.ro"))
+                .thenReturn(new EmailEnvelopeService.Envelope("MyFinance", "noreply@firma.ro", "rep@client.ro"));
+
+        AppUser rep = service.inviteRepresentative(companyId, "Rep One", "rep@client.ro", "0712345678");
+
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.INVITED);
+    }
+
+    @Test
+    void sendInvitePromotesAPendingInviteRepToInvited() {
+        AppUser rep = assignedRep("rep@client.ro", UserStatus.PENDING_INVITE);
+        stubBrandedInvite();
+
+        service.sendInvite(companyId, externalId);
+
+        // The deferred invite has now actually been delivered, so the status must stop saying "pending".
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.INVITED);
+    }
+
+    @Test
+    void sendInviteLeavesAnAlreadyActiveRepActive() {
+        AppUser rep = assignedRep("rep@client.ro", UserStatus.ACTIVE);
+        stubBrandedInvite();
+
+        service.sendInvite(companyId, externalId);
+
+        // Re-sending a set-password link must never knock a rep who already signed in back to INVITED.
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void sendInviteKeepsThePendingStatusWhenDeliveryFails() {
+        AppUser rep = assignedRep("rep@client.ro", UserStatus.PENDING_INVITE);
+        when(inviter.generateSetPasswordLink("rep@client.ro")).thenThrow(new IllegalStateException("SMTP down"));
+
+        assertThatThrownBy(() -> service.sendInvite(companyId, externalId))
+                .isInstanceOf(RuntimeException.class);
+
+        // Nothing was delivered — the rep must stay in the "needs an invite" bucket.
+        assertThat(rep.getStatus()).isEqualTo(UserStatus.PENDING_INVITE);
+    }
+
+    /** Stub the collaborators {@code sendBrandedInvite} needs for a successful delivery. */
+    private void stubBrandedInvite() {
+        when(tenants.current()).thenReturn(Optional.of(
+                new ro.myfinance.tenant.application.TenantDirectory.CurrentTenant("Contabil Expert SRL", "RO1")));
+        when(inviter.generateSetPasswordLink("rep@client.ro")).thenReturn("https://app.example/set#token");
+        when(envelope.system("rep@client.ro"))
+                .thenReturn(new EmailEnvelopeService.Envelope("MyFinance", "noreply@firma.ro", "rep@client.ro"));
+    }
+
     /** A representative assigned to the company, resolvable by requireRepOfCompany. */
     private AppUser assignedRep(String email) {
+        return assignedRep(email, UserStatus.ACTIVE);
+    }
+
+    private AppUser assignedRep(String email, UserStatus status) {
         AppUser rep = new AppUser(externalId, tenant, email, "Rep One", Role.REPRESENTATIVE);
+        rep.setStatus(status);
         when(links.existsByUserIdAndCompanyId(externalId, companyId)).thenReturn(true);
         when(users.findById(externalId)).thenReturn(Optional.of(rep));
         return rep;

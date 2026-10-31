@@ -15,14 +15,6 @@ public class LoggingUserInviter implements UserInviter {
     private static final Logger log = LoggerFactory.getLogger(LoggingUserInviter.class);
 
     @Override
-    public InvitedUser invite(String email, InviteClaims claims) {
-        UUID id = UUID.randomUUID();
-        log.info("[DEV INVITE] would invite {} as {} (tenant {}, company {}) -> {}",
-                email, claims.role(), claims.tenantId(), claims.companyId(), id);
-        return new InvitedUser(id, true);
-    }
-
-    @Override
     public InvitedUser provision(String email, InviteClaims claims) {
         UUID id = UUID.randomUUID();
         log.info("[DEV INVITE] would provision (no email) {} as {} (tenant {}, company {}) -> {}",

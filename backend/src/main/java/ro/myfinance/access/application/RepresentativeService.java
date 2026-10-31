@@ -99,8 +99,13 @@ public class RepresentativeService {
         try {
             rep = new AppUser(invited.externalUserId(), tenantId, email, name, Role.REPRESENTATIVE);
             rep.setPhone(phone);
-            rep.setStatus(UserStatus.INVITED);
-            users.saveAndFlush(rep);
+            // Start as PENDING_INVITE and promote to INVITED only once an email has actually gone out, so
+            // the status never claims we contacted a rep we didn't.
+            rep.setStatus(UserStatus.PENDING_INVITE);
+            // Keep the MANAGED instance: AppUser has a pre-assigned id and no Persistable, so Spring Data
+            // routes save() through merge(), which returns a copy and leaves `rep` detached. Mutating the
+            // detached original (the promotion to INVITED below) would silently never reach the database.
+            rep = users.saveAndFlush(rep);
             links.saveAndFlush(new RepresentativeLink(tenantId, rep.getId(), companyId));
             audit.record("REPRESENTATIVE_INVITED", "company", companyId);
         } catch (RuntimeException e) {
@@ -118,10 +123,12 @@ public class RepresentativeService {
 
         // Reps added in-app get the branded invitation immediately; bulk CSV import (sendEmail=false)
         // defers it (the accountant sends it later via "Send invite"). Best-effort: a delivery problem
-        // must not undo the representative we just created — it's recoverable with the manual re-send.
+        // must not undo the representative we just created — it's recoverable with the manual re-send,
+        // and the rep stays PENDING_INVITE so they still show up as needing one.
         if (sendEmail) {
             try {
                 sendBrandedInvite(companyId, rep.getEmail(), rep.getName());
+                rep.setStatus(UserStatus.INVITED);
             } catch (RuntimeException mailEx) {
                 log.warn("Representative {} created but the invitation email failed to send: {}",
                         rep.getId(), mailEx.getMessage());
@@ -171,6 +178,11 @@ public class RepresentativeService {
     public void sendInvite(UUID companyId, UUID userId) {
         AppUser rep = requireRepOfCompany(companyId, userId);
         sendBrandedInvite(companyId, rep.getEmail(), rep.getName());
+        // The deferred invite has now been delivered, so clear the "pending" marker. Only PENDING_INVITE is
+        // promoted — re-sending a link to someone who already signed in must not knock them back to INVITED.
+        if (rep.getStatus() == UserStatus.PENDING_INVITE) {
+            rep.setStatus(UserStatus.INVITED);
+        }
         audit.record("REPRESENTATIVE_INVITE_SENT", "company", companyId);
     }
 
