@@ -66,6 +66,11 @@ public class ReportEmailService {
     @Transactional(readOnly = true)
     public RenderedMessage message(UUID companyId, LocalDate period) {
         ReportData r = reports.report(companyId, period);
+        return message(period, r);
+    }
+
+    /** Same, when the caller already holds the report data — avoids re-running the aggregation. */
+    public RenderedMessage message(LocalDate period, ReportData r) {
         return templates.render(MessageTemplateKind.REPORT, ReportEmailBuilder.values(
                 period.withDayOfMonth(1), r, envelopes.currentUserName(), envelopes.firmName()));
     }
@@ -88,7 +93,7 @@ public class ReportEmailService {
                         "image/png", ReportChartImage.png(r)));
 
         EmailHistory row = dispatch.dispatch(EmailKind.REPORT, companyId, period, recipient,
-                message(companyId, period).subject(), body, attachments, null,
+                message(month, r).subject(), body, attachments, null,
                 () -> notifications.notifyCompanyReps(companyId, "REPORT_READY", "Raport disponibil",
                         "Raportul financiar pe luna " + ReportEmailBuilder.monthYear(month) + " este disponibil."));
         return ReportEmailView.from(row);

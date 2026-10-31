@@ -17,6 +17,7 @@ class ReportTemplateWiringTest {
         assertThat(values.get("month")).isEqualTo("Aprilie 2026");
         assertThat(values.get("revenue")).isEqualTo("100 000.00");
         assertThat(values.get("expenses")).isEqualTo("61 000.00");
+        assertThat(values.get("grossProfit")).isEqualTo("40 000.00");
         assertThat(values.get("netProfit")).isEqualTo("39 000.00");
         assertThat(values.get("companyName")).isEqualTo("Acme SRL");
     }
