@@ -40,8 +40,8 @@ public class PaymentEmailBuilder {
         for (PaymentLine l : lines) {
             out.add("");
             out.add("- " + plain(l) + " lei in contul " + l.iban());
-            out.add("- Beneficiar: " + (treasury == null ? "" : treasury));
-            out.add("- CUI Beneficiar: " + (cui == null ? "" : cui));
+            out.add("- Beneficiar: " + orEmpty(treasury));
+            out.add("- CUI Beneficiar: " + orEmpty(cui));
             out.add("- Explicație: " + l.explanation());
             if (l.scadenta() != null) {
                 out.add("- Scadență: " + formatRo(l.scadenta()));
@@ -58,10 +58,10 @@ public class PaymentEmailBuilder {
                 .map(PaymentLine::amount)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
         Map<String, String> v = new HashMap<>();
-        v.put("companyName", companyName == null ? "" : companyName);
-        v.put("cui", cui == null ? "" : cui);
+        v.put("companyName", orEmpty(companyName));
+        v.put("cui", orEmpty(cui));
         v.put("month", ro.myfinance.common.i18n.RomanianMonths.monthYear(period));
-        v.put("treasury", treasury == null ? "" : treasury);
+        v.put("treasury", orEmpty(treasury));
         v.put("totalToPay", total.stripTrailingZeros().toPlainString());
         v.put("paymentSummary", summaryBlock(lines));
         v.put("paymentAccounts", accountsBlock(lines, treasury, cui));
@@ -93,5 +93,10 @@ public class PaymentEmailBuilder {
 
     private static String formatRo(LocalDate d) {
         return d.format(SCADENTA.withLocale(java.util.Locale.forLanguageTag("ro")));
+    }
+
+    /** Null or blank renders as empty — never the literal "null", never stray whitespace, in a client's email. */
+    private static String orEmpty(String value) {
+        return value == null || value.isBlank() ? "" : value;
     }
 }

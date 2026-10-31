@@ -66,4 +66,21 @@ class TaxTemplateWiringTest {
         assertThat(out).contains("- CUI Beneficiar: ");
         assertThat(out).doesNotContain("null");
     }
+
+    @Test
+    void accountsBlockBlankGuardsPreventTrailingWhitespaceInBeneficiaryAndCuiLines() {
+        String out = builder.accountsBlock(List.of(TVA), "   ", "\t\n");
+        assertThat(out).contains("- Beneficiar: \n");
+        assertThat(out).contains("- CUI Beneficiar: \n");
+        assertThat(out).doesNotContain("   ");
+    }
+
+    @Test
+    void valuesRendersBlankInputsAsEmpty() {
+        var values = builder.values("   ", "  \t  ", YearMonth.of(2026, 4),
+                "\n", List.of(TVA), "Maria Popescu", "ContaZone SRL");
+        assertThat(values.get("companyName")).isEmpty();
+        assertThat(values.get("cui")).isEmpty();
+        assertThat(values.get("treasury")).isEmpty();
+    }
 }
