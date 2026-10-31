@@ -33,6 +33,21 @@ public final class SignOff {
         return sb.toString();
     }
 
+    /**
+     * The {@code {{signOff}}} block: sender then firm, one per line, blanks dropped. Returns {@code ""}
+     * when neither is known, so {@link ro.myfinance.common.messaging.TemplateRenderer} elides the line
+     * instead of leaving a trailing newline under the closing.
+     *
+     * <p>The closing line ("O zi bună,") is deliberately NOT included: it is prose the tenant owns in
+     * their template. {@link #block(String, String, String)} remains for the hardcoded invite email.
+     */
+    public static String names(String senderName, String firmName) {
+        StringBuilder sb = new StringBuilder();
+        appendLine(sb, senderName);
+        appendLine(sb, firmName);
+        return sb.isEmpty() ? "" : sb.substring(1); // drop the leading '\n' appendLine adds
+    }
+
     private static void appendLine(StringBuilder sb, String value) {
         if (value != null && !value.isBlank()) {
             sb.append('\n').append(value.trim());
