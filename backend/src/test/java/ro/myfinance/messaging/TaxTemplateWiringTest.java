@@ -58,4 +58,12 @@ class TaxTemplateWiringTest {
         assertThat(values.get("totalToPay")).isEqualTo("1250");
         assertThat(values.get("signOff")).isEqualTo("Maria Popescu\nContaZone SRL");
     }
+
+    @Test
+    void accountsBlockNullGuardsPreventLiteralNullInBeneficiaryAndCuiLines() {
+        String out = builder.accountsBlock(List.of(TVA), null, null);
+        assertThat(out).contains("- Beneficiar: ");
+        assertThat(out).contains("- CUI Beneficiar: ");
+        assertThat(out).doesNotContain("null");
+    }
 }

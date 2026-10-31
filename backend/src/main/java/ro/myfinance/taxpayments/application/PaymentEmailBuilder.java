@@ -40,8 +40,8 @@ public class PaymentEmailBuilder {
         for (PaymentLine l : lines) {
             out.add("");
             out.add("- " + plain(l) + " lei in contul " + l.iban());
-            out.add("- Beneficiar: " + treasury);
-            out.add("- CUI Beneficiar: " + cui);
+            out.add("- Beneficiar: " + (treasury == null ? "" : treasury));
+            out.add("- CUI Beneficiar: " + (cui == null ? "" : cui));
             out.add("- Explicație: " + l.explanation());
             if (l.scadenta() != null) {
                 out.add("- Scadență: " + formatRo(l.scadenta()));

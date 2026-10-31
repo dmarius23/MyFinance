@@ -51,7 +51,7 @@ class TaxEmailServiceTest {
         assertThat(result).isSameAs(row);
         ArgumentCaptor<List<UUID>> related = ArgumentCaptor.forClass(List.class);
         verify(dispatch).dispatch(eq(EmailKind.TAX), eq(companyId), eq(LocalDate.of(2026, 3, 10)),
-                eq("client@example.com"), any(String.class), eq("body"), isNull(), related.capture(), any());
+                eq("client@example.com"), eq("Sume de plată — Martie 2026"), eq("body"), isNull(), related.capture(), any());
         assertThat(related.getValue()).isEqualTo(declIds);
     }
 }
