@@ -32,7 +32,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class TemplateRenderer {
 
-    private static final Pattern TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z][A-Za-z0-9_]*)\\s*}}");
+    private static final Pattern TOKEN = Pattern.compile("\\{\\{\\s*([A-Za-z][A-Za-z0-9_]*)\\s*\\}\\}");
 
     public String render(String template, Map<String, String> values) {
         if (template == null) {

@@ -104,4 +104,15 @@ class TemplateRendererTest {
         assertThat(out).isEqualTo("Bună ziua,\n\nTrimiteți documentele pentru Aprilie 2026.");
         assertThat(out).doesNotContain("15.04.2026");
     }
+
+    /**
+     * Elision is gated on EVERY placeholder being empty. One placeholder with a value keeps the line,
+     * even when its literal text is blank and its other placeholder renders empty.
+     */
+    @Test
+    void keepsALineWhenOnlyOneOfTwoPlaceholdersIsEmpty() {
+        String out = renderer.render("{{senderName}} {{firmName}}",
+                Map.of("senderName", "Maria Popescu", "firmName", ""));
+        assertThat(out).isEqualTo("Maria Popescu ");
+    }
 }
