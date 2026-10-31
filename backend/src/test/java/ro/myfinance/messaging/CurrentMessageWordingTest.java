@@ -55,7 +55,7 @@ class CurrentMessageWordingTest {
 
     // --- report ---
 
-    private static ro.myfinance.reports.domain.ReportData reportData() {
+    static ro.myfinance.reports.domain.ReportData reportData() {
         var pl = new ro.myfinance.reports.domain.ReportData.ProfitLoss(
                 new java.math.BigDecimal("100000"), java.util.List.of(),
                 new java.math.BigDecimal("60000"), java.util.List.of(),
@@ -90,14 +90,19 @@ class CurrentMessageWordingTest {
 
     @Test
     void reportBodyIsUnchanged() {
-        assertThat(ro.myfinance.reports.application.ReportEmailBuilder
-                .body(APRIL, reportData(), SENDER, FIRM))
+        var values = ro.myfinance.reports.application.ReportEmailBuilder
+                .values(APRIL, reportData(), SENDER, FIRM);
+        assertThat(new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.REPORT).body(), values))
                 .isEqualTo(EXPECTED_REPORT_BODY);
     }
 
     @Test
     void reportSubjectIsUnchanged() {
-        assertThat(ro.myfinance.reports.application.ReportEmailBuilder.subject(APRIL))
+        var values = ro.myfinance.reports.application.ReportEmailBuilder
+                .values(APRIL, reportData(), SENDER, FIRM);
+        assertThat(new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.REPORT).subject(), values))
                 .isEqualTo("Raport financiar — Aprilie 2026");
     }
 
