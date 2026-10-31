@@ -13,6 +13,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,11 +23,6 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import ro.myfinance.company.application.CompanyDirectory;
 import ro.myfinance.company.domain.Company;
-import ro.myfinance.intake.application.DocumentService;
-import ro.myfinance.intake.domain.Document;
-import ro.myfinance.settings.application.PlatformTreasuryService;
-import ro.myfinance.settings.domain.PlatformTreasuryAccount;
-import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.messaging.MessageTemplateKind;
@@ -33,6 +30,13 @@ import ro.myfinance.common.messaging.MessageTemplateRepository;
 import ro.myfinance.common.messaging.MessageTemplateService;
 import ro.myfinance.common.messaging.RenderedMessage;
 import ro.myfinance.common.messaging.TemplateRenderer;
+import ro.myfinance.common.security.Role;
+import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.intake.application.DocumentService;
+import ro.myfinance.intake.domain.Document;
+import ro.myfinance.settings.application.PlatformTreasuryService;
+import ro.myfinance.settings.domain.PlatformTreasuryAccount;
+import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
@@ -60,6 +64,18 @@ class TaxPaymentServiceTest {
     @Mock EmailHistoryRepository emails;
 
     @Mock ro.myfinance.access.application.EmailEnvelopeService envelopes;
+
+    @BeforeEach
+    void bindTenant() {
+        TenantContext.set(new TenantContext.Identity(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                UUID.randomUUID(), Role.TENANT_ADMIN, null));
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
+    }
 
     private MessageTemplateService templateService() {
         MessageTemplateRepository repo = mock(MessageTemplateRepository.class);
