@@ -12,7 +12,7 @@ export interface Me {
   whatsappConfigured: boolean;
   /** The tenant's WhatsApp mode. CLICK_TO_CHAT opens a wa.me deep link (manual send) instead of the
    *  compose modal + backend send used by TWILIO. */
-  whatsappMode: "OFF" | "TWILIO" | "CLICK_TO_CHAT";
+  whatsappMode: "OFF" | "TWILIO" | "META_CLOUD_API" | "CLICK_TO_CHAT";
 }
 
 export const meApi = {

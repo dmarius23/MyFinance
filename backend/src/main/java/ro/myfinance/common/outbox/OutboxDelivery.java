@@ -55,7 +55,9 @@ public class OutboxDelivery {
             handler.handle(msg);
             msg.markSent(Instant.now());
         } catch (RuntimeException e) {
-            msg.recordFailure(e.getMessage(), backoff(msg.getAttempts()), MAX_ATTEMPTS);
+            boolean retryable = handler.isRetryable(e);
+            msg.recordFailure(e.getMessage(), backoff(msg.getAttempts()),
+                    retryable ? MAX_ATTEMPTS : msg.getAttempts() + 1);
             log.warn("Outbox delivery failed (type={} message={} attempt={}/{})",
                     msg.getType(), id, msg.getAttempts(), MAX_ATTEMPTS, e);
             if (msg.getStatus() == OutboxMessage.Status.DLQ) {

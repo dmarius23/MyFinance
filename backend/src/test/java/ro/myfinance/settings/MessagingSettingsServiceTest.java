@@ -23,6 +23,7 @@ import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.MisconfiguredException;
+import ro.myfinance.common.whatsapp.TenantWhatsAppProvider;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProviderRepository;
 import ro.myfinance.settings.application.MessagingSettingsService;
 
@@ -99,5 +100,26 @@ class MessagingSettingsServiceTest {
         assertThatThrownBy(() -> service("").sendTestEmail("someone@example.ro"))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Configure and enable an email provider");
+    }
+
+    @Test
+    void whatsappConfigurationTestRejectsMissingProvider() {
+        when(whatsappRepo.findById(TENANT)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service("").validateWhatsAppConfiguration())
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("API WhatsApp provider");
+    }
+
+    @Test
+    void whatsappConfigurationTestAcceptsCompleteTwilioProvider() {
+        TenantWhatsAppProvider provider = new TenantWhatsAppProvider(TENANT);
+        provider.setMode(TenantWhatsAppProvider.Mode.TWILIO);
+        provider.setAccountSid("AC123");
+        provider.setAuthTokenEnc("encrypted-token");
+        provider.setFromNumber("+14155238886");
+        when(whatsappRepo.findById(TENANT)).thenReturn(Optional.of(provider));
+
+        service("").validateWhatsAppConfiguration();
     }
 }

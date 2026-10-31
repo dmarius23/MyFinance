@@ -14,6 +14,8 @@ import ro.myfinance.common.email.EmailHistory;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailStatus;
+import ro.myfinance.common.whatsapp.WhatsAppMessage;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 
 /**
  * Compose, send and record missing-document reminder emails for the bank-statements &amp; invoices hub.
@@ -32,14 +34,17 @@ public class DocumentReminderService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM");
 
     private final EmailHistoryRepository history;
+    private final WhatsAppMessageRepository whatsappMessages;
     private final EmailDispatchService dispatch;
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ReconciliationService reconciliation;
 
-    public DocumentReminderService(EmailHistoryRepository history, EmailDispatchService dispatch,
+    public DocumentReminderService(EmailHistoryRepository history, WhatsAppMessageRepository whatsappMessages,
+                                   EmailDispatchService dispatch,
                                    ro.myfinance.notifications.application.NotificationService notifications,
                                    ReconciliationService reconciliation) {
         this.history = history;
+        this.whatsappMessages = whatsappMessages;
         this.dispatch = dispatch;
         this.notifications = notifications;
         this.reconciliation = reconciliation;
@@ -71,9 +76,9 @@ public class DocumentReminderService {
         LocalDate month = period.withDayOfMonth(1);
         java.util.Map<UUID, java.util.List<EmailHistory>> email = groupByCompany(
                 history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.DOCUMENT_REMINDER, month));
-        java.util.Map<UUID, java.util.List<EmailHistory>> whatsapp = groupByCompany(
-                history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
-                        ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.DOCUMENT_REMINDER, month));
+        java.util.Map<UUID, java.util.List<WhatsAppMessage>> whatsapp = groupWhatsAppByCompany(
+                whatsappMessages.findByKindAndPeriodMonthOrderBySentAtDesc(
+                        EmailKind.DOCUMENT_REMINDER, month));
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
         ids.addAll(email.keySet());
         ids.addAll(whatsapp.keySet());
@@ -91,6 +96,15 @@ public class DocumentReminderService {
     private static java.util.Map<UUID, java.util.List<EmailHistory>> groupByCompany(List<EmailHistory> rows) {
         java.util.Map<UUID, java.util.List<EmailHistory>> m = new java.util.LinkedHashMap<>();
         for (EmailHistory r : rows) {
+            m.computeIfAbsent(r.getCompanyId(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        return m;
+    }
+
+    private static java.util.Map<UUID, java.util.List<WhatsAppMessage>> groupWhatsAppByCompany(
+            List<WhatsAppMessage> rows) {
+        java.util.Map<UUID, java.util.List<WhatsAppMessage>> m = new java.util.LinkedHashMap<>();
+        for (WhatsAppMessage r : rows) {
             m.computeIfAbsent(r.getCompanyId(), k -> new java.util.ArrayList<>()).add(r);
         }
         return m;

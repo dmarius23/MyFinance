@@ -56,7 +56,8 @@ public class SecurityConfig {
                 .requestMatchers(
                         "/actuator/health", "/actuator/health/**", "/actuator/info",
                         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-                        "/api/v1/ingestion/gmail/pubsub")
+                        "/api/v1/ingestion/gmail/pubsub",
+                        "/api/v1/webhooks/whatsapp/meta")
                 .permitAll()
                 // Fail-safe role backstop at the filter layer, in addition to per-method @PreAuthorize:
                 // a controller that forgets its annotation still cannot expose a surface to the wrong role.
@@ -81,7 +82,8 @@ public class SecurityConfig {
     @Bean
     BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
-        return request -> "/api/v1/ingestion/gmail/pubsub".equals(request.getRequestURI())
+        return request -> ("/api/v1/ingestion/gmail/pubsub".equals(request.getRequestURI())
+                || "/api/v1/webhooks/whatsapp/meta".equals(request.getRequestURI()))
                 ? null : delegate.resolve(request);
     }
 

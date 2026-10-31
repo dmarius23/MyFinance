@@ -11,8 +11,8 @@ const dt = (iso: string) => new Date(iso).toLocaleDateString("ro-RO", { day: "nu
 const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
 
 /**
- * Compose + history for the WhatsApp channel (Phase 1). Pre-fills the representative's phone, lets staff
- * edit the recipient + message, sends it, and shows the send timeline. Delivery is the backend stub for
+ * Compose + history for the WhatsApp channel (Phase 1). Shows the server-resolved primary contact, lets staff
+ * edit the message, sends it, and shows the send timeline. Delivery is the backend stub for
  * now; a real provider (Twilio) plugs in behind the port later.
  */
 export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, onClose }:
@@ -47,7 +47,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const history = useQuery({ queryKey: rk, queryFn: () => whatsappApi.history(companyId, kind, period) });
 
   const send = useMutation({
-    mutationFn: () => whatsappApi.send(companyId, { kind, period, recipient: phone ?? undefined, body }),
+    mutationFn: () => whatsappApi.send(companyId, { kind, period, body }),
     onSuccess: () => { setBody(""); setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk }); },
     onError: (e) => setError(e instanceof ApiError ? e.message : t("channel.sendFailed")),
   });
@@ -67,7 +67,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
         <div style={{ padding: 16, overflowY: "auto" }}>
           <MissingInfoWarning problems={phone !== null && !phone.trim() ? [t("warn.noPhone")] : []} />
           <label style={fieldLabel}>{t("channel.phone")}</label>
-          <input type="tel" value={phone ?? ""} onChange={(e) => setPhone(e.target.value)}
+          <input type="tel" value={phone ?? ""} readOnly
             placeholder="+40…" style={input} />
           <label style={{ ...fieldLabel, marginTop: 10 }}>{t("channel.message")}</label>
           <textarea value={body} onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}

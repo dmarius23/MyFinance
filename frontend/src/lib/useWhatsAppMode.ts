@@ -6,7 +6,7 @@ import { meApi } from "../api/me";
  * behavior: {@code CLICK_TO_CHAT} opens a wa.me deep link (manual send) instead of the compose modal +
  * backend send used by {@code TWILIO}. Defaults to {@code OFF} until loaded.
  */
-export function useWhatsAppMode(): "OFF" | "TWILIO" | "CLICK_TO_CHAT" {
+export function useWhatsAppMode(): "OFF" | "TWILIO" | "META_CLOUD_API" | "CLICK_TO_CHAT" {
   const { data } = useQuery({ queryKey: ["me"], queryFn: meApi.get, staleTime: 5 * 60_000 });
   return data?.whatsappMode ?? "OFF";
 }
