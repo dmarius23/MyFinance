@@ -106,9 +106,11 @@ class MessageTemplateIsolationTest {
 
     private static void seedTenant(String tenantId, String name) throws Exception {
         try (Connection admin = adminDataSource().getConnection();
-             Statement st = admin.createStatement()) {
-            st.execute("INSERT INTO tenant (id, name, status, plan) VALUES ('"
-                    + tenantId + "', '" + name + "', 'ACTIVE', 'STANDARD')");
+             PreparedStatement ps = admin.prepareStatement(
+                     "INSERT INTO tenant (id, name, status, plan) VALUES (?::uuid, ?, 'ACTIVE', 'STANDARD')")) {
+            ps.setString(1, tenantId);
+            ps.setString(2, name);
+            ps.executeUpdate();
         }
     }
 
