@@ -1,12 +1,14 @@
 package ro.myfinance.payroll.application;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import ro.myfinance.common.i18n.RomanianMonths;
 
 /**
- * Builds the standard Romanian payroll email body. The body is a default the accountant edits before
- * sending — it carries no money figures (the amounts live in the attached pay statement / payslip), so
- * nothing here needs reconciliation. The tax-payment deadline is the 25th of the period month.
+ * Assembles the variable map the template renderer consumes for a {@code PAYROLL} email. The body
+ * carries no money figures — amounts live in the attached pay statement. The tax-payment deadline is
+ * always the 25th of the period month.
  */
 public final class PayrollEmailBuilder {
 
@@ -18,30 +20,16 @@ public final class PayrollEmailBuilder {
         return RomanianMonths.monthYear(period);
     }
 
-    public static String subject(LocalDate period) {
-        return "State de plată — " + monthYear(period);
-    }
-
-    /** The standard body for a company/period. {@code accountantName} may be blank (then only the firm signs). */
-    public static String body(LocalDate period, String accountantName, String firmName) {
+    /** Everything a {@code PAYROLL} template may reference. The tax deadline is the 25th of the period. */
+    public static Map<String, String> values(LocalDate period, String companyName,
+                                             String senderName, String firmName) {
         LocalDate p = period.withDayOfMonth(1);
         String my = monthYear(p);
-        String deadline = "25 " + my;
-        return String.join("\n",
-                "Bună ziua,",
-                "",
-                "Vă rog frumos să regăsiți atașate statul de plată, fluturașul de salariu și pontajul "
-                        + "pentru luna " + my + ".",
-                "",
-                "Restul de plată de pe statul de plată și fluturaș trebuie virat din contul firmei în "
-                        + "contul personal al salariatului.",
-                "",
-                "Diferența dintre restul de plată și salariul brut reprezintă taxele salariale. Acestea "
-                        + "se vor plăti până în data de " + deadline + ".",
-                "",
-                "În ceea ce privește sumele care se plătesc către Trezorerie, precum și conturile "
-                        + "aferente, vom reveni cu un email separat.",
-                "",
-                ro.myfinance.common.email.SignOff.block("O zi bună,", accountantName, firmName));
+        Map<String, String> v = new HashMap<>();
+        v.put("companyName", companyName == null ? "" : companyName);
+        v.put("month", my);
+        v.put("taxDeadline", "25 " + my);
+        v.put("signOff", ro.myfinance.common.email.SignOff.names(senderName, firmName));
+        return v;
     }
 }

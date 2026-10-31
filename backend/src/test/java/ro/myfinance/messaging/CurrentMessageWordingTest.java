@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import ro.myfinance.common.messaging.DefaultMessageTemplates;
 import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.messaging.TemplateRenderer;
-import ro.myfinance.payroll.application.PayrollEmailBuilder;
 
 /**
  * Pins the exact wording clients receive today, before templates are introduced. These assertions are
@@ -37,20 +36,30 @@ class CurrentMessageWordingTest {
             Maria Popescu
             ContaZone SRL""";
 
+    private static String renderPayroll(String sender) {
+        var values = ro.myfinance.payroll.application.PayrollEmailBuilder
+                .values(APRIL, "Acme SRL", sender, FIRM);
+        return new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
+    }
+
     @Test
     void payrollBodyIsUnchanged() {
-        assertThat(PayrollEmailBuilder.body(APRIL, SENDER, FIRM)).isEqualTo(EXPECTED_PAYROLL_BODY);
+        assertThat(renderPayroll(SENDER)).isEqualTo(EXPECTED_PAYROLL_BODY);
     }
 
     @Test
     void payrollSubjectIsUnchanged() {
-        assertThat(PayrollEmailBuilder.subject(APRIL)).isEqualTo("State de plată — Aprilie 2026");
+        var values = ro.myfinance.payroll.application.PayrollEmailBuilder
+                .values(APRIL, "Acme SRL", SENDER, FIRM);
+        assertThat(new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).subject(), values))
+                .isEqualTo("State de plată — Aprilie 2026");
     }
 
     @Test
     void payrollSignsWithFirmOnlyWhenSenderUnknown() {
-        assertThat(PayrollEmailBuilder.body(APRIL, null, FIRM))
-                .endsWith("O zi bună,\nContaZone SRL");
+        assertThat(renderPayroll(null)).endsWith("O zi bună,\nContaZone SRL");
     }
 
     // --- report ---

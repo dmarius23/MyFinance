@@ -16,6 +16,9 @@ import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailSender;
 import ro.myfinance.common.email.EmailStatus;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.MessageTemplateService;
+import ro.myfinance.common.messaging.RenderedMessage;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentType;
@@ -41,12 +44,14 @@ public class PayrollService {
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ro.myfinance.company.application.CompanyDirectory companies;
     private final ro.myfinance.company.application.ExpectedDocuments expected;
+    private final MessageTemplateService templates;
 
     public PayrollService(DocumentService documents, EmailHistoryRepository history,
                           EmailDispatchService dispatch, EmailEnvelopeService envelopes,
                           ro.myfinance.notifications.application.NotificationService notifications,
                           ro.myfinance.company.application.CompanyDirectory companies,
-                          ro.myfinance.company.application.ExpectedDocuments expected) {
+                          ro.myfinance.company.application.ExpectedDocuments expected,
+                          MessageTemplateService templates) {
         this.documents = documents;
         this.history = history;
         this.dispatch = dispatch;
@@ -54,6 +59,7 @@ public class PayrollService {
         this.notifications = notifications;
         this.companies = companies;
         this.expected = expected;
+        this.templates = templates;
     }
 
     /** One payroll document (for the list chips and the attach set). */
@@ -187,7 +193,18 @@ public class PayrollService {
     /** Default editable email body for a company/period — signed by the logged-in user, then the firm. */
     @Transactional(readOnly = true)
     public String composeBody(UUID companyId, LocalDate period) {
-        return PayrollEmailBuilder.body(period, envelopes.currentUserName(), envelopes.firmName());
+        return message(companyId, period).body();
+    }
+
+    /** Subject + body for a company/period, rendered from this tenant's PAYROLL template. */
+    @Transactional(readOnly = true)
+    public RenderedMessage message(UUID companyId, LocalDate period) {
+        return templates.render(MessageTemplateKind.PAYROLL, PayrollEmailBuilder.values(
+                period, companyName(companyId), envelopes.currentUserName(), envelopes.firmName()));
+    }
+
+    private String companyName(UUID companyId) {
+        return companies.findById(companyId).map(c -> c.getLegalName()).orElse(null);
     }
 
     /** Full send history for a company + period (newest first). */
@@ -221,7 +238,7 @@ public class PayrollService {
         }
 
         EmailHistory row = dispatch.dispatch(EmailKind.PAYROLL, companyId, period, recipient,
-                PayrollEmailBuilder.subject(month), body, attachments, docIds,
+                message(companyId, period).subject(), body, attachments, docIds,
                 () -> notifications.notifyCompanyReps(companyId, "PAYROLL_READY", "State de plată disponibile",
                         "Statul de plată, fluturașul de salariu și pontajul pentru luna " + MONTH_RO.format(month)
                                 + " sunt disponibile în aplicație și un email a fost trimis."));
