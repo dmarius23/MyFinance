@@ -76,7 +76,7 @@ class PortalReportScopingTest {
 
     private PortalService service() {
         return new PortalService(null, null, null, null, reports, periodReports, null, null, null,
-                repLinks, users, request);
+                repLinks, users, mock(ro.myfinance.access.application.SignInRecorder.class), request);
     }
 
     @Test
