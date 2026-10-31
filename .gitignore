@@ -63,3 +63,6 @@ deploy_ci.pub
 
 # Real client statement/receipt fixtures (PII) — local only, never commit
 backend/src/test/resources/fixtures/bank/
+
+# Subagent-driven-development scratch (ledger, task briefs, review packages) — local only
+.superpowers/
