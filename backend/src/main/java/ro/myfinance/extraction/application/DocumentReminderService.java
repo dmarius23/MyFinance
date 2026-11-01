@@ -35,14 +35,16 @@ public class DocumentReminderService {
     private final EmailDispatchService dispatch;
     private final ro.myfinance.notifications.application.NotificationService notifications;
     private final ReconciliationService reconciliation;
+    private final ReminderBodyService bodies;
 
     public DocumentReminderService(EmailHistoryRepository history, EmailDispatchService dispatch,
                                    ro.myfinance.notifications.application.NotificationService notifications,
-                                   ReconciliationService reconciliation) {
+                                   ReconciliationService reconciliation, ReminderBodyService bodies) {
         this.history = history;
         this.dispatch = dispatch;
         this.notifications = notifications;
         this.reconciliation = reconciliation;
+        this.bodies = bodies;
     }
 
     /** One reminder send, for the notification log / list. */
@@ -102,7 +104,7 @@ public class DocumentReminderService {
      */
     public ReminderView send(UUID companyId, LocalDate period, String recipient, String body) {
         LocalDate month = period.withDayOfMonth(1);
-        String subject = "Documente lipsă — " + MONTH.format(month);
+        String subject = bodies.compose(companyId, month).subject();
         EmailHistory row = dispatch.dispatch(EmailKind.DOCUMENT_REMINDER, companyId, period, recipient,
                 subject, body, null, null,
                 () -> notifications.notifyCompanyReps(companyId, "DOC_REQUEST", "Documente solicitate",
