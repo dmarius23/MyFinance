@@ -167,7 +167,6 @@ public class WhatsAppDispatchService {
     /** WhatsApp send history for one company/period + kind (newest first) — the log modal. */
     @Transactional(readOnly = true)
     public List<WhatsAppMessage> history(EmailKind kind, UUID companyId, LocalDate period) {
-        requireCompany(companyId);
         return messages.findByKindAndCompanyIdAndPeriodMonthOrderBySentAtDesc(
                 kind, companyId, period.withDayOfMonth(1));
     }
