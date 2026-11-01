@@ -42,7 +42,11 @@ export function MessageTemplatesSection() {
   const subject = draft.subject ?? current?.subject ?? "";
   const body = draft.body ?? current?.body ?? "";
 
+  const hasUnsaved = draft.subject !== undefined || draft.body !== undefined;
+
   const pick = (next: TemplateKind) => {
+    if (next === kind) return;
+    if (hasUnsaved && !window.confirm(t("templates.unsavedWarning"))) return;
     setKind(next);
     setDraft({});
     setMsg({});
@@ -117,10 +121,15 @@ export function MessageTemplatesSection() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button onClick={() => save.mutate()} disabled={save.isPending || !body.trim()}>
           {t("common.save")}
         </button>
+        {hasUnsaved && (
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            {t("templates.unsaved")}
+          </span>
+        )}
         <button onClick={() => runPreview.mutate()} disabled={runPreview.isPending || !body.trim()}>
           {t("templates.preview")}
         </button>

@@ -59,8 +59,13 @@ export function SendReminderModal({ companies, period, onClose }:
   useEffect(() => {
     let cancelled = false;
     Promise.all(companies.map((c) =>
-      remindersApi.body(c.id, period).then((r) => ({ id: c.id, body: r.body }))
-        .catch(() => ({ id: c.id, body: "" })),
+      remindersApi.body(c.id, period)
+        .then((r) => ({ id: c.id, body: r.body, error: undefined as string | undefined }))
+        .catch((e: unknown) => ({
+          id: c.id,
+          body: "",
+          error: e instanceof ApiError ? e.message : t("common.error"),
+        })),
     )).then((results) => {
       if (cancelled) return;
       setDrafts((d) => {
@@ -68,7 +73,7 @@ export function SendReminderModal({ companies, period, onClose }:
         for (const r of results) {
           const cur = next[r.id];
           if (!cur || !cur.loading) continue; // never clobber an edit in progress
-          next[r.id] = { ...cur, body: r.body, loading: false };
+          next[r.id] = { ...cur, body: r.body, loading: false, error: r.error };
         }
         return next;
       });
