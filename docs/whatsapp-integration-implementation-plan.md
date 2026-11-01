@@ -32,6 +32,7 @@ Branch: `feat/whatsapp-integration`
 - Dedicated `whatsapp_message` table and migration from existing WhatsApp history rows.
 - Dispatch, outbox, history, quota, monthly summaries, and webhook lookup use the new message repository.
 - Meta webhook verification, HMAC validation, tenant binding, and monotonic delivery statuses.
+- WABA webhook subscription is registered server-side during Meta onboarding.
 - Retry classification: most 4xx errors are permanent; timeouts, 408, 425, 429, and 5xx are retryable.
 - Local Meta Graph API contract tests for successful, 4xx, and 5xx responses.
 
@@ -57,6 +58,10 @@ Branch: `feat/whatsapp-integration`
 
 - Meta app review, permissions, business verification, sender verification, display-name approval, and
   template approval.
+- Configure the Meta developer dashboard with callback URL
+  `/api/v1/webhooks/whatsapp/meta`, the exact `META_WHATSAPP_WEBHOOK_VERIFY_TOKEN`, and subscribe the
+  app to the `messages` WABA field. The backend registers the WABA subscription automatically after
+  successful Embedded Signup.
 - Reconnect, revoke, and incomplete-onboarding recovery states.
 - Handle Meta SDK/postMessage callback variants if asset IDs are not returned in URL parameters.
 - Enforce template variable schemas and provider-defined positional ordering.
@@ -78,5 +83,6 @@ Branch: `feat/whatsapp-integration`
 
 ## Next action
 
-Reload this file in the editor, configure a Meta development app/test WABA, and verify the callback
-format against Meta. Then finalize consent/contact/quota policies and complete RLS/webhook/frontend tests.
+Configure a Meta development app/test WABA, set the callback URL and verify token in Meta, then complete
+a test Embedded Signup. Send a test WhatsApp message and confirm the delivery status updates the tenant's
+`whatsapp_message` row.

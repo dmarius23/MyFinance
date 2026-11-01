@@ -113,6 +113,7 @@ public class MetaWhatsAppOnboardingService {
         String token = meta.exchangeCode(code, redirectUri);
         meta.validateWaba(token, wabaId);
         meta.validatePhoneNumber(token, phoneNumberId);
+        meta.subscribeToWaba(token, wabaId);
         if (!cipher.isConfigured()) {
             throw new ro.myfinance.common.web.MisconfiguredException(
                     "Server secret key (MYFINANCE_SECRET_KEY) is not configured — cannot store Meta token");

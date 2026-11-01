@@ -68,6 +68,22 @@ public class MetaWhatsAppOnboardingClient {
         }
     }
 
+    /**
+     * Subscribes this Meta app to the WABA so Meta starts delivering message-status callbacks.
+     * WABA subscription is separate from validating the WABA and phone-number assets.
+     */
+    public void subscribeToWaba(String token, String wabaId) {
+        try {
+            http.post()
+                    .uri(graphBaseUrl + "/" + wabaId + "/subscribed_apps")
+                    .header("Authorization", "Bearer " + token)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            throw rejected("webhook subscription", e);
+        }
+    }
+
     private JsonNode get(String token, String path) {
         try {
             String response = http.get().uri(graphBaseUrl + path)
