@@ -8,6 +8,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Sends one WhatsApp message through Twilio's REST API ({@code /Messages.json}, form-POST, Basic auth) with
@@ -23,8 +25,8 @@ final class TwilioDelivery {
     private TwilioDelivery() {
     }
 
-    static void send(String accountSid, String authToken, String from, String defaultCountryCode,
-                     WhatsAppSender.Message message) {
+    static WhatsAppSender.DeliveryReceipt send(String accountSid, String authToken, String from,
+                                               String defaultCountryCode, WhatsAppSender.Message message) {
         if (accountSid == null || accountSid.isBlank() || authToken == null || authToken.isBlank()
                 || from == null || from.isBlank()) {
             throw new IllegalStateException("Twilio WhatsApp is not configured (account-sid/auth-token/from)");
@@ -54,6 +56,12 @@ final class TwilioDelivery {
         if (resp.statusCode() / 100 != 2) {
             throw new RuntimeException(
                     "Twilio WhatsApp send rejected (HTTP " + resp.statusCode() + "): " + resp.body());
+        }
+        try {
+            JsonNode root = new ObjectMapper().readTree(resp.body());
+            return new WhatsAppSender.DeliveryReceipt(root.path("sid").asText(null));
+        } catch (Exception e) {
+            return WhatsAppSender.DeliveryReceipt.withoutProviderId();
         }
     }
 

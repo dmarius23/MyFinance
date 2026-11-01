@@ -18,8 +18,9 @@ public class LoggingWhatsAppSender implements WhatsAppSender {
     private static final Logger log = LoggerFactory.getLogger(LoggingWhatsAppSender.class);
 
     @Override
-    public void send(Message message) {
+    public DeliveryReceipt send(Message message) {
         log.info("WhatsApp (stub) → {} : {} chars", message.toPhone(),
                 message.body() == null ? 0 : message.body().length());
+        return DeliveryReceipt.withoutProviderId();
     }
 }

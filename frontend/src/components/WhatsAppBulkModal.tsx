@@ -49,8 +49,8 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
   const sendOne = useMutation({
-    mutationFn: (v: { companyId: string; phone: string; body: string }) =>
-      whatsappApi.send(v.companyId, { kind, period, recipient: v.phone, body: v.body }),
+    mutationFn: (v: { companyId: string; body: string }) =>
+      whatsappApi.send(v.companyId, { kind, period, body: v.body }),
   });
 
   const sendAll = async () => {
@@ -60,7 +60,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
       const d = drafts[x.companyId];
       if (!d || d.sent || d.loading || !d.body.trim() || !d.phone.trim()) continue;
       try {
-        await sendOne.mutateAsync({ companyId: x.companyId, phone: d.phone, body: d.body });
+        await sendOne.mutateAsync({ companyId: x.companyId, body: d.body });
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["whatsapp", x.companyId, kind, period] });
       } catch (e) {

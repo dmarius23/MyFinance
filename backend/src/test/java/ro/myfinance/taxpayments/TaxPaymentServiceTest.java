@@ -28,6 +28,7 @@ import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
@@ -53,11 +54,12 @@ class TaxPaymentServiceTest {
     @Mock PlatformTreasuryService treasury;
     @Mock TaxDeclarationRepository declarations;
     @Mock EmailHistoryRepository emails;
+    @Mock WhatsAppMessageRepository whatsappMessages;
 
     @Mock ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
     private TaxPaymentService service() {
-        return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
+        return new TaxPaymentService(companies, documentService, treasury, declarations, emails, whatsappMessages,
                 new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder(), envelopes);
     }
 

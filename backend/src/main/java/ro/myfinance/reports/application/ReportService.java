@@ -18,6 +18,8 @@ import ro.myfinance.intake.application.DocumentDirectory;
 import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.whatsapp.WhatsAppMessage;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.domain.ReportData;
 import ro.myfinance.reports.domain.ReportSnapshot;
@@ -36,6 +38,7 @@ public class ReportService {
 
     private final ReportSnapshotRepository snapshots;
     private final EmailHistoryRepository emails;
+    private final WhatsAppMessageRepository whatsappMessages;
     private final TrialBalanceExtractor extractor;
     private final ObjectMapper json;
     private final ro.myfinance.company.application.CompanyDirectory companies;
@@ -45,6 +48,7 @@ public class ReportService {
     private final ro.myfinance.company.application.ExpectedDocuments expected;
 
     public ReportService(ReportSnapshotRepository snapshots, EmailHistoryRepository emails,
+                         WhatsAppMessageRepository whatsappMessages,
                          TrialBalanceExtractor extractor, ObjectMapper json,
                          ro.myfinance.company.application.CompanyDirectory companies,
                          DocumentDirectory documents, DocumentStorage storage,
@@ -52,6 +56,7 @@ public class ReportService {
                          ro.myfinance.company.application.ExpectedDocuments expected) {
         this.snapshots = snapshots;
         this.emails = emails;
+        this.whatsappMessages = whatsappMessages;
         this.extractor = extractor;
         this.json = json;
         this.companies = companies;
@@ -244,7 +249,7 @@ public class ReportService {
     /** The month's snapshots / trial-balance files / emails / WhatsApp grouped by company. */
     private record MonthReports(Map<UUID, ReportSnapshot> snapshots, Map<UUID, List<String>> balanceFiles,
                                 Map<UUID, List<ro.myfinance.common.email.EmailHistory>> emails,
-                                Map<UUID, List<ro.myfinance.common.email.EmailHistory>> whatsapp) {
+                                Map<UUID, List<WhatsAppMessage>> whatsapp) {
     }
 
     private MonthReports monthContext(LocalDate month) {
@@ -262,9 +267,9 @@ public class ReportService {
         for (var e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.REPORT, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
-        Map<UUID, List<ro.myfinance.common.email.EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
-        for (var e : emails.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
-                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.REPORT, month)) {
+        Map<UUID, List<WhatsAppMessage>> whatsappByCompany = new LinkedHashMap<>();
+        for (var e : whatsappMessages.findByKindAndPeriodMonthOrderBySentAtDesc(
+                EmailKind.REPORT, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         Map<UUID, List<String>> balanceFilesByCompany = new LinkedHashMap<>();

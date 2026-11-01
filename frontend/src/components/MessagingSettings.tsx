@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import {
   messagingApi,
   type EmailProvider,
@@ -128,6 +129,7 @@ export function EmailProviderSection() {
 /** Per-tenant WhatsApp provider config (Twilio credentials or manual click-to-chat). */
 export function WhatsAppProviderSection() {
   const { t } = useTranslation();
+  const location = useLocation();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["messaging", "whatsapp"], queryFn: messagingApi.getWhatsApp });
 
@@ -156,8 +158,25 @@ export function WhatsAppProviderSection() {
     onError: (e) => setMsg({ err: e instanceof ApiError ? e.message : "Failed" }),
   });
 
+  const startMeta = useMutation({
+    mutationFn: messagingApi.startMetaOnboarding,
+    onSuccess: ({ authorizationUrl }) => {
+      window.location.assign(authorizationUrl);
+    },
+    onError: (e) => setMsg({ err: e instanceof ApiError ? e.message : t("common.error") }),
+  });
+
+  const testMeta = useMutation({
+    mutationFn: messagingApi.testWhatsApp,
+    onSuccess: () => setMsg({ ok: t("settings.msg.whatsappConfigValid") }),
+    onError: (e) => setMsg({ err: e instanceof ApiError ? e.message : t("common.error") }),
+  });
+
   if (isLoading) return <div className="card"><p>{t("common.loading")}</p></div>;
   const twilio = mode === "TWILIO";
+  const meta = mode === "META_CLOUD_API";
+  const connected = data?.mode === "META_CLOUD_API" && data.hasMetaToken;
+  const connectedFromCallback = new URLSearchParams(location.search).get("whatsapp") === "connected";
 
   return (
     <div className="card">
@@ -171,6 +190,7 @@ export function WhatsAppProviderSection() {
           <select value={mode} onChange={(e) => setForm((f) => ({ ...f, mode: e.target.value as WhatsAppMode }))}>
             <option value="OFF">{t("settings.msg.modeOff")}</option>
             <option value="TWILIO">{t("settings.msg.modeTwilio")}</option>
+            <option value="META_CLOUD_API">{t("settings.msg.modeMeta")}</option>
             <option value="CLICK_TO_CHAT">{t("settings.msg.modeClickToChat")}</option>
           </select>
         </Field>
@@ -192,12 +212,31 @@ export function WhatsAppProviderSection() {
             </Field>
           </>
         )}
-        <div>
+        {meta && (
+          <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid var(--border)", borderRadius: 8 }}>
+            <strong>{connected ? t("settings.msg.metaConnected") : t("settings.msg.metaNotConnected")}</strong>
+            <p style={hint}>{t("settings.msg.metaHelp")}</p>
+            {data?.metaWabaId && <span className="mono">WABA: {data.metaWabaId}</span>}
+            {data?.metaPhoneNumberId && <span className="mono">Phone ID: {data.metaPhoneNumberId}</span>}
+            <button type="button" className="primary" disabled={startMeta.isPending}
+              onClick={() => { setMsg({}); startMeta.mutate(); }}>
+              {startMeta.isPending ? "…" : connected ? t("settings.msg.metaReconnect") : t("settings.msg.metaConnect")}
+            </button>
+            {connected && (
+              <button type="button" disabled={testMeta.isPending}
+                onClick={() => { setMsg({}); testMeta.mutate(); }}>
+                {testMeta.isPending ? "…" : t("settings.msg.testWhatsapp")}
+              </button>
+            )}
+          </div>
+        )}
+        {!meta && <div>
           <button className="primary" type="submit" disabled={save.isPending}>
             {save.isPending ? "…" : t("common.save")}
           </button>
-        </div>
+        </div>}
       </form>
+      {connectedFromCallback && <p style={okStyle}>{t("settings.msg.metaConnected")}</p>}
       {msg.err && <p style={errStyle}>{msg.err}</p>}
       {msg.ok && <p style={okStyle}>{msg.ok}</p>}
     </div>

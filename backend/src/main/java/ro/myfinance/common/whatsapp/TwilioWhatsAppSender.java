@@ -42,8 +42,9 @@ public class TwilioWhatsAppSender implements WhatsAppSender {
     }
 
     @Override
-    public void send(Message message) {
-        TwilioDelivery.send(accountSid, authToken, from, defaultCountryCode, message);
+    public DeliveryReceipt send(Message message) {
+        DeliveryReceipt receipt = TwilioDelivery.send(accountSid, authToken, from, defaultCountryCode, message);
         log.info("WhatsApp (twilio) delivered");
+        return receipt;
     }
 }

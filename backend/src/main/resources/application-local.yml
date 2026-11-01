@@ -24,6 +24,8 @@ myfinance:
   # instead of leaving messages QUEUED forever. Production runs the worker + OutboxRelayScheduler instead.
   outbox:
     inline: true
+  whatsapp:
+    logging-fallback-enabled: true
   taxpayments:
     # One-off: re-extract declarations uploaded before the obligations column existed so the list shows
     # per-creanță codes. Idempotent — no-op once every declaration has its obligations populated.

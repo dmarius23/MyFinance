@@ -28,12 +28,16 @@ export interface UpdateEmailInput {
   smtpPassword?: string | null;
 }
 
-export type WhatsAppMode = "OFF" | "TWILIO" | "CLICK_TO_CHAT";
+export type WhatsAppMode = "OFF" | "TWILIO" | "META_CLOUD_API" | "CLICK_TO_CHAT";
 
 export interface WhatsAppProvider {
   mode: WhatsAppMode;
   accountSid: string | null;
   fromNumber: string | null;
+  metaBusinessPortfolioId?: string | null;
+  metaWabaId?: string | null;
+  metaPhoneNumberId?: string | null;
+  hasMetaToken?: boolean;
   /** Whether a Twilio auth token is stored (the value itself is never returned). */
   hasToken: boolean;
 }
@@ -63,5 +67,25 @@ export const messagingApi = {
     api<WhatsAppProvider>("/api/v1/settings/messaging/whatsapp", {
       method: "PUT",
       body: JSON.stringify(input),
+    }),
+  startMetaOnboarding: () =>
+    api<{ authorizationUrl: string; expiresAt: string }>(
+      "/api/v1/settings/messaging/whatsapp/meta/onboarding",
+      { method: "POST" },
+    ),
+  completeMetaOnboarding: (input: {
+    state: string;
+    authorizationCode: string;
+    wabaId: string;
+    phoneNumberId: string;
+    businessPortfolioId?: string;
+  }) =>
+    api<WhatsAppProvider>("/api/v1/settings/messaging/whatsapp/meta/onboarding/complete", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  testWhatsApp: () =>
+    api<{ status: "VALID" }>("/api/v1/settings/messaging/whatsapp/test", {
+      method: "POST",
     }),
 };

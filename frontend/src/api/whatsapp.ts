@@ -9,6 +9,8 @@ export interface WhatsAppView {
   status: "QUEUED" | "SENT" | "FAILED";
   sentAt: string;
   body: string;
+  providerStatus?: "accepted" | "sent" | "delivered" | "read" | "failed";
+  providerStatusAt?: string | null;
 }
 
 export const whatsappApi = {
@@ -19,6 +21,17 @@ export const whatsappApi = {
   history: (companyId: string, kind: WhatsAppKind, period: string) =>
     api<WhatsAppView[]>(`/api/v1/companies/${companyId}/whatsapp?kind=${kind}&period=${period}`),
   /** Send a WhatsApp message for a module + company + period. */
-  send: (companyId: string, input: { kind: WhatsAppKind; period: string; recipient?: string; body: string }) =>
-    api<WhatsAppView>(`/api/v1/companies/${companyId}/whatsapp`, { method: "POST", body: JSON.stringify(input) }),
+  send: (companyId: string, input: {
+    kind: WhatsAppKind;
+    period: string;
+    language?: string;
+    templateVariables?: Record<string, string>;
+    attachmentDocumentIds?: string[];
+    body: string;
+  }) =>
+    api<WhatsAppView>(`/api/v1/companies/${companyId}/whatsapp`, {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(input),
+    }),
 };
