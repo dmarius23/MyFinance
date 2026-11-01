@@ -113,17 +113,23 @@
              web-push is bumped. Declaring it here makes the compile-time need explicit and immune to
              upstream scope changes.
 
-             Version deliberately TRACKS the one web-push declares (5.1.2 -> 0.7.9) rather than the latest
-             0.9.x: our own code never calls jose4j (it only catches Exception), so any version satisfies
-             the compiler, but this declaration also wins on the RUNTIME classpath that web-push itself
-             uses. Nothing in the test suite exercises VAPID signing or sending, so a binary incompatibility
-             inside web-push would reach production unnoticed. Matching its expected version keeps runtime
-             behaviour identical. Upgrade jose4j only alongside a web-push release that expects the newer
-             line, or once the push path has real test coverage. -->
+             Version must be >= 0.9.6, NOT the 0.7.x line web-push declares. 0.7.x carries two HIGH
+             advisories that the SCA gate (fail-on-severity: high) rejects:
+               GHSA-7g24-qg88-p43q  weak cryptographic algorithm      patched in 0.9.3
+               GHSA-3677-xxcr-wjqv  DoS via compressed JWE content    patched in 0.9.6
+             Both were ALREADY present transitively (5.1.1 pulls 0.7.0, older still) but invisible, because
+             dependency review only reports dependencies that a diff changes — declaring jose4j here is what
+             surfaced them.
+
+             Since this declaration also wins on the RUNTIME classpath web-push itself uses, moving off the
+             version it was compiled against is a genuine binary-compatibility risk, and no test previously
+             touched the push path. WebPushVapidSigningTest now covers exactly that: it drives
+             PushService.preparePost(), the VAPID JWS path through jose4j, and fails on NoSuchMethodError.
+             Keep that test alongside any future jose4j or web-push bump. -->
         <dependency>
             <groupId>org.bitbucket.b_c</groupId>
             <artifactId>jose4j</artifactId>
-            <version>0.7.9</version>
+            <version>0.9.7</version>
         </dependency>
 
         <!-- AWS Bedrock Runtime (Claude vision in an EU region) — the EU-resident OCR path (see
