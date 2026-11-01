@@ -69,6 +69,25 @@ class MetaWhatsAppSenderTest {
     }
 
     @Test
+    void sendsMetaLanguageCodeInsteadOfLocale() throws Exception {
+        var sentBody = new java.util.concurrent.atomic.AtomicReference<String>();
+        server.createContext("/phone/messages", exchange -> {
+            sentBody.set(new String(exchange.getRequestBody().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            respond(exchange, 200, """
+                    {"messages":[{"id":"wamid.test"}]}
+                    """);
+        });
+        server.start();
+
+        sender().send(message());
+
+        assertThat(new ObjectMapper().readTree(sentBody.get())
+                .path("template").path("language").path("code").asText()).isEqualTo("ro");
+        assertThat(MetaWhatsAppSender.metaLanguageCode("en_US")).isEqualTo("en_US");
+    }
+
+    @Test
     void classifiesClientErrorsAsPermanent() throws Exception {
         server.createContext("/phone/messages", exchange -> {
             respond(exchange, 400, "{}");
