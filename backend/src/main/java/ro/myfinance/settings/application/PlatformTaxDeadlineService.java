@@ -10,7 +10,7 @@ import ro.myfinance.settings.adapter.persistence.PlatformTaxDeadlineRepository;
 import ro.myfinance.settings.domain.PlatformTaxDeadline;
 
 /**
- * Period-aware resolver for the salary-tax deadline. GLOBAL, not tenant-scoped (see V63).
+ * Period-aware resolver for the salary-tax deadline. GLOBAL, not tenant-scoped (see V69).
  *
  * <p>The rule is chosen by the PERIOD, not by today's date: re-sending March's payroll email in December
  * must restate March's deadline, not whatever statute is current. Callers therefore pass the payroll

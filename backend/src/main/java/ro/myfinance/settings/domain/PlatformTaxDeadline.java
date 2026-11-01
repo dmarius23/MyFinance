@@ -13,7 +13,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 /**
  * The statutory day-of-month on which salary taxes fall due, in the month following the period.
- * Effective-dated. GLOBAL reference data — no {@code tenant_id}, no RLS (see V63). Managed by
+ * Effective-dated. GLOBAL reference data — no {@code tenant_id}, no RLS (see V69). Managed by
  * SUPER_ADMIN; tenants read only.
  *
  * <p>Only the day is stored. The "month following the period" offset is intrinsic to monthly filing and

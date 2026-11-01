@@ -8,7 +8,7 @@ import java.time.YearMonth;
 import ro.myfinance.settings.application.PlatformTaxDeadlineService;
 
 /**
- * A {@link PlatformTaxDeadlineService} stub matching the rule seeded by {@code V63}: day 25 of the month
+ * A {@link PlatformTaxDeadlineService} stub matching the rule seeded by {@code V69}: day 25 of the month
  * following the period.
  *
  * <p>Exists so the several tests that construct {@code AnafDeclarationExtractor} directly keep the
