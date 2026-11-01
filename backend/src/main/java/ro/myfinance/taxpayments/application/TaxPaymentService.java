@@ -305,7 +305,7 @@ public class TaxPaymentService {
         String subject = null;
         if (beneficiary != null && !configured.isEmpty() && emailPeriod != null) {
             var values = emailBuilder.values(company.getLegalName(), company.getCui(), emailPeriod,
-                    beneficiary, configured, envelopes.currentUserName(), envelopes.firmName());
+                    beneficiary, configured, total, envelopes.currentUserName(), envelopes.firmName());
             RenderedMessage msg = templates.render(MessageTemplateKind.TAX, values);
             body = msg.body();
             subject = msg.subject();

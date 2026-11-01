@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.access.application.EmailEnvelopeService;
@@ -38,6 +40,8 @@ import ro.myfinance.intake.domain.DocumentType;
 @Service
 @Transactional(readOnly = true)
 public class ReminderBodyService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReminderBodyService.class);
 
     private static final DateTimeFormatter ROW_DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
@@ -138,6 +142,8 @@ public class ReminderBodyService {
     /**
      * A tenant template MAY reference {{companyName}} even though no reminder default does, so resolve it
      * — but never fail a compose over a display name.
+     *
+     * <p>Failures are logged at WARN with the company id only (never the company name — PII rule).
      */
     private String companyName(UUID companyId) {
         try {
@@ -145,6 +151,7 @@ public class ReminderBodyService {
                     .map(ro.myfinance.company.domain.Company::getLegalName)
                     .orElse("");
         } catch (RuntimeException e) {
+            log.warn("Failed to resolve company name for reminder (companyId={}); using empty", companyId, e);
             return "";
         }
     }

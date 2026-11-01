@@ -155,7 +155,7 @@ class CurrentMessageWordingTest {
                         "Impozite Aprilie-2026", null));
         var values = new ro.myfinance.taxpayments.application.PaymentEmailBuilder().values(
                 "Acme SRL", "RO123456", java.time.YearMonth.of(2026, 4), "Trezoreria Cluj Napoca",
-                lines, SENDER, FIRM);
+                lines, new java.math.BigDecimal("1550"), SENDER, FIRM);
         String body = new TemplateRenderer().render(
                 DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(), values);
         assertThat(body).isEqualTo(EXPECTED_TAX_BODY);

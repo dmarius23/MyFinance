@@ -47,10 +47,15 @@ public class TemplateValidator {
                 throw new IllegalArgumentException(
                         "Template subject must be at most " + MAX_SUBJECT + " characters");
             }
+            if (normalizedSubject.contains("\n")) {
+                throw new IllegalArgumentException(
+                        "Template subject must not contain newlines");
+            }
             requireBalanced(normalizedSubject);
             // Subjects take scalars only — a multi-line block in a subject makes no sense.
+            // signOff is excluded deliberately: SignOff.names() returns "Sender\nFirm", a
+            // multi-line value that would split the Subject: header into continuation lines.
             Set<String> subjectAllowed = new LinkedHashSet<>(kind.placeholders());
-            subjectAllowed.add(MessageTemplateKind.SIGN_OFF);
             requireKnownNames(kind, normalizedSubject, subjectAllowed);
         }
     }

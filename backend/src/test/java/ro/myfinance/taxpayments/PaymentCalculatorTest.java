@@ -71,7 +71,7 @@ class PaymentCalculatorTest {
     void emailBodyContainsAmountsAccountsAndBeneficiary() {
         List<PaymentLine> lines = calc.compute(List.of(d112()), ibans());
         var values = email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL");
+                "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), "Maria Pop", "ContaZone SRL");
         String body = renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(), values);
 
         assertThat(body).contains("firmei INNOVATECODE IT SRL");
@@ -90,12 +90,12 @@ class PaymentCalculatorTest {
 
         assertThat(renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(),
                 email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                        "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL")))
+                        "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), "Maria Pop", "ContaZone SRL")))
                 .contains("O zi plăcută,\nMaria Pop\nContaZone SRL");
 
         assertThat(renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(),
                 email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                        "Trezoreria Cluj Napoca", lines, null, "ContaZone SRL")))
+                        "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), null, "ContaZone SRL")))
                 .contains("O zi plăcută,\nContaZone SRL");
     }
 

@@ -106,7 +106,7 @@ export function MessageTemplatesSection() {
       <div>
         <div style={{ fontSize: 13, marginBottom: 4 }}>{t("templates.placeholders")}</div>
         <div>
-          {[...(current?.placeholders ?? []), "signOff"].map((p) => (
+          {(current?.placeholders ?? []).map((p) => (
             <code key={p} style={chip}>{`{{${p}}}`}</code>
           ))}
         </div>

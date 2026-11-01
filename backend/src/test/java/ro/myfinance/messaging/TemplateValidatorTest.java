@@ -80,4 +80,31 @@ class TemplateValidatorTest {
         assertThatCode(() -> validator.validate(MessageTemplateKind.PAYROLL, "Salarii",
                 "Prima\r\nA doua\r\n{{signOff}}")).doesNotThrowAnyException();
     }
+
+    /**
+     * signOff is excluded from subjects because SignOff.names() returns "Sender\nFirm" — a multi-line
+     * value that would split the Subject: header into continuation lines.
+     */
+    @Test
+    void rejectsSignOffInSubject() {
+        assertThatThrownBy(() -> validator.validate(MessageTemplateKind.PAYROLL,
+                "Salarii {{signOff}}", "Bună ziua,\n\n{{signOff}}"))
+                .hasMessageContaining("signOff");
+    }
+
+    /** A literal newline pasted into the subject field must be rejected. */
+    @Test
+    void rejectsNewlineInSubject() {
+        assertThatThrownBy(() -> validator.validate(MessageTemplateKind.PAYROLL,
+                "Salarii\nSub-linie", "Bună ziua"))
+                .hasMessageContaining("newline");
+    }
+
+    /** CRLF in a subject normalises to LF before the newline check; the same rule applies. */
+    @Test
+    void rejectsCrlfInSubject() {
+        assertThatThrownBy(() -> validator.validate(MessageTemplateKind.PAYROLL,
+                "Salarii\r\nSub-linie", "Bună ziua"))
+                .hasMessageContaining("newline");
+    }
 }

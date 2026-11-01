@@ -20,12 +20,17 @@ public final class TemplateSettingsDtos {
                                    List<String> placeholders, List<String> blocks) {
 
         public static TemplateResponse from(MessageTemplateService.Effective e) {
+            // Include signOff in placeholders so the editor chips are driven entirely by the API.
+            // The frontend must not restate the contract by appending "signOff" on the client side.
+            List<String> placeholders = new java.util.ArrayList<>(e.kind().placeholders());
+            placeholders.add(MessageTemplateKind.SIGN_OFF);
+            placeholders.sort(null);
             return new TemplateResponse(
                     e.kind().name(),
                     e.subject(),
                     e.body(),
                     e.customized(),
-                    e.kind().placeholders().stream().sorted().toList(),
+                    java.util.Collections.unmodifiableList(placeholders),
                     e.kind().blocks().stream().sorted().toList());
         }
     }

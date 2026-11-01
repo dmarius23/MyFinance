@@ -163,4 +163,21 @@ class MessageTemplateServiceTest {
                 .assertThatThrownBy(() -> service.render(MessageTemplateKind.TAX, Map.of()))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    /**
+     * Defence-in-depth (Important 1, layer 3): if a row was saved before the newline-in-subject
+     * validator existed, render must flatten embedded newlines in the rendered subject to a space so
+     * the Subject: header is never split. The body must NOT be flattened.
+     */
+    @Test
+    void renderFlattensNewlinesInRenderedSubjectButNotBody() {
+        MessageTemplate row = new MessageTemplate(TENANT, MessageTemplateKind.PAYROLL);
+        // A subject stored with an embedded newline (possible if saved before the validator existed)
+        row.setSubject("Salarii\nLinie2");
+        row.setBody("Corpul\nmesajului");
+        when(repo.findByTenantIdAndKind(TENANT, MessageTemplateKind.PAYROLL)).thenReturn(Optional.of(row));
+        var out = service.render(MessageTemplateKind.PAYROLL, Map.of());
+        assertThat(out.subject()).doesNotContain("\n").isEqualTo("Salarii Linie2");
+        assertThat(out.body()).contains("\n"); // body newlines preserved
+    }
 }

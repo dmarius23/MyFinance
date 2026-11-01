@@ -50,19 +50,24 @@ public class PaymentEmailBuilder {
         return String.join("\n", out);
     }
 
-    /** Everything a {@code TAX} template may reference. Money stays formatted here, never in a template. */
+    /**
+     * Everything a {@code TAX} template may reference. Money stays formatted here, never in a template.
+     *
+     * <p>{@code authoritativeTotal} is {@link ro.myfinance.taxpayments.application.TaxPaymentService.Computation#total()}
+     * — the full sum of every payable obligation, including categories whose treasury IBAN is not yet
+     * configured. Using the lines-only sum would understate the state liability when any category is
+     * unconfigured, making {@code {{totalToPay}}} disagree with the in-app notification's figure.
+     */
     public Map<String, String> values(String companyName, String cui, YearMonth period,
                                       String treasury, List<PaymentLine> lines,
+                                      java.math.BigDecimal authoritativeTotal,
                                       String senderName, String firmName) {
-        java.math.BigDecimal total = lines.stream()
-                .map(PaymentLine::amount)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
         Map<String, String> v = new HashMap<>();
         v.put("companyName", orEmpty(companyName));
         v.put("cui", orEmpty(cui));
         v.put("month", ro.myfinance.common.i18n.RomanianMonths.monthYear(period));
         v.put("treasury", orEmpty(treasury));
-        v.put("totalToPay", total.stripTrailingZeros().toPlainString());
+        v.put("totalToPay", authoritativeTotal.stripTrailingZeros().toPlainString());
         v.put("paymentSummary", summaryBlock(lines));
         v.put("paymentAccounts", accountsBlock(lines, treasury, cui));
         v.put("signOff", ro.myfinance.common.email.SignOff.names(senderName, firmName));

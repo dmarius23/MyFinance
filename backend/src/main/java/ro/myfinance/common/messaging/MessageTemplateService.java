@@ -37,7 +37,14 @@ public class MessageTemplateService {
     @Transactional(readOnly = true)
     public RenderedMessage render(MessageTemplateKind kind, Map<String, String> values) {
         Effective e = effective(kind);
-        return new RenderedMessage(renderer.render(e.subject(), values), renderer.render(e.body(), values));
+        String renderedSubject = renderer.render(e.subject(), values);
+        // Defence in depth: flatten any embedded newlines in the subject so a row saved before
+        // the newline-in-subject validator existed cannot produce a broken Subject: header.
+        // The body is never flattened — it is multi-line by design.
+        if (renderedSubject != null) {
+            renderedSubject = renderedSubject.replace('\n', ' ').replace('\r', ' ');
+        }
+        return new RenderedMessage(renderedSubject, renderer.render(e.body(), values));
     }
 
     @Transactional(readOnly = true)
