@@ -128,7 +128,7 @@ class ReminderStateSelectionTest {
         assertThat(service.compose(COMPANY, APRIL).body()).contains("• 02.04.2026 — POS 1234 — 50,00 RON");
     }
 
-    /** Review Focus 5: a busy month must render completely — no truncation, no quadratic blow-up. */
+    /** A busy month must render completely — no truncation, no quadratic blow-up. */
     @Test
     void rendersTwoHundredMissingTransactionsInFull() {
         givenBankStatement();

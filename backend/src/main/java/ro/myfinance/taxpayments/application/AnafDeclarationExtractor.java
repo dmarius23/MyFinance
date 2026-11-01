@@ -44,9 +44,26 @@ public class AnafDeclarationExtractor {
 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    /** Standard ANAF deadline when the XML carries no explicit scadenta: the 25th of the next month. */
-    private static LocalDate defaultDeadline(YearMonth period) {
-        return period.plusMonths(1).atDay(25);
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
+
+    /**
+     * There is deliberately no no-arg constructor. An overload defaulting to the 25th would let a
+     * forgotten dependency silently restore the disagreement this value once had with the payroll email
+     * and the dashboard, which is the whole reason the day became reference data.
+     */
+    public AnafDeclarationExtractor(
+            ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
+        this.deadlines = deadlines;
+    }
+
+    /**
+     * The statutory deadline for a period, used when the declaration XML carries no explicit scadenta
+     * (D112). Resolved from effective-dated reference data rather than hardcoded, so a statutory change
+     * needs no deploy and cannot leave this value disagreeing with the payroll email or the dashboard's
+     * overdue gate — which read the same source.
+     */
+    private LocalDate defaultDeadline(YearMonth period) {
+        return deadlines.deadlineFor(period);
     }
 
     /** Parse the declaration embedded in {@code pdf}. Throws if there is no recognizable ANAF XML. */
@@ -236,7 +253,11 @@ public class AnafDeclarationExtractor {
         return YearMonth.of(Integer.parseInt(an.trim()), Integer.parseInt(luna.trim()));
     }
 
-    private static LocalDate parseDate(String s, YearMonth period) {
+    /**
+     * A declaration's own {@code scadenta} when it has a parseable one, else the statutory default.
+     * Not static because that default now comes from effective-dated reference data.
+     */
+    private LocalDate parseDate(String s, YearMonth period) {
         if (s == null || s.isBlank()) {
             return defaultDeadline(period);
         }

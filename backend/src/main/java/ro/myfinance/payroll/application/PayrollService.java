@@ -48,6 +48,7 @@ public class PayrollService {
     private final ro.myfinance.company.application.CompanyDirectory companies;
     private final ro.myfinance.company.application.ExpectedDocuments expected;
     private final MessageTemplateService templates;
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
 
     public PayrollService(DocumentService documents, EmailHistoryRepository history,
                           WhatsAppMessageRepository whatsappMessages,
@@ -55,7 +56,8 @@ public class PayrollService {
                           ro.myfinance.notifications.application.NotificationService notifications,
                           ro.myfinance.company.application.CompanyDirectory companies,
                           ro.myfinance.company.application.ExpectedDocuments expected,
-                          MessageTemplateService templates) {
+                          MessageTemplateService templates,
+                          ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
         this.documents = documents;
         this.history = history;
         this.whatsappMessages = whatsappMessages;
@@ -65,6 +67,7 @@ public class PayrollService {
         this.companies = companies;
         this.expected = expected;
         this.templates = templates;
+        this.deadlines = deadlines;
     }
 
     /** One payroll document (for the list chips and the attach set). */
@@ -201,11 +204,18 @@ public class PayrollService {
         return message(companyId, period).body();
     }
 
-    /** Subject + body for a company/period, rendered from this tenant's PAYROLL template. */
+    /**
+     * Subject + body for a company/period, rendered from this tenant's PAYROLL template.
+     *
+     * <p>The deadline is resolved for the PERIOD, never for today — re-sending March's email in December
+     * must restate March's statutory deadline.
+     */
     @Transactional(readOnly = true)
     public RenderedMessage message(UUID companyId, LocalDate period) {
+        LocalDate deadline = deadlines.deadlineFor(java.time.YearMonth.from(period));
         return templates.render(MessageTemplateKind.PAYROLL, PayrollEmailBuilder.values(
-                period, companyName(companyId), envelopes.currentUserName(), envelopes.firmName()));
+                period, companyName(companyId), envelopes.currentUserName(), envelopes.firmName(),
+                deadline));
     }
 
     private String companyName(UUID companyId) {

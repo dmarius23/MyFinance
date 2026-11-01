@@ -74,7 +74,7 @@ class TemplateValidatorTest {
                 .doesNotThrowAnyException();
     }
 
-    /** Review Focus 2, save half: CRLF must not count against the length cap or reach storage. */
+    /** CRLF must not count against the length cap or reach storage. */
     @Test
     void acceptsCrlfAndJudgesLengthAfterNormalization() {
         assertThatCode(() -> validator.validate(MessageTemplateKind.PAYROLL, "Salarii",

@@ -56,7 +56,8 @@ class ProducerCompletenessTest {
                     new BigDecimal("1250.00"), SENDER, FIRM);
             case REPORT -> ReportEmailBuilder.values(
                     PERIOD, CurrentMessageWordingTest.reportData(), SENDER, FIRM);
-            case PAYROLL -> PayrollEmailBuilder.values(PERIOD, "Acme SRL", SENDER, FIRM);
+            case PAYROLL -> PayrollEmailBuilder.values(PERIOD, "Acme SRL", SENDER, FIRM,
+                    PERIOD.plusMonths(1).withDayOfMonth(25));
             case REMINDER_NOTHING_RECEIVED, REMINDER_DOCS_MISSING, REMINDER_DOCS_ONLY ->
                     reminderValues(kind);
         };

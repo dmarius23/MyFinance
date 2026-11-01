@@ -14,16 +14,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateDeclarationDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTreasuryRequest;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.DeclarationDeadlineResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxRateResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TreasuryResponse;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateDeclarationDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTreasuryRequest;
 import ro.myfinance.settings.application.PlatformReferenceAdminService;
 
 /**
- * SUPER_ADMIN management of the global reference tables (national tax rates + treasury accounts).
+ * SUPER_ADMIN management of the global reference tables (national tax rates, treasury accounts, and the
+ * monthly declaration deadline).
  * Under {@code /api/v1/admin/**}, which {@code SecurityConfig} already restricts to SUPER_ADMIN; the
  * {@code @PreAuthorize} is a belt-and-suspenders declaration of the same intent.
  */
@@ -60,6 +64,33 @@ public class PlatformReferenceController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTaxRate(@PathVariable UUID id) {
         service.deleteTaxRate(id);
+    }
+
+    // ---- monthly declaration deadline (D112 + D300 + D100) --------------------------------------
+    // No method-level @PreAuthorize: the class-level hasRole('SUPER_ADMIN') already governs these, and a
+    // redundant per-method copy would invite someone to "adjust" one of them later.
+
+    @GetMapping("/declaration-deadlines")
+    public List<DeclarationDeadlineResponse> listDeclarationDeadlines() {
+        return service.listDeclarationDeadlines().stream().map(DeclarationDeadlineResponse::from).toList();
+    }
+
+    @PostMapping("/declaration-deadlines")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeclarationDeadlineResponse addDeclarationDeadline(@Valid @RequestBody CreateDeclarationDeadlineRequest r) {
+        return DeclarationDeadlineResponse.from(service.addDeclarationDeadline(r.dayOfMonth(), r.validFrom()));
+    }
+
+    @PutMapping("/declaration-deadlines/{id}")
+    public DeclarationDeadlineResponse updateDeclarationDeadline(@PathVariable UUID id,
+                                                 @Valid @RequestBody UpdateDeclarationDeadlineRequest r) {
+        return DeclarationDeadlineResponse.from(service.updateDeclarationDeadline(id, r.dayOfMonth()));
+    }
+
+    @DeleteMapping("/declaration-deadlines/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteDeclarationDeadline(@PathVariable UUID id) {
+        service.deleteDeclarationDeadline(id);
     }
 
     // ---- treasury accounts ----------------------------------------------------------------------

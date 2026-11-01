@@ -38,11 +38,13 @@ public class DashboardService {
     private final PayrollService payroll;
     private final ReportService reports;
     private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks;
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
 
     public DashboardService(CompanyDirectory companies, UserDirectory users,
                             ReconciliationService reconciliation, TaxPaymentService taxes,
                             PayrollService payroll, ReportService reports,
-                            ro.myfinance.access.application.RepresentativeLinkDirectory repLinks) {
+                            ro.myfinance.access.application.RepresentativeLinkDirectory repLinks,
+                            ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
         this.companies = companies;
         this.users = users;
         this.reconciliation = reconciliation;
@@ -50,6 +52,7 @@ public class DashboardService {
         this.payroll = payroll;
         this.reports = reports;
         this.repLinks = repLinks;
+        this.deadlines = deadlines;
     }
 
     /** Filter: which companies to include in the table. Tiles always reflect the representative filter only. */
@@ -68,8 +71,10 @@ public class DashboardService {
         Map<UUID, ReportService.ReportRow> rep = reports.summary(month).stream()
                 .collect(Collectors.toMap(ReportService.ReportRow::companyId, Function.identity(), (a, b) -> a));
 
-        // Tax obligations are overdue past the 25th of the following month.
-        boolean taxDeadlinePassed = LocalDate.now().isAfter(month.plusMonths(1).withDayOfMonth(25));
+        // Tax obligations are overdue once the configured statutory deadline for the period has passed.
+        // The rule is chosen by the period; whether it has elapsed is judged against today.
+        boolean taxDeadlinePassed =
+                LocalDate.now().isAfter(deadlines.deadlineFor(java.time.YearMonth.from(month)));
 
         // Representatives (client-side contacts) per company, resolved in bulk. The people column and the
         // filter are representative-based: a company may have several, and a rep may serve several companies.

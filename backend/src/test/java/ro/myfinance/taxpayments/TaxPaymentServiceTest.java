@@ -87,8 +87,9 @@ class TaxPaymentServiceTest {
 
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
-                whatsappMessages, new AnafDeclarationExtractor(), new PaymentCalculator(),
-                new PaymentEmailBuilder(), envelopes, templateService());
+                whatsappMessages,
+                new AnafDeclarationExtractor(ro.myfinance.support.TestDeclarationDeadlines.seeded()),
+                new PaymentCalculator(), new PaymentEmailBuilder(), envelopes, templateService());
     }
 
     private byte[] fixture(String name) throws IOException {
