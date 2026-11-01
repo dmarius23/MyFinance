@@ -56,7 +56,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (path.endsWith("/documents") || path.endsWith("/reclassify")) {
             return Category.UPLOAD;
         }
-        if (path.endsWith("emails") || path.endsWith("/document-reminders")) {
+        if (path.endsWith("emails") || path.endsWith("/document-reminders")
+                // Public and unauthenticated — the one limited path with no caller identity, so the bucket
+                // falls back to the remote address below. Without a cap anyone could use it to spray mail
+                // through a tenant's own SMTP credentials.
+                || path.endsWith("/auth/forgot-password")) {
             return Category.EMAIL;
         }
         return null;
