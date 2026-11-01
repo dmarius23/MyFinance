@@ -44,8 +44,8 @@ class PayrollServiceTest {
             new ro.myfinance.company.application.ExpectedDocuments();
     private final MessageTemplateService templates = mock(MessageTemplateService.class);
     /** Stubbed to the seeded rule (day 25 of the following month) so existing expectations hold. */
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines =
-            mock(ro.myfinance.settings.application.PlatformTaxDeadlineService.class);
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines =
+            mock(ro.myfinance.settings.application.PlatformDeclarationDeadlineService.class);
     private final PayrollService service =
             new PayrollService(documents, history, whatsappMessages, dispatch, envelopes, notifications,
                     companies, expected, templates, deadlines);

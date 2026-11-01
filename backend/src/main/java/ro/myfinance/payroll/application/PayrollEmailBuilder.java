@@ -11,7 +11,7 @@ import ro.myfinance.common.i18n.RomanianMonths;
  *
  * <p>The salary-tax deadline falls in the <b>month following</b> the payroll period: taxes on April
  * salaries are due in May. The <em>day</em> is statutory and comes from effective-dated reference data
- * ({@code PlatformTaxDeadlineService}), resolved by the caller and merely formatted here — so a change in
+ * ({@code PlatformDeclarationDeadlineService}), resolved by the caller and merely formatted here — so a change in
  * statute needs no deploy, and this email cannot drift away from
  * {@code AnafDeclarationExtractor}'s D112 fallback or {@code DashboardService}'s overdue gate, which read
  * the same source. This email once contradicted both by naming the period's own month.

@@ -48,7 +48,7 @@ public class PayrollService {
     private final ro.myfinance.company.application.CompanyDirectory companies;
     private final ro.myfinance.company.application.ExpectedDocuments expected;
     private final MessageTemplateService templates;
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines;
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
 
     public PayrollService(DocumentService documents, EmailHistoryRepository history,
                           WhatsAppMessageRepository whatsappMessages,
@@ -57,7 +57,7 @@ public class PayrollService {
                           ro.myfinance.company.application.CompanyDirectory companies,
                           ro.myfinance.company.application.ExpectedDocuments expected,
                           MessageTemplateService templates,
-                          ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines) {
+                          ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
         this.documents = documents;
         this.history = history;
         this.whatsappMessages = whatsappMessages;

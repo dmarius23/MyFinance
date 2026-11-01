@@ -27,8 +27,8 @@ class AnafDeclarationExtractorTest {
      * Stubbed to the seeded statutory rule (day 25 of the following month) so every fixture assertion
      * below keeps the expectation it had when the deadline was hardcoded.
      */
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines =
-            org.mockito.Mockito.mock(ro.myfinance.settings.application.PlatformTaxDeadlineService.class);
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines =
+            org.mockito.Mockito.mock(ro.myfinance.settings.application.PlatformDeclarationDeadlineService.class);
 
     private final AnafDeclarationExtractor extractor = new AnafDeclarationExtractor(deadlines);
 

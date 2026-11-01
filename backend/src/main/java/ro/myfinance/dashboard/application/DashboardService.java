@@ -38,13 +38,13 @@ public class DashboardService {
     private final PayrollService payroll;
     private final ReportService reports;
     private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks;
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines;
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
 
     public DashboardService(CompanyDirectory companies, UserDirectory users,
                             ReconciliationService reconciliation, TaxPaymentService taxes,
                             PayrollService payroll, ReportService reports,
                             ro.myfinance.access.application.RepresentativeLinkDirectory repLinks,
-                            ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines) {
+                            ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
         this.companies = companies;
         this.users = users;
         this.reconciliation = reconciliation;

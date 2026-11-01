@@ -14,19 +14,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxDeadlineRequest;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateDeclarationDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTreasuryRequest;
-import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxDeadlineResponse;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.DeclarationDeadlineResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxRateResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TreasuryResponse;
-import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxDeadlineRequest;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateDeclarationDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTreasuryRequest;
 import ro.myfinance.settings.application.PlatformReferenceAdminService;
 
 /**
- * SUPER_ADMIN management of the global reference tables (national tax rates + treasury accounts).
+ * SUPER_ADMIN management of the global reference tables (national tax rates, treasury accounts, and the
+ * monthly declaration deadline).
  * Under {@code /api/v1/admin/**}, which {@code SecurityConfig} already restricts to SUPER_ADMIN; the
  * {@code @PreAuthorize} is a belt-and-suspenders declaration of the same intent.
  */
@@ -65,31 +66,31 @@ public class PlatformReferenceController {
         service.deleteTaxRate(id);
     }
 
-    // ---- salary-tax deadline --------------------------------------------------------------------
+    // ---- monthly declaration deadline (D112 + D300 + D100) --------------------------------------
     // No method-level @PreAuthorize: the class-level hasRole('SUPER_ADMIN') already governs these, and a
     // redundant per-method copy would invite someone to "adjust" one of them later.
 
-    @GetMapping("/tax-deadlines")
-    public List<TaxDeadlineResponse> listTaxDeadlines() {
-        return service.listTaxDeadlines().stream().map(TaxDeadlineResponse::from).toList();
+    @GetMapping("/declaration-deadlines")
+    public List<DeclarationDeadlineResponse> listDeclarationDeadlines() {
+        return service.listDeclarationDeadlines().stream().map(DeclarationDeadlineResponse::from).toList();
     }
 
-    @PostMapping("/tax-deadlines")
+    @PostMapping("/declaration-deadlines")
     @ResponseStatus(HttpStatus.CREATED)
-    public TaxDeadlineResponse addTaxDeadline(@Valid @RequestBody CreateTaxDeadlineRequest r) {
-        return TaxDeadlineResponse.from(service.addTaxDeadline(r.dayOfMonth(), r.validFrom()));
+    public DeclarationDeadlineResponse addDeclarationDeadline(@Valid @RequestBody CreateDeclarationDeadlineRequest r) {
+        return DeclarationDeadlineResponse.from(service.addDeclarationDeadline(r.dayOfMonth(), r.validFrom()));
     }
 
-    @PutMapping("/tax-deadlines/{id}")
-    public TaxDeadlineResponse updateTaxDeadline(@PathVariable UUID id,
-                                                 @Valid @RequestBody UpdateTaxDeadlineRequest r) {
-        return TaxDeadlineResponse.from(service.updateTaxDeadline(id, r.dayOfMonth()));
+    @PutMapping("/declaration-deadlines/{id}")
+    public DeclarationDeadlineResponse updateDeclarationDeadline(@PathVariable UUID id,
+                                                 @Valid @RequestBody UpdateDeclarationDeadlineRequest r) {
+        return DeclarationDeadlineResponse.from(service.updateDeclarationDeadline(id, r.dayOfMonth()));
     }
 
-    @DeleteMapping("/tax-deadlines/{id}")
+    @DeleteMapping("/declaration-deadlines/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteTaxDeadline(@PathVariable UUID id) {
-        service.deleteTaxDeadline(id);
+    public void deleteDeclarationDeadline(@PathVariable UUID id) {
+        service.deleteDeclarationDeadline(id);
     }
 
     // ---- treasury accounts ----------------------------------------------------------------------

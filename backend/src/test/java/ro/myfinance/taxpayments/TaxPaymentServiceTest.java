@@ -88,7 +88,7 @@ class TaxPaymentServiceTest {
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
                 whatsappMessages,
-                new AnafDeclarationExtractor(ro.myfinance.support.TestTaxDeadlines.seeded()),
+                new AnafDeclarationExtractor(ro.myfinance.support.TestDeclarationDeadlines.seeded()),
                 new PaymentCalculator(), new PaymentEmailBuilder(), envelopes, templateService());
     }
 

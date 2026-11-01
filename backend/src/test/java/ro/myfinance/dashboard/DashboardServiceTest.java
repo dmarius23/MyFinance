@@ -43,8 +43,8 @@ class DashboardServiceTest {
     private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks =
             mock(ro.myfinance.access.application.RepresentativeLinkDirectory.class);
     /** Stubbed to the seeded rule so the existing overdue expectations below are unchanged. */
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines =
-            ro.myfinance.support.TestTaxDeadlines.seeded();
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines =
+            ro.myfinance.support.TestDeclarationDeadlines.seeded();
     private final DashboardService service =
             new DashboardService(companies, users, reconciliation, taxes, payroll, reports, repLinks,
                     deadlines);

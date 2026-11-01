@@ -32,16 +32,17 @@ date still resolve to 25. A deployment that adds no row behaves exactly as today
 
 | Decision | Rationale |
 |---|---|
-| **One deadline, not one per declaration type** | All three consumers use the same value today. `defaultDeadline` is used in exactly one place — `parseD112` ("D112 carries no per-line scadenta"); D300 and D100 carry their own. Per-type deadlines only become meaningful alongside the parked quarterly-D300 / D100-due-months cadence work, and building them now would build half of that. |
+| **One deadline, not one per declaration type** | D112, D300 and D100 all fall on the 25th under current Romanian law, so one value is correct for all three. **Corrected during review:** an earlier draft of this row claimed `defaultDeadline` had "exactly one" call site (`parseD112`) and that "D300 and D100 carry their own" — that is false. It has three: `parseD112`, `parseD300` **unconditionally** (the VAT decont has no per-line `scadenta` at all), and `parseD100` whenever its own `scadenta` is absent or unparseable. Since the single value therefore governs VAT due dates too, the table and API were renamed from `tax`/salary wording to the type-neutral **declaration deadline** — a D112-specific name would invite an admin to "move the salary deadline" and silently move every client's VAT date with it. Per-type deadlines only become meaningful alongside the parked quarterly-D300 / D100-due-months cadence work. |
 | **Only the day is configurable; the `+1` month offset stays in code** | Statutory changes move the day (25 → 20), not the structure — "month following the period" is intrinsic to monthly filing. An editable offset would also re-introduce the exact footgun just fixed: an offset of `0` silently restores "April taxes due 25 April". |
-| **A dedicated `platform_tax_deadline` table** | Mirrors `platform_tax_rate`. Rejected: reusing `platform_tax_rate` with a synthetic `PAYROLL_DEADLINE_DAY` category, which would store a calendar day in a `numeric(6,2)` column named `rate` and force every `TaxRateCategory` consumer to learn that one member is not a rate. Also rejected: a general `platform_setting(key, value)` table — untyped, per-key ad-hoc validation, a settings framework built to hold one integer. |
+| **A dedicated `platform_declaration_deadline` table** | Mirrors `platform_tax_rate`. Rejected: reusing `platform_tax_rate` with a synthetic `PAYROLL_DEADLINE_DAY` category, which would store a calendar day in a `numeric(6,2)` column named `rate` and force every `TaxRateCategory` consumer to learn that one member is not a rate. Also rejected: a general `platform_setting(key, value)` table — untyped, per-key ad-hoc validation, a settings framework built to hold one integer. |
 | **Global: no `tenant_id`, no RLS** | Identical Romanian reference data for every tenant, per `backend/docs/MyFinance-global-reference-settings-design-v1.md` §4. Writes gated app-layer by `@PreAuthorize("hasRole('SUPER_ADMIN')")`. |
 | **The resolved value is passed into `PayrollEmailBuilder`, not injected** | The template work established that builders assemble a variable map and services do the resolving. Keeping the builder static and dependency-free also keeps `CurrentMessageWordingTest` deterministic without a database. |
 | **`AnafDeclarationExtractor` injects the service** | Rejected a no-arg overload defaulting to 25, which would mean far less churn — but a production call site that forgot the parameter would silently get 25 and rebuild the drift this work removes. Five mechanical test-construction edits are the better trade. |
 
 ## 3. Data model
 
-`V63__platform_tax_deadline.sql`:
+`V69__platform_declaration_deadline.sql` (shipped as V69; drafted as V63, renumbered when the WhatsApp
+work landed V62–V67 on master):
 
 ```sql
 -- The statutory day-of-month on which salary taxes (D112) fall due, in the month FOLLOWING the period.
@@ -55,21 +56,21 @@ date still resolve to 25. A deployment that adds no row behaves exactly as today
 -- a shared DB role cannot distinguish SUPER_ADMIN, so authz lives in the application as it does for the
 -- sibling reference tables. The mandatory isolation test is replaced by a read-allowed / write-denied
 -- test (§6).
-CREATE TABLE platform_tax_deadline (
+CREATE TABLE platform_declaration_deadline (
     id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     day_of_month smallint NOT NULL CHECK (day_of_month BETWEEN 1 AND 28),
     valid_from   date NOT NULL,
     created_at   timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT uq_platform_tax_deadline UNIQUE (valid_from)
+    CONSTRAINT uq_platform_declaration_deadline UNIQUE (valid_from)
 );
 
 -- Seed the rule in force today so every existing period resolves and no consumer needs a special case.
-INSERT INTO platform_tax_deadline (day_of_month, valid_from) VALUES (25, '2020-01-01');
+INSERT INTO platform_declaration_deadline (day_of_month, valid_from) VALUES (25, '2020-01-01');
 
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'myfinance_app') THEN
-        GRANT SELECT, INSERT, UPDATE, DELETE ON platform_tax_deadline TO myfinance_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON platform_declaration_deadline TO myfinance_app;
     END IF;
 END $$;
 ```
@@ -80,16 +81,16 @@ end-of-month clamping rule introduced deliberately — not a `CHECK` that quietl
 
 ## 4. Resolution
 
-`settings/domain/PlatformTaxDeadline.java` — entity, mirroring `PlatformTaxRate`.
+`settings/domain/PlatformDeclarationDeadline.java` — entity, mirroring `PlatformTaxRate`.
 
-`settings/adapter/persistence/PlatformTaxDeadlineRepository.java`:
+`settings/adapter/persistence/PlatformDeclarationDeadlineRepository.java`:
 
 ```java
-Optional<PlatformTaxDeadline> findTopByValidFromLessThanEqualOrderByValidFromDesc(LocalDate period);
-List<PlatformTaxDeadline> findAllByOrderByValidFromDesc();
+Optional<PlatformDeclarationDeadline> findTopByValidFromLessThanEqualOrderByValidFromDesc(LocalDate period);
+List<PlatformDeclarationDeadline> findAllByOrderByValidFromDesc();
 ```
 
-`settings/application/PlatformTaxDeadlineService.java`:
+`settings/application/PlatformDeclarationDeadlineService.java`:
 
 ```java
 /** The statutory day-of-month, for the rule in force during {@code period}. Defaults to 25. */
@@ -125,7 +126,7 @@ public RenderedMessage message(UUID companyId, LocalDate period) {
 `"25 " + monthYear(...)` exactly as now — the formatting stays in Java, and the builder stays static with
 no injected dependency.
 
-**`AnafDeclarationExtractor`** gains a constructor dependency on `PlatformTaxDeadlineService`;
+**`AnafDeclarationExtractor`** gains a constructor dependency on `PlatformDeclarationDeadlineService`;
 `defaultDeadline(YearMonth)` becomes `deadlines.deadlineFor(period)`. Five test files construct it with
 `new AnafDeclarationExtractor()` and must pass a stub returning 25:
 `AnafDeclarationExtractorTest`, `TaxPaymentServiceTest`, `TaxDeclarationServiceTest`,
@@ -145,10 +146,10 @@ tax-rate shape exactly:
 
 | Method | Path |
 |---|---|
-| `GET` | `/tax-deadlines` |
-| `POST` | `/tax-deadlines` → 201 |
-| `PUT` | `/tax-deadlines/{id}` |
-| `DELETE` | `/tax-deadlines/{id}` → 204 |
+| `GET` | `/declaration-deadlines` |
+| `POST` | `/declaration-deadlines` → 201 |
+| `PUT` | `/declaration-deadlines/{id}` |
+| `DELETE` | `/declaration-deadlines/{id}` → 204 |
 
 Request/response records go in `PlatformReferenceDtos`; the service methods go on
 `PlatformReferenceAdminService` beside `addTaxRate` / `updateTaxRate` / `deleteTaxRate`. No new

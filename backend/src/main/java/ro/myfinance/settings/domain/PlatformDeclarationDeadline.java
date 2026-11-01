@@ -12,16 +12,20 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 /**
- * The statutory day-of-month on which salary taxes fall due, in the month following the period.
- * Effective-dated. GLOBAL reference data — no {@code tenant_id}, no RLS (see V69). Managed by
+ * The statutory day-of-month on which monthly ANAF declarations fall due, in the month following the
+ * period. Effective-dated. GLOBAL reference data — no {@code tenant_id}, no RLS (see V69). Managed by
  * SUPER_ADMIN; tenants read only.
+ *
+ * <p>One day for all monthly declarations, not just D112: D300 (VAT) carries no per-line {@code scadenta}
+ * and D100 falls back to this when its own is missing, so all three resolve here. They share the 25th
+ * under current Romanian law. Split by declaration type only if a statute actually splits them.
  *
  * <p>Only the day is stored. The "month following the period" offset is intrinsic to monthly filing and
  * stays in code: a configurable offset of zero would silently claim April's taxes are due in April.
  */
 @Entity
-@Table(name = "platform_tax_deadline")
-public class PlatformTaxDeadline {
+@Table(name = "platform_declaration_deadline")
+public class PlatformDeclarationDeadline {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,10 +41,10 @@ public class PlatformTaxDeadline {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected PlatformTaxDeadline() {
+    protected PlatformDeclarationDeadline() {
     }
 
-    public PlatformTaxDeadline(short dayOfMonth, LocalDate validFrom) {
+    public PlatformDeclarationDeadline(short dayOfMonth, LocalDate validFrom) {
         this.dayOfMonth = dayOfMonth;
         this.validFrom = validFrom;
     }

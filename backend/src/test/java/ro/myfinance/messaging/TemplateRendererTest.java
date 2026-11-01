@@ -36,7 +36,7 @@ class TemplateRendererTest {
         assertThat(out).isEqualTo("Total:  lei");
     }
 
-    /** Review Focus 4: a stale name from an older contract must never reach a client literally. */
+    /** A stale name from an older contract must never reach a client literally. */
     @Test
     void unknownPlaceholderIsStrippedNotEchoed() {
         String out = renderer.render("Salut {{removedInV7}}!", Map.of());
@@ -69,7 +69,7 @@ class TemplateRendererTest {
     }
 
     /**
-     * Review Focus 1: a company or partner name may itself contain {{…}}. Substitution is single-pass,
+     * A company or partner name may itself contain {{…}}. Substitution is single-pass,
      * so injected data is never re-scanned — otherwise client data would reach the template engine.
      */
     @Test
@@ -85,7 +85,7 @@ class TemplateRendererTest {
         assertThat(out).isEqualTo("Suma {{ este mare");
     }
 
-    /** Review Focus 2: a template pasted from Word must not put \r into a client's email. */
+    /** A template pasted from Word must not put \r into a client's email. */
     @Test
     void normalizesWindowsAndClassicMacLineEndings() {
         assertThat(renderer.render("Prima\r\nA doua\rA treia", Map.of()))
@@ -94,7 +94,7 @@ class TemplateRendererTest {
     }
 
     /**
-     * Review Focus 3: a tenant may delete a block placeholder. That is their prose decision — rendering
+     * A tenant may delete a block placeholder. That is their prose decision — rendering
      * must not throw and must not reinstate the list; the message simply goes out without it.
      */
     @Test

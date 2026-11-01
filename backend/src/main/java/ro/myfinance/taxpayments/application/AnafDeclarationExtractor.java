@@ -44,7 +44,7 @@ public class AnafDeclarationExtractor {
 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines;
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines;
 
     /**
      * There is deliberately no no-arg constructor. An overload defaulting to the 25th would let a
@@ -52,7 +52,7 @@ public class AnafDeclarationExtractor {
      * and the dashboard, which is the whole reason the day became reference data.
      */
     public AnafDeclarationExtractor(
-            ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines) {
+            ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines) {
         this.deadlines = deadlines;
     }
 

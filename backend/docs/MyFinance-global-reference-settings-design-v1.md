@@ -77,8 +77,21 @@ CREATE TABLE platform_treasury_account (
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (residence, valid_from)
 );
+-- Added later by V69 (same global/no-RLS contract as the two above):
+CREATE TABLE platform_declaration_deadline (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  day_of_month smallint NOT NULL CHECK (day_of_month BETWEEN 1 AND 28),
+  valid_from   date NOT NULL,            -- effective-dated, same rule as above
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (valid_from)
+);
 -- grants to myfinance_app (SELECT + write; write is app-gated to SUPER_ADMIN). NO RLS.
 ```
+
+**This section is the authority the migrations cite for the no-RLS exception**, so it must list every
+global table. As of V69 that is three: `platform_tax_rate`, `platform_treasury_account` and
+`platform_declaration_deadline` (the statutory day monthly ANAF declarations fall due — D112, D300 and
+D100 alike; resolver `PlatformDeclarationDeadlineService.deadlineFor`).
 
 **Resolution rule (both):** for category/residence + target period `P`, pick the row with the **greatest
 `valid_from ≤ P`**. No `valid_to` — the next-higher `valid_from` implicitly supersedes. If none `≤ P`, fall

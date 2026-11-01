@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
-import ro.myfinance.settings.domain.PlatformTaxDeadline;
+import ro.myfinance.settings.domain.PlatformDeclarationDeadline;
 import ro.myfinance.settings.domain.PlatformTaxRate;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.settings.domain.TaxRateCategory;
@@ -32,17 +32,17 @@ public final class PlatformReferenceDtos {
     public record UpdateTaxRateRequest(@NotNull BigDecimal rate) {
     }
 
-    public record TaxDeadlineResponse(UUID id, short dayOfMonth, LocalDate validFrom) {
-        public static TaxDeadlineResponse from(PlatformTaxDeadline d) {
-            return new TaxDeadlineResponse(d.getId(), d.getDayOfMonth(), d.getValidFrom());
+    public record DeclarationDeadlineResponse(UUID id, short dayOfMonth, LocalDate validFrom) {
+        public static DeclarationDeadlineResponse from(PlatformDeclarationDeadline d) {
+            return new DeclarationDeadlineResponse(d.getId(), d.getDayOfMonth(), d.getValidFrom());
         }
     }
 
     /** Boxed {@code Short} so {@code @NotNull} catches an omitted field instead of defaulting to 0. */
-    public record CreateTaxDeadlineRequest(@NotNull Short dayOfMonth, @NotNull LocalDate validFrom) {
+    public record CreateDeclarationDeadlineRequest(@NotNull Short dayOfMonth, @NotNull LocalDate validFrom) {
     }
 
-    public record UpdateTaxDeadlineRequest(@NotNull Short dayOfMonth) {
+    public record UpdateDeclarationDeadlineRequest(@NotNull Short dayOfMonth) {
     }
 
     public record TreasuryResponse(UUID id, String residence, LocalDate validFrom, String ibanCam,

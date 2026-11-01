@@ -9,23 +9,23 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import ro.myfinance.settings.adapter.persistence.PlatformTaxDeadlineRepository;
-import ro.myfinance.settings.application.PlatformTaxDeadlineService;
-import ro.myfinance.settings.domain.PlatformTaxDeadline;
+import ro.myfinance.settings.adapter.persistence.PlatformDeclarationDeadlineRepository;
+import ro.myfinance.settings.application.PlatformDeclarationDeadlineService;
+import ro.myfinance.settings.domain.PlatformDeclarationDeadline;
 
 /**
  * The salary-tax deadline is the configured day of the month AFTER the period, resolved by the rule in
  * force during that PERIOD — not the rule in force today. That distinction is what lets an old month's
  * email be re-sent without silently restating a newer statute.
  */
-class PlatformTaxDeadlineServiceTest {
+class PlatformDeclarationDeadlineServiceTest {
 
-    private final PlatformTaxDeadlineRepository repo = mock(PlatformTaxDeadlineRepository.class);
-    private final PlatformTaxDeadlineService service = new PlatformTaxDeadlineService(repo);
+    private final PlatformDeclarationDeadlineRepository repo = mock(PlatformDeclarationDeadlineRepository.class);
+    private final PlatformDeclarationDeadlineService service = new PlatformDeclarationDeadlineService(repo);
 
     private void givenRule(short day, String validFrom) {
         when(repo.findTopByValidFromLessThanEqualOrderByValidFromDesc(any()))
-                .thenReturn(Optional.of(new PlatformTaxDeadline(day, LocalDate.parse(validFrom))));
+                .thenReturn(Optional.of(new PlatformDeclarationDeadline(day, LocalDate.parse(validFrom))));
     }
 
     @Test
@@ -48,7 +48,7 @@ class PlatformTaxDeadlineServiceTest {
     }
 
     /**
-     * Review Focus 2: the admin API can delete the seeded row, leaving the table empty. Resolution must
+     * The admin API can delete the seeded row, leaving the table empty. Resolution must
      * fall back rather than throw — a missing row must never fail a payroll send mid-flight.
      */
     @Test
@@ -65,7 +65,7 @@ class PlatformTaxDeadlineServiceTest {
     }
 
     /**
-     * Review Focus 1 + 3: the rule is chosen by the PERIOD, not by today. A rule effective 2027 must not
+     * The rule is chosen by the PERIOD, not by today. A rule effective 2027 must not
      * touch a 2026 period, and re-resolving an old period must still give the old answer. This is the
      * test that fails if someone resolves with YearMonth.now().
      */
@@ -74,9 +74,9 @@ class PlatformTaxDeadlineServiceTest {
         // Two rules: 25 from 2020, 20 from 2027. The repository is asked with the PERIOD's first day,
         // so a 2026 period must be matched against the 2020 rule.
         when(repo.findTopByValidFromLessThanEqualOrderByValidFromDesc(LocalDate.of(2026, 4, 1)))
-                .thenReturn(Optional.of(new PlatformTaxDeadline((short) 25, LocalDate.of(2020, 1, 1))));
+                .thenReturn(Optional.of(new PlatformDeclarationDeadline((short) 25, LocalDate.of(2020, 1, 1))));
         when(repo.findTopByValidFromLessThanEqualOrderByValidFromDesc(LocalDate.of(2027, 4, 1)))
-                .thenReturn(Optional.of(new PlatformTaxDeadline((short) 20, LocalDate.of(2027, 1, 1))));
+                .thenReturn(Optional.of(new PlatformDeclarationDeadline((short) 20, LocalDate.of(2027, 1, 1))));
 
         assertThat(service.deadlineFor(YearMonth.of(2026, 4))).isEqualTo(LocalDate.of(2026, 5, 25));
         assertThat(service.deadlineFor(YearMonth.of(2027, 4))).isEqualTo(LocalDate.of(2027, 5, 20));
@@ -91,7 +91,7 @@ class PlatformTaxDeadlineServiceTest {
     }
 
     /**
-     * Review Focus 4: day 28 is the highest the CHECK permits, precisely so February can never shorten
+     * Day 28 is the highest the CHECK permits, precisely so February can never shorten
      * a deadline. A January period therefore resolves into February without clamping.
      */
     @Test

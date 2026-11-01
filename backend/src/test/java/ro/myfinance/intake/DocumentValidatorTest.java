@@ -41,7 +41,7 @@ class DocumentValidatorTest {
     // Real ANAF extractor (deterministic) against the checked-in fixtures.
     private final DocumentValidator validator =
             new DocumentValidator(documents,
-                    new AnafDeclarationExtractor(ro.myfinance.support.TestTaxDeadlines.seeded()),
+                    new AnafDeclarationExtractor(ro.myfinance.support.TestDeclarationDeadlines.seeded()),
                     invoices, statements);
 
     private static Company company(String cui, String name) {
