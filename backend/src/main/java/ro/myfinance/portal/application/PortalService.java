@@ -50,6 +50,7 @@ public class PortalService {
     private final ro.myfinance.taxpayments.application.TaxPaymentService taxes;
     private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks;
     private final ro.myfinance.access.application.UserDirectory users;
+    private final ro.myfinance.access.application.SignInRecorder signIns;
     private final jakarta.servlet.http.HttpServletRequest request;
 
     public PortalService(CompanyDirectory companies, DocumentService documents, NotificationService notifications,
@@ -58,7 +59,9 @@ public class PortalService {
                          PayrollService payroll, ro.myfinance.taxpayments.application.TaxPaymentService taxes,
                          ro.myfinance.access.application.RepresentativeLinkDirectory repLinks,
                          ro.myfinance.access.application.UserDirectory users,
+                         ro.myfinance.access.application.SignInRecorder signIns,
                          jakarta.servlet.http.HttpServletRequest request) {
+        this.signIns = signIns;
         this.companies = companies;
         this.documents = documents;
         this.notifications = notifications;
@@ -112,6 +115,10 @@ public class PortalService {
     /** The rep's active company plus every company they can switch to. */
     @Transactional(readOnly = true)
     public CompanyInfo me() {
+        // The PWA calls this once on bootstrap, which makes it the cheapest place to notice that a rep is
+        // actually using the portal: promote them off PENDING_INVITE/INVITED. Runs in its own transaction,
+        // since this one is read-only.
+        TenantContext.current().map(TenantContext.Identity::userId).ifPresent(signIns::recordSignIn);
         UUID companyId = companyId();
         Company c = companies.findById(companyId)
                 .orElseThrow(() -> new NotFoundException("Company not found"));

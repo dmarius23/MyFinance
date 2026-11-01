@@ -13,8 +13,13 @@ class LoggingUserInviterTest {
     @Test
     void returnsAGeneratedExternalUserId() {
         var inviter = new LoggingUserInviter();
-        var result = inviter.invite("rep@client.ro",
+        var result = inviter.provision("rep@client.ro",
                 new InviteClaims(UUID.randomUUID(), Role.REPRESENTATIVE, UUID.randomUUID()));
         assertThat(result.externalUserId()).isNotNull();
+    }
+
+    @Test
+    void mintsARecoveryStyleSetPasswordLink() {
+        assertThat(new LoggingUserInviter().generateSetPasswordLink("rep@client.ro")).contains("rep@client.ro");
     }
 }

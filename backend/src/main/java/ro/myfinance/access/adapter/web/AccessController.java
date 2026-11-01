@@ -42,6 +42,12 @@ public class AccessController {
         return UserResponse.from(service.inviteUser(request.email(), request.name(), request.role()));
     }
 
+    /** Resend a staff member a fresh "set your password" link (expired link, lost email, never set one). */
+    @PostMapping("/{id}/invite")
+    public void sendInvite(@PathVariable UUID id) {
+        service.sendInvite(id);
+    }
+
     @PutMapping("/{id}/role")
     public UserResponse setRole(@PathVariable UUID id, @Valid @RequestBody SetRoleRequest request) {
         return UserResponse.from(service.setRole(id, request.role()));

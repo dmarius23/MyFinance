@@ -5,7 +5,7 @@ export interface Representative {
   name: string | null;
   email: string;
   phone: string | null;
-  status: "ACTIVE" | "INACTIVE" | "INVITED";
+  status: "ACTIVE" | "INACTIVE" | "PENDING_INVITE" | "INVITED";
 }
 
 export const representativesApi = {

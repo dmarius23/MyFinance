@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.settings.adapter.web.SettingsDtos.SettingsResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.TreasuryResponse;
 import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateAutoSyncRequest;
+import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateInvoicePeriodModeRequest;
 import ro.myfinance.settings.adapter.web.SettingsDtos.UpdateSenderEmailRequest;
 import ro.myfinance.settings.application.PlatformRatesService;
 import ro.myfinance.settings.application.PlatformTreasuryService;
@@ -21,7 +22,8 @@ import ro.myfinance.settings.domain.TaxRateCategory;
 /**
  * Tenant-level general settings. TENANT_ADMIN only. Tax rates and treasury accounts are GLOBAL,
  * SUPER_ADMIN-managed reference data (see {@link PlatformRatesService} / {@link PlatformTreasuryService})
- * and are exposed here read-only, resolved for today; only {@code sender_email} is editable per-tenant.
+ * and are exposed here read-only, resolved for today; tenant-specific operational settings are editable
+ * by the tenant admin.
  */
 @RestController
 @RequestMapping("/api/v1/settings")
@@ -47,7 +49,7 @@ public class SettingsController {
                 rates.rateFor(TaxRateCategory.VAT, today).orElse(null),
                 rates.rateFor(TaxRateCategory.MICRO, today).orElse(null),
                 rates.rateFor(TaxRateCategory.PROFIT, today).orElse(null),
-                gs.getSenderEmail(), gs.isAutoSyncEnabled(), gs.getAutoSyncHour());
+                gs.getSenderEmail(), gs.isAutoSyncEnabled(), gs.getAutoSyncHour(), gs.getInvoicePeriodMode());
     }
 
     @PutMapping
@@ -60,6 +62,15 @@ public class SettingsController {
     @PutMapping("/auto-sync")
     public SettingsResponse updateAutoSync(@Valid @RequestBody UpdateAutoSyncRequest request) {
         service.updateAutoSync(request.enabled(), request.hour());
+        return getSettings();
+    }
+
+    @PutMapping("/invoice-period-mode")
+    public SettingsResponse updateInvoicePeriodMode(@Valid @RequestBody UpdateInvoicePeriodModeRequest request) {
+        if (request.mode() == null) {
+            throw new IllegalArgumentException("Invoice period mode is required");
+        }
+        service.updateInvoicePeriodMode(request.mode());
         return getSettings();
     }
 

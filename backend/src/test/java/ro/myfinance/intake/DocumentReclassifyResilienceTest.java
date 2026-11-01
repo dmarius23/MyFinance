@@ -27,6 +27,7 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentSource;
 import ro.myfinance.intake.domain.DocumentStatus;
 import ro.myfinance.intake.domain.DocumentType;
+import ro.myfinance.settings.application.SettingsService;
 
 /**
  * Re-extraction is a recovery action — typically run precisely because something is already wrong — so a
@@ -46,7 +47,8 @@ class DocumentReclassifyResilienceTest {
     private DocumentService service() {
         return new DocumentService(mock(CompanyDirectory.class), documents, storage, classifier, ocr,
                 mock(DocumentValidator.class), mock(AuditRecorder.class), events,
-                mock(ro.myfinance.tenant.application.TenantDirectory.class));
+                mock(ro.myfinance.tenant.application.TenantDirectory.class),
+                mock(SettingsService.class));
     }
 
     private static Document doc(String filename) {

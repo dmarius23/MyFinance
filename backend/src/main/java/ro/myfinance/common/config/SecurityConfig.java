@@ -57,6 +57,10 @@ public class SecurityConfig {
                         "/actuator/health", "/actuator/health/**", "/actuator/info",
                         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
                         "/api/v1/ingestion/gmail/pubsub",
+                        // Forgot-password: the caller is locked out, so there is no token to present. The
+                        // endpoint always answers 204 and never echoes the link; RateLimitFilter caps it
+                        // per remote address since there is no authenticated caller to key on.
+                        "/api/v1/auth/forgot-password",
                         "/api/v1/webhooks/whatsapp/meta")
                 .permitAll()
                 // Fail-safe role backstop at the filter layer, in addition to per-method @PreAuthorize:

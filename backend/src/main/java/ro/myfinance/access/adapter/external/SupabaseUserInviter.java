@@ -12,20 +12,20 @@ import ro.myfinance.common.config.SupabaseProperties;
 import ro.myfinance.access.application.UserInviter;
 
 /**
- * Invites a representative through Supabase Auth (GoTrue) admin REST:
- *   1. POST /auth/v1/invite  -> creates the user, sends the invite email, returns the id
- *   2. PUT  /auth/v1/admin/users/{id} -> sets app_metadata {tenant_id, role, company_id}, which the
- *      custom access-token hook lifts into top-level JWT claims read by the backend.
+ * Creates users in Supabase Auth (GoTrue) via admin REST: POST /auth/v1/admin/users mints the user with
+ * app_metadata {tenant_id, role, company_id}, which the custom access-token hook lifts into top-level JWT
+ * claims read by the backend. No email is ever sent by GoTrue — the application delivers its own branded
+ * invitation carrying a recovery link from {@link #generateSetPasswordLink}.
  *
  * If the email is already a Supabase auth user (e.g. this person already represents another company, or
- * a leftover from a reused project), GoTrue rejects the invite with "already registered". Rather than
- * failing, we look the existing user up by email and reuse it (step 2 still (re)applies the claims). The
- * returned {@code created=false} then tells the caller NOT to compensate-delete a user it did not create.
+ * a leftover from a reused project), GoTrue rejects the create with "already registered". Rather than
+ * failing, we look the existing user up by email and (re)apply the claims with a PUT. The returned
+ * {@code created=false} then tells the caller NOT to compensate-delete a user it did not create.
  */
 public class SupabaseUserInviter implements UserInviter {
 
     private final RestClient client;
-    /** The app's public URL, used as {@code redirect_to} so invite / set-password links open the app
+    /** The app's public URL, used as {@code redirect_to} so set-password links open the app
      *  instead of Supabase's default Site URL. Blank = fall back to the project's Site URL. */
     private final String appUrl;
 
@@ -39,45 +39,12 @@ public class SupabaseUserInviter implements UserInviter {
     }
 
     @Override
-    public InvitedUser invite(String email, InviteClaims claims) {
-        boolean created = true;
-        UUID userId;
-        try {
-            GoTrueUser invited = client.post()
-                    .uri(b -> withRedirect(b.path("/auth/v1/invite")).build())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("email", email))
-                    .retrieve()
-                    .body(GoTrueUser.class);
-            if (invited == null || invited.id() == null) {
-                throw new IllegalStateException("Supabase invite returned no user id");
-            }
-            userId = invited.id();
-        } catch (HttpClientErrorException e) {
-            if (!isAlreadyRegistered(e)) {
-                throw e;
-            }
-            userId = findUserIdByEmail(email);   // reuse the existing auth user
-            created = false;
-        }
-
-        // Staff (admin/employee) have no company; only representatives carry a company_id claim.
-        client.put()
-                .uri("/auth/v1/admin/users/{id}", userId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("app_metadata", appMetadata(claims)))
-                .retrieve()
-                .toBodilessEntity();
-
-        return new InvitedUser(userId, created);
-    }
-
-    @Override
     public InvitedUser provision(String email, InviteClaims claims) {
+        // Staff (admin/employee) have no company; only representatives carry a company_id claim.
         Map<String, Object> appMetadata = appMetadata(claims);
         try {
-            // Admin create-user does NOT send an email (unlike /invite), so it isn't email-rate-limited.
-            // email_confirm=true marks the address confirmed; the rep gets a password via reset/magic-link later.
+            // Admin create-user does NOT send an email, so it isn't email-rate-limited. email_confirm=true
+            // marks the address confirmed; the user sets a password via the branded recovery link.
             GoTrueUser created = client.post()
                     .uri("/auth/v1/admin/users")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -113,16 +80,11 @@ public class SupabaseUserInviter implements UserInviter {
         return m;
     }
 
-    /** Add {@code redirect_to=<appUrl>} so the email link opens the app; no-op when appUrl is blank. */
-    private org.springframework.web.util.UriBuilder withRedirect(org.springframework.web.util.UriBuilder b) {
-        return appUrl.isBlank() ? b : b.queryParam("redirect_to", appUrl);
-    }
-
     @Override
     public String generateSetPasswordLink(String email) {
         // Admin generate_link mints a recovery ("set your password") action link WITHOUT sending an email,
-        // so the app can deliver its own branded invitation. Works for an already-registered user (unlike
-        // /invite). redirect_to (in the body) makes the link open the app.
+        // so the app can deliver its own branded invitation. type=recovery is what makes supabase-js raise
+        // PASSWORD_RECOVERY in the browser and force the set-password screen. redirect_to opens the app.
         Map<String, Object> body = new HashMap<>();
         body.put("type", "recovery");
         body.put("email", email);

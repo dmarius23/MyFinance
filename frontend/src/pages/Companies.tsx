@@ -185,6 +185,7 @@ export function Companies() {
                           <span key={r.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                             <span style={{ fontSize: 13 }}>{r.name}</span>
                             {r.status === "INACTIVE" && <span className="pill round muted" style={{ fontSize: 10 }}>{t("team.st.INACTIVE")}</span>}
+                            {r.status === "PENDING_INVITE" && <span className="pill round warn" style={{ fontSize: 10 }}>{t("team.st.PENDING_INVITE")}</span>}
                             {r.status === "INVITED" && <span className="pill round" style={{ fontSize: 10 }}>{t("team.st.INVITED")}</span>}
                           </span>
                         ))}

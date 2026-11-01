@@ -24,9 +24,11 @@ on:
     branches: [master, main]
   workflow_dispatch:
 
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+# NO workflow-level `concurrency` on purpose. A workflow-level group queues the whole RUN, so a run left
+# sitting at the production approval gate starved every later push indefinitely: the newer run reported
+# status=pending with ZERO jobs created and an EMPTY pending_deployments list, so there was nothing to
+# approve and no visible cause. That silently held back the PR #108 deploy for a day (2026-10-31).
+# Serialisation now lives on the jobs themselves, which lets `supersede` below actually run and clear it.
 
 env:
   REGISTRY: ghcr.io
@@ -37,6 +39,11 @@ jobs:
   build:
     name: Build & push images
     runs-on: ubuntu-latest
+    # Newest commit wins: a superseded build is wasted runner time, and letting two finish out of order
+    # would leave the `:latest` tags pointing at the older image.
+    concurrency:
+      group: deploy-build-${{ github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
       packages: write
@@ -78,11 +85,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to Hetzner VM
+  # Runs AFTER build and BEFORE the gated deploy, which is the only point where it can see an older run
+  # that has reached the gate. Doing this at the start of the run would miss a predecessor still building.
+  supersede:
+    name: Supersede runs awaiting approval
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel older runs still waiting for approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # ONLY status=waiting (parked at the approval gate). A run that is genuinely mid-deploy is
+          # `in_progress` and must never be interrupted — half-applied `docker compose up`/migrations are
+          # exactly what `cancel-in-progress: false` on the deploy job protects against; we queue instead.
+          gh api --paginate \
+            "repos/${{ github.repository }}/actions/workflows/deploy.yml/runs?branch=${{ github.ref_name }}&status=waiting&per_page=100" \
+            --jq ".workflow_runs[] | select(.id < ${{ github.run_id }}) | .id" > stale.txt || true
+          if [ ! -s stale.txt ]; then
+            echo "No older run awaiting approval — nothing to supersede."
+            exit 0
+          fi
+          while read -r id; do
+            echo "Cancelling run $id: superseded by ${{ github.run_id }} (${{ github.sha }})."
+            gh api --method POST "repos/${{ github.repository }}/actions/runs/$id/cancel" || true
+          done < stale.txt
+
+  deploy:
+    name: Deploy to Hetzner VM
+    needs: [build, supersede]
+    runs-on: ubuntu-latest
     environment: production      # <- manual approval gate (required reviewer)
+    # Two real deploys must never overlap, so this stays `false`. Safe now only because `supersede` above
+    # clears predecessors that are merely awaiting approval — otherwise this group is what deadlocked.
+    concurrency:
+      group: deploy-prod-${{ github.ref }}
+      cancel-in-progress: false
     steps:
       # MUST come from `secrets.`, never `vars.`. GMAIL_CLIENT_SECRET leaked in plaintext on this
       # PUBLIC repo TWICE on 2026-10-28, both times because it was stored as a repository VARIABLE:

@@ -119,6 +119,10 @@ public class AppUser {
         return lastLogin;
     }
 
+    public void setLastLogin(Instant lastLogin) {
+        this.lastLogin = lastLogin;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
