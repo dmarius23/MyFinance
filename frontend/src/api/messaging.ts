@@ -76,8 +76,8 @@ export const messagingApi = {
   completeMetaOnboarding: (input: {
     state: string;
     authorizationCode: string;
-    wabaId: string;
-    phoneNumberId: string;
+    wabaId?: string;
+    phoneNumberId?: string;
     businessPortfolioId?: string;
   }) =>
     api<WhatsAppProvider>("/api/v1/settings/messaging/whatsapp/meta/onboarding/complete", {

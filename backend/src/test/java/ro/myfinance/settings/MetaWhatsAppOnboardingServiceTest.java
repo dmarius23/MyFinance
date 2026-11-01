@@ -1,10 +1,14 @@
 package ro.myfinance.settings;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +24,7 @@ import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthState;
 import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthStateRepository;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProvider;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProviderRepository;
+import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingClient;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingService;
 
@@ -65,6 +70,48 @@ class MetaWhatsAppOnboardingServiceTest {
         verify(meta).validatePhoneNumber("access-token", "phone-id");
         verify(meta).subscribeToWaba("access-token", "waba-id");
         verify(providers).save(any(TenantWhatsAppProvider.class));
+    }
+
+    @Test
+    void resolvesWabaAndPhoneFromTokenWhenRedirectOmitsThem() {
+        MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
+                TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
+        when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
+        when(meta.grantedWabaIds("access-token")).thenReturn(List.of("waba-id"));
+        when(meta.phoneNumberIds("access-token", "waba-id")).thenReturn(List.of("phone-id"));
+        when(providers.findById(TENANT)).thenReturn(Optional.empty());
+        when(providers.save(any(TenantWhatsAppProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        TenantWhatsAppProvider saved = service().complete("state", "code", null, null, null);
+
+        assertThat(saved.getMetaWabaId()).isEqualTo("waba-id");
+        assertThat(saved.getMetaPhoneNumberId()).isEqualTo("phone-id");
+        verify(meta).validateWaba("access-token", "waba-id");
+        verify(meta).validatePhoneNumber("access-token", "phone-id");
+        verify(meta).subscribeToWaba("access-token", "waba-id");
+    }
+
+    @Test
+    void rejectsAmbiguousWabaGrantWithoutStoringProvider() {
+        MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
+                TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
+        when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
+        when(meta.grantedWabaIds("access-token")).thenReturn(List.of("waba-1", "waba-2"));
+
+        assertThatThrownBy(() -> service().complete("state", "code", null, null, null))
+                .isInstanceOf(ConflictException.class);
+        verify(providers, never()).save(any());
+    }
+
+    private MetaWhatsAppOnboardingService service() {
+        return new MetaWhatsAppOnboardingService(
+                states, providers, meta, new SecretCipher(testKey()),
+                "app-id", "config-id", "https://app.test/callback",
+                "https://www.facebook.com/v24.0/dialog/oauth",
+                "whatsapp_business_management,whatsapp_business_messaging");
     }
 
     private static String testKey() {

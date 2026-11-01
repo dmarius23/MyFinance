@@ -123,8 +123,8 @@ public class MessagingSettingsController {
     public record MetaOnboardingComplete(
             @jakarta.validation.constraints.NotBlank String state,
             @jakarta.validation.constraints.NotBlank String authorizationCode,
-            @jakarta.validation.constraints.NotBlank String wabaId,
-            @jakarta.validation.constraints.NotBlank String phoneNumberId,
+            String wabaId,
+            String phoneNumberId,
             String businessPortfolioId) {
     }
 

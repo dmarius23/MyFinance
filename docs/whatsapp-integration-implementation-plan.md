@@ -63,7 +63,8 @@ Branch: `feat/whatsapp-integration`
   app to the `messages` WABA field. The backend registers the WABA subscription automatically after
   successful Embedded Signup.
 - Reconnect, revoke, and incomplete-onboarding recovery states.
-- Handle Meta SDK/postMessage callback variants if asset IDs are not returned in URL parameters.
+- Let the admin choose when Meta grants several WABAs or phone numbers (today the server resolves the IDs
+  from the token and requires exactly one of each).
 - Enforce template variable schemas and provider-defined positional ordering.
 - Complete safe error mapping, provider request IDs, and rate-limit behavior.
 - Add consent records, opt-out enforcement, retention cleanup/anonymization, and scheduled job producers.

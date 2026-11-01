@@ -112,7 +112,10 @@ Starts tenant-admin-only Embedded Signup and returns:
 
 `POST /api/v1/settings/messaging/whatsapp/meta/onboarding/complete`
 
-Accepts the authorization code and validated asset identifiers:
+Accepts the authorization code and, optionally, asset identifiers. Meta's redirect flow returns only
+`code` and `state`; when `wabaId` or `phoneNumberId` is omitted the server resolves it from the token
+(`/debug_token` granular scopes, then `/{waba-id}/phone_numbers`) and rejects the request with `409` if
+Meta granted none or more than one:
 
 ```json
 {

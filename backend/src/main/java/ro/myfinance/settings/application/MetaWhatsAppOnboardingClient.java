@@ -2,6 +2,8 @@ package ro.myfinance.settings.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -51,6 +53,43 @@ public class MetaWhatsAppOnboardingClient {
             throw rejected("token exchange", e);
         }
         return required(response, "access_token", "Meta did not return an access token");
+    }
+
+    /**
+     * WABA IDs the user granted to this token during Embedded Signup. The redirect flow does not return
+     * asset IDs, so they are read from the token's {@code whatsapp_business_management} granular scope.
+     */
+    public List<String> grantedWabaIds(String token) {
+        ensureConfigured();
+        JsonNode node;
+        try {
+            String response = http.get()
+                    .uri(UriComponentsBuilder.fromUriString(graphBaseUrl + "/debug_token")
+                            .queryParam("input_token", token)
+                            .queryParam("access_token", appId + "|" + appSecret)
+                            .build().encode().toUriString())
+                    .retrieve()
+                    .body(String.class);
+            node = json.readTree(response);
+        } catch (RestClientResponseException e) {
+            throw rejected("token inspection", e);
+        } catch (Exception e) {
+            throw new MisconfiguredException("Meta returned an unreadable token inspection response");
+        }
+        List<String> ids = new ArrayList<>();
+        for (JsonNode scope : node.path("data").path("granular_scopes")) {
+            if ("whatsapp_business_management".equals(scope.path("scope").asText())) {
+                scope.path("target_ids").forEach(id -> ids.add(id.asText()));
+            }
+        }
+        return ids;
+    }
+
+    public List<String> phoneNumberIds(String token, String wabaId) {
+        JsonNode node = get(token, "/" + wabaId + "/phone_numbers?fields=id");
+        List<String> ids = new ArrayList<>();
+        node.path("data").forEach(phone -> ids.add(phone.path("id").asText()));
+        return ids;
     }
 
     public void validatePhoneNumber(String token, String phoneNumberId) {
