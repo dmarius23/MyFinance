@@ -37,6 +37,7 @@ import ro.myfinance.intake.domain.Document;
 import ro.myfinance.settings.application.PlatformTreasuryService;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.taxpayments.application.AnafDeclarationExtractor;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
@@ -62,6 +63,7 @@ class TaxPaymentServiceTest {
     @Mock PlatformTreasuryService treasury;
     @Mock TaxDeclarationRepository declarations;
     @Mock EmailHistoryRepository emails;
+    @Mock WhatsAppMessageRepository whatsappMessages;
 
     @Mock ro.myfinance.access.application.EmailEnvelopeService envelopes;
 
@@ -85,8 +87,8 @@ class TaxPaymentServiceTest {
 
     private TaxPaymentService service() {
         return new TaxPaymentService(companies, documentService, treasury, declarations, emails,
-                new AnafDeclarationExtractor(), new PaymentCalculator(), new PaymentEmailBuilder(),
-                envelopes, templateService());
+                whatsappMessages, new AnafDeclarationExtractor(), new PaymentCalculator(),
+                new PaymentEmailBuilder(), envelopes, templateService());
     }
 
     private byte[] fixture(String name) throws IOException {

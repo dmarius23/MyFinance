@@ -22,6 +22,8 @@ import ro.myfinance.common.messaging.RenderedMessage;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.intake.domain.Document;
 import ro.myfinance.intake.domain.DocumentType;
+import ro.myfinance.common.whatsapp.WhatsAppMessage;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 
 /**
  * MOD-08 Payroll. Manual upload of payroll files per company/month (reusing the document store as
@@ -39,6 +41,7 @@ public class PayrollService {
 
     private final DocumentService documents;
     private final EmailHistoryRepository history;
+    private final WhatsAppMessageRepository whatsappMessages;
     private final EmailDispatchService dispatch;
     private final EmailEnvelopeService envelopes;
     private final ro.myfinance.notifications.application.NotificationService notifications;
@@ -47,6 +50,7 @@ public class PayrollService {
     private final MessageTemplateService templates;
 
     public PayrollService(DocumentService documents, EmailHistoryRepository history,
+                          WhatsAppMessageRepository whatsappMessages,
                           EmailDispatchService dispatch, EmailEnvelopeService envelopes,
                           ro.myfinance.notifications.application.NotificationService notifications,
                           ro.myfinance.company.application.CompanyDirectory companies,
@@ -54,6 +58,7 @@ public class PayrollService {
                           MessageTemplateService templates) {
         this.documents = documents;
         this.history = history;
+        this.whatsappMessages = whatsappMessages;
         this.dispatch = dispatch;
         this.envelopes = envelopes;
         this.notifications = notifications;
@@ -102,9 +107,9 @@ public class PayrollService {
         for (EmailHistory e : history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.PAYROLL, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
-        Map<UUID, List<EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
-        for (EmailHistory e : history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
-                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.PAYROLL, month)) {
+        Map<UUID, List<WhatsAppMessage>> whatsappByCompany = new LinkedHashMap<>();
+        for (WhatsAppMessage e : whatsappMessages.findByKindAndPeriodMonthOrderBySentAtDesc(
+                EmailKind.PAYROLL, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         java.util.Set<UUID> ids = new java.util.LinkedHashSet<>();
@@ -116,7 +121,7 @@ public class PayrollService {
         for (UUID companyId : ids) {
             List<PayrollDoc> docs = docsByCompany.getOrDefault(companyId, List.of());
             List<EmailHistory> es = emailsByCompany.getOrDefault(companyId, List.of());
-            List<EmailHistory> ws = whatsappByCompany.getOrDefault(companyId, List.of());
+            List<WhatsAppMessage> ws = whatsappByCompany.getOrDefault(companyId, List.of());
             Instant last = es.isEmpty() ? null : es.get(0).getSentAt(); // sorted desc
             Instant lastWa = ws.isEmpty() ? null : ws.get(0).getSentAt();
             out.add(new PayrollRow(companyId, docs, last, es.size(), lastWa, ws.size()));
@@ -152,7 +157,7 @@ public class PayrollService {
 
     /** The month's payroll docs / emails / WhatsApp grouped by company (loaded once, shared across rows). */
     private record MonthPayroll(Map<UUID, List<PayrollDoc>> docs, Map<UUID, List<EmailHistory>> emails,
-                                Map<UUID, List<EmailHistory>> whatsapp) {
+                                Map<UUID, List<WhatsAppMessage>> whatsapp) {
     }
 
     private MonthPayroll monthContext(LocalDate month) {
@@ -165,9 +170,9 @@ public class PayrollService {
         for (EmailHistory e : history.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.PAYROLL, month)) {
             emailsByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
-        Map<UUID, List<EmailHistory>> whatsappByCompany = new LinkedHashMap<>();
-        for (EmailHistory e : history.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
-                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.PAYROLL, month)) {
+        Map<UUID, List<WhatsAppMessage>> whatsappByCompany = new LinkedHashMap<>();
+        for (WhatsAppMessage e : whatsappMessages.findByKindAndPeriodMonthOrderBySentAtDesc(
+                EmailKind.PAYROLL, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         return new MonthPayroll(docsByCompany, emailsByCompany, whatsappByCompany);
@@ -176,7 +181,7 @@ public class PayrollService {
     private PayrollListRow buildListRow(ro.myfinance.company.domain.Company c, MonthPayroll ctx) {
         List<PayrollDoc> docs = ctx.docs().getOrDefault(c.getId(), List.of());
         List<EmailHistory> es = ctx.emails().getOrDefault(c.getId(), List.of());
-        List<EmailHistory> ws = ctx.whatsapp().getOrDefault(c.getId(), List.of());
+        List<WhatsAppMessage> ws = ctx.whatsapp().getOrDefault(c.getId(), List.of());
         Instant last = es.isEmpty() ? null : es.get(0).getSentAt(); // sorted desc
         Instant lastWa = ws.isEmpty() ? null : ws.get(0).getSentAt();
         return new PayrollListRow(c.getId(), c.getLegalName(), c.getCui(), c.getLocality(),

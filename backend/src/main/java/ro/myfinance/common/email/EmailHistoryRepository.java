@@ -1,11 +1,13 @@
 package ro.myfinance.common.email;
 
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.util.Optional;
 
 /**
  * The single message-history store, shared by email and WhatsApp. Finders are scoped by {@link EmailKind}
@@ -15,6 +17,15 @@ import org.springframework.data.repository.query.Param;
  * callers are unchanged.
  */
 public interface EmailHistoryRepository extends JpaRepository<EmailHistory, UUID> {
+
+    Optional<EmailHistory> findByTenantIdAndChannelAndIdempotencyKey(
+            UUID tenantId, MessageChannel channel, String idempotencyKey);
+
+    Optional<EmailHistory> findByChannelAndProviderMessageId(
+            MessageChannel channel, String providerMessageId);
+
+    long countByTenantIdAndChannelAndSentAtGreaterThanEqualAndSentAtLessThan(
+            UUID tenantId, MessageChannel channel, Instant fromInclusive, Instant toExclusive);
 
     /** EMAIL history for one company/period of a given kind, newest first (the notification log + resend). */
     @Query("select e from EmailHistory e where e.kind = :kind"

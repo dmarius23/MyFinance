@@ -23,6 +23,8 @@ import ro.myfinance.taxpayments.adapter.persistence.TaxDeclarationRepository;
 import ro.myfinance.common.email.EmailHistory;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.whatsapp.WhatsAppMessage;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.taxpayments.domain.DeclarationType;
 import ro.myfinance.taxpayments.domain.ParsedDeclaration;
 import ro.myfinance.taxpayments.domain.PaymentLine;
@@ -52,6 +54,7 @@ public class TaxPaymentService {
     private final PlatformTreasuryService treasury;
     private final TaxDeclarationRepository declarations;
     private final EmailHistoryRepository emails;
+    private final WhatsAppMessageRepository whatsappMessages;
     private final AnafDeclarationExtractor extractor;
     private final PaymentCalculator calculator;
     private final PaymentEmailBuilder emailBuilder;
@@ -60,7 +63,8 @@ public class TaxPaymentService {
 
     public TaxPaymentService(CompanyDirectory companies, DocumentService documents,
                              PlatformTreasuryService treasury, TaxDeclarationRepository declarations,
-                             EmailHistoryRepository emails, AnafDeclarationExtractor extractor,
+                             EmailHistoryRepository emails, WhatsAppMessageRepository whatsappMessages,
+                             AnafDeclarationExtractor extractor,
                              PaymentCalculator calculator, PaymentEmailBuilder emailBuilder,
                              ro.myfinance.access.application.EmailEnvelopeService envelopes,
                              MessageTemplateService templates) {
@@ -69,6 +73,7 @@ public class TaxPaymentService {
         this.treasury = treasury;
         this.declarations = declarations;
         this.emails = emails;
+        this.whatsappMessages = whatsappMessages;
         this.extractor = extractor;
         this.calculator = calculator;
         this.emailBuilder = emailBuilder;
@@ -144,7 +149,7 @@ public class TaxPaymentService {
     /** The month's declarations/emails/WhatsApp grouped by company (loaded once, shared across page rows). */
     private record MonthCtx(Map<UUID, List<TaxDeclaration>> declByCompany,
                             Map<UUID, List<EmailHistory>> emailByCompany,
-                            Map<UUID, List<EmailHistory>> whatsappByCompany) {
+                            Map<UUID, List<WhatsAppMessage>> whatsappByCompany) {
     }
 
     private MonthCtx monthContext(LocalDate period) {
@@ -157,9 +162,9 @@ public class TaxPaymentService {
         for (EmailHistory e : emails.findByKindAndPeriodMonthOrderBySentAtDesc(EmailKind.TAX, month)) {
             emailByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
-        Map<UUID, List<EmailHistory>> whatsappByCompany = new java.util.HashMap<>();
-        for (EmailHistory e : emails.findByChannelAndKindAndPeriodMonthOrderBySentAtDesc(
-                ro.myfinance.common.email.MessageChannel.WHATSAPP, EmailKind.TAX, month)) {
+        Map<UUID, List<WhatsAppMessage>> whatsappByCompany = new java.util.HashMap<>();
+        for (WhatsAppMessage e : whatsappMessages.findByKindAndPeriodMonthOrderBySentAtDesc(
+                EmailKind.TAX, month)) {
             whatsappByCompany.computeIfAbsent(e.getCompanyId(), k -> new ArrayList<>()).add(e);
         }
         return new MonthCtx(declByCompany, emailByCompany, whatsappByCompany);
@@ -190,8 +195,8 @@ public class TaxPaymentService {
         }
         List<EmailHistory> es = ctx.emailByCompany().getOrDefault(c.getId(), List.of());
         Instant last = es.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
-        List<EmailHistory> ws = ctx.whatsappByCompany().getOrDefault(c.getId(), List.of());
-        Instant lastWa = ws.stream().map(EmailHistory::getSentAt).max(Instant::compareTo).orElse(null);
+        List<WhatsAppMessage> ws = ctx.whatsappByCompany().getOrDefault(c.getId(), List.of());
+        Instant lastWa = ws.stream().map(WhatsAppMessage::getSentAt).max(Instant::compareTo).orElse(null);
         return new ro.myfinance.taxpayments.domain.TaxPaymentRow(c.getId(), c.getLegalName(),
                 c.getCui(), c.getLocality(), cells,
                 owesDeclaration(c, DeclarationType.D112), owesDeclaration(c, DeclarationType.D300),

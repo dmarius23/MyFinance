@@ -16,6 +16,7 @@ import ro.myfinance.common.email.EmailHistory;
 import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailStatus;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.intake.application.DocumentService;
 import ro.myfinance.common.messaging.DefaultMessageTemplates;
 import ro.myfinance.common.messaging.MessageTemplateKind;
@@ -31,6 +32,7 @@ class PayrollServiceTest {
 
     private final DocumentService documents = mock(DocumentService.class);
     private final EmailHistoryRepository history = mock(EmailHistoryRepository.class);
+    private final WhatsAppMessageRepository whatsappMessages = mock(WhatsAppMessageRepository.class);
     private final EmailDispatchService dispatch = mock(EmailDispatchService.class);
     private final ro.myfinance.access.application.EmailEnvelopeService envelopes =
             mock(ro.myfinance.access.application.EmailEnvelopeService.class);
@@ -42,7 +44,8 @@ class PayrollServiceTest {
             new ro.myfinance.company.application.ExpectedDocuments();
     private final MessageTemplateService templates = mock(MessageTemplateService.class);
     private final PayrollService service =
-            new PayrollService(documents, history, dispatch, envelopes, notifications, companies, expected, templates);
+            new PayrollService(documents, history, whatsappMessages, dispatch, envelopes, notifications,
+                    companies, expected, templates);
 
     @Test
     void sendDelegatesToDispatchWithPayrollKindAndMapsTheRow() {

@@ -65,6 +65,10 @@ public class MessagingSettingsService {
 
     public void updateWhatsApp(TenantWhatsAppProvider.Mode mode, String accountSid, String authToken,
                                String fromNumber) {
+        if (mode == TenantWhatsAppProvider.Mode.META_CLOUD_API) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "Meta WhatsApp must be connected through Embedded Signup");
+        }
         requireCipherWhenSecret(authToken);
         TenantWhatsAppProvider p = whatsappRepo.findById(tenant())
                 .orElseGet(() -> new TenantWhatsAppProvider(tenant()));
@@ -89,6 +93,21 @@ public class MessagingSettingsService {
         emailSender.send(EmailSender.Message.of(fromName, p.getFromEmail(), toEmail,
                 "MyFinance — test email",
                 "This is a test message from MyFinance confirming your email (SMTP) settings work."));
+    }
+
+    /** Validate WhatsApp configuration without sending a client message. */
+    @Transactional(readOnly = true)
+    public void validateWhatsAppConfiguration() {
+        TenantWhatsAppProvider p = getWhatsApp();
+        if (p.getMode() == TenantWhatsAppProvider.Mode.OFF
+                || p.getMode() == TenantWhatsAppProvider.Mode.CLICK_TO_CHAT) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "Select an API WhatsApp provider before validating configuration");
+        }
+        if (!p.isSendable()) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "WhatsApp provider configuration is incomplete");
+        }
     }
 
     /**

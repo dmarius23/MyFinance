@@ -22,6 +22,7 @@ import { AdminReference } from "./pages/AdminReference";
 import { AdminTenants } from "./pages/AdminTenants";
 import { TreasurySyncAdmin } from "./pages/TreasurySyncAdmin";
 import { GmailOAuthCallback } from "./pages/GmailOAuthCallback";
+import { MetaWhatsAppCallback } from "./pages/MetaWhatsAppCallback";
 
 /** Where a signed-in user belongs based on their role (reps → portal, super admin → platform
  *  admin, tenant staff → dashboard). A super admin has no tenant, so it never lands on a
@@ -81,6 +82,7 @@ export default function App() {
         <Route element={<FirmLayout />}>
           <Route path="/settings" element={<Settings />} />
           <Route path="/settings/email-connections/gmail/callback" element={<GmailOAuthCallback />} />
+          <Route path="/settings/messaging/whatsapp/callback" element={<MetaWhatsAppCallback />} />
           <Route path="/team" element={<Team />} />
           <Route path="/data-sources" element={<DataSources />} />
         </Route>

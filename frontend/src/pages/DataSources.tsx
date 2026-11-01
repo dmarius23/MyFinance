@@ -8,7 +8,11 @@ import { Icon } from "../components/Icon";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
-import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
+import {
+  EmailProviderSection,
+  WhatsAppProviderSection,
+  WhatsAppTemplatesSection,
+} from "../components/MessagingSettings";
 import { MessageTemplatesSection } from "../components/MessageTemplatesSection";
 
 /**
@@ -183,6 +187,10 @@ export function DataSources() {
           on one screen (this page is "Setări"). */}
       <EmailProviderSection />
       <WhatsAppProviderSection />
+      {/* Two distinct things, despite both saying "templates": WhatsAppTemplatesSection registers
+          Meta-approved template names (and renders nothing unless the provider is META_CLOUD_API),
+          while MessageTemplatesSection edits the wording of the six client messages. */}
+      <WhatsAppTemplatesSection />
       <MessageTemplatesSection />
     </div>
   );

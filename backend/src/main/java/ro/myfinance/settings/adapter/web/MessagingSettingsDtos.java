@@ -36,10 +36,14 @@ final class MessagingSettingsDtos {
                               String smtpPassword /* null = keep, "" = clear, else replace */) {
     }
 
-    record WhatsAppProviderResponse(String mode, String accountSid, String fromNumber, boolean hasToken) {
+    record WhatsAppProviderResponse(String mode, String accountSid, String fromNumber, boolean hasToken,
+                                    String metaBusinessPortfolioId, String metaWabaId,
+                                    String metaPhoneNumberId, boolean hasMetaToken) {
         static WhatsAppProviderResponse from(TenantWhatsAppProvider p) {
             return new WhatsAppProviderResponse(p.getMode().name(), p.getAccountSid(), p.getFromNumber(),
-                    p.getAuthTokenEnc() != null && !p.getAuthTokenEnc().isBlank());
+                    p.getAuthTokenEnc() != null && !p.getAuthTokenEnc().isBlank(),
+                    p.getMetaBusinessPortfolioId(), p.getMetaWabaId(), p.getMetaPhoneNumberId(),
+                    p.getMetaAccessTokenEnc() != null && !p.getMetaAccessTokenEnc().isBlank());
         }
     }
 

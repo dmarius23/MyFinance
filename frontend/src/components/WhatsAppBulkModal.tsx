@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
+import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
@@ -12,9 +12,10 @@ import { MissingInfoWarning } from "./MissingInfoWarning";
 export interface WhatsAppTarget {
   companyId: string;
   companyName: string;
+  attachments?: WhatsAppAttachment[];
 }
 
-interface Draft { phone: string; body: string; loading: boolean; sent: boolean; error?: string }
+interface Draft { phone: string; body: string; loading: boolean; sent: boolean; excluded: string[]; error?: string }
 
 /**
  * Bulk WhatsApp preview before sending — one card per company, phone + standard body prefilled and
@@ -30,7 +31,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
   const clickToChat = useWhatsAppMode() === "CLICK_TO_CHAT";
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
-    () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false }])),
+    () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false, excluded: [] }])),
   );
   const [sending, setSending] = useState(false);
 
@@ -49,8 +50,15 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
   const sendOne = useMutation({
-    mutationFn: (v: { companyId: string; phone: string; body: string }) =>
-      whatsappApi.send(v.companyId, { kind, period, recipient: v.phone, body: v.body }),
+    mutationFn: (v: { companyId: string; body: string; attachmentDocumentIds: string[] }) =>
+      whatsappApi.send(v.companyId, { kind, period, body: v.body, attachmentDocumentIds: v.attachmentDocumentIds }),
+  });
+  const selectedFiles = (x: WhatsAppTarget, d: Draft) =>
+    (x.attachments ?? []).filter((a) => !d.excluded.includes(a.id)).map((a) => a.id);
+  const toggleFile = (id: string, fileId: string) => setDrafts((all) => {
+    const d = all[id];
+    const excluded = d.excluded.includes(fileId) ? d.excluded.filter((f) => f !== fileId) : [...d.excluded, fileId];
+    return { ...all, [id]: { ...d, excluded } };
   });
 
   const sendAll = async () => {
@@ -60,7 +68,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
       const d = drafts[x.companyId];
       if (!d || d.sent || d.loading || !d.body.trim() || !d.phone.trim()) continue;
       try {
-        await sendOne.mutateAsync({ companyId: x.companyId, phone: d.phone, body: d.body });
+        await sendOne.mutateAsync({ companyId: x.companyId, body: d.body, attachmentDocumentIds: selectedFiles(x, d) });
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["whatsapp", x.companyId, kind, period] });
       } catch (e) {
@@ -93,6 +101,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
         <div style={{ padding: 16, overflowY: "auto", background: "var(--bg)" }}>
           {targets.map((x) => {
             const d = drafts[x.companyId];
+            const files = x.attachments ?? [];
             return (
               <div key={x.companyId} style={card}>
                 <div style={cardHead}>
@@ -114,6 +123,20 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
                       <textarea value={d.body} disabled={d.sent}
                         onChange={(e) => patch(x.companyId, { body: e.target.value })}
                         style={{ ...input, minHeight: 150, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
+                      {!clickToChat && files.length > 0 && (
+                        <fieldset style={fileSet}>
+                          <legend style={fileLegend}>
+                            {t("channel.attachments")} ({selectedFiles(x, d).length}/{files.length})
+                          </legend>
+                          {files.map((a) => (
+                            <label key={a.id} style={fileRow}>
+                              <input type="checkbox" disabled={d.sent} checked={!d.excluded.includes(a.id)}
+                                onChange={() => toggleFile(x.companyId, a.id)} />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</span>
+                            </label>
+                          ))}
+                        </fieldset>
+                      )}
                       {clickToChat && d.phone.trim() && (
                         <a href={waMeUrl(d.phone, d.body)} target="_blank" rel="noopener noreferrer"
                           style={{ ...waBtnPrimary, display: "inline-flex", alignItems: "center", marginTop: 8, textDecoration: "none" }}>
@@ -157,5 +180,8 @@ const card: React.CSSProperties = { border: "1px solid var(--border)", borderRad
 const cardHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: "1px solid var(--hair)" };
 const waIcon: React.CSSProperties = { width: 26, height: 26, borderRadius: 7, background: "#e7f8ef", display: "grid", placeItems: "center" };
 const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13 };
+const fileSet: React.CSSProperties = { border: "none", margin: "8px 0 0", padding: 0 };
+const fileLegend: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 };
+const fileRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "2px 0", cursor: "pointer" };
 const footer: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderTop: "1px solid var(--border)" };
 const waBtnPrimary: React.CSSProperties = { background: "#128C7E", color: "#fff", border: "1px solid #0e6f64" };
