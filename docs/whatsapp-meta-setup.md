@@ -93,8 +93,9 @@ server-owned and never synced from CI.
 
 1. In **WhatsApp Manager → Message templates**, create the Romanian and English templates for tax
    payments, payroll, reports, and missing-document reminders, and wait for approval.
-2. Register each approved template for the tenant in `tenant_whatsapp_template` (kind, language, Meta
-   template name, status). There is no template management UI yet.
+2. Register each approved template in MyFinance: **Data sources → WhatsApp templates** (visible when the
+   provider is Meta). Pick the message type and language, enter the exact Meta template name, and save
+   it as Approved. Template bodies must not contain `{{1}}` variables yet.
 
 ## 8. Connect a tenant
 
