@@ -94,6 +94,30 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
     }
 
     @Test
+    void metaSendFallsBackToEnglishTemplateWhenNoRomanianIsApproved() {
+        UUID tenant = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        UUID company = seedCompanyWithRep(tenant, "+40700000000");
+        jdbc.update("""
+                insert into tenant_whatsapp_provider(tenant_id, mode, meta_waba_id, meta_phone_number_id,
+                    meta_access_token_enc, updated_at)
+                values (?, 'META_CLOUD_API', 'waba', 'phone', 'token', now())
+                """, tenant);
+        jdbc.update("""
+                insert into tenant_whatsapp_template(tenant_id, kind, language, meta_template_name, status)
+                values (?, 'DOCUMENT_REMINDER', 'en_US', 'hello_world', 'APPROVED'),
+                       (?, 'DOCUMENT_REMINDER', 'ro_RO', 'pending_ro', 'PENDING')
+                """, tenant, tenant);
+
+        WhatsAppMessage sent = whatsapp.dispatch(EmailKind.DOCUMENT_REMINDER, company, PERIOD,
+                "Documente lipsă.", null, "reminder-" + company, null);
+
+        assertThat(jdbc.queryForObject(
+                "select template_name || '/' || template_language from whatsapp_message where id = ?",
+                String.class, sent.getId())).isEqualTo("hello_world/en_US");
+    }
+
+    @Test
     void repeatedIdempotencyKeyDoesNotCreateAnotherMessage() {
         UUID tenant = UUID.randomUUID();
         TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
