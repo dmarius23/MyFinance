@@ -69,6 +69,21 @@ public class EmailHistory {
     @Column(name = "sent_by")
     private UUID sentBy;
 
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
+    @Column(name = "idempotency_hash")
+    private String idempotencyHash;
+
+    @Column(name = "provider_message_id")
+    private String providerMessageId;
+
+    @Column(name = "provider_status")
+    private String providerStatus;
+
+    @Column(name = "provider_status_at")
+    private Instant providerStatusAt;
+
     protected EmailHistory() {
     }
 
@@ -82,6 +97,14 @@ public class EmailHistory {
     public EmailHistory(UUID tenantId, EmailKind kind, MessageChannel channel, UUID companyId,
                         LocalDate periodMonth, List<UUID> relatedIds, String recipient, String body,
                         EmailStatus status, String error, UUID sentBy) {
+        this(tenantId, kind, channel, companyId, periodMonth, relatedIds, recipient, body, status, error,
+                sentBy, null, null);
+    }
+
+    public EmailHistory(UUID tenantId, EmailKind kind, MessageChannel channel, UUID companyId,
+                        LocalDate periodMonth, List<UUID> relatedIds, String recipient, String body,
+                        EmailStatus status, String error, UUID sentBy, String idempotencyKey,
+                        String idempotencyHash) {
         this.tenantId = tenantId;
         this.kind = kind;
         this.channel = channel;
@@ -93,12 +116,55 @@ public class EmailHistory {
         this.status = status;
         this.error = error;
         this.sentBy = sentBy;
+        this.idempotencyKey = idempotencyKey;
+        this.idempotencyHash = idempotencyHash;
     }
 
     /** Relay callback: the queued email was delivered. */
     public void markSent() {
         this.status = EmailStatus.SENT;
         this.error = null;
+    }
+
+    public void recordProviderMessage(String providerMessageId, Instant at) {
+        if (providerMessageId != null && !providerMessageId.isBlank()) {
+            this.providerMessageId = providerMessageId;
+        }
+        applyProviderStatus("accepted", at);
+    }
+
+    /**
+     * Applies provider lifecycle events in monotonic order. Duplicate and late events are harmless.
+     * A provider failure cannot move an already delivered/read message backwards.
+     */
+    public void applyProviderStatus(String nextStatus, Instant at) {
+        if (nextStatus == null || nextStatus.isBlank()) {
+            return;
+        }
+        String normalized = nextStatus.toLowerCase(java.util.Locale.ROOT);
+        if (providerStatus != null && statusRank(normalized) <= statusRank(providerStatus)) {
+            return;
+        }
+        providerStatus = normalized;
+        providerStatusAt = at == null ? Instant.now() : at;
+        if ("failed".equals(normalized)) {
+            markFailed("WhatsApp provider reported delivery failure");
+        } else if ("sent".equals(normalized) || "delivered".equals(normalized)
+                || "read".equals(normalized)) {
+            status = EmailStatus.SENT;
+            error = null;
+        }
+    }
+
+    private static int statusRank(String value) {
+        return switch (value) {
+            case "accepted" -> 1;
+            case "sent" -> 2;
+            case "delivered" -> 3;
+            case "read" -> 4;
+            case "failed" -> 2;
+            default -> 0;
+        };
     }
 
     /** Relay callback: delivery permanently failed (outbox message reached the DLQ). */
@@ -119,4 +185,9 @@ public class EmailHistory {
     public List<UUID> getRelatedIds() { return relatedIds; }
     public Instant getSentAt() { return sentAt; }
     public UUID getSentBy() { return sentBy; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public String getIdempotencyHash() { return idempotencyHash; }
+    public String getProviderMessageId() { return providerMessageId; }
+    public String getProviderStatus() { return providerStatus; }
+    public Instant getProviderStatusAt() { return providerStatusAt; }
 }

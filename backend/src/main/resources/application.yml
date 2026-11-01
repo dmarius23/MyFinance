@@ -190,6 +190,23 @@ myfinance:
     # delivered or this visibility timeout lapses — after which a reaper returns a crashed worker's row to
     # PENDING for redelivery. Keep comfortably above the slowest expected delivery (SES + attachments).
     visibility-timeout-seconds: ${OUTBOX_VISIBILITY_TIMEOUT_SECONDS:300}
+  whatsapp:
+    # Never enable in production: permits the logging transport when a tenant has no provider.
+    logging-fallback-enabled: ${WHATSAPP_LOGGING_FALLBACK_ENABLED:false}
+    # Per-tenant monthly outbound message quota. Scheduled compliance messages
+    # consume the same quota as staff-triggered messages.
+    monthly-quota: ${WHATSAPP_MONTHLY_QUOTA:1000}
+    # Technical cap defaults to the existing 20 MB document limit; refine per Meta media type after product policy.
+    max-attachment-bytes: ${WHATSAPP_MAX_ATTACHMENT_BYTES:20971520}
+    meta:
+      app-id: ${META_WHATSAPP_APP_ID:}
+      app-secret: ${META_WHATSAPP_APP_SECRET:}
+      webhook-verify-token: ${META_WHATSAPP_WEBHOOK_VERIFY_TOKEN:}
+      config-id: ${META_WHATSAPP_CONFIG_ID:}
+      redirect-uri: ${META_WHATSAPP_REDIRECT_URI:}
+      auth-url: ${META_WHATSAPP_AUTH_URL:https://www.facebook.com/v24.0/dialog/oauth}
+      graph-base-url: ${META_WHATSAPP_GRAPH_BASE_URL:https://graph.facebook.com/v24.0}
+      scopes: ${META_WHATSAPP_SCOPES:whatsapp_business_management,whatsapp_business_messaging}
   # Web Push (VAPID) for the PWA. Keys are secrets via env only (generate with
   # `npx web-push generate-vapid-keys`). Blank keys → push disabled (no-op sender),
   # in-app notifications still work. The public key is served to the PWA to subscribe.

@@ -60,7 +60,8 @@ public class SecurityConfig {
                         // Forgot-password: the caller is locked out, so there is no token to present. The
                         // endpoint always answers 204 and never echoes the link; RateLimitFilter caps it
                         // per remote address since there is no authenticated caller to key on.
-                        "/api/v1/auth/forgot-password")
+                        "/api/v1/auth/forgot-password",
+                        "/api/v1/webhooks/whatsapp/meta")
                 .permitAll()
                 // Fail-safe role backstop at the filter layer, in addition to per-method @PreAuthorize:
                 // a controller that forgets its annotation still cannot expose a surface to the wrong role.
@@ -85,7 +86,8 @@ public class SecurityConfig {
     @Bean
     BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
-        return request -> "/api/v1/ingestion/gmail/pubsub".equals(request.getRequestURI())
+        return request -> ("/api/v1/ingestion/gmail/pubsub".equals(request.getRequestURI())
+                || "/api/v1/webhooks/whatsapp/meta".equals(request.getRequestURI()))
                 ? null : delegate.resolve(request);
     }
 

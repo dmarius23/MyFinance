@@ -25,6 +25,7 @@ import ro.myfinance.company.domain.Company;
 import ro.myfinance.intake.application.DocumentDirectory;
 import ro.myfinance.intake.application.DocumentStorage;
 import ro.myfinance.common.email.EmailHistoryRepository;
+import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.reports.adapter.persistence.ReportSnapshotRepository;
 import ro.myfinance.reports.application.ReportService;
 import ro.myfinance.reports.application.TrialBalanceExtractor;
@@ -43,6 +44,7 @@ class ReportServiceTest {
 
     @Mock ReportSnapshotRepository snapshots;
     @Mock EmailHistoryRepository emails;
+    @Mock WhatsAppMessageRepository whatsappMessages;
     @Mock CompanyDirectory companies;
     @Mock DocumentDirectory documents;
     @Mock DocumentStorage storage;
@@ -50,7 +52,7 @@ class ReportServiceTest {
 
     private ReportService service() {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); // JSR-310 for LocalDate
-        return new ReportService(snapshots, emails, new TrialBalanceExtractor(), mapper, companies,
+        return new ReportService(snapshots, emails, whatsappMessages, new TrialBalanceExtractor(), mapper, companies,
                 documents, storage, notifications, new ro.myfinance.company.application.ExpectedDocuments());
     }
 

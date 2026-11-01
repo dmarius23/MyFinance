@@ -22,4 +22,9 @@ public interface OutboxHandler {
     default void onExhausted(OutboxMessage message) {
         // no-op by default
     }
+
+    /** Return false for provider errors that cannot succeed on a retry. */
+    default boolean isRetryable(RuntimeException failure) {
+        return true;
+    }
 }
