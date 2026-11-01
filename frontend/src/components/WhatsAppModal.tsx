@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { whatsappApi, type WhatsAppKind } from "../api/whatsapp";
+import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { Icon } from "./Icon";
@@ -15,9 +15,9 @@ const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2
  * edit the message, sends it, and shows the send timeline. Delivery is the backend stub for
  * now; a real provider (Twilio) plugs in behind the port later.
  */
-export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, onClose }:
+export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, attachments = [], onClose }:
   { companyId: string; companyName: string; kind: WhatsAppKind; period: string;
-    loadBody?: () => Promise<string>; onClose: () => void }) {
+    loadBody?: () => Promise<string>; attachments?: WhatsAppAttachment[]; onClose: () => void }) {
   const { t } = useTranslation();
   const whatsappConfigured = useWhatsAppConfigured();
   const qc = useQueryClient();
@@ -25,6 +25,12 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const [body, setBody] = useState("");
   const [bodyEdited, setBodyEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const toggleFile = (id: string) => setExcluded((s) => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const rk = ["whatsapp", companyId, kind, period];
   useQuery({
@@ -47,7 +53,10 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const history = useQuery({ queryKey: rk, queryFn: () => whatsappApi.history(companyId, kind, period) });
 
   const send = useMutation({
-    mutationFn: () => whatsappApi.send(companyId, { kind, period, body }),
+    mutationFn: () => whatsappApi.send(companyId, {
+      kind, period, body,
+      attachmentDocumentIds: attachments.filter((a) => !excluded.has(a.id)).map((a) => a.id),
+    }),
     onSuccess: () => { setBody(""); setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk }); },
     onError: (e) => setError(e instanceof ApiError ? e.message : t("channel.sendFailed")),
   });
@@ -73,6 +82,19 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           <textarea value={body} onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}
             placeholder={loadBody && draft.isLoading ? t("common.loading") : undefined}
             style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
+          {attachments.length > 0 && (
+            <fieldset style={fileSet}>
+              <legend style={fieldLabel}>
+                {t("channel.attachments")} ({attachments.length - excluded.size}/{attachments.length})
+              </legend>
+              {attachments.map((a) => (
+                <label key={a.id} style={fileRow}>
+                  <input type="checkbox" checked={!excluded.has(a.id)} onChange={() => toggleFile(a.id)} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>}
           <div style={{ marginTop: 10 }}>
             <button className="primary"
@@ -116,4 +138,6 @@ const closeBtn: React.CSSProperties = { background: "none", border: "none", colo
 const waIcon: React.CSSProperties = { width: 30, height: 30, flex: "none", borderRadius: 8, background: "#e7f8ef", display: "grid", placeItems: "center" };
 const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, background: "var(--surface)" };
 const fieldLabel: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 };
+const fileSet: React.CSSProperties = { border: "none", margin: "10px 0 0", padding: 0 };
+const fileRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, padding: "2px 0", cursor: "pointer" };
 const sectionLabel: React.CSSProperties = { fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", fontWeight: 700, marginBottom: 4 };

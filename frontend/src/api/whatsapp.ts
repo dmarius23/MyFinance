@@ -13,6 +13,12 @@ export interface WhatsAppView {
   providerStatusAt?: string | null;
 }
 
+/** A company document that can be sent after the template message (PDF or image). */
+export interface WhatsAppAttachment {
+  id: string;
+  filename: string;
+}
+
 export const whatsappApi = {
   /** The resolved recipient phone (the company's representative), to pre-fill the compose form. */
   recipient: (companyId: string) =>

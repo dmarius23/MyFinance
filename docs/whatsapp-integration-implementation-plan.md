@@ -47,7 +47,9 @@ Branch: `feat/whatsapp-integration`
 ## Remaining product decisions
 
 - Daily quota, per-user burst limit, and priority behavior at quota exhaustion.
-- Final attachment types, size limits, and media-header versus separate-message behavior.
+- Final attachment types and size limits. Attachments are sent as separate document/image messages after
+  the template (decided 2026-11-01); Meta only accepts these inside the 24-hour customer-service window,
+  so outside it they fail and a document-header template is the fallback to revisit.
 - Visible delivery statuses: accepted, delivered, read, and failed.
 - Meta data-processing/EU residency approval.
 - Whether click-to-chat remains after API rollout.

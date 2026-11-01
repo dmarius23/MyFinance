@@ -108,7 +108,8 @@ export function Payroll() {
       <BulkActionBar count={selected.size} label={t("email.selected", { n: selected.size })}
         onClear={() => setSelected(new Set())}
         onEmail={() => setSendList([...selected].map(target))}
-        onWhatsapp={() => setWaBulk([...selected].map((id) => ({ companyId: id, companyName: nameOf(id) })))}
+        onWhatsapp={() => setWaBulk([...selected].map((id) =>
+          ({ companyId: id, companyName: nameOf(id), attachments: rowById.get(id)?.documents ?? [] })))}
         emailDisabled={!emailConfigured} whatsappDisabled={!whatsappConfigured} />
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -172,7 +173,7 @@ export function Payroll() {
         onClose={() => setManageFor(null)} onChanged={invalidateList} />}
       {sendList && <PayrollEmailModal targets={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="PAYROLL" period={period}
-        loadBody={() => waBody(waFor.id)}
+        loadBody={() => waBody(waFor.id)} attachments={rowById.get(waFor.id)?.documents ?? []}
         onClose={() => setWaFor(null)} />}
       {waBulk && <WhatsAppBulkModal targets={waBulk} kind="PAYROLL" period={period} loadBody={waBody}
         onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); invalidateList(); }} />}
