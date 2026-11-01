@@ -50,7 +50,11 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   useEffect(() => {
     if (!bodyEdited && draft.data != null) setBody(draft.data);
   }, [draft.data, bodyEdited]);
-  const history = useQuery({ queryKey: rk, queryFn: () => whatsappApi.history(companyId, kind, period) });
+  const history = useQuery({
+    queryKey: rk,
+    queryFn: () => whatsappApi.history(companyId, kind, period),
+    refetchInterval: (q) => (q.state.data ?? []).some((m) => m.status === "QUEUED") ? 5000 : false,
+  });
 
   const send = useMutation({
     mutationFn: () => whatsappApi.send(companyId, {
@@ -116,6 +120,9 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>
                 <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("channel.to")} {m.recipient ?? "—"}</div>
+                {m.error && m.status !== "SENT" && (
+                  <div style={{ fontSize: 11.5, color: "#dc2626", marginTop: 3, wordBreak: "break-word" }}>{m.error}</div>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{dt(m.sentAt)}</div>

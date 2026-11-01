@@ -90,13 +90,18 @@ class MetaWhatsAppSenderTest {
     @Test
     void classifiesClientErrorsAsPermanent() throws Exception {
         server.createContext("/phone/messages", exchange -> {
-            respond(exchange, 400, "{}");
+            respond(exchange, 400, """
+                    {"error":{"message":"(#132000) Number of parameters does not match","code":132000,
+                     "error_data":{"details":"body: expected 0, received 1"}}}
+                    """);
         });
         server.start();
 
         assertThatThrownBy(() -> sender().send(message()))
-                .isInstanceOfSatisfying(WhatsAppProviderException.class,
-                        e -> assertThat(e.isRetryable()).isFalse());
+                .isInstanceOfSatisfying(WhatsAppProviderException.class, e -> {
+                    assertThat(e.isRetryable()).isFalse();
+                    assertThat(e.getMessage()).contains("HTTP 400", "#132000", "expected 0, received 1");
+                });
     }
 
     @Test

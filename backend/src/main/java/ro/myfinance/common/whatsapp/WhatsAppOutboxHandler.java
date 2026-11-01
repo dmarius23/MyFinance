@@ -49,7 +49,15 @@ public class WhatsAppOutboxHandler implements OutboxHandler {
     @Override
     public void handle(OutboxMessage message) {
         Payload payload = parse(message);
-        WhatsAppSender.DeliveryReceipt receipt = sender.send(payload.message());
+        WhatsAppSender.DeliveryReceipt receipt;
+        try {
+            receipt = sender.send(payload.message());
+        } catch (RuntimeException e) {
+            if (payload.historyId() != null) {
+                messages.findById(payload.historyId()).ifPresent(row -> row.recordDeliveryError(e.getMessage()));
+            }
+            throw e;
+        }
         if (payload.historyId() != null) {
             messages.findById(payload.historyId()).ifPresent(row -> {
                 row.markSent();
@@ -65,7 +73,7 @@ public class WhatsAppOutboxHandler implements OutboxHandler {
         Payload payload = parse(message);
         if (payload.historyId() != null) {
             messages.findById(payload.historyId())
-                    .ifPresent(h -> h.markFailed("WhatsApp delivery failed after retries: " + message.getError()));
+                    .ifPresent(h -> h.markFailed(message.getError()));
         }
     }
 

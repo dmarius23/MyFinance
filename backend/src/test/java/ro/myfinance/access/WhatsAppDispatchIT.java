@@ -141,6 +141,9 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
         assertThat(outbox.get("status")).isEqualTo("PENDING");
         assertThat(outbox.get("attempts")).isEqualTo(1);
         assertThat(outbox.get("error")).isNotNull();
+        var row = jdbc.queryForMap("select status, error from whatsapp_message where id = ?", sent.getId());
+        assertThat(row.get("status")).isEqualTo("QUEUED");
+        assertThat(row.get("error")).isEqualTo(outbox.get("error"));
     }
 
     @Test

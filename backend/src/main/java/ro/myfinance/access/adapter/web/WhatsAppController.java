@@ -78,10 +78,10 @@ public class WhatsAppController {
 
 
     public record WhatsAppView(UUID id, String recipient, EmailStatus status, Instant sentAt, String body,
-                               String providerStatus, Instant providerStatusAt) {
+                               String providerStatus, Instant providerStatusAt, String error) {
         static WhatsAppView from(WhatsAppMessage e) {
             return new WhatsAppView(e.getId(), e.getRecipient(), e.getStatus(), e.getSentAt(), e.getBody(),
-                    e.getProviderStatus(), e.getProviderStatusAt());
+                    e.getProviderStatus(), e.getProviderStatusAt(), e.getError());
         }
     }
 }
