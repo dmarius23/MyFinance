@@ -42,8 +42,12 @@ class DashboardServiceTest {
     private final ReportService reports = mock(ReportService.class);
     private final ro.myfinance.access.application.RepresentativeLinkDirectory repLinks =
             mock(ro.myfinance.access.application.RepresentativeLinkDirectory.class);
+    /** Stubbed to the seeded rule so the existing overdue expectations below are unchanged. */
+    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines =
+            ro.myfinance.support.TestTaxDeadlines.seeded();
     private final DashboardService service =
-            new DashboardService(companies, users, reconciliation, taxes, payroll, reports, repLinks);
+            new DashboardService(companies, users, reconciliation, taxes, payroll, reports, repLinks,
+                    deadlines);
 
     // Period far in the past → the tax deadline (25th of the next month) is always passed → overdue is testable.
     private static final LocalDate PERIOD = LocalDate.of(2020, 1, 1);
@@ -146,5 +150,30 @@ class DashboardServiceTest {
         DashboardView v = service.build(PERIOD, resp, StatusFilter.ALL);
         assertThat(v.rows()).extracting(DashboardView.CompanyRow::companyId).containsExactly(a);
         assertThat(v.tiles().totalCompanies()).isEqualTo(1);
+    }
+
+    /**
+     * The overdue count is gated on the CONFIGURED deadline, not a hardcoded 25. Note this consumer
+     * compares the resolved deadline against TODAY — "has this period's filing window closed?" — while
+     * the rule itself is still selected by the period.
+     */
+    @Test
+    void overdueFollowsTheConfiguredDeadlineRatherThanAHardcodedDay() {
+        // A deadline still in the future => nothing is overdue, even though company b owes taxes.
+        org.mockito.Mockito.when(deadlines.deadlineFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(LocalDate.now().plusDays(5));
+        DashboardView notYet = service.build(PERIOD, null, StatusFilter.ALL);
+        assertThat(overdueFor(notYet, b)).isZero();
+
+        // The same data with a deadline already past => company b's unfinished taxes count as overdue.
+        org.mockito.Mockito.when(deadlines.deadlineFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(LocalDate.now().minusDays(1));
+        DashboardView passed = service.build(PERIOD, null, StatusFilter.ALL);
+        assertThat(overdueFor(passed, b)).isEqualTo(1);
+    }
+
+    private static int overdueFor(DashboardView v, UUID companyId) {
+        return v.rows().stream().filter(r -> r.companyId().equals(companyId)).findFirst()
+                .orElseThrow().overdue();
     }
 }
