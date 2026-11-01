@@ -97,6 +97,17 @@ spring:
 server:
   shutdown: graceful
 
+# Besides the console, write a size-capped rolling log file so firm admins can download it from Settings
+# (see LogDownloadController). Relative paths resolve against the working dir (/app in the container).
+logging:
+  file:
+    name: ${MYFINANCE_LOG_FILE:logs/myfinance-backend.log}
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
+
 management:
   endpoints:
     web:
@@ -215,6 +226,10 @@ myfinance:
       public-key: ${VAPID_PUBLIC_KEY:}
       private-key: ${VAPID_PRIVATE_KEY:}
       subject: ${VAPID_SUBJECT:mailto:noreply@myfinance.local}
+  # Temporary debug aid: lets TENANT_ADMINs download the raw backend log from Settings. The log is
+  # process-wide (every tenant's activity), so set LOG_DOWNLOAD_ENABLED=false to shut it off without a build.
+  logs:
+    download-enabled: ${LOG_DOWNLOAD_ENABLED:true}
   # Per-user rate limits (tenant+user keyed) on document-upload and email POSTs; excess → HTTP 429.
   # distributed=false → in-memory per-instance buckets (limit multiplies by instance count).
   # distributed=true  → one shared limit across all instances via Redis (spring.data.redis above must be

@@ -7,7 +7,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.crypto.SecretCipher;
 import ro.myfinance.common.security.TenantContext;
 
@@ -45,8 +44,12 @@ public class TenantAwareWhatsAppSender implements WhatsAppSender {
         this.loggingFallbackEnabled = loggingFallbackEnabled;
     }
 
+    /**
+     * Deliberately not {@code @Transactional}: it runs inside the outbox delivery transaction, and a
+     * transactional proxy would mark that transaction rollback-only on a provider failure, discarding the
+     * recorded attempt so the message never backs off or reaches the DLQ.
+     */
     @Override
-    @Transactional(readOnly = true)
     public DeliveryReceipt send(Message message) {
         UUID tenant = TenantContext.tenantId().orElse(null);
         TenantWhatsAppProvider p = tenant == null ? null : providers.findById(tenant).orElse(null);

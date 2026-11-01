@@ -11,6 +11,8 @@ export interface WhatsAppView {
   body: string;
   providerStatus?: "accepted" | "sent" | "delivered" | "read" | "failed";
   providerStatusAt?: string | null;
+  /** Why the last delivery attempt failed (set while retrying and on final failure). */
+  error?: string | null;
 }
 
 /** A company document that can be sent after the template message (PDF or image). */

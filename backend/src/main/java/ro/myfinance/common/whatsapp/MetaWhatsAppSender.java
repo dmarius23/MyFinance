@@ -103,7 +103,7 @@ public class MetaWhatsAppSender {
                     .build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
-                throw providerFailure("Meta WhatsApp send rejected", response.statusCode());
+                throw providerFailure("Meta WhatsApp send rejected", response);
             }
             String providerMessageId = json.readTree(response.body()).path("messages").path(0)
                     .path("id").asText(null);
@@ -118,7 +118,7 @@ public class MetaWhatsAppSender {
         } catch (WhatsAppProviderException e) {
             throw e;
         } catch (Exception e) {
-            throw new WhatsAppProviderException("Meta WhatsApp request failed", e, true);
+            throw new WhatsAppProviderException("Meta WhatsApp request failed: " + e.getMessage(), e, true);
         }
     }
 
@@ -154,7 +154,7 @@ public class MetaWhatsAppSender {
                 .build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
-            throw providerFailure("Meta WhatsApp media upload rejected", response.statusCode());
+            throw providerFailure("Meta WhatsApp media upload rejected", response);
         }
         String mediaId = json.readTree(response.body()).path("id").asText(null);
         if (mediaId == null || mediaId.isBlank()) {
@@ -174,14 +174,32 @@ public class MetaWhatsAppSender {
                 .build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
-            throw providerFailure("Meta WhatsApp media send rejected", response.statusCode());
+            throw providerFailure("Meta WhatsApp media send rejected", response);
         }
         return json.readTree(response.body());
     }
 
-    private static WhatsAppProviderException providerFailure(String message, int status) {
+    private WhatsAppProviderException providerFailure(String message, HttpResponse<String> response) {
+        int status = response.statusCode();
         boolean retryable = status == 408 || status == 425 || status == 429 || status >= 500;
-        return new WhatsAppProviderException(message + " (HTTP " + status + ")", retryable);
+        return new WhatsAppProviderException(message + " (HTTP " + status + metaErrorDetail(response.body()) + ")",
+                retryable);
+    }
+
+    /** Meta's own reason, e.g. ": #132000 Number of parameters does not match ..." — never echoes the request. */
+    private String metaErrorDetail(String body) {
+        try {
+            var error = json.readTree(body).path("error");
+            if (error.isMissingNode()) {
+                return "";
+            }
+            String detail = error.path("error_data").path("details").asText("");
+            String text = "#" + error.path("code").asText("?") + " " + error.path("message").asText("")
+                    + (detail.isBlank() ? "" : " — " + detail);
+            return ": " + (text.length() > 400 ? text.substring(0, 400) + "…" : text);
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private static void writePart(ByteArrayOutputStream out, String boundary, String name,

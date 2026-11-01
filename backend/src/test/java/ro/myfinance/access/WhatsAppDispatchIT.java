@@ -118,6 +118,35 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
     }
 
     @Test
+    void failedProviderDeliveryIsRecordedForRetryInsteadOfRolledBack() {
+        UUID tenant = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        UUID company = seedCompanyWithRep(tenant, "+40700000000");
+        jdbc.update("""
+                insert into tenant_whatsapp_provider(tenant_id, mode, meta_waba_id, meta_phone_number_id,
+                    meta_access_token_enc, updated_at)
+                values (?, 'META_CLOUD_API', 'waba', 'phone', 'not-a-ciphertext', now())
+                """, tenant);
+        jdbc.update("""
+                insert into tenant_whatsapp_template(tenant_id, kind, language, meta_template_name, status)
+                values (?, 'TAX', 'ro_RO', 'tax_notice', 'APPROVED')
+                """, tenant);
+
+        WhatsAppMessage sent = whatsapp.dispatch(EmailKind.TAX, company, PERIOD, "Taxe.", null,
+                "tax-fail-" + company, null);
+
+        var outbox = jdbc.queryForMap(
+                "select status, attempts, error from outbox_message where aggregate_id = ?",
+                sent.getId().toString());
+        assertThat(outbox.get("status")).isEqualTo("PENDING");
+        assertThat(outbox.get("attempts")).isEqualTo(1);
+        assertThat(outbox.get("error")).isNotNull();
+        var row = jdbc.queryForMap("select status, error from whatsapp_message where id = ?", sent.getId());
+        assertThat(row.get("status")).isEqualTo("QUEUED");
+        assertThat(row.get("error")).isEqualTo(outbox.get("error"));
+    }
+
+    @Test
     void repeatedIdempotencyKeyDoesNotCreateAnotherMessage() {
         UUID tenant = UUID.randomUUID();
         TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));

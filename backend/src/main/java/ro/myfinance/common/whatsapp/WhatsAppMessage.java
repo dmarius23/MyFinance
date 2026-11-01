@@ -119,6 +119,11 @@ public class WhatsAppMessage {
         error = null;
     }
 
+    /** A failed attempt that will be retried: keep the row QUEUED but expose why the last attempt failed. */
+    public void recordDeliveryError(String message) {
+        error = message;
+    }
+
     public void markFailed(String message) {
         status = EmailStatus.FAILED;
         error = message;
@@ -167,6 +172,7 @@ public class WhatsAppMessage {
     public String getRecipient() { return recipient; }
     public String getBody() { return body; }
     public EmailStatus getStatus() { return status; }
+    public String getError() { return error; }
     public Instant getSentAt() { return sentAt; }
     public UUID getSentBy() { return sentBy; }
     public String getIdempotencyKey() { return idempotencyKey; }
