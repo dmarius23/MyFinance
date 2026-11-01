@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import ro.myfinance.common.messaging.DefaultMessageTemplates;
 import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.messaging.MessageTemplateService;
 import ro.myfinance.common.security.Role;
@@ -37,9 +38,12 @@ import ro.myfinance.support.AbstractPostgresIT;
  *   <li>{@code effectiveAllNeverLeaksAnotherTenantsOverride} — A saves a secret phrase "Secretul firmei A";
  *       B calls effectiveAll() and asserts none of the 6 entries contain that phrase. A leak would
  *       propagate the phrase and the {@code noneMatch} would fail.
- *   <li>{@code resetOnlyAffectsTheBoundTenant} — after B resets PAYROLL, A must still render "Textul A"
- *       and B must be uncustomized. If reset ignores tenant scoping it would delete A's row too, causing
- *       A.body() to fall back to the built-in default rather than "Textul A".
+ *   <li>{@code resetOnlyAffectsTheBoundTenant} — after B resets PAYROLL, A must still render "Textul A",
+ *       and B must be uncustomized. Furthermore, B's body must be exactly the built-in PAYROLL default
+ *       (containing "fluturașul") and must NOT contain "Textul A". If reset deleted A's row, A.body()
+ *       would fall back to the default instead of "Textul A". If reset corrupted B's row instead of
+ *       deleting it (empty or broken body), the customized flag would still be false but the body would
+ *       not match the default text.
  * </ul>
  */
 class TemplateRenderingIsolationIT extends AbstractPostgresIT {
@@ -61,8 +65,10 @@ class TemplateRenderingIsolationIT extends AbstractPostgresIT {
 
     @BeforeEach
     void seedTenants() {
-        // Seed both tenant rows as a superuser via JdbcTemplate (which bypasses RLS), then clear the
-        // thread-local so the actual test can bind its own identity.
+        // Seed both tenant rows by binding each tenant's context, then inserting via JdbcTemplate.
+        // The insert succeeds because the tenant table has RLS enabled with a policy that permits
+        // writes to the tenant's own row (when app.tenant_id matches the tenant_id column).
+        // The myfinance_app role is subject to RLS but permitted to insert its own tenant.
         TenantContext.set(new TenantContext.Identity(TENANT_A, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         try {
             jdbc.update(
@@ -134,8 +140,20 @@ class TemplateRenderingIsolationIT extends AbstractPostgresIT {
 
         assertThat(asTenant(TENANT_A, () -> service.effective(MessageTemplateKind.PAYROLL)).body())
                 .isEqualTo("Textul A");
-        assertThat(asTenant(TENANT_B, () -> service.effective(MessageTemplateKind.PAYROLL)).customized())
+        var tenantBAfterReset = asTenant(TENANT_B, () -> service.effective(MessageTemplateKind.PAYROLL));
+        assertThat(tenantBAfterReset.customized())
                 .isFalse();
+        // After reset, tenant B's body is the built-in PAYROLL default, which contains the word
+        // "fluturașul" (the salary slip). This strong assertion fails if reset() corrupted the row
+        // (leaving empty or broken body) instead of deleting it, in which case the flag would still
+        // read false but the body would not match the default.
+        assertThat(tenantBAfterReset.body())
+                .contains("fluturașul")
+                .isEqualTo(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body());
+        // Also assert that tenant B does NOT contain tenant A's distinctive text, mirroring the
+        // strong form used in aTenantWithNoOverrideStillGetsTheDefaultNotAnotherTenantsText.
+        assertThat(tenantBAfterReset.body())
+                .doesNotContain("Textul A");
     }
 
     // --- helper ---
