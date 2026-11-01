@@ -43,9 +43,15 @@ class CurrentMessageWordingTest {
             Maria Popescu
             ContaZone SRL""";
 
+    /**
+     * The deadline the seeded reference row yields for an April period: day 25 of the following month.
+     * Supplied explicitly so this golden test stays deterministic without a database.
+     */
+    private static final LocalDate APRIL_DEADLINE = LocalDate.of(2026, 5, 25);
+
     private static String renderPayroll(String sender) {
         var values = ro.myfinance.payroll.application.PayrollEmailBuilder
-                .values(APRIL, "Acme SRL", sender, FIRM);
+                .values(APRIL, "Acme SRL", sender, FIRM, APRIL_DEADLINE);
         return new TemplateRenderer().render(
                 DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
     }
@@ -58,7 +64,7 @@ class CurrentMessageWordingTest {
     @Test
     void payrollSubjectIsUnchanged() {
         var values = ro.myfinance.payroll.application.PayrollEmailBuilder
-                .values(APRIL, "Acme SRL", SENDER, FIRM);
+                .values(APRIL, "Acme SRL", SENDER, FIRM, APRIL_DEADLINE);
         assertThat(new TemplateRenderer().render(
                 DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).subject(), values))
                 .isEqualTo("State de plată — Aprilie 2026");
