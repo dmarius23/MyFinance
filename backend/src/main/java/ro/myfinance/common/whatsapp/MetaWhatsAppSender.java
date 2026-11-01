@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ro.myfinance.common.crypto.SecretCipher;
@@ -32,11 +33,11 @@ public class MetaWhatsAppSender {
     private final String graphBaseUrl;
     private final HttpClient http;
 
+    @Autowired
     public MetaWhatsAppSender(TenantWhatsAppProviderRepository providers, SecretCipher cipher,
-                              ObjectMapper json,
-                              WhatsAppMediaSource mediaSource,
+                              ObjectMapper json, WhatsAppMediaSource mediaSource,
                               @Value("${myfinance.whatsapp.meta.graph-base-url:https://graph.facebook.com/v24.0}")
-                              String graphBaseUrl) {
+                                      String graphBaseUrl) {
         this(providers, cipher, json, mediaSource, graphBaseUrl, DEFAULT_HTTP);
     }
 
