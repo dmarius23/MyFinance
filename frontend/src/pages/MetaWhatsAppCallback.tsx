@@ -13,8 +13,8 @@ export function MetaWhatsAppCallback() {
     const metaError = params.get("error_description") ?? params.get("error");
     const code = params.get("code");
     const state = params.get("state");
-    const wabaId = params.get("waba_id") ?? params.get("wabaId");
-    const phoneNumberId = params.get("phone_number_id") ?? params.get("phoneNumberId");
+    const wabaId = params.get("waba_id") ?? params.get("wabaId") ?? undefined;
+    const phoneNumberId = params.get("phone_number_id") ?? params.get("phoneNumberId") ?? undefined;
     const businessPortfolioId = params.get("business_id")
       ?? params.get("business_portfolio_id")
       ?? params.get("businessPortfolioId")
@@ -24,7 +24,7 @@ export function MetaWhatsAppCallback() {
       setError(metaError);
       return;
     }
-    if (!code || !state || !wabaId || !phoneNumberId) {
+    if (!code || !state) {
       setError("Meta returned an incomplete WhatsApp onboarding response.");
       return;
     }

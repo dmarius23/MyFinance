@@ -90,10 +90,8 @@ public class MetaWhatsAppOnboardingService {
 
     public TenantWhatsAppProvider complete(String state, String code, String wabaId,
                                           String phoneNumberId, String businessPortfolioId) {
-        if (state == null || state.isBlank() || code == null || code.isBlank()
-                || wabaId == null || wabaId.isBlank() || phoneNumberId == null || phoneNumberId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "state, authorization code, WABA ID and phone-number ID are required");
+        if (state == null || state.isBlank() || code == null || code.isBlank()) {
+            throw new IllegalArgumentException("state and authorization code are required");
         }
         UUID tenantId = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
@@ -111,9 +109,17 @@ public class MetaWhatsAppOnboardingService {
                     "Meta WhatsApp redirect URI is not configured");
         }
         String token = meta.exchangeCode(code, redirectUri);
-        meta.validateWaba(token, wabaId);
-        meta.validatePhoneNumber(token, phoneNumberId);
-        meta.subscribeToWaba(token, wabaId);
+        String waba = trimToNull(wabaId);
+        if (waba == null) {
+            waba = single(meta.grantedWabaIds(token), "WhatsApp Business Account");
+        }
+        meta.validateWaba(token, waba);
+        String phone = trimToNull(phoneNumberId);
+        if (phone == null) {
+            phone = single(meta.phoneNumberIds(token, waba), "WhatsApp phone number");
+        }
+        meta.validatePhoneNumber(token, phone);
+        meta.subscribeToWaba(token, waba);
         if (!cipher.isConfigured()) {
             throw new ro.myfinance.common.web.MisconfiguredException(
                     "Server secret key (MYFINANCE_SECRET_KEY) is not configured — cannot store Meta token");
@@ -122,8 +128,8 @@ public class MetaWhatsAppOnboardingService {
                 .orElseGet(() -> new TenantWhatsAppProvider(tenantId));
         provider.setMode(TenantWhatsAppProvider.Mode.META_CLOUD_API);
         provider.setMetaBusinessPortfolioId(trimToNull(businessPortfolioId));
-        provider.setMetaWabaId(wabaId.trim());
-        provider.setMetaPhoneNumberId(phoneNumberId.trim());
+        provider.setMetaWabaId(waba);
+        provider.setMetaPhoneNumberId(phone);
         provider.setMetaAccessTokenEnc(cipher.encrypt(token));
         pending.consume(Instant.now());
         states.save(pending);
@@ -143,6 +149,18 @@ public class MetaWhatsAppOnboardingService {
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is unavailable", e);
         }
+    }
+
+    private static String single(java.util.List<String> ids, String asset) {
+        if (ids.isEmpty()) {
+            throw new ConflictException("Meta did not grant access to a " + asset
+                    + " — finish the WhatsApp signup and share one");
+        }
+        if (ids.size() > 1) {
+            throw new ConflictException("Meta granted more than one " + asset
+                    + " — reconnect and share exactly one");
+        }
+        return ids.get(0);
     }
 
     private static String trimToNull(String value) {
