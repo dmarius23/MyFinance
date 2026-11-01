@@ -1,12 +1,19 @@
 package ro.myfinance.payroll.application;
 
 import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
 import ro.myfinance.common.i18n.RomanianMonths;
 
 /**
- * Builds the standard Romanian payroll email body. The body is a default the accountant edits before
- * sending — it carries no money figures (the amounts live in the attached pay statement / payslip), so
- * nothing here needs reconciliation. The tax-payment deadline is the 25th of the period month.
+ * Assembles the variable map the template renderer consumes for a {@code PAYROLL} email. The body
+ * carries no money figures — amounts live in the attached pay statement.
+ *
+ * <p>The salary-tax deadline is the <b>25th of the month following</b> the payroll period: taxes on
+ * April salaries are due 25 May. This matches the rest of the codebase —
+ * {@code AnafDeclarationExtractor.defaultDeadline} ("the 25th of the next month") and
+ * {@code DashboardService}'s {@code month.plusMonths(1).withDayOfMonth(25)} — which this email
+ * previously contradicted by naming the period's own month.
  */
 public final class PayrollEmailBuilder {
 
@@ -18,30 +25,20 @@ public final class PayrollEmailBuilder {
         return RomanianMonths.monthYear(period);
     }
 
-    public static String subject(LocalDate period) {
-        return "State de plată — " + monthYear(period);
-    }
-
-    /** The standard body for a company/period. {@code accountantName} may be blank (then only the firm signs). */
-    public static String body(LocalDate period, String accountantName, String firmName) {
+    /**
+     * Everything a {@code PAYROLL} template may reference. {@code taxDeadline} is the 25th of the month
+     * AFTER the period — {@code plusMonths(1)} also carries the year, so December's payroll correctly
+     * reads "25 Ianuarie" of the next year.
+     */
+    public static Map<String, String> values(LocalDate period, String companyName,
+                                             String senderName, String firmName) {
         LocalDate p = period.withDayOfMonth(1);
         String my = monthYear(p);
-        String deadline = "25 " + my;
-        return String.join("\n",
-                "Bună ziua,",
-                "",
-                "Vă rog frumos să regăsiți atașate statul de plată, fluturașul de salariu și pontajul "
-                        + "pentru luna " + my + ".",
-                "",
-                "Restul de plată de pe statul de plată și fluturaș trebuie virat din contul firmei în "
-                        + "contul personal al salariatului.",
-                "",
-                "Diferența dintre restul de plată și salariul brut reprezintă taxele salariale. Acestea "
-                        + "se vor plăti până în data de " + deadline + ".",
-                "",
-                "În ceea ce privește sumele care se plătesc către Trezorerie, precum și conturile "
-                        + "aferente, vom reveni cu un email separat.",
-                "",
-                ro.myfinance.common.email.SignOff.block("O zi bună,", accountantName, firmName));
+        Map<String, String> v = new HashMap<>();
+        v.put("companyName", companyName == null ? "" : companyName);
+        v.put("month", my);
+        v.put("taxDeadline", "25 " + monthYear(p.plusMonths(1)));
+        v.put("signOff", ro.myfinance.common.email.SignOff.names(senderName, firmName));
+        return v;
     }
 }

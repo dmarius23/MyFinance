@@ -13,6 +13,9 @@ import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailSender;
 import ro.myfinance.common.email.EmailStatus;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.MessageTemplateService;
+import ro.myfinance.common.messaging.RenderedMessage;
 import ro.myfinance.reports.domain.ReportData;
 
 /**
@@ -31,16 +34,19 @@ public class ReportEmailService {
     private final EmailEnvelopeService envelopes;
     private final EmailDispatchService dispatch;
     private final ro.myfinance.notifications.application.NotificationService notifications;
+    private final MessageTemplateService templates;
 
     public ReportEmailService(ReportService reports, EmailHistoryRepository history, ReportPdfGenerator pdf,
                               EmailEnvelopeService envelopes, EmailDispatchService dispatch,
-                              ro.myfinance.notifications.application.NotificationService notifications) {
+                              ro.myfinance.notifications.application.NotificationService notifications,
+                              MessageTemplateService templates) {
         this.reports = reports;
         this.history = history;
         this.pdf = pdf;
         this.envelopes = envelopes;
         this.dispatch = dispatch;
         this.notifications = notifications;
+        this.templates = templates;
     }
 
     /** One report email send (notification log + resend). */
@@ -53,9 +59,20 @@ public class ReportEmailService {
     /** Default editable body for a company/period (signed by the logged-in user, then the firm). */
     @Transactional(readOnly = true)
     public String composeBody(UUID companyId, LocalDate period) {
+        return message(companyId, period).body();
+    }
+
+    /** Subject + body for a company/period, rendered from this tenant's REPORT template. */
+    @Transactional(readOnly = true)
+    public RenderedMessage message(UUID companyId, LocalDate period) {
         ReportData r = reports.report(companyId, period);
-        return ReportEmailBuilder.body(period.withDayOfMonth(1), r,
-                envelopes.currentUserName(), envelopes.firmName());
+        return message(period, r);
+    }
+
+    /** Same, when the caller already holds the report data — avoids re-running the aggregation. */
+    public RenderedMessage message(LocalDate period, ReportData r) {
+        return templates.render(MessageTemplateKind.REPORT, ReportEmailBuilder.values(
+                period.withDayOfMonth(1), r, envelopes.currentUserName(), envelopes.firmName()));
     }
 
     @Transactional(readOnly = true)
@@ -76,7 +93,7 @@ public class ReportEmailService {
                         "image/png", ReportChartImage.png(r)));
 
         EmailHistory row = dispatch.dispatch(EmailKind.REPORT, companyId, period, recipient,
-                ReportEmailBuilder.subject(month), body, attachments, null,
+                message(month, r).subject(), body, attachments, null,
                 () -> notifications.notifyCompanyReps(companyId, "REPORT_READY", "Raport disponibil",
                         "Raportul financiar pe luna " + ReportEmailBuilder.monthYear(month) + " este disponibil."));
         return ReportEmailView.from(row);

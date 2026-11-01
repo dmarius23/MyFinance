@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.extraction.application.DocumentReminderService;
 import ro.myfinance.extraction.application.DocumentReminderService.ReminderRow;
 import ro.myfinance.extraction.application.DocumentReminderService.ReminderView;
+import ro.myfinance.extraction.application.ReminderBodyService;
 import ro.myfinance.common.email.EmailStatus;
 
 /**
@@ -26,9 +27,11 @@ import ro.myfinance.common.email.EmailStatus;
 public class DocumentReminderController {
 
     private final DocumentReminderService reminders;
+    private final ReminderBodyService bodies;
 
-    public DocumentReminderController(DocumentReminderService reminders) {
+    public DocumentReminderController(DocumentReminderService reminders, ReminderBodyService bodies) {
         this.reminders = reminders;
+        this.bodies = bodies;
     }
 
     /** Per-company last-sent + count for the period (drives the Statements "last sent" column). */
@@ -44,6 +47,20 @@ public class DocumentReminderController {
             @PathVariable UUID companyId,
             @RequestParam("period") LocalDate period) {
         return reminders.history(companyId, period).stream().map(ReminderViewResponse::from).toList();
+    }
+
+    /**
+     * The default editable reminder for a company/period: which of the three states applies, plus the
+     * subject and body rendered from this tenant's template. The browser no longer composes this.
+     */
+    @GetMapping("/api/v1/companies/{companyId}/document-reminders/body")
+    public ReminderBodyResponse body(@PathVariable UUID companyId,
+                                     @RequestParam("period") LocalDate period) {
+        var msg = bodies.compose(companyId, period);
+        return new ReminderBodyResponse(msg.state().name(), msg.subject(), msg.body());
+    }
+
+    public record ReminderBodyResponse(String state, String subject, String body) {
     }
 
     /** Record + dispatch one reminder for a company. */
