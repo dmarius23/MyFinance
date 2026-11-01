@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,10 @@ public class MetaWhatsAppSender {
     private static final HttpClient DEFAULT_HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    /** Meta template languages keep the region only for these locales; all others are the bare language. */
+    private static final Set<String> REGIONAL_META_LANGUAGES = Set.of(
+            "en_GB", "en_US", "es_AR", "es_ES", "es_MX", "pt_BR", "pt_PT", "zh_CN", "zh_HK", "zh_TW");
 
     private final TenantWhatsAppProviderRepository providers;
     private final SecretCipher cipher;
@@ -52,6 +57,11 @@ public class MetaWhatsAppSender {
         this.http = http;
     }
 
+    static String metaLanguageCode(String locale) {
+        int separator = locale.indexOf('_');
+        return separator < 0 || REGIONAL_META_LANGUAGES.contains(locale) ? locale : locale.substring(0, separator);
+    }
+
     public WhatsAppSender.DeliveryReceipt send(WhatsAppSender.Message message) {
         var tenant = ro.myfinance.common.security.TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
@@ -68,7 +78,7 @@ public class MetaWhatsAppSender {
 
         Map<String, Object> template = new LinkedHashMap<>();
         template.put("name", message.templateName());
-        template.put("language", Map.of("code", message.templateLanguage()));
+        template.put("language", Map.of("code", metaLanguageCode(message.templateLanguage())));
         if (!message.templateVariables().isEmpty()) {
             var parameters = new ArrayList<Map<String, Object>>();
             message.templateVariables().entrySet().stream()

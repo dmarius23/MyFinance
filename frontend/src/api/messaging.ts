@@ -50,6 +50,32 @@ export interface UpdateWhatsAppInput {
   fromNumber: string | null;
 }
 
+export type WhatsAppTemplateKind = "TAX" | "PAYROLL" | "REPORT" | "DOCUMENT_REMINDER";
+export type WhatsAppTemplateLanguage = "ro_RO" | "en_US";
+export type WhatsAppTemplateStatus = "PENDING" | "APPROVED" | "DISABLED";
+
+/** A Meta-approved template registered for one message kind + language (unique per tenant). */
+export interface WhatsAppTemplate {
+  id: string;
+  kind: WhatsAppTemplateKind;
+  language: WhatsAppTemplateLanguage;
+  metaTemplateName: string;
+  category: "UTILITY" | "MARKETING" | "AUTHENTICATION";
+  status: WhatsAppTemplateStatus;
+  version: string | null;
+  variableSchema: string | null;
+  approvedAt: string | null;
+}
+
+/** Upserts by kind + language. */
+export interface SaveWhatsAppTemplateInput {
+  kind: WhatsAppTemplateKind;
+  language: WhatsAppTemplateLanguage;
+  metaTemplateName: string;
+  category: "UTILITY";
+  status: WhatsAppTemplateStatus;
+}
+
 export const messagingApi = {
   getEmail: () => api<EmailProvider>("/api/v1/settings/messaging/email"),
   updateEmail: (input: UpdateEmailInput) =>
@@ -88,4 +114,12 @@ export const messagingApi = {
     api<{ status: "VALID" }>("/api/v1/settings/messaging/whatsapp/test", {
       method: "POST",
     }),
+  listWhatsAppTemplates: () => api<WhatsAppTemplate[]>("/api/v1/settings/messaging/whatsapp/templates"),
+  saveWhatsAppTemplate: (input: SaveWhatsAppTemplateInput) =>
+    api<WhatsAppTemplate>("/api/v1/settings/messaging/whatsapp/templates", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  deleteWhatsAppTemplate: (id: string) =>
+    api<void>(`/api/v1/settings/messaging/whatsapp/templates/${id}`, { method: "DELETE" }),
 };
