@@ -9,6 +9,7 @@ import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
 import { EmailProviderSection, WhatsAppProviderSection } from "../components/MessagingSettings";
+import { MessageTemplatesSection } from "../components/MessageTemplatesSection";
 
 /**
  * MOD-15 — admin screen to configure document-source folders (Google Drive) and trigger a sync.
@@ -182,6 +183,7 @@ export function DataSources() {
           on one screen (this page is "Setări"). */}
       <EmailProviderSection />
       <WhatsAppProviderSection />
+      <MessageTemplatesSection />
     </div>
   );
 }
