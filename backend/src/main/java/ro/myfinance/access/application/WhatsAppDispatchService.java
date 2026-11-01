@@ -183,6 +183,11 @@ public class WhatsAppDispatchService {
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
     }
 
+    private java.util.Optional<TenantWhatsAppTemplate> approvedTemplate(EmailKind kind, String language) {
+        return templates.findByKindAndLanguage(kind, language)
+                .filter(t -> t.getStatus() == TenantWhatsAppTemplate.Status.APPROVED);
+    }
+
     private TenantWhatsAppTemplate validateProviderAndTemplate(UUID tenantId, EmailKind kind, String language) {
         TenantWhatsAppProvider provider = providers.findById(tenantId).orElse(null);
         if (provider == null) {
@@ -200,8 +205,9 @@ public class WhatsAppDispatchService {
                 throw new ConflictException("Complete Meta WhatsApp onboarding before sending");
             }
             String locale = language == null || language.isBlank() ? "ro_RO" : language;
-            TenantWhatsAppTemplate template = templates.findByKindAndLanguage(kind, locale)
-                    .filter(t -> t.getStatus() == TenantWhatsAppTemplate.Status.APPROVED)
+            String fallback = "ro_RO".equals(locale) ? "en_US" : "ro_RO";
+            TenantWhatsAppTemplate template = approvedTemplate(kind, locale)
+                    .or(() -> approvedTemplate(kind, fallback))
                     .orElseThrow(() -> new ConflictException(
                             "No approved Meta WhatsApp template is configured for " + kind + "/" + locale));
             if (template.getMetaTemplateName().isBlank()) {
