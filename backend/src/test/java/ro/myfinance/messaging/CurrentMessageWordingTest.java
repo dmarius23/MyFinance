@@ -21,6 +21,13 @@ class CurrentMessageWordingTest {
 
     // --- payroll ---
 
+    /**
+     * NOTE — the one deliberate wording change on this branch. The salary-tax deadline below reads
+     * "25 Mai 2026" for the April payroll, not "25 Aprilie 2026" as it did before. The old text named
+     * the period's own month, which was wrong (D112 for April salaries is due 25 May) and contradicted
+     * both {@code AnafDeclarationExtractor.defaultDeadline} and {@code DashboardService}. Changed on the
+     * user's explicit instruction; every other byte of this constant is still the pre-branch wording.
+     */
     static final String EXPECTED_PAYROLL_BODY = """
             Bună ziua,
 
@@ -28,7 +35,7 @@ class CurrentMessageWordingTest {
 
             Restul de plată de pe statul de plată și fluturaș trebuie virat din contul firmei în contul personal al salariatului.
 
-            Diferența dintre restul de plată și salariul brut reprezintă taxele salariale. Acestea se vor plăti până în data de 25 Aprilie 2026.
+            Diferența dintre restul de plată și salariul brut reprezintă taxele salariale. Acestea se vor plăti până în data de 25 Mai 2026.
 
             În ceea ce privește sumele care se plătesc către Trezorerie, precum și conturile aferente, vom reveni cu un email separat.
 

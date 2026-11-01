@@ -69,7 +69,8 @@ class PayrollServiceTest {
         String body = new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
         assertThat(body).contains("luna Aprilie 2026");
         assertThat(body).contains("statul de plată, fluturașul de salariu și pontajul");
-        assertThat(body).contains("până în data de 25 Aprilie 2026");
+        // The deadline is the month AFTER the period: April salaries, taxes due 25 May.
+        assertThat(body).contains("până în data de 25 Mai 2026");
         assertThat(body).contains("Maria Pop");
         var subjectValues = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, "Maria Pop", "ContaZone SRL");
         assertThat(new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).subject(), subjectValues))

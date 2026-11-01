@@ -304,9 +304,26 @@ Per `backend/CLAUDE.md`, a cross-tenant isolation test is mandatory for every ne
    frontend row (`• 2026-04-15 — Partner — 1.234,56 RON`) and the backend notification row
    (`• 15.04 · Partner · 1234 lei (furnizor)`) in favour of `• 15.04.2026 — Partner SRL — 1.234,56 RON`.
 3. **Reminder language no longer follows the accountant's UI toggle.** It follows the tenant's template.
+4. **Payroll salary-tax deadline corrected to the 25th of the FOLLOWING month.** Amended after
+   implementation, on the user's explicit instruction. `{{taxDeadline}}` previously rendered the 25th of
+   the period's *own* month, so the April payroll email told clients their salary taxes were due 25 April
+   — D112 for April salaries is due 25 May. The old value also contradicted two places in this codebase
+   that already had it right: `AnafDeclarationExtractor.defaultDeadline` ("the 25th of the next month")
+   and `DashboardService`'s `month.plusMonths(1).withDayOfMonth(25)`.
+
+   This is the **only** change on this branch that intentionally alters wording a client already
+   receives, so `EXPECTED_PAYROLL_BODY` moves with it — one line, with every other byte of the pinned
+   wording unchanged. A new test covers the year rollover (December payroll → "25 Ianuarie" of the next
+   year), an edge case the old same-month value could never expose.
 
 ## 12. Out of scope
 
+- **A configurable deadline day.** The 25th is still a constant in `PayrollEmailBuilder`. It should become
+  super-admin-managed, effective-dated platform reference data — the shape
+  `backend/docs/MyFinance-global-reference-settings-design-v1.md` already defines for tax rates and
+  treasury IBANs — so a statutory change needs no deploy. That work should also collapse the three
+  places that now each compute "25th of the next month" into one source. Deferred by the user: "for the
+  moment let it fix".
 - **Invite email** (`InviteMessageFactory`) — stays hardcoded; see §2.
 - **In-app notification bodies** (`DocumentReminderService.docRequestBody`, `TaxEmailService.notifyTaxDue`)
   — a different channel and a shorter message; still hardcoded Romanian.

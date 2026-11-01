@@ -30,7 +30,8 @@ class DefaultMessageTemplatesTest {
         String body = render(MessageTemplateKind.PAYROLL, Map.of(
                 "companyName", "Acme SRL",
                 "month", "Aprilie 2026",
-                "taxDeadline", "25 Aprilie 2026"));
+                // The 25th of the month AFTER the period: April payroll, May deadline.
+                "taxDeadline", "25 Mai 2026"));
         assertThat(body).isEqualTo(CurrentMessageWordingTest.EXPECTED_PAYROLL_BODY);
     }
 
