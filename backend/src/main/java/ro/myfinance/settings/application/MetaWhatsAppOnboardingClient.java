@@ -100,11 +100,14 @@ public class MetaWhatsAppOnboardingClient {
         }
     }
 
-    public void validateWaba(String token, String wabaId) {
-        JsonNode node = get(token, "/" + wabaId + "?fields=id");
+    /** Validates the WABA and returns its owning business portfolio ID, or {@code null} if Meta omits it. */
+    public String validateWaba(String token, String wabaId) {
+        JsonNode node = get(token, "/" + wabaId + "?fields=id,owner_business_info");
         if (!wabaId.equals(node.path("id").asText())) {
             throw new ConflictException("Meta returned a different WhatsApp Business Account ID");
         }
+        String owner = node.path("owner_business_info").path("id").asText(null);
+        return owner == null || owner.isBlank() ? null : owner;
     }
 
     /**
