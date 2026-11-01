@@ -76,7 +76,8 @@ class PortalServiceCompanyResolutionTest {
     }
 
     private PortalService service() {
-        return new PortalService(companies, null, null, null, null, null, null, null, null, repLinks, users, request);
+        return new PortalService(companies, null, null, null, null, null, null, null, null, repLinks, users,
+                mock(ro.myfinance.access.application.SignInRecorder.class), request);
     }
 
     @Test
