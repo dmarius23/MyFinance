@@ -63,8 +63,9 @@ public class ReminderBodyService {
 
     public ReminderMessage compose(UUID companyId, LocalDate period) {
         LocalDate month = period.withDayOfMonth(1);
-        List<TxnWithMatches> missing = missingTransactions(companyId, month);
-        MessageTemplateKind state = state(hasBankStatement(companyId, month), missing);
+        boolean hasStatement = hasBankStatement(companyId, month);
+        List<TxnWithMatches> missing = hasStatement ? missingTransactions(companyId, month) : List.of();
+        MessageTemplateKind state = state(hasStatement, missing);
 
         Map<String, String> values = new HashMap<>();
         values.put("companyName", companyName(companyId));
@@ -80,7 +81,9 @@ public class ReminderBodyService {
     /** Exposed for the reminder screens, which disable the button for a state the user should not send. */
     public MessageTemplateKind stateFor(UUID companyId, LocalDate period) {
         LocalDate month = period.withDayOfMonth(1);
-        return state(hasBankStatement(companyId, month), missingTransactions(companyId, month));
+        boolean hasStatement = hasBankStatement(companyId, month);
+        List<TxnWithMatches> missing = hasStatement ? missingTransactions(companyId, month) : List.of();
+        return state(hasStatement, missing);
     }
 
     private static MessageTemplateKind state(boolean hasStatement, List<TxnWithMatches> missing) {
@@ -126,7 +129,7 @@ public class ReminderBodyService {
         if (v == null) {
             return "0,00";
         }
-        DecimalFormatSymbols sym = new DecimalFormatSymbols();
+        DecimalFormatSymbols sym = new DecimalFormatSymbols(java.util.Locale.ROOT);
         sym.setGroupingSeparator('.');
         sym.setDecimalSeparator(',');
         return new DecimalFormat("#,##0.00", sym).format(v.abs());

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -78,6 +80,8 @@ class ReminderStateSelectionTest {
         assertThat(msg.state()).isEqualTo(MessageTemplateKind.REMINDER_NOTHING_RECEIVED);
         assertThat(msg.body()).contains("extrasul de cont");
         assertThat(msg.subject()).isEqualTo("Documente lipsă — Aprilie 2026");
+        // No statement → transaction query must NOT run (Finding 1 fix: wasted query removed).
+        verify(reconciliation, never()).transactionsWithMatches(any(), any());
     }
 
     @Test
