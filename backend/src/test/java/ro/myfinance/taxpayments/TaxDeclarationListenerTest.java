@@ -36,7 +36,9 @@ class TaxDeclarationListenerTest {
     private final ro.myfinance.intake.application.DocumentService documents =
             mock(ro.myfinance.intake.application.DocumentService.class);
     private final TaxDeclarationListener listener =
-            new TaxDeclarationListener(new AnafDeclarationExtractor(), declarations, companies, documents);
+            new TaxDeclarationListener(
+                    new AnafDeclarationExtractor(ro.myfinance.support.TestTaxDeadlines.seeded()),
+                    declarations, companies, documents);
 
     @BeforeEach
     void setup() {

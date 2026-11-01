@@ -23,7 +23,20 @@ import ro.myfinance.taxpayments.domain.TaxObligation;
  */
 class AnafDeclarationExtractorTest {
 
-    private final AnafDeclarationExtractor extractor = new AnafDeclarationExtractor();
+    /**
+     * Stubbed to the seeded statutory rule (day 25 of the following month) so every fixture assertion
+     * below keeps the expectation it had when the deadline was hardcoded.
+     */
+    private final ro.myfinance.settings.application.PlatformTaxDeadlineService deadlines =
+            org.mockito.Mockito.mock(ro.myfinance.settings.application.PlatformTaxDeadlineService.class);
+
+    private final AnafDeclarationExtractor extractor = new AnafDeclarationExtractor(deadlines);
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubSeededRule() {
+        org.mockito.Mockito.when(deadlines.deadlineFor(org.mockito.ArgumentMatchers.any(YearMonth.class)))
+                .thenAnswer(i -> ((YearMonth) i.getArgument(0)).plusMonths(1).atDay(25));
+    }
 
     private ParsedDeclaration extractFixture(String name) throws IOException {
         try (InputStream in = getClass().getResourceAsStream("/fixtures/anaf/" + name)) {
@@ -64,6 +77,31 @@ class AnafDeclarationExtractorTest {
         assertThat(m.get(TaxCategory.CAM)).isEqualByComparingTo("91");      // 480
         assertThat(d.computedTotal()).isEqualByComparingTo("1776");
         assertThat(d.totalsMismatch()).isFalse(); // matches totalPlata_A
+    }
+
+    /**
+     * D112 carries no per-line scadenta, so the statutory day comes from effective-dated reference data.
+     * Driven through inline XML rather than the gitignored PII fixture, so this test actually RUNS —
+     * a skipped test would prove nothing about the wiring it exists to check.
+     */
+    @Test
+    void d112ObligationsTakeTheConfiguredDeadlineDay() {
+        org.mockito.Mockito.when(deadlines.deadlineFor(org.mockito.ArgumentMatchers.any(YearMonth.class)))
+                .thenAnswer(i -> ((YearMonth) i.getArgument(0)).plusMonths(1).atDay(20));
+        // D112 arrives inside a <declaratieUnica> root, not <declaratie112>.
+        String xml = "<?xml version=\"1.0\"?>"
+                + "<declaratieUnica luna_r=\"04\" an_r=\"2026\">"
+                + "<angajator cif=\"49443957\" den=\"X SRL\" totalPlata_A=\"1000\"/>"
+                + "<angajatorA A_codOblig=\"412\" A_plata=\"1000\"/>"
+                + "</declaratieUnica>";
+
+        ParsedDeclaration d = extractor.parseXmlBytes(xml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertThat(d.type()).isEqualTo(DeclarationType.D112);
+        assertThat(d.obligations()).hasSize(1);
+        // 20 May, not 25 May — the configured day reached the obligation's scadenta.
+        assertThat(d.obligations().get(0).scadenta())
+                .isEqualTo(java.time.LocalDate.of(2026, 5, 20));
     }
 
     @Test
