@@ -1,4 +1,4 @@
-import { api } from "../lib/apiClient";
+import { api, download } from "../lib/apiClient";
 
 /**
  * Tenant settings. Tax rates + treasury accounts are GLOBAL, SUPER_ADMIN-managed reference data,
@@ -51,4 +51,16 @@ export const settingsApi = {
       body: JSON.stringify({ mode }),
     }),
   listTreasury: () => api<TreasuryAccount[]>("/api/v1/settings/treasury-accounts"),
+  /** Save the current backend log file (temporary debug aid, TENANT_ADMIN only). */
+  downloadLogs: async () => {
+    const blob = await download("/api/v1/settings/logs");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `myfinance-backend-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.log`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };

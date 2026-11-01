@@ -29,6 +29,27 @@ export function Settings() {
       <InvoicePeriodSection />
       <RatesSection />
       <TreasurySection />
+      <LogsSection />
+    </div>
+  );
+}
+
+function LogsSection() {
+  const { t } = useTranslation();
+  const dl = useMutation({ mutationFn: settingsApi.downloadLogs });
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>{t("settings.logsTitle")}</h2>
+      <p style={hint}>{t("settings.logsHint")}</p>
+      <button className="primary" disabled={dl.isPending} onClick={() => dl.mutate()}>
+        {dl.isPending ? "…" : t("settings.logsDownload")}
+      </button>
+      {dl.isError && (
+        <p role="alert" style={{ color: "#b91c1c", fontSize: 12.5 }}>
+          {dl.error instanceof ApiError ? dl.error.message : t("common.error")}
+        </p>
+      )}
     </div>
   );
 }
