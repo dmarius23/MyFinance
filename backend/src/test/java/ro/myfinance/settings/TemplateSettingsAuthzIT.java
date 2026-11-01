@@ -45,6 +45,7 @@ class TemplateSettingsAuthzIT extends AbstractPostgresIT {
     private static final UUID TENANT_VALID = UUID.fromString("cccccccc-0000-0000-0000-0000000000c4");
     private static final UUID TENANT_KIND  = UUID.fromString("cccccccc-0000-0000-0000-0000000000c5");
     private static final UUID TENANT_PREV  = UUID.fromString("cccccccc-0000-0000-0000-0000000000c6");
+    private static final UUID TENANT_PREV_VALID = UUID.fromString("cccccccc-0000-0000-0000-0000000000c7");
 
     @DynamicPropertySource
     static void secretKey(DynamicPropertyRegistry registry) {
@@ -136,10 +137,50 @@ class TemplateSettingsAuthzIT extends AbstractPostgresIT {
     }
 
     @Test
+    void employeeCannotPreview() throws Exception {
+        mvc.perform(post("/api/v1/settings/messaging/templates/{kind}/preview", "PAYROLL")
+                        .with(employeeAuth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subject\":\"X\",\"body\":\"Bună ziua\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void representativeCannotWrite() throws Exception {
+        mvc.perform(put("/api/v1/settings/messaging/templates/{kind}", "PAYROLL")
+                        .with(repAuth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subject\":\"X\",\"body\":\"Bună ziua\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void representativeCannotReset() throws Exception {
+        mvc.perform(delete("/api/v1/settings/messaging/templates/{kind}", "PAYROLL")
+                        .with(repAuth()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void representativeCannotPreview() throws Exception {
+        mvc.perform(post("/api/v1/settings/messaging/templates/{kind}/preview", "PAYROLL")
+                        .with(repAuth()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subject\":\"X\",\"body\":\"Bună ziua\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void anUnknownPlaceholderIsRejectedWithFourHundred() throws Exception {
         seedTenant(TENANT_VALID);
         mvc.perform(put("/api/v1/settings/messaging/templates/{kind}", "PAYROLL")
                         .with(adminAuth(TENANT_VALID)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"subject\":\"X\",\"body\":\"Bună ziua {{compnayName}}\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void previewRejectsAnUnknownPlaceholderWithFourHundred() throws Exception {
+        seedTenant(TENANT_PREV_VALID);
+        mvc.perform(post("/api/v1/settings/messaging/templates/{kind}/preview", "PAYROLL")
+                        .with(adminAuth(TENANT_PREV_VALID)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"subject\":\"X\",\"body\":\"Bună ziua {{compnayName}}\"}"))
                 .andExpect(status().isBadRequest());
     }

@@ -36,15 +36,17 @@ public class TemplateValidator {
             throw new IllegalArgumentException(
                     "Template body must be at most " + MAX_BODY + " characters");
         }
-        if (normalizedSubject != null && normalizedSubject.length() > MAX_SUBJECT) {
-            throw new IllegalArgumentException(
-                    "Template subject must be at most " + MAX_SUBJECT + " characters");
-        }
 
         requireBalanced(normalizedBody);
         requireKnownNames(kind, normalizedBody, kind.allNames());
 
+        // A blank subject means "keep the built-in subject" — legal, skip all subject checks.
+        // Blankness must be decided first so that e.g. 301 spaces fails as blank, not as too long.
         if (normalizedSubject != null && !normalizedSubject.isBlank()) {
+            if (normalizedSubject.length() > MAX_SUBJECT) {
+                throw new IllegalArgumentException(
+                        "Template subject must be at most " + MAX_SUBJECT + " characters");
+            }
             requireBalanced(normalizedSubject);
             // Subjects take scalars only — a multi-line block in a subject makes no sense.
             Set<String> subjectAllowed = new LinkedHashSet<>(kind.placeholders());
