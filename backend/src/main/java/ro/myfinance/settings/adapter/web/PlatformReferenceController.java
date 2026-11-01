@@ -14,10 +14,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.CreateTreasuryRequest;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxDeadlineResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TaxRateResponse;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.TreasuryResponse;
+import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxDeadlineRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTaxRateRequest;
 import ro.myfinance.settings.adapter.web.PlatformReferenceDtos.UpdateTreasuryRequest;
 import ro.myfinance.settings.application.PlatformReferenceAdminService;
@@ -60,6 +63,33 @@ public class PlatformReferenceController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTaxRate(@PathVariable UUID id) {
         service.deleteTaxRate(id);
+    }
+
+    // ---- salary-tax deadline --------------------------------------------------------------------
+    // No method-level @PreAuthorize: the class-level hasRole('SUPER_ADMIN') already governs these, and a
+    // redundant per-method copy would invite someone to "adjust" one of them later.
+
+    @GetMapping("/tax-deadlines")
+    public List<TaxDeadlineResponse> listTaxDeadlines() {
+        return service.listTaxDeadlines().stream().map(TaxDeadlineResponse::from).toList();
+    }
+
+    @PostMapping("/tax-deadlines")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TaxDeadlineResponse addTaxDeadline(@Valid @RequestBody CreateTaxDeadlineRequest r) {
+        return TaxDeadlineResponse.from(service.addTaxDeadline(r.dayOfMonth(), r.validFrom()));
+    }
+
+    @PutMapping("/tax-deadlines/{id}")
+    public TaxDeadlineResponse updateTaxDeadline(@PathVariable UUID id,
+                                                 @Valid @RequestBody UpdateTaxDeadlineRequest r) {
+        return TaxDeadlineResponse.from(service.updateTaxDeadline(id, r.dayOfMonth()));
+    }
+
+    @DeleteMapping("/tax-deadlines/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTaxDeadline(@PathVariable UUID id) {
+        service.deleteTaxDeadline(id);
     }
 
     // ---- treasury accounts ----------------------------------------------------------------------

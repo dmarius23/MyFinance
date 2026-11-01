@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
+import ro.myfinance.settings.adapter.persistence.PlatformTaxDeadlineRepository;
 import ro.myfinance.settings.adapter.persistence.PlatformTaxRateRepository;
 import ro.myfinance.settings.adapter.persistence.PlatformTreasuryAccountRepository;
+import ro.myfinance.settings.domain.PlatformTaxDeadline;
 import ro.myfinance.settings.domain.PlatformTaxRate;
 import ro.myfinance.settings.domain.PlatformTreasuryAccount;
 import ro.myfinance.settings.domain.TaxRateCategory;
@@ -27,11 +29,58 @@ public class PlatformReferenceAdminService {
 
     private final PlatformTaxRateRepository rates;
     private final PlatformTreasuryAccountRepository treasury;
+    private final PlatformTaxDeadlineRepository deadlines;
 
     public PlatformReferenceAdminService(PlatformTaxRateRepository rates,
-                                         PlatformTreasuryAccountRepository treasury) {
+                                         PlatformTreasuryAccountRepository treasury,
+                                         PlatformTaxDeadlineRepository deadlines) {
         this.rates = rates;
         this.treasury = treasury;
+        this.deadlines = deadlines;
+    }
+
+    // ---- salary-tax deadline --------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<PlatformTaxDeadline> listTaxDeadlines() {
+        return deadlines.findAllByOrderByValidFromDesc();
+    }
+
+    /** Add an effective-dated deadline day. One row per valid_from. */
+    public PlatformTaxDeadline addTaxDeadline(short dayOfMonth, LocalDate validFrom) {
+        if (validFrom == null) {
+            throw new IllegalArgumentException("Effective date is required");
+        }
+        requireDayOfMonth(dayOfMonth);
+        if (deadlines.existsByValidFrom(validFrom)) {
+            throw new ConflictException("A salary-tax deadline effective " + validFrom + " already exists");
+        }
+        return deadlines.save(new PlatformTaxDeadline(dayOfMonth, validFrom));
+    }
+
+    /** Edit the day of an existing row (the effective date stays fixed — add a new row instead). */
+    public PlatformTaxDeadline updateTaxDeadline(UUID id, short dayOfMonth) {
+        requireDayOfMonth(dayOfMonth);
+        PlatformTaxDeadline d = deadlines.findById(id)
+                .orElseThrow(() -> new NotFoundException("Salary-tax deadline not found: " + id));
+        d.setDayOfMonth(dayOfMonth);
+        return d;
+    }
+
+    public void deleteTaxDeadline(UUID id) {
+        PlatformTaxDeadline d = deadlines.findById(id)
+                .orElseThrow(() -> new NotFoundException("Salary-tax deadline not found: " + id));
+        deadlines.delete(d);
+    }
+
+    /**
+     * 1..28 mirrors the database CHECK. The ceiling is 28 rather than 31 so a deadline can never shift
+     * in February; a statute naming the 30th would need an explicit end-of-month rule.
+     */
+    private static void requireDayOfMonth(short dayOfMonth) {
+        if (dayOfMonth < 1 || dayOfMonth > 28) {
+            throw new IllegalArgumentException("Deadline day must be between 1 and 28");
+        }
     }
 
     // ---- tax rates ------------------------------------------------------------------------------
