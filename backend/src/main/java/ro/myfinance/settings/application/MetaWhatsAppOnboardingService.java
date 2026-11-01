@@ -113,7 +113,7 @@ public class MetaWhatsAppOnboardingService {
         if (waba == null) {
             waba = single(meta.grantedWabaIds(token), "WhatsApp Business Account");
         }
-        meta.validateWaba(token, waba);
+        String ownerBusinessId = meta.validateWaba(token, waba);
         String phone = trimToNull(phoneNumberId);
         if (phone == null) {
             phone = single(meta.phoneNumberIds(token, waba), "WhatsApp phone number");
@@ -127,7 +127,8 @@ public class MetaWhatsAppOnboardingService {
         TenantWhatsAppProvider provider = providers.findById(tenantId)
                 .orElseGet(() -> new TenantWhatsAppProvider(tenantId));
         provider.setMode(TenantWhatsAppProvider.Mode.META_CLOUD_API);
-        provider.setMetaBusinessPortfolioId(trimToNull(businessPortfolioId));
+        String portfolio = trimToNull(businessPortfolioId);
+        provider.setMetaBusinessPortfolioId(portfolio != null ? portfolio : ownerBusinessId);
         provider.setMetaWabaId(waba);
         provider.setMetaPhoneNumberId(phone);
         provider.setMetaAccessTokenEnc(cipher.encrypt(token));

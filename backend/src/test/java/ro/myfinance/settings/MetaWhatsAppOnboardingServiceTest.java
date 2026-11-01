@@ -80,6 +80,7 @@ class MetaWhatsAppOnboardingServiceTest {
         when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
         when(meta.grantedWabaIds("access-token")).thenReturn(List.of("waba-id"));
         when(meta.phoneNumberIds("access-token", "waba-id")).thenReturn(List.of("phone-id"));
+        when(meta.validateWaba("access-token", "waba-id")).thenReturn("owner-business");
         when(providers.findById(TENANT)).thenReturn(Optional.empty());
         when(providers.save(any(TenantWhatsAppProvider.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -88,7 +89,8 @@ class MetaWhatsAppOnboardingServiceTest {
 
         assertThat(saved.getMetaWabaId()).isEqualTo("waba-id");
         assertThat(saved.getMetaPhoneNumberId()).isEqualTo("phone-id");
-        verify(meta).validateWaba("access-token", "waba-id");
+        assertThat(saved.getMetaBusinessPortfolioId()).isEqualTo("owner-business");
+        assertThat(saved.isSendable()).isTrue();
         verify(meta).validatePhoneNumber("access-token", "phone-id");
         verify(meta).subscribeToWaba("access-token", "waba-id");
     }

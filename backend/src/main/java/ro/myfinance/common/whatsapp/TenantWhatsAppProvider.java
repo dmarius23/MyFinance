@@ -94,8 +94,8 @@ public class TenantWhatsAppProvider {
     public boolean isSendable() {
         return switch (getMode()) {
             case TWILIO -> notBlank(accountSid) && notBlank(authTokenEnc) && notBlank(fromNumber);
-            case META_CLOUD_API -> notBlank(metaBusinessPortfolioId) && notBlank(metaWabaId)
-                    && notBlank(metaPhoneNumberId) && notBlank(metaAccessTokenEnc);
+            case META_CLOUD_API -> notBlank(metaWabaId) && notBlank(metaPhoneNumberId)
+                    && notBlank(metaAccessTokenEnc);
             case CLICK_TO_CHAT -> true;
             case OFF -> false;
         };
