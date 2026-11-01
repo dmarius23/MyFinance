@@ -12,7 +12,9 @@ name: Deploy
 # variables: variables are plaintext and are NOT masked in logs, which on a public repo publishes
 # them (this happened twice to GMAIL_CLIENT_SECRET on 2026-10-28).
 #   Secrets:   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI,
-#              GMAIL_PUBSUB_TOPIC, GMAIL_PUBSUB_AUDIENCE, GMAIL_PUBSUB_SERVICE_ACCOUNT
+#              GMAIL_PUBSUB_TOPIC, GMAIL_PUBSUB_AUDIENCE, GMAIL_PUBSUB_SERVICE_ACCOUNT,
+#              META_WHATSAPP_APP_SECRET, META_WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+#              META_WHATSAPP_APP_ID, META_WHATSAPP_CONFIG_ID, META_WHATSAPP_REDIRECT_URI
 #   Variable:  GMAIL_WATCH_RENEWAL_ENABLED (defaults to true; Gmail watches lapse after 7 days)
 #
 # NOT synced on purpose: MYFINANCE_SECRET_KEY. It is the AES-256-GCM master key for per-tenant
@@ -137,48 +139,63 @@ jobs:
       # `env:` is echoed, and inlining `${{ vars.X }}` is worse because the script body is echoed
       # too. So the fallback to `vars.` is gone and a variable-only configuration fails the
       # deploy loudly instead of printing the credential.
-      - name: Sync Gmail client secret to server (secret-sourced only)
+      - name: Sync credentials to server (secret-sourced only)
         id: sync_secret
         env:
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
-          # Presence flag only — never the value. `!= ''` yields a boolean, so a variable-sourced
+          META_WHATSAPP_APP_SECRET: ${{ secrets.META_WHATSAPP_APP_SECRET }}
+          META_WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${{ secrets.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN }}
+          # Presence flags only — never the values. `!= ''` yields a boolean, so a variable-sourced
           # credential can be detected and rejected without ever expanding it into the log.
-          CLIENT_SECRET_IN_VARS: ${{ vars.GMAIL_CLIENT_SECRET != '' }}
+          GMAIL_CLIENT_SECRET_IN_VARS: ${{ vars.GMAIL_CLIENT_SECRET != '' }}
+          META_WHATSAPP_APP_SECRET_IN_VARS: ${{ vars.META_WHATSAPP_APP_SECRET != '' }}
+          META_WHATSAPP_WEBHOOK_VERIFY_TOKEN_IN_VARS: ${{ vars.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN != '' }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           set -euo pipefail
-          if [ -z "${GMAIL_CLIENT_SECRET}" ] && [ "${CLIENT_SECRET_IN_VARS}" = "true" ]; then
-            echo "::error::GMAIL_CLIENT_SECRET is a repository VARIABLE. Variables are stored in" \
-                 "plaintext and are NOT masked in logs — on a public repo that publishes the" \
-                 "credential. Delete the variable and create a Secret of the same name:" \
-                 "gh variable delete GMAIL_CLIENT_SECRET && gh secret set GMAIL_CLIENT_SECRET"
-            exit 1
-          fi
-          if [ -z "${GMAIL_CLIENT_SECRET}" ]; then
-            echo "GMAIL_CLIENT_SECRET not configured — leaving .env untouched"
+          payload=""
+          for key in GMAIL_CLIENT_SECRET META_WHATSAPP_APP_SECRET META_WHATSAPP_WEBHOOK_VERIFY_TOKEN; do
+            val="${!key}"
+            in_vars_flag="${key}_IN_VARS"
+            if [ -z "$val" ] && [ "${!in_vars_flag}" = "true" ]; then
+              echo "::error::$key is a repository VARIABLE. Variables are stored in plaintext and" \
+                   "are NOT masked in logs — on a public repo that publishes the credential." \
+                   "Delete the variable and create a Secret of the same name:" \
+                   "gh variable delete $key && gh secret set $key"
+              exit 1
+            fi
+            if [ -z "$val" ]; then
+              echo "  $key: not configured — leaving .env untouched"
+              continue
+            fi
+            payload+="${key}=${val}"$'\n'
+          done
+          if [ -z "$payload" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           umask 077
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/dk"
           chmod 600 "$RUNNER_TEMP/dk"
-          # Remote reads one line from stdin; an unset value was already rejected above, so it
-          # can never blank a working secret on the server.
-          result=$(printf '%s\n' "$GMAIL_CLIENT_SECRET" | ssh -i "$RUNNER_TEMP/dk" \
+          # Remote reads KEY=value lines from stdin; unset values were skipped above, so a missing
+          # secret can never blank a working value on the server.
+          result=$(printf '%s' "$payload" | ssh -i "$RUNNER_TEMP/dk" \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             'set -eu; cd /opt/myfinance; umask 077; touch .env;
              before=$(sha256sum .env | cut -d" " -f1);
-             IFS= read -r v;
-             grep -v "^GMAIL_CLIENT_SECRET=" .env > .env.new || true;
-             printf "GMAIL_CLIENT_SECRET=%s\n" "$v" >> .env.new;
-             chmod 600 .env.new; mv .env.new .env;
+             while IFS= read -r line; do
+               k=${line%%=*}; v=${line#*=};
+               grep -v "^$k=" .env > .env.new || true;
+               printf "%s=%s\n" "$k" "$v" >> .env.new;
+               chmod 600 .env.new; mv .env.new .env;
+             done;
              after=$(sha256sum .env | cut -d" " -f1);
              [ "$before" = "$after" ] && echo unchanged || echo changed')
           rm -f "$RUNNER_TEMP/dk"
-          echo "GMAIL_CLIENT_SECRET: $result"
+          echo "Credentials: $result"
           [ "$result" = "changed" ] && echo "changed=true" >> "$GITHUB_OUTPUT" \
                                     || echo "changed=false" >> "$GITHUB_OUTPUT"
 
@@ -205,6 +222,11 @@ jobs:
           GMAIL_PUBSUB_SERVICE_ACCOUNT: ${{ secrets.GMAIL_PUBSUB_SERVICE_ACCOUNT || vars.GMAIL_PUBSUB_SERVICE_ACCOUNT }}
           # Gmail watches expire after 7 days; without renewal push silently stops after a week.
           GMAIL_WATCH_RENEWAL_ENABLED: ${{ vars.GMAIL_WATCH_RENEWAL_ENABLED || 'true' }}
+          # Meta app/config IDs and the OAuth redirect ship in the browser, so they are public.
+          # The app secret and webhook verify token are synced in the step above.
+          META_WHATSAPP_APP_ID: ${{ secrets.META_WHATSAPP_APP_ID || vars.META_WHATSAPP_APP_ID }}
+          META_WHATSAPP_CONFIG_ID: ${{ secrets.META_WHATSAPP_CONFIG_ID || vars.META_WHATSAPP_CONFIG_ID }}
+          META_WHATSAPP_REDIRECT_URI: ${{ secrets.META_WHATSAPP_REDIRECT_URI || vars.META_WHATSAPP_REDIRECT_URI }}
           # Non-secret boolean: did the previous step rewrite the client secret? Used to force a
           # recreate even when nothing else in .env changed.
           SECRET_CHANGED: ${{ steps.sync_secret.outputs.changed }}
@@ -212,7 +234,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,GMAIL_PUBSUB_AUDIENCE,GMAIL_PUBSUB_SERVICE_ACCOUNT,GMAIL_WATCH_RENEWAL_ENABLED,SECRET_CHANGED
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,GMAIL_PUBSUB_AUDIENCE,GMAIL_PUBSUB_SERVICE_ACCOUNT,GMAIL_WATCH_RENEWAL_ENABLED,META_WHATSAPP_APP_ID,META_WHATSAPP_CONFIG_ID,META_WHATSAPP_REDIRECT_URI,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
@@ -227,7 +249,8 @@ jobs:
             touch .env
             env_before=$(sha256sum .env | cut -d' ' -f1)
             for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC \
-                       GMAIL_PUBSUB_AUDIENCE GMAIL_PUBSUB_SERVICE_ACCOUNT GMAIL_WATCH_RENEWAL_ENABLED; do
+                       GMAIL_PUBSUB_AUDIENCE GMAIL_PUBSUB_SERVICE_ACCOUNT GMAIL_WATCH_RENEWAL_ENABLED \
+                       META_WHATSAPP_APP_ID META_WHATSAPP_CONFIG_ID META_WHATSAPP_REDIRECT_URI; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then
                 echo "  $key: not configured in GitHub — leaving .env untouched"
