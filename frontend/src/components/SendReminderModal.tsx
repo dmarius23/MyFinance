@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { bankApi, type BankTransaction } from "../api/bank";
+import { useQueryClient } from "@tanstack/react-query";
 import { remindersApi } from "../api/documents";
 import { emailApi } from "../api/email";
 import { ApiError } from "../lib/apiClient";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
-import { useFirmName } from "../lib/useFirmName";
-import { reminderBody } from "../lib/reminderBody";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
 const overlay: React.CSSProperties = {
@@ -25,26 +22,23 @@ export interface ReminderTarget {
 interface Draft { recipient: string; body: string; loading: boolean; sent: boolean; error?: string }
 
 /**
- * Missing-documents reminder. The body is tailored per company: if the bank statement is already
- * uploaded we ask only for the missing invoices/receipts and list the specific transactions still
- * lacking a document; otherwise we ask for the statement too. Each send is recorded (MOD-04/09), so
- * the Statements list shows "last sent" and the notification log keeps history.
+ * Missing-documents reminder. The body is tailored per company by the server: it picks the
+ * appropriate reminder state (nothing received / docs missing / docs only) and renders this
+ * tenant's wording from the template. Each send is recorded (MOD-04/09), so the Statements list
+ * shows "last sent" and the notification log keeps history.
  */
 export function SendReminderModal({ companies, period, onClose }:
   { companies: ReminderTarget[]; period: string; onClose: () => void }) {
   const { t } = useTranslation();
   const emailConfigured = useEmailConfigured();
-  const firmName = useFirmName();
   const qc = useQueryClient();
   const month = period.slice(0, 7);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(companies.map((c) => [c.id, { recipient: "", body: "", loading: true, sent: false }])),
   );
   const [sending, setSending] = useState(false);
-  const [fromName, setFromName] = useState<string | null>(null);
-  const [envLoaded, setEnvLoaded] = useState(false);
 
-  // Prefill each company's representative as recipient, and capture the sender (logged-in user) name.
+  // Prefill each company's representative as recipient.
   useEffect(() => {
     let cancelled = false;
     Promise.all(companies.map((c) => emailApi.envelope(c.id).then((e) => ({ id: c.id, e })).catch(() => ({ id: c.id, e: null }))))
@@ -55,42 +49,32 @@ export function SendReminderModal({ companies, period, onClose }:
           for (const r of results) if (r.e?.recipient) next[r.id] = { ...next[r.id], recipient: r.e.recipient };
           return next;
         });
-        const fn = results.map((r) => r.e?.fromName).find(Boolean) ?? null;
-        setFromName(fn);
-        setEnvLoaded(true);
       });
     return () => { cancelled = true; };
   }, [companies]);
 
-  // Fetch each company's transactions so we can suggest the ones missing a document.
-  const txnQueries = useQueries({
-    queries: companies.map((c) => ({
-      queryKey: ["bank-txns", c.id, period],
-      queryFn: () => bankApi.transactions(c.id, period),
-      enabled: c.hasBankStatement, // no statement → nothing to suggest
-    })),
-  });
-
-  const bodyFor = (c: ReminderTarget, missing: BankTransaction[]): string =>
-    reminderBody(t, month, c.hasBankStatement, missing, fromName, firmName);
-
-  // Populate each company's body once its transactions AND the envelope (sender name) have loaded,
-  // so the signature carries the logged-in user's name.
+  // The server decides which of the three reminder states applies and renders this tenant's wording,
+  // so the email and the WhatsApp message always read identically. Previously the browser fetched every
+  // company's transactions just to work this out itself.
   useEffect(() => {
-    if (!envLoaded) return;
-    companies.forEach((c, i) => {
-      const q = txnQueries[i];
-      const ready = !c.hasBankStatement || (!q.isLoading && q.data !== undefined);
-      if (!ready) return;
+    let cancelled = false;
+    Promise.all(companies.map((c) =>
+      remindersApi.body(c.id, period).then((r) => ({ id: c.id, body: r.body }))
+        .catch(() => ({ id: c.id, body: "" })),
+    )).then((results) => {
+      if (cancelled) return;
       setDrafts((d) => {
-        const cur = d[c.id];
-        if (!cur || !cur.loading) return d; // already filled (don't clobber edits)
-        const missing = (q.data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
-        return { ...d, [c.id]: { ...cur, body: bodyFor(c, missing), loading: false } };
+        const next = { ...d };
+        for (const r of results) {
+          const cur = next[r.id];
+          if (!cur || !cur.loading) continue; // never clobber an edit in progress
+          next[r.id] = { ...cur, body: r.body, loading: false };
+        }
+        return next;
       });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envLoaded, txnQueries.map((q) => `${q.isLoading}:${(q.data ?? []).length}`).join("|")]);
+    return () => { cancelled = true; };
+  }, [companies, period]);
 
   const patch = (id: string, p: Partial<Draft>) =>
     setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
