@@ -1,0 +1,144 @@
+package ro.myfinance.common.whatsapp;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
+import ro.myfinance.common.crypto.SecretCipher;
+import ro.myfinance.common.security.TenantContext;
+import ro.myfinance.common.web.ConflictException;
+
+/** Reads the current tenant's message templates as Meta has them (WhatsApp Manager), read-only. */
+@Component
+public class MetaWhatsAppTemplateCatalog {
+
+    private static final HttpClient DEFAULT_HTTP = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
+    /** App locales a Meta template can be registered under; Meta's code for each comes from the sender. */
+    private static final List<String> APP_LANGUAGES = List.of("ro_RO", "en_US");
+    private static final int MAX_PAGES = 10;
+
+    private final TenantWhatsAppProviderRepository providers;
+    private final SecretCipher cipher;
+    private final ObjectMapper json;
+    private final String graphBaseUrl;
+    private final HttpClient http;
+
+    @Autowired
+    public MetaWhatsAppTemplateCatalog(TenantWhatsAppProviderRepository providers, SecretCipher cipher,
+                                       ObjectMapper json,
+                                       @Value("${myfinance.whatsapp.meta.graph-base-url:https://graph.facebook.com/v24.0}")
+                                               String graphBaseUrl) {
+        this(providers, cipher, json, graphBaseUrl, DEFAULT_HTTP);
+    }
+
+    MetaWhatsAppTemplateCatalog(TenantWhatsAppProviderRepository providers, SecretCipher cipher,
+                                ObjectMapper json, String graphBaseUrl, HttpClient http) {
+        this.providers = providers;
+        this.cipher = cipher;
+        this.json = json;
+        this.graphBaseUrl = graphBaseUrl;
+        this.http = http;
+    }
+
+    public List<MetaTemplate> list() {
+        var tenant = TenantContext.tenantId()
+                .orElseThrow(() -> new IllegalStateException("No tenant bound"));
+        TenantWhatsAppProvider provider = providers.findById(tenant)
+                .filter(p -> p.getMode() == TenantWhatsAppProvider.Mode.META_CLOUD_API && p.isSendable())
+                .orElseThrow(() -> new ConflictException("Connect Meta WhatsApp before loading its templates"));
+        String token = cipher.decrypt(provider.getMetaAccessTokenEnc());
+
+        List<MetaTemplate> templates = new ArrayList<>();
+        URI next = UriComponentsBuilder.fromUriString(graphBaseUrl + "/" + provider.getMetaWabaId()
+                        + "/message_templates")
+                .queryParam("fields", "name,language,status,category,components")
+                .queryParam("limit", 100)
+                .build().encode().toUri();
+        for (int page = 0; next != null && page < MAX_PAGES; page++) {
+            JsonNode body = get(next, token);
+            body.path("data").forEach(t -> templates.add(toTemplate(t)));
+            next = nextPage(body.path("paging").path("next").asText(null));
+        }
+        return templates;
+    }
+
+    private JsonNode get(URI uri, String token) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Authorization", "Bearer " + token)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new ConflictException("Meta rejected the template list (HTTP " + response.statusCode()
+                        + metaError(response.body()) + ")");
+            }
+            return json.readTree(response.body());
+        } catch (ConflictException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ConflictException("Meta template list request was interrupted");
+        } catch (Exception e) {
+            throw new ConflictException("Could not load templates from Meta: " + e.getMessage());
+        }
+    }
+
+    /** Follows Meta's paging link only while it stays on the Graph host — the bearer token must not leak. */
+    private URI nextPage(String link) {
+        if (link == null || link.isBlank()) {
+            return null;
+        }
+        URI uri = URI.create(link);
+        URI base = URI.create(graphBaseUrl);
+        boolean sameHost = Objects.equals(uri.getScheme(), base.getScheme())
+                && Objects.equals(uri.getHost(), base.getHost()) && uri.getPort() == base.getPort();
+        return sameHost ? uri : null;
+    }
+
+    private MetaTemplate toTemplate(JsonNode t) {
+        String language = t.path("language").asText("");
+        String body = null;
+        for (JsonNode component : t.path("components")) {
+            if ("BODY".equals(component.path("type").asText())) {
+                body = component.path("text").asText(null);
+            }
+        }
+        String appLanguage = APP_LANGUAGES.stream()
+                .filter(l -> MetaWhatsAppSender.metaLanguageCode(l).equals(language))
+                .findFirst().orElse(null);
+        return new MetaTemplate(t.path("name").asText(""), language, appLanguage,
+                t.path("status").asText(""), t.path("category").asText(""), body);
+    }
+
+    private String metaError(String body) {
+        try {
+            JsonNode error = json.readTree(body).path("error");
+            return error.isMissingNode() ? "" : ": #" + error.path("code").asText("?") + " "
+                    + error.path("message").asText("");
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * One template translation as Meta has it. {@code language} is Meta's code (e.g. {@code ro},
+     * {@code en_US}); {@code appLanguage} is the app locale that sends it, or null if none does.
+     */
+    public record MetaTemplate(String name, String language, String appLanguage, String status,
+                               String category, String body) {
+    }
+}

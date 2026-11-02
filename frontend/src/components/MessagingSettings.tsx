@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom";
 import {
   messagingApi,
   type EmailProvider,
+  type MetaWhatsAppTemplate,
   type UpdateEmailInput,
   type WhatsAppMode,
   type WhatsAppProvider,
@@ -267,6 +268,12 @@ export function WhatsAppTemplatesSection() {
     queryFn: messagingApi.listWhatsAppTemplates,
     enabled: isMeta,
   });
+  const metaList = useQuery({
+    queryKey: ["messaging", "whatsapp-meta-templates"],
+    queryFn: messagingApi.listMetaWhatsAppTemplates,
+    enabled: isMeta && Boolean(provider.data?.hasMetaToken),
+    retry: false,
+  });
   const [form, setForm] = useState(emptyTemplate);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
   const refresh = () => qc.invalidateQueries({ queryKey: ["messaging", "whatsapp-templates"] });
@@ -289,7 +296,21 @@ export function WhatsAppTemplatesSection() {
     setMsg({});
     setForm({ kind: x.kind, language: x.language, metaTemplateName: x.metaTemplateName, status: x.status });
   };
+  const pickMeta = (m: MetaWhatsAppTemplate) => {
+    if (!m.appLanguage) return;
+    setMsg({});
+    setForm((f) => ({ ...f, language: m.appLanguage ?? f.language, metaTemplateName: m.name,
+      status: m.status === "APPROVED" ? "APPROVED" : "PENDING" }));
+  };
   const templates = list.data ?? [];
+  const metaTemplates = metaList.data;
+  /** Why Meta would reject a registered template, judged against the live list; null if it looks sendable. */
+  const metaProblem = (x: WhatsAppTemplate): string | null => {
+    if (!metaTemplates || x.status !== "APPROVED") return null;
+    const match = metaTemplates.find((m) => m.name === x.metaTemplateName && m.appLanguage === x.language);
+    if (!match) return t("settings.tpl.metaMissing");
+    return match.status === "APPROVED" ? null : t("settings.tpl.metaNotApproved");
+  };
 
   return (
     <div className="card">
@@ -314,7 +335,12 @@ export function WhatsAppTemplatesSection() {
               <tr key={x.id} style={{ borderTop: "1px solid var(--hair)" }}>
                 <td style={cell}>{t(`settings.tpl.kind.${x.kind}`)}</td>
                 <td style={cell} className="mono">{x.language}</td>
-                <td style={cell} className="mono">{x.metaTemplateName}</td>
+                <td style={cell}>
+                  <span className="mono">{x.metaTemplateName}</span>
+                  {metaProblem(x) && (
+                    <div style={{ color: "#dc2626", fontSize: 12 }}>⚠ {metaProblem(x)}</div>
+                  )}
+                </td>
                 <td style={cell}>
                   <span className={`pill round ${x.status === "APPROVED" ? "ok" : x.status === "PENDING" ? "info" : "danger"}`}>
                     {t(`settings.tpl.status.${x.status}`)}
@@ -370,6 +396,60 @@ export function WhatsAppTemplatesSection() {
       </form>
       {msg.err && <p style={errStyle}>{msg.err}</p>}
       {msg.ok && <p style={okStyle}>{msg.ok}</p>}
+
+      {provider.data?.hasMetaToken && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0 }}>{t("settings.tpl.metaTitle")}</h3>
+            <button type="button" disabled={metaList.isFetching} onClick={() => void metaList.refetch()}>
+              {metaList.isFetching ? "…" : t("settings.tpl.metaReload")}
+            </button>
+          </div>
+          <p style={hint}>{t("settings.tpl.metaDesc")}</p>
+          {metaList.isLoading && <p>{t("common.loading")}</p>}
+          {metaList.isError && (
+            <p style={errStyle}>{metaList.error instanceof ApiError ? metaList.error.message : t("common.error")}</p>
+          )}
+          {metaTemplates && metaTemplates.length === 0 && <p style={hint}>{t("settings.tpl.metaNone")}</p>}
+          {metaTemplates && metaTemplates.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: 11, textTransform: "uppercase" }}>
+                  <th style={cell}>{t("settings.tpl.name")}</th>
+                  <th style={cell}>{t("settings.tpl.language")}</th>
+                  <th style={cell}>{t("settings.tpl.colStatus")}</th>
+                  <th style={cell}>{t("settings.tpl.metaBody")}</th>
+                  <th style={cell} />
+                </tr>
+              </thead>
+              <tbody>
+                {metaTemplates.map((m) => (
+                  <tr key={`${m.name}-${m.language}`} style={{ borderTop: "1px solid var(--hair)", verticalAlign: "top" }}>
+                    <td style={cell} className="mono">{m.name}</td>
+                    <td style={cell}>
+                      <span className="mono">{m.language}</span>
+                      {!m.appLanguage && (
+                        <div style={{ color: "var(--text-muted)", fontSize: 12 }}>{t("settings.tpl.metaUnsupported")}</div>
+                      )}
+                    </td>
+                    <td style={cell}>
+                      <span className={`pill round ${m.status === "APPROVED" ? "ok" : m.status === "PENDING" ? "info" : "danger"}`}>
+                        {m.status}
+                      </span>
+                    </td>
+                    <td style={{ ...cell, whiteSpace: "pre-wrap", maxWidth: 360 }}>{m.body ?? "—"}</td>
+                    <td style={{ ...cell, textAlign: "right" }}>
+                      <button type="button" disabled={!m.appLanguage} onClick={() => pickMeta(m)}>
+                        {t("settings.tpl.metaUse")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
