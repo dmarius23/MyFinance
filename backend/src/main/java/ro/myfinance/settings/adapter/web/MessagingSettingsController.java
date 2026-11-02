@@ -21,6 +21,7 @@ import ro.myfinance.settings.application.MessagingSettingsService;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingService;
 import ro.myfinance.settings.application.WhatsAppTemplateService;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.whatsapp.MetaWhatsAppTemplateCatalog;
 import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
 
 /**
@@ -35,13 +36,16 @@ public class MessagingSettingsController {
     private final MessagingSettingsService service;
     private final MetaWhatsAppOnboardingService metaOnboarding;
     private final WhatsAppTemplateService templates;
+    private final MetaWhatsAppTemplateCatalog metaTemplates;
 
     public MessagingSettingsController(MessagingSettingsService service,
                                        MetaWhatsAppOnboardingService metaOnboarding,
-                                       WhatsAppTemplateService templates) {
+                                       WhatsAppTemplateService templates,
+                                       MetaWhatsAppTemplateCatalog metaTemplates) {
         this.service = service;
         this.metaOnboarding = metaOnboarding;
         this.templates = templates;
+        this.metaTemplates = metaTemplates;
     }
 
     @GetMapping("/email")
@@ -90,6 +94,12 @@ public class MessagingSettingsController {
     @GetMapping("/whatsapp/templates")
     public java.util.List<WhatsAppTemplateResponse> listWhatsAppTemplates() {
         return templates.list().stream().map(WhatsAppTemplateResponse::from).toList();
+    }
+
+    /** The tenant's templates as they exist in WhatsApp Manager (live from Meta, read-only). */
+    @GetMapping("/whatsapp/templates/meta")
+    public java.util.List<MetaWhatsAppTemplateCatalog.MetaTemplate> listMetaWhatsAppTemplates() {
+        return metaTemplates.list();
     }
 
     @PutMapping("/whatsapp/templates")

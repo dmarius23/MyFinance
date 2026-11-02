@@ -67,6 +67,19 @@ export interface WhatsAppTemplate {
   approvedAt: string | null;
 }
 
+/** A template translation as it exists in WhatsApp Manager, read live from Meta. */
+export interface MetaWhatsAppTemplate {
+  name: string;
+  /** Meta's language code, e.g. "ro", "en", "en_US". */
+  language: string;
+  /** The app language that sends this translation, or null if no app language maps to it. */
+  appLanguage: WhatsAppTemplateLanguage | null;
+  /** Meta's status, e.g. APPROVED, PENDING, REJECTED, PAUSED. */
+  status: string;
+  category: string;
+  body: string | null;
+}
+
 /** Upserts by kind + language. */
 export interface SaveWhatsAppTemplateInput {
   kind: WhatsAppTemplateKind;
@@ -115,6 +128,8 @@ export const messagingApi = {
       method: "POST",
     }),
   listWhatsAppTemplates: () => api<WhatsAppTemplate[]>("/api/v1/settings/messaging/whatsapp/templates"),
+  listMetaWhatsAppTemplates: () =>
+    api<MetaWhatsAppTemplate[]>("/api/v1/settings/messaging/whatsapp/templates/meta"),
   saveWhatsAppTemplate: (input: SaveWhatsAppTemplateInput) =>
     api<WhatsAppTemplate>("/api/v1/settings/messaging/whatsapp/templates", {
       method: "PUT",
