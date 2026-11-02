@@ -1,5 +1,6 @@
 package ro.myfinance.settings;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import ro.myfinance.settings.adapter.persistence.PlatformDeclarationDeadlineRepository;
 import ro.myfinance.settings.adapter.persistence.PlatformTaxRateRepository;
 import ro.myfinance.settings.adapter.persistence.PlatformTreasuryAccountRepository;
+import ro.myfinance.settings.application.PlatformDeclarationDeadlineService;
 import ro.myfinance.support.AbstractPostgresIT;
 
 /**
@@ -37,6 +41,8 @@ class PlatformReferenceControllerIT extends AbstractPostgresIT {
     @Autowired MockMvc mvc;
     @Autowired PlatformTaxRateRepository rateRepo;
     @Autowired PlatformTreasuryAccountRepository treasuryRepo;
+    @Autowired PlatformDeclarationDeadlineRepository deadlineRepo;
+    @Autowired PlatformDeclarationDeadlineService deadlines;
 
     @AfterEach
     void cleanup() {
@@ -44,6 +50,10 @@ class PlatformReferenceControllerIT extends AbstractPostgresIT {
                 .forEach(r -> rateRepo.deleteById(r.getId()));
         treasuryRepo.findAll().stream().filter(a -> a.getResidence().startsWith("AdminTest-"))
                 .forEach(a -> treasuryRepo.deleteById(a.getId()));
+        // Deadline rows matter more than most: a leftover row with a realistic effective date would
+        // become the rule in force for any later test resolving that period. Far-future rows cannot.
+        deadlineRepo.findAll().stream().filter(d -> d.getValidFrom().getYear() >= 2090)
+                .forEach(d -> deadlineRepo.deleteById(d.getId()));
     }
 
     private static RequestPostProcessor superAdmin() {
@@ -136,5 +146,97 @@ class PlatformReferenceControllerIT extends AbstractPostgresIT {
     void requiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/admin/reference/tax-rates"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ---- salary-tax deadline --------------------------------------------------------------------
+
+    @Test
+    void superAdminCreatesListsEditsAndDeletesADeclarationDeadline() throws Exception {
+        String created = mvc.perform(post("/api/v1/admin/reference/declaration-deadlines").with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dayOfMonth\":20,\"validFrom\":\"2099-01-01\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.dayOfMonth").value(20))
+                .andExpect(jsonPath("$.validFrom").value("2099-01-01"))
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(created, "$.id");
+
+        mvc.perform(get("/api/v1/admin/reference/declaration-deadlines").with(superAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.validFrom == '2099-01-01')].dayOfMonth")
+                        .value(org.hamcrest.Matchers.hasItem(20)));
+
+        mvc.perform(put("/api/v1/admin/reference/declaration-deadlines/{id}", id).with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"dayOfMonth\":22}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dayOfMonth").value(22));
+
+        mvc.perform(delete("/api/v1/admin/reference/declaration-deadlines/{id}", id).with(superAdmin()))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void anOutOfRangeDayIsRejectedWithFourHundred() throws Exception {
+        mvc.perform(post("/api/v1/admin/reference/declaration-deadlines").with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dayOfMonth\":31,\"validFrom\":\"2099-02-01\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void aDuplicateEffectiveDateIsRejected() throws Exception {
+        String body = "{\"dayOfMonth\":20,\"validFrom\":\"2099-03-01\"}";
+        mvc.perform(post("/api/v1/admin/reference/declaration-deadlines").with(superAdmin())
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/admin/reference/declaration-deadlines").with(superAdmin())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * This is the substitute for the mandatory cross-tenant isolation test: the table has no tenant_id,
+     * so there is nothing to isolate — what must hold is that only a SUPER_ADMIN can reach it. All four
+     * endpoints, GET included, since the whole controller is SUPER_ADMIN-only.
+     */
+    @Test
+    void aNonSuperAdminCannotReadOrWriteDeclarationDeadlines() throws Exception {
+        mvc.perform(get("/api/v1/admin/reference/declaration-deadlines").with(tenantAdmin()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/reference/declaration-deadlines").with(tenantAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dayOfMonth\":20,\"validFrom\":\"2099-04-01\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/admin/reference/declaration-deadlines/{id}", UUID.randomUUID())
+                        .with(tenantAdmin()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dayOfMonth\":20}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/admin/reference/declaration-deadlines/{id}", UUID.randomUUID())
+                        .with(tenantAdmin()))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * The read half of the same bargain: writes are SUPER_ADMIN-only, but every tenant's payroll and
+     * dashboard must be able to RESOLVE the deadline. Asserts the seeded V69 row is reachable through the
+     * real {@code myfinance_app} role and yields the 25th of the FOLLOWING month.
+     *
+     * <p>This test exists because the resolver deliberately falls back to {@code DEFAULT_DAY} instead of
+     * throwing — so a dropped {@code GRANT} or a missing seed row would otherwise produce the right answer
+     * for the wrong reason, visible only as a log line. Here the fallback cannot hide anything: it is
+     * verified that the row is actually present and found.
+     */
+    @Test
+    void theSeededDeadlineResolvesThroughTheRealDatabase() {
+        assertThat(deadlineRepo.findTopByValidFromLessThanEqualOrderByValidFromDesc(
+                LocalDate.of(2026, 4, 1)))
+                .as("seeded V69 row must be readable as myfinance_app, not silently absent")
+                .isPresent()
+                .get()
+                .extracting(d -> (int) d.getDayOfMonth())
+                .isEqualTo(25);
+
+        assertThat(deadlines.deadlineFor(YearMonth.of(2026, 4)))
+                .as("April period is due the 25th of MAY")
+                .isEqualTo(LocalDate.of(2026, 5, 25));
     }
 }

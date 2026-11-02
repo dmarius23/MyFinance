@@ -4,15 +4,12 @@ import { useTranslation } from "react-i18next";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { companiesApi } from "../api/companies";
 import { documentsSummaryApi, remindersApi, type CompanyDocSummary } from "../api/documents";
-import { reconciliationApi, bankApi } from "../api/bank";
-import { emailApi } from "../api/email";
+import { reconciliationApi } from "../api/bank";
 import { usePeriod } from "../lib/period";
-import { reminderBody } from "../lib/reminderBody";
 import { ActionBtn, WhatsAppAction, RowActions, LastEmailCell, LastWhatsAppCell } from "../components/RowActions";
 import { useEmailConfigured } from "../lib/useEmailConfigured";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
-import { useFirmName } from "../lib/useFirmName";
 import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
 import { InfoTip } from "../components/InfoTip";
 import { SendReminderModal, type ReminderTarget } from "../components/SendReminderModal";
@@ -59,7 +56,6 @@ export function Statements() {
   const emailConfigured = useEmailConfigured();
   const whatsappConfigured = useWhatsAppConfigured();
   const waMode = useWhatsAppMode();
-  const firmName = useFirmName();
   const openWa = useOpenWhatsApp();
   const { period } = usePeriod();
   const navigate = useNavigate();
@@ -128,13 +124,7 @@ export function Statements() {
     const s = byCompany.get(id);
     return { id, name: nameOf(id), hasBankStatement: s?.hasBankStatement ?? false, hasInvoiceOrReceipt: s?.hasInvoiceOrReceipt ?? false };
   };
-  const waBody = async (id: string) => {
-    const env = await emailApi.envelope(id).catch(() => null);
-    const hasBank = byCompany.get(id)?.hasBankStatement ?? false;
-    const txns = hasBank ? await bankApi.transactions(id, period) : [];
-    const missing = txns.filter((tx) => tx.requiresDocument && !tx.matched);
-    return reminderBody(t, period.slice(0, 7), hasBank, missing, env?.fromName ?? null, firmName);
-  };
+  const waBody = async (id: string) => (await remindersApi.body(id, period)).body;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>

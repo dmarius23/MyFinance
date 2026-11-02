@@ -8,6 +8,9 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import ro.myfinance.common.messaging.DefaultMessageTemplates;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.TemplateRenderer;
 import ro.myfinance.taxpayments.application.PaymentCalculator;
 import ro.myfinance.taxpayments.application.PaymentEmailBuilder;
 import ro.myfinance.taxpayments.domain.DeclarationType;
@@ -24,6 +27,7 @@ class PaymentCalculatorTest {
 
     private final PaymentCalculator calc = new PaymentCalculator();
     private final PaymentEmailBuilder email = new PaymentEmailBuilder();
+    private final TemplateRenderer renderer = new TemplateRenderer();
 
     /** The D112 sample obligations (March 2026) with the standard 25-Apr deadline. */
     private ParsedDeclaration d112() {
@@ -66,8 +70,9 @@ class PaymentCalculatorTest {
     @Test
     void emailBodyContainsAmountsAccountsAndBeneficiary() {
         List<PaymentLine> lines = calc.compute(List.of(d112()), ibans());
-        String body = email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL");
+        var values = email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
+                "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), "Maria Pop", "ContaZone SRL");
+        String body = renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(), values);
 
         assertThat(body).contains("firmei INNOVATECODE IT SRL");
         assertThat(body).contains("Contribuții sociale: 1685");
@@ -83,12 +88,14 @@ class PaymentCalculatorTest {
     void emailBodySignsWithSenderThenFirmName() {
         List<PaymentLine> lines = calc.compute(List.of(d112()), ibans());
 
-        assertThat(email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                "Trezoreria Cluj Napoca", lines, "Maria Pop", "ContaZone SRL"))
+        assertThat(renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(),
+                email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
+                        "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), "Maria Pop", "ContaZone SRL")))
                 .contains("O zi plăcută,\nMaria Pop\nContaZone SRL");
 
-        assertThat(email.build("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
-                "Trezoreria Cluj Napoca", lines, null, "ContaZone SRL"))
+        assertThat(renderer.render(DefaultMessageTemplates.of(MessageTemplateKind.TAX).body(),
+                email.values("INNOVATECODE IT SRL", "49443957", YearMonth.of(2026, 3),
+                        "Trezoreria Cluj Napoca", lines, new BigDecimal("1776"), null, "ContaZone SRL")))
                 .contains("O zi plăcută,\nContaZone SRL");
     }
 

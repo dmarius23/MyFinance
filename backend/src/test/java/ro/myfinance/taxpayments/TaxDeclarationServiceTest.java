@@ -30,7 +30,8 @@ class TaxDeclarationServiceTest {
     private final EmailHistoryRepository emails = mock(EmailHistoryRepository.class);
     private final DocumentService documents = mock(DocumentService.class);
     private final TaxDeclarationService service =
-            new TaxDeclarationService(declarations, emails, documents, new AnafDeclarationExtractor());
+            new TaxDeclarationService(declarations, emails, documents,
+                    new AnafDeclarationExtractor(ro.myfinance.support.TestDeclarationDeadlines.seeded()));
 
     private TaxDeclaration decl(UUID companyId, UUID documentId) {
         TaxDeclaration d = new TaxDeclaration(UUID.randomUUID(), companyId, LocalDate.of(2026, 6, 1), documentId);

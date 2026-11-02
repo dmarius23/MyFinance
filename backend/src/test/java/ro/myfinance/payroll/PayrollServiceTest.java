@@ -18,6 +18,11 @@ import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailStatus;
 import ro.myfinance.common.whatsapp.WhatsAppMessageRepository;
 import ro.myfinance.intake.application.DocumentService;
+import ro.myfinance.common.messaging.DefaultMessageTemplates;
+import ro.myfinance.common.messaging.MessageTemplateKind;
+import ro.myfinance.common.messaging.MessageTemplateService;
+import ro.myfinance.common.messaging.RenderedMessage;
+import ro.myfinance.common.messaging.TemplateRenderer;
 import ro.myfinance.payroll.application.PayrollEmailBuilder;
 import ro.myfinance.payroll.application.PayrollService;
 import ro.myfinance.payroll.application.PayrollService.PayrollEmailView;
@@ -37,13 +42,23 @@ class PayrollServiceTest {
             mock(ro.myfinance.company.application.CompanyDirectory.class);
     private final ro.myfinance.company.application.ExpectedDocuments expected =
             new ro.myfinance.company.application.ExpectedDocuments();
+    private final MessageTemplateService templates = mock(MessageTemplateService.class);
+    /** Stubbed to the seeded rule (day 25 of the following month) so existing expectations hold. */
+    private final ro.myfinance.settings.application.PlatformDeclarationDeadlineService deadlines =
+            mock(ro.myfinance.settings.application.PlatformDeclarationDeadlineService.class);
     private final PayrollService service =
-            new PayrollService(documents, history, whatsappMessages, dispatch, envelopes, notifications, companies, expected);
+            new PayrollService(documents, history, whatsappMessages, dispatch, envelopes, notifications,
+                    companies, expected, templates, deadlines);
+
+    /** The deadline the seeded rule yields for an April period. */
+    private static final java.time.LocalDate APRIL_DEADLINE = java.time.LocalDate.of(2026, 5, 25);
 
     @Test
     void sendDelegatesToDispatchWithPayrollKindAndMapsTheRow() {
         UUID companyId = UUID.randomUUID();
         when(documents.listByCompanyPeriodType(any(), any(), any())).thenReturn(List.of());
+        when(companies.findById(companyId)).thenReturn(java.util.Optional.empty());
+        when(templates.render(any(), any())).thenReturn(new RenderedMessage("State de plată — Aprilie 2026", "body"));
         EmailHistory row = new EmailHistory(UUID.randomUUID(), EmailKind.PAYROLL, companyId,
                 LocalDate.of(2026, 4, 1), List.of(), "client@example.com", "body", EmailStatus.SENT, null, null);
         when(dispatch.dispatch(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(row);
@@ -59,25 +74,47 @@ class PayrollServiceTest {
 
     @Test
     void composesStandardRomanianBody() {
-        String body = PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), "Maria Pop", "ContaZone SRL");
+        var values = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, "Maria Pop", "ContaZone SRL", APRIL_DEADLINE);
+        String body = new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
         assertThat(body).contains("luna Aprilie 2026");
         assertThat(body).contains("statul de plată, fluturașul de salariu și pontajul");
-        assertThat(body).contains("până în data de 25 Aprilie 2026");
+        // The deadline is the month AFTER the period: April salaries, taxes due 25 May.
+        assertThat(body).contains("până în data de 25 Mai 2026");
         assertThat(body).contains("Maria Pop");
-        assertThat(PayrollEmailBuilder.subject(LocalDate.of(2026, 4, 1))).isEqualTo("State de plată — Aprilie 2026");
+        var subjectValues = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, "Maria Pop", "ContaZone SRL", APRIL_DEADLINE);
+        assertThat(new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).subject(), subjectValues))
+                .isEqualTo("State de plată — Aprilie 2026");
     }
 
     /** The firm the client actually contracts with must always be the last thing they read. */
     @Test
     void bodyEndsWithSenderThenFirmName() {
-        assertThat(PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), "Maria Pop", "ContaZone SRL"))
+        var values = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, "Maria Pop", "ContaZone SRL", APRIL_DEADLINE);
+        assertThat(new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values))
                 .endsWith("O zi bună,\nMaria Pop\nContaZone SRL");
+    }
+
+    /**
+     * The client-visible payoff: a changed statutory day reaches the rendered email body. Asserting the
+     * body rather than the map is deliberate — this is the text a client reads. Would fail if the
+     * builder ever went back to hardcoding the day.
+     */
+    @Test
+    void aChangedDeadlineRuleReachesTheRenderedBody() {
+        var values = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, "Maria Pop",
+                "ContaZone SRL", LocalDate.of(2026, 5, 20));
+        String body = new TemplateRenderer().render(
+                DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
+        assertThat(body).contains("până în data de 20 Mai 2026");
+        assertThat(body).doesNotContain("25 Mai 2026");
     }
 
     /** No accountant name resolved → the firm still signs; never an unfilled placeholder. */
     @Test
     void bodyEndsWithFirmNameWhenNoAccountantName() {
-        String body = PayrollEmailBuilder.body(LocalDate.of(2026, 4, 1), null, "ContaZone SRL");
+        var values = PayrollEmailBuilder.values(LocalDate.of(2026, 4, 1), null, null, "ContaZone SRL",
+                APRIL_DEADLINE);
+        String body = new TemplateRenderer().render(DefaultMessageTemplates.of(MessageTemplateKind.PAYROLL).body(), values);
         assertThat(body).endsWith("O zi bună,\nContaZone SRL");
         assertThat(body).doesNotContain("[Numele contabilului]");
     }

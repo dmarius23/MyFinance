@@ -16,9 +16,7 @@ import { WhatsAppAction } from "../components/RowActions";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
 import { useOpenWhatsApp } from "../lib/useOpenWhatsApp";
-import { useFirmName } from "../lib/useFirmName";
-import { emailApi } from "../api/email";
-import { reminderBody } from "../lib/reminderBody";
+import { remindersApi } from "../api/documents";
 import { useSyncTracker } from "../components/SyncTracker";
 import { syncFinishedNote } from "../lib/syncStatus";
 
@@ -64,7 +62,6 @@ export function ReconcileWorkspace() {
   const whatsappConfigured = useWhatsAppConfigured();
   const waMode = useWhatsAppMode();
   const openWa = useOpenWhatsApp();
-  const firmName = useFirmName();
 
   const company = useQuery({ queryKey: ["company", companyId], queryFn: () => companiesApi.get(companyId) });
   const statements = useQuery({ queryKey: ["bank-stmts", companyId, period], queryFn: () => bankApi.statements(companyId, period) });
@@ -293,13 +290,9 @@ export function ReconcileWorkspace() {
     f.mine ? t("recon.byYou") : f.source === "DRIVE" ? t("recon.fromDrive") : t("recon.byColleague");
   const submeta = c ? [`CIF ${c.cui}`, c.locality, monthLabel(period)].filter(Boolean).join(" · ") : "";
 
-  // WhatsApp document-reminder: same body as the email "Request from client" (shared reminderBody), so
-  // both channels read identically. Click-to-chat opens wa.me directly; Twilio mode opens the compose modal.
-  const waLoadBody = async (): Promise<string> => {
-    const env = await emailApi.envelope(companyId).catch(() => null);
-    const missing = (txns.data ?? []).filter((tx) => tx.requiresDocument && !tx.matched);
-    return reminderBody(t, period.slice(0, 7), hasStatement, missing, env?.fromName ?? null, firmName);
-  };
+  // WhatsApp document-reminder: the same server-rendered body as the email, so both channels read
+  // identically. Click-to-chat opens wa.me directly; Twilio mode opens the compose modal.
+  const waLoadBody = async (): Promise<string> => (await remindersApi.body(companyId, period)).body;
   const onWhatsapp = () => {
     if (!c) return;
     if (waMode === "CLICK_TO_CHAT") openWa(companyId, waLoadBody);

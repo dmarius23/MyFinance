@@ -120,6 +120,13 @@ export interface ReminderView {
   body: string;
 }
 
+export interface ReminderBody {
+  /** Which of the three states the server chose for this company + period. */
+  state: "REMINDER_NOTHING_RECEIVED" | "REMINDER_DOCS_MISSING" | "REMINDER_DOCS_ONLY";
+  subject: string;
+  body: string;
+}
+
 export const remindersApi = {
   /** Per-company last-sent + count for the period. */
   list: (period: string) =>
@@ -133,4 +140,7 @@ export const remindersApi = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  /** Server-rendered reminder body for this company + period (state + wording from tenant template). */
+  body: (companyId: string, period: string) =>
+    api<ReminderBody>(`/api/v1/companies/${companyId}/document-reminders/body?period=${period}`),
 };

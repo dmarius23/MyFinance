@@ -19,6 +19,7 @@ import ro.myfinance.common.email.EmailHistoryRepository;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.taxpayments.application.TaxEmailService;
 import ro.myfinance.taxpayments.application.TaxPaymentService;
+import ro.myfinance.taxpayments.domain.TaxPaymentSummary.Unconfigured;
 
 /**
  * TaxEmailService delegates the send to the shared {@link EmailDispatchService} with kind=TAX, the chosen
@@ -41,13 +42,16 @@ class TaxEmailServiceTest {
         List<UUID> declIds = List.of(UUID.randomUUID(), UUID.randomUUID());
         EmailHistory row = mock(EmailHistory.class);
         when(dispatch.dispatch(any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(row);
+        var computation = new TaxPaymentService.Computation(null, List.of(), List.of(), java.math.BigDecimal.ZERO,
+                null, "Sume de plată — Martie 2026");
+        when(payments.composeFor(eq(companyId), eq(declIds))).thenReturn(computation);
 
         var result = service.send(companyId, LocalDate.of(2026, 3, 10), declIds, "client@example.com", "body");
 
         assertThat(result).isSameAs(row);
         ArgumentCaptor<List<UUID>> related = ArgumentCaptor.forClass(List.class);
         verify(dispatch).dispatch(eq(EmailKind.TAX), eq(companyId), eq(LocalDate.of(2026, 3, 10)),
-                eq("client@example.com"), any(String.class), eq("body"), isNull(), related.capture(), any());
+                eq("client@example.com"), eq("Sume de plată — Martie 2026"), eq("body"), isNull(), related.capture(), any());
         assertThat(related.getValue()).isEqualTo(declIds);
     }
 }

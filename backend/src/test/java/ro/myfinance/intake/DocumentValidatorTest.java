@@ -40,7 +40,9 @@ class DocumentValidatorTest {
     private final BankStatementParserRegistry statements = mock(BankStatementParserRegistry.class);
     // Real ANAF extractor (deterministic) against the checked-in fixtures.
     private final DocumentValidator validator =
-            new DocumentValidator(documents, new AnafDeclarationExtractor(), invoices, statements);
+            new DocumentValidator(documents,
+                    new AnafDeclarationExtractor(ro.myfinance.support.TestDeclarationDeadlines.seeded()),
+                    invoices, statements);
 
     private static Company company(String cui, String name) {
         Company c = mock(Company.class);
