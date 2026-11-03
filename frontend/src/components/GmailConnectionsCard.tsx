@@ -49,6 +49,9 @@ export function GmailConnectionsCard() {
   const date = (value: string | null) => value
     ? new Date(value).toLocaleString(i18n.language === "ro" ? "ro-RO" : "en-US")
     : t("gmail.never");
+  const activeConnection = (connections.data ?? []).some(
+    (connection) => !connection.mailboxAddress.startsWith("pending+") && connection.status === "ACTIVE",
+  );
 
   return (
     <div className="card" style={{ display: "grid", gap: 12 }}>
@@ -95,11 +98,13 @@ export function GmailConnectionsCard() {
           </div>
         </div>
       ))}
-      <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--hair)", paddingTop: 10 }}>
-        <button className="primary" type="button" onClick={() => connect.mutate()} disabled={connect.isPending}>
-          {connect.isPending ? t("gmail.connecting") : t("gmail.connect")}
-        </button>
-      </div>
+      {!activeConnection && (
+        <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--hair)", paddingTop: 10 }}>
+          <button className="primary" type="button" onClick={() => connect.mutate()} disabled={connect.isPending}>
+            {connect.isPending ? t("gmail.connecting") : t("gmail.connect")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
