@@ -12,10 +12,12 @@ import {
   type WhatsAppTemplate,
   type WhatsAppTemplateKind,
   type WhatsAppTemplateLanguage,
+  type WhatsAppTemplateSourceKind,
   type WhatsAppTemplateStatus,
 } from "../api/messaging";
 import { ApiError } from "../lib/apiClient";
 import { Field } from "./Field";
+import { templatesApi, type MessageTemplate, type TemplateKind } from "../api/templates";
 
 const errStyle: React.CSSProperties = { color: "#dc2626", marginTop: 8 };
 const okStyle: React.CSSProperties = { color: "#059669", marginTop: 8 };
@@ -250,10 +252,9 @@ export function WhatsAppProviderSection() {
 
 const TEMPLATE_KINDS: WhatsAppTemplateKind[] = ["TAX", "PAYROLL", "REPORT", "DOCUMENT_REMINDER"];
 const TEMPLATE_LANGUAGES: WhatsAppTemplateLanguage[] = ["ro_RO", "en_US"];
-const TEMPLATE_STATUSES: WhatsAppTemplateStatus[] = ["APPROVED", "PENDING", "DISABLED"];
 const REMINDER_SOURCE_KINDS = ["REMINDER_NOTHING_RECEIVED", "REMINDER_DOCS_MISSING", "REMINDER_DOCS_ONLY"] as const;
 const emptyTemplate = { kind: "TAX" as WhatsAppTemplateKind, language: "ro_RO" as WhatsAppTemplateLanguage,
-  metaTemplateName: "", status: "APPROVED" as WhatsAppTemplateStatus };
+  metaTemplateName: "", status: "PENDING" as WhatsAppTemplateStatus };
 
 /**
  * Registers which Meta-approved template each module sends (one per kind + language). Only APPROVED rows
@@ -263,6 +264,11 @@ export function WhatsAppTemplatesSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const provider = useQuery({ queryKey: ["messaging", "whatsapp"], queryFn: messagingApi.getWhatsApp });
+  const messageTemplates = useQuery({
+    queryKey: ["templates"],
+    queryFn: templatesApi.list,
+    enabled: provider.data?.mode === "META_CLOUD_API",
+  });
   const isMeta = provider.data?.mode === "META_CLOUD_API";
   const list = useQuery({
     queryKey: ["messaging", "whatsapp-templates"],
@@ -283,6 +289,9 @@ export function WhatsAppTemplatesSection() {
   const [metaExamples, setMetaExamples] = useState("");
   const [metaDraftVariables, setMetaDraftVariables] = useState<string[]>([]);
   const [reminderSourceKind, setReminderSourceKind] = useState<string>("REMINDER_DOCS_MISSING");
+  const whatsappSourceKind: WhatsAppTemplateSourceKind = form.kind === "DOCUMENT_REMINDER"
+    ? reminderSourceKind as WhatsAppTemplateSourceKind
+    : form.kind;
   const refresh = () => qc.invalidateQueries({ queryKey: ["messaging", "whatsapp-templates"] });
   const refreshMeta = () => qc.invalidateQueries({ queryKey: ["messaging", "whatsapp-meta-templates"] });
   const fail = (e: unknown) => setMsg({ err: e instanceof ApiError ? e.message : t("common.error") });
@@ -290,6 +299,7 @@ export function WhatsAppTemplatesSection() {
   const save = useMutation({
     mutationFn: () => messagingApi.saveWhatsAppTemplate({ ...form, metaTemplateName: form.metaTemplateName.trim(),
       category: "UTILITY",
+      sourceKind: whatsappSourceKind,
       variableSchema: metaDraftVariables.join(",") || undefined }),
     onSuccess: () => { void refresh(); setForm(emptyTemplate); setMsg({ ok: t("common.save") }); },
     onError: fail,
@@ -335,6 +345,7 @@ export function WhatsAppTemplatesSection() {
   const edit = (x: WhatsAppTemplate) => {
     setMsg({});
     setMetaDraftVariables([]);
+    if (x.kind === "DOCUMENT_REMINDER") setReminderSourceKind(x.sourceKind);
     setForm({ kind: x.kind, language: x.language, metaTemplateName: x.metaTemplateName, status: x.status });
   };
   const pickMeta = (m: MetaWhatsAppTemplate) => {
@@ -346,6 +357,11 @@ export function WhatsAppTemplatesSection() {
   };
   const templates = list.data ?? [];
   const metaTemplates = metaList.data;
+  const sourceKind: TemplateKind = form.kind === "DOCUMENT_REMINDER"
+    ? reminderSourceKind as TemplateKind
+    : form.kind;
+  const sourceTemplate: MessageTemplate | undefined =
+    messageTemplates.data?.find((x) => x.kind === sourceKind);
   /** Why Meta would reject a registered template, judged against the live list; null if it looks sendable. */
   const metaProblem = (x: WhatsAppTemplate): string | null => {
     if (!metaTemplates || x.status !== "APPROVED") return null;
@@ -366,6 +382,7 @@ export function WhatsAppTemplatesSection() {
           <thead>
             <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: 11, textTransform: "uppercase" }}>
               <th style={cell}>{t("settings.tpl.colKind")}</th>
+              <th style={cell}>{t("settings.tpl.sourceKind")}</th>
               <th style={cell}>{t("settings.tpl.language")}</th>
               <th style={cell}>{t("settings.tpl.name")}</th>
               <th style={cell}>{t("settings.tpl.colStatus")}</th>
@@ -376,6 +393,11 @@ export function WhatsAppTemplatesSection() {
             {templates.map((x) => (
               <tr key={x.id} style={{ borderTop: "1px solid var(--hair)" }}>
                 <td style={cell}>{t(`settings.tpl.kind.${x.kind}`)}</td>
+                <td style={cell} className="mono">
+                  {x.kind === "DOCUMENT_REMINDER"
+                    ? t(`settings.tpl.reminder.${x.sourceKind}`)
+                    : t(`settings.tpl.kind.${x.sourceKind}`)}
+                </td>
                 <td style={cell} className="mono">{x.language}</td>
                 <td style={cell}>
                   <span className="mono">{x.metaTemplateName}</span>
@@ -413,12 +435,6 @@ export function WhatsAppTemplatesSection() {
             <select value={form.language}
               onChange={(e) => setForm((f) => ({ ...f, language: e.target.value as WhatsAppTemplateLanguage }))}>
               {TEMPLATE_LANGUAGES.map((l) => <option key={l} value={l}>{t(`settings.tpl.lang.${l}`)}</option>)}
-            </select>
-          </Field>
-          <Field label={t("settings.tpl.colStatus")}>
-            <select value={form.status}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as WhatsAppTemplateStatus }))}>
-              {TEMPLATE_STATUSES.map((s) => <option key={s} value={s}>{t(`settings.tpl.status.${s}`)}</option>)}
             </select>
           </Field>
         </div>
@@ -518,6 +534,20 @@ export function WhatsAppTemplatesSection() {
                 {draftMeta.isPending ? "…" : t("settings.tpl.metaUseCurrent")}
               </button>
             </div>
+            {sourceTemplate && (
+              <div style={{ display: "grid", gap: 8, padding: 12, background: "var(--th-bg)", borderRadius: 8 }}>
+                <strong>{t("settings.tpl.currentSource")}</strong>
+                <p style={hint}>{t("settings.tpl.currentSourceHint", { kind: sourceKind })}</p>
+                <textarea value={sourceTemplate.body} readOnly rows={7}
+                  style={{ fontFamily: "monospace", fontSize: 13, resize: "vertical" }} />
+                <div>
+                  {(sourceTemplate.placeholders ?? []).concat(sourceTemplate.blocks ?? [], "signOff").map((name) => (
+                    <code key={name} style={{ marginRight: 6 }}>{`{{${name}}}`}</code>
+                  ))}
+                </div>
+                <p style={hint}>{t("settings.tpl.currentSourceImmutable")}</p>
+              </div>
+            )}
             {metaDraftVariables.length > 0 && (
               <p style={hint}>{t("settings.tpl.metaVariables", { values: metaDraftVariables.join(", ") })}</p>
             )}

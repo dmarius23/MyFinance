@@ -58,6 +58,7 @@ export type WhatsAppTemplateStatus = "PENDING" | "APPROVED" | "DISABLED";
 export interface WhatsAppTemplate {
   id: string;
   kind: WhatsAppTemplateKind;
+  sourceKind: WhatsAppTemplateSourceKind;
   language: WhatsAppTemplateLanguage;
   metaTemplateName: string;
   category: "UTILITY" | "MARKETING" | "AUTHENTICATION";
@@ -66,6 +67,14 @@ export interface WhatsAppTemplate {
   variableSchema: string | null;
   approvedAt: string | null;
 }
+
+export type WhatsAppTemplateSourceKind =
+  | "TAX"
+  | "PAYROLL"
+  | "REPORT"
+  | "REMINDER_NOTHING_RECEIVED"
+  | "REMINDER_DOCS_MISSING"
+  | "REMINDER_DOCS_ONLY";
 
 /** A template translation as it exists in WhatsApp Manager, read live from Meta. */
 export interface MetaWhatsAppTemplate {
@@ -96,6 +105,7 @@ export interface MetaWhatsAppTemplateDraft {
 /** Upserts by kind + language. */
 export interface SaveWhatsAppTemplateInput {
   kind: WhatsAppTemplateKind;
+  sourceKind: WhatsAppTemplateSourceKind;
   language: WhatsAppTemplateLanguage;
   metaTemplateName: string;
   category: "UTILITY";

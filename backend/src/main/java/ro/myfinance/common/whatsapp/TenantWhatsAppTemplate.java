@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 
 /** Tenant-owned mapping from a MyFinance message category to a Meta-approved template. */
 @Entity
@@ -32,6 +33,10 @@ public class TenantWhatsAppTemplate {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EmailKind kind;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_kind", nullable = false)
+    private MessageTemplateKind sourceKind;
 
     @Column(nullable = false)
     private String language;
@@ -66,11 +71,12 @@ public class TenantWhatsAppTemplate {
     protected TenantWhatsAppTemplate() {
     }
 
-    public TenantWhatsAppTemplate(UUID tenantId, EmailKind kind, String language,
+    public TenantWhatsAppTemplate(UUID tenantId, EmailKind kind, MessageTemplateKind sourceKind, String language,
                                   String metaTemplateName, Category category, String version,
                                   String variableSchema) {
         this.tenantId = tenantId;
         this.kind = kind;
+        this.sourceKind = sourceKind;
         this.language = language;
         this.metaTemplateName = metaTemplateName;
         this.category = category == null ? Category.UTILITY : category;
@@ -81,6 +87,7 @@ public class TenantWhatsAppTemplate {
     public UUID getId() { return id; }
     public UUID getTenantId() { return tenantId; }
     public EmailKind getKind() { return kind; }
+    public MessageTemplateKind getSourceKind() { return sourceKind; }
     public String getLanguage() { return language; }
     public String getMetaTemplateName() { return metaTemplateName; }
     public Category getCategory() { return category; }
@@ -91,8 +98,9 @@ public class TenantWhatsAppTemplate {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
-    public void update(String metaTemplateName, Category category, String version,
+    public void update(MessageTemplateKind sourceKind, String metaTemplateName, Category category, String version,
                        String variableSchema, Status status) {
+        this.sourceKind = sourceKind;
         this.metaTemplateName = metaTemplateName;
         this.category = category == null ? Category.UTILITY : category;
         this.version = version;
