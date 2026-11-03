@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,8 @@ public class MetaWhatsAppTemplateCatalog {
     /** App locales a Meta template can be registered under; Meta's code for each comes from the sender. */
     private static final List<String> APP_LANGUAGES = List.of("ro_RO", "en_US");
     private static final int MAX_PAGES = 10;
+    private static final Pattern META_TEMPLATE_NAME = Pattern.compile("[a-z][a-z0-9_]{1,511}");
+    private static final Pattern META_ASSET_ID = Pattern.compile("[0-9]+");
 
     private final TenantWhatsAppProviderRepository providers;
     private final SecretCipher cipher;
@@ -51,7 +54,7 @@ public class MetaWhatsAppTemplateCatalog {
         this.providers = providers;
         this.cipher = cipher;
         this.json = json;
-        this.graphBaseUrl = graphBaseUrl;
+        this.graphBaseUrl = validateGraphBaseUrl(graphBaseUrl);
         this.http = http;
     }
 
@@ -61,6 +64,7 @@ public class MetaWhatsAppTemplateCatalog {
         TenantWhatsAppProvider provider = providers.findById(tenant)
                 .filter(p -> p.getMode() == TenantWhatsAppProvider.Mode.META_CLOUD_API && p.isSendable())
                 .orElseThrow(() -> new ConflictException("Connect Meta WhatsApp before loading its templates"));
+        validateAssetId(provider.getMetaWabaId(), "WABA ID");
         String token = cipher.decrypt(provider.getMetaAccessTokenEnc());
 
         List<MetaTemplate> templates = new ArrayList<>();
@@ -79,6 +83,8 @@ public class MetaWhatsAppTemplateCatalog {
 
     public MetaTemplateMutation create(String name, String appLanguage, String body,
                                        List<String> exampleValues) {
+        validateTemplateName(name);
+        validateAssetId(provider().getMetaWabaId(), "WABA ID");
         String language = MetaWhatsAppSender.metaLanguageCode(appLanguage);
         Map<String, Object> component = new LinkedHashMap<>();
         component.put("type", "BODY");
@@ -98,8 +104,13 @@ public class MetaWhatsAppTemplateCatalog {
      * destructive operation before invoking it.
      */
     public void delete(String name) {
-        URI uri = UriComponentsBuilder.fromUriString(graphBaseUrl + "/" + provider().getMetaWabaId()
-                        + "/message_templates")
+        validateTemplateName(name);
+        String wabaId = provider().getMetaWabaId();
+        validateAssetId(wabaId, "WABA ID");
+        // graphBaseUrl is validated as a fixed server-side origin in the constructor; name is restricted
+        // to Meta's template-name grammar and is encoded as data in the query, never as a URL component.
+        URI uri = UriComponentsBuilder.fromUriString(graphBaseUrl)
+                .pathSegment(wabaId, "message_templates")
                 .queryParam("name", name)
                 .build().encode().toUri();
         try {
@@ -176,6 +187,35 @@ public class MetaWhatsAppTemplateCatalog {
         return providers.findById(tenant)
                 .filter(p -> p.getMode() == TenantWhatsAppProvider.Mode.META_CLOUD_API && p.isSendable())
                 .orElseThrow(() -> new ConflictException("Connect Meta WhatsApp before managing templates"));
+    }
+
+    private static void validateTemplateName(String name) {
+        if (name == null || !META_TEMPLATE_NAME.matcher(name).matches()) {
+            throw new IllegalArgumentException("Invalid Meta WhatsApp template name");
+        }
+    }
+
+    private static void validateAssetId(String id, String label) {
+        if (id == null || !META_ASSET_ID.matcher(id).matches()) {
+            throw new IllegalStateException("Invalid Meta " + label);
+        }
+    }
+
+    private static String validateGraphBaseUrl(String value) {
+        try {
+            URI uri = URI.create(value);
+            boolean local = "http".equalsIgnoreCase(uri.getScheme())
+                    && ("localhost".equalsIgnoreCase(uri.getHost()) || "127.0.0.1".equals(uri.getHost()));
+            boolean production = "https".equalsIgnoreCase(uri.getScheme())
+                    && "graph.facebook.com".equalsIgnoreCase(uri.getHost());
+            if ((!local && !production) || uri.getUserInfo() != null
+                    || uri.getQuery() != null || uri.getFragment() != null) {
+                throw new IllegalArgumentException("Meta Graph URL must use an approved origin");
+            }
+            return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid Meta Graph URL", e);
+        }
     }
 
     private String token() {
