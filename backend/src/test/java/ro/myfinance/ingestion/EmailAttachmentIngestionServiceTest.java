@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -96,6 +98,27 @@ class EmailAttachmentIngestionServiceTest {
     }
 
     @Test
+    void silentlySkipsSenderNotLinkedToRepresentative() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(),
+                Role.TENANT_ADMIN, null));
+        EmailConnection connection = new EmailConnection(tenantId, "Inbox", "docs@example.com");
+        when(connections.findById(connection.getId())).thenReturn(Optional.of(connection));
+        when(representatives.findByRepresentativeEmail("unknown@example.com")).thenReturn(List.of());
+
+        var result = service.ingest(connection,
+                new EmailAttachmentIngestionService.IncomingMessage("gmail-unknown", null,
+                        "unknown@example.com", "Unsolicited", Instant.now(), List.of()),
+                LocalDate.of(2026, 9, 1));
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.needsReview()).isZero();
+        verify(messages, never()).save(any(EmailMessage.class));
+        verify(attachments, never()).save(any(EmailAttachment.class));
+        verifyNoSenderReviewNotification();
+    }
+
+    @Test
     void marksMessageForReviewWhenDocumentImportFails() {
         UUID tenantId = UUID.randomUUID();
         TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(),
@@ -123,5 +146,9 @@ class EmailAttachmentIngestionServiceTest {
 
         assertThat(result.imported()).isZero();
         assertThat(result.needsReview()).isEqualTo(1);
+    }
+
+    private void verifyNoSenderReviewNotification() {
+        verify(notifications, never()).emailSenderNeedsReview(any(), any(), any());
     }
 }

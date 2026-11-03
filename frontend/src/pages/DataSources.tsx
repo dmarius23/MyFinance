@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ingestionApi, type Connection, type DrivePurpose, type SyncResult } from "../api/ingestion";
+import { ingestionApi, type DrivePurpose } from "../api/ingestion";
 import { settingsApi } from "../api/settings";
 import { ApiError } from "../lib/apiClient";
-import { Icon } from "../components/Icon";
-import { useSyncTracker } from "../components/SyncTracker";
-import { syncFinishedNote } from "../lib/syncStatus";
 import { GmailConnectionsCard } from "../components/GmailConnectionsCard";
 import {
   EmailProviderSection,
@@ -23,12 +20,9 @@ import { MessageTemplatesSection } from "../components/MessageTemplatesSection";
 export function DataSources() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { run } = useSyncTracker();
   const conns = useQuery({ queryKey: ["ingestion-connections"], queryFn: ingestionApi.list });
   const [form, setForm] = useState<{ displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean }>({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS", rootIsYearFolder: false });
   const [error, setError] = useState<string | null>(null);
-  const [openImports, setOpenImports] = useState<string | null>(null);
-  const [edit, setEdit] = useState<{ id: string; displayName: string; rootFolderId: string; writeEnabled: boolean; purpose: DrivePurpose; rootIsYearFolder: boolean } | null>(null);
 
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["ingestion-connections"] }); setError(null); };
   const onErr = (e: unknown) => setError(e instanceof ApiError ? e.message : "Action failed");
@@ -39,26 +33,6 @@ export function DataSources() {
     onSuccess: () => { refresh(); setForm({ displayName: "", rootFolderId: "", writeEnabled: true, purpose: "DECLARATIONS", rootIsYearFolder: false }); },
     onError: onErr,
   });
-  const save = useMutation({
-    // Editing a connection clears forcedType (null) → a general root connection that resolves type per sub-folder.
-    mutationFn: () => ingestionApi.update(edit!.id, { displayName: edit!.displayName, rootFolderId: edit!.rootFolderId, writeEnabled: edit!.writeEnabled, purpose: edit!.purpose, rootIsYearFolder: edit!.purpose === "DECLARATIONS" && edit!.rootIsYearFolder, forcedType: null }),
-    onSuccess: () => { refresh(); setEdit(null); },
-    onError: onErr,
-  });
-  const remove = useMutation({ mutationFn: (id: string) => ingestionApi.remove(id), onSuccess: refresh, onError: onErr });
-  const sync = useMutation({
-    // Shared SyncTracker toast: "syncing <connection>" → "finished" with the result.
-    mutationFn: (c: Connection) => run(c.displayName, ingestionApi.sync(c.id), (r: SyncResult) => syncFinishedNote(t, r)),
-    onSuccess: refresh,
-    onError: onErr,
-  });
-  // Inline write toggle straight from the row (keeps name/root; a general root connection has no forced type).
-  const toggleWrite = useMutation({
-    mutationFn: (c: Connection) => ingestionApi.update(c.id, { displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: !c.writeEnabled, purpose: c.purpose, rootIsYearFolder: c.rootIsYearFolder, forcedType: null }),
-    onSuccess: refresh,
-    onError: onErr,
-  });
-
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
       <div>
@@ -76,75 +50,6 @@ export function DataSources() {
 
       <AutoSyncCard />
       <GmailConnectionsCard />
-
-      {/* existing connections */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ ...row, background: "var(--th-bg)", ...th }}>
-          <div>{t("ingest.colSource")}</div><div>{t("ingest.colFolder")}</div>
-          <div>{t("ingest.colLast")}</div><div style={{ textAlign: "right" }}>{t("statements.actions")}</div>
-        </div>
-        {conns.isLoading && <div style={{ padding: 14, color: "var(--text-muted)" }}>…</div>}
-        {(conns.data ?? []).length === 0 && !conns.isLoading && (
-          <div style={{ padding: 14, color: "var(--text-muted)", fontSize: 13 }}>{t("ingest.none")}</div>
-        )}
-        {(conns.data ?? []).map((c: Connection) => (
-          <div key={c.id}>
-            <div style={{ ...row, borderTop: "1px solid var(--hair)" }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{c.displayName}</div>
-                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 3 }}>{c.provider}</div>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, cursor: toggleWrite.isPending ? "default" : "pointer", color: c.writeEnabled ? "var(--primary-dark)" : "var(--text-muted)" }}>
-                  <input type="checkbox" checked={c.writeEnabled} disabled={toggleWrite.isPending} onChange={() => toggleWrite.mutate(c)} />
-                  {t("ingest.writeShort")}
-                </label>
-              </div>
-              <div className="mono" style={{ fontSize: 11.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.rootFolderId}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)" }} title={c.lastResult ?? undefined}>
-                {c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString() : t("ingest.never")}
-              </div>
-              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                <button className="primary" disabled={sync.isPending} onClick={() => sync.mutate(c)}>{sync.isPending ? "…" : t("ingest.syncNow")}</button>
-                <button onClick={() => setEdit(edit?.id === c.id ? null : { id: c.id, displayName: c.displayName, rootFolderId: c.rootFolderId, writeEnabled: c.writeEnabled, purpose: c.purpose, rootIsYearFolder: c.rootIsYearFolder })}>{t("ingest.edit")}</button>
-                <button onClick={() => setOpenImports(openImports === c.id ? null : c.id)}>{t("ingest.imports")}</button>
-                <button style={{ color: "#dc2626" }} onClick={() => { if (window.confirm(t("ingest.confirmDelete", { name: c.displayName }))) remove.mutate(c.id); }}>✕</button>
-              </div>
-            </div>
-            {edit?.id === c.id && (
-              <form style={{ background: "var(--bg)", padding: "10px 16px 14px", borderTop: "1px solid var(--hair)", display: "grid", gap: 8, maxWidth: 560 }}
-                onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
-                <input value={edit.displayName} placeholder={t("ingest.fieldName")} required
-                  onChange={(e) => setEdit({ ...edit, displayName: e.target.value })} style={input} />
-                <input value={edit.rootFolderId} placeholder={t("ingest.fieldFolder")} required
-                  onChange={(e) => setEdit({ ...edit, rootFolderId: e.target.value })} style={input} />
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-                  <input type="checkbox" checked={edit.writeEnabled} onChange={(e) => setEdit({ ...edit, writeEnabled: e.target.checked })} />
-                  {t("ingest.writeAccess")}
-                </label>
-                {edit.writeEnabled && (
-                  <label style={{ display: "grid", gap: 4, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                    {t("ingest.purposeLabel")}
-                    <select value={edit.purpose} onChange={(e) => setEdit({ ...edit, purpose: e.target.value as DrivePurpose })} style={input}>
-                      <option value="DECLARATIONS">{t("ingest.purposeDeclarations")}</option>
-                      <option value="ACCOUNTING">{t("ingest.purposeAccounting")}</option>
-                    </select>
-                  </label>
-                )}
-                {edit.writeEnabled && edit.purpose === "DECLARATIONS" && (
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-secondary)" }}>
-                    <input type="checkbox" checked={edit.rootIsYearFolder} onChange={(e) => setEdit({ ...edit, rootIsYearFolder: e.target.checked })} />
-                    {t("ingest.rootIsYearFolder")}
-                  </label>
-                )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="primary" type="submit" disabled={save.isPending}>{save.isPending ? "…" : t("common.save")}</button>
-                  <button type="button" onClick={() => setEdit(null)}>{t("common.cancel")}</button>
-                </div>
-              </form>
-            )}
-            {openImports === c.id && <ImportsPanel connectionId={c.id} />}
-          </div>
-        ))}
-      </div>
 
       {/* add connection — a tenant may have up to two: a DECLARATIONS drive and an ACCOUNTING drive */}
       {(conns.data ?? []).length < 2 && (
@@ -248,37 +153,4 @@ function AutoSyncCard() {
   );
 }
 
-/** Backend marker for a PDF locked with an open password (IngestionService.PASSWORD_PROTECTED). */
-const LOCKED_MARKER = "protejat cu parolă";
-const isLocked = (detail: string | null) => !!detail && detail.includes(LOCKED_MARKER);
-
-function ImportsPanel({ connectionId }: { connectionId: string }) {
-  const { t } = useTranslation();
-  const imports = useQuery({ queryKey: ["ingestion-imports", connectionId], queryFn: () => ingestionApi.imports(connectionId) });
-  const tone = (s: string) => s === "IMPORTED" ? "#16a34a" : s === "NEEDS_REVIEW" ? "#92400e" : "#6b7280";
-  return (
-    <div style={{ background: "var(--bg)", padding: "8px 16px 12px", borderTop: "1px solid var(--hair)" }}>
-      {imports.isLoading && <div style={{ color: "var(--text-muted)", fontSize: 12 }}>…</div>}
-      {(imports.data ?? []).length === 0 && !imports.isLoading && <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{t("ingest.noImports")}</div>}
-      {(imports.data ?? []).map((r) => (
-        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", fontSize: 12.5 }}>
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {/* A password-locked PDF can't be read at all, so name it plainly with a padlock rather than
-                leaving it among the generic "unclassified" rejects. */}
-            {isLocked(r.detail) && (
-              <Icon name="lock" size={12} style={{ verticalAlign: "-1px", marginRight: 4, color: "#92400e" }} />
-            )}
-            <span className="mono" style={{ color: "var(--text-muted)" }}>{r.sourcePath}/</span>
-            <b style={{ fontWeight: isLocked(r.detail) ? 600 : 400 }}>{r.filename}</b>
-            {r.detail && <span style={{ color: "#92400e" }}> — {r.detail}</span>}
-          </span>
-          <span style={{ flex: "none", fontWeight: 700, color: tone(r.status), fontSize: 10.5, textTransform: "uppercase" }}>{r.status}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(200px,1.4fr) minmax(150px,1fr) 1fr 340px", alignItems: "center", gap: 12, padding: "10px 16px" };
-const th: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#8a9794" };
 const input: React.CSSProperties = { padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, maxWidth: 520 };
