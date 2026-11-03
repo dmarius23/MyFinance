@@ -8,8 +8,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,7 +21,7 @@ import ro.myfinance.common.crypto.SecretCipher;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.web.ConflictException;
 
-/** Reads the current tenant's message templates as Meta has them (WhatsApp Manager), read-only. */
+/** Reads and manages the current tenant's message templates as Meta has them (WhatsApp Manager). */
 @Component
 public class MetaWhatsAppTemplateCatalog {
 
@@ -74,6 +77,52 @@ public class MetaWhatsAppTemplateCatalog {
         return templates;
     }
 
+    public MetaTemplateMutation create(String name, String appLanguage, String body,
+                                       List<String> exampleValues) {
+        String language = MetaWhatsAppSender.metaLanguageCode(appLanguage);
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("type", "BODY");
+        component.put("text", body);
+        if (exampleValues != null && !exampleValues.isEmpty()) {
+            component.put("example", Map.of("body_text", List.of(exampleValues)));
+        }
+        JsonNode response = post("/" + provider().getMetaWabaId() + "/message_templates",
+                Map.of("name", name, "language", language, "category", "UTILITY",
+                        "components", List.of(component)), token());
+        return new MetaTemplateMutation(name, language, response.path("id").asText(null),
+                response.path("status").asText("PENDING"), "UTILITY");
+    }
+
+    /**
+     * Meta deletes a template by name, including its translations. The caller must confirm this
+     * destructive operation before invoking it.
+     */
+    public void delete(String name) {
+        URI uri = UriComponentsBuilder.fromUriString(graphBaseUrl + "/" + provider().getMetaWabaId()
+                        + "/message_templates")
+                .queryParam("name", name)
+                .build().encode().toUri();
+        try {
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Authorization", "Bearer " + token())
+                    .DELETE()
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new ConflictException("Meta rejected template deletion (HTTP " + response.statusCode()
+                        + metaError(response.body()) + ")");
+            }
+        } catch (ConflictException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ConflictException("Meta template deletion request was interrupted");
+        } catch (Exception e) {
+            throw new ConflictException("Could not delete the template from Meta: " + e.getMessage());
+        }
+    }
+
     private JsonNode get(URI uri, String token) {
         try {
             HttpRequest request = HttpRequest.newBuilder(uri)
@@ -95,6 +144,42 @@ public class MetaWhatsAppTemplateCatalog {
         } catch (Exception e) {
             throw new ConflictException("Could not load templates from Meta: " + e.getMessage());
         }
+    }
+
+    private JsonNode post(String path, Map<String, Object> payload, String token) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(graphBaseUrl + path))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() / 100 != 2) {
+                throw new ConflictException("Meta rejected template creation (HTTP " + response.statusCode()
+                        + metaError(response.body()) + ")");
+            }
+            return json.readTree(response.body());
+        } catch (ConflictException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ConflictException("Meta template creation request was interrupted");
+        } catch (Exception e) {
+            throw new ConflictException("Could not create the template in Meta: " + e.getMessage());
+        }
+    }
+
+    private TenantWhatsAppProvider provider() {
+        UUID tenant = TenantContext.tenantId()
+                .orElseThrow(() -> new IllegalStateException("No tenant bound"));
+        return providers.findById(tenant)
+                .filter(p -> p.getMode() == TenantWhatsAppProvider.Mode.META_CLOUD_API && p.isSendable())
+                .orElseThrow(() -> new ConflictException("Connect Meta WhatsApp before managing templates"));
+    }
+
+    private String token() {
+        return cipher.decrypt(provider().getMetaAccessTokenEnc());
     }
 
     /** Follows Meta's paging link only while it stays on the Graph host — the bearer token must not leak. */
@@ -140,5 +225,9 @@ public class MetaWhatsAppTemplateCatalog {
      */
     public record MetaTemplate(String name, String language, String appLanguage, String status,
                                String category, String body) {
+    }
+
+    public record MetaTemplateMutation(String name, String language, String id, String status,
+                                       String category) {
     }
 }

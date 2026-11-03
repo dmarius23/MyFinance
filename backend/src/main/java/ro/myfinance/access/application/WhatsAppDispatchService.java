@@ -153,7 +153,8 @@ public class WhatsAppDispatchService {
 
         var message = new WhatsAppSender.Message(envelopes.currentUserName(), toPhone, body,
                 template == null ? null : template.getMetaTemplateName(),
-                template == null ? null : template.getLanguage(), variables, companyId,
+                template == null ? null : template.getLanguage(), variables,
+                variableOrder(template == null ? null : template.getVariableSchema()), companyId,
                 attachments.stream().map(WhatsAppSender.Attachment::new).toList());
         outbox.enqueue(WhatsAppOutboxHandler.AGGREGATE, row.getId().toString(), WhatsAppOutboxHandler.TYPE,
                 whatsappOutbox.serialize(new WhatsAppOutboxHandler.Payload(row.getId(), message)));
@@ -162,6 +163,16 @@ public class WhatsAppDispatchService {
             onSent.run();
         }
         return row;
+    }
+
+    private static List<String> variableOrder(String schema) {
+        if (schema == null || schema.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(schema.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
     }
 
     /** WhatsApp send history for one company/period + kind (newest first) — the log modal. */

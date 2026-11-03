@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
+import { useWhatsAppMode } from "../lib/useWhatsAppMode";
 import { Icon } from "./Icon";
 import { MissingInfoWarning } from "./MissingInfoWarning";
 
@@ -20,6 +21,8 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
     loadBody?: () => Promise<string>; attachments?: WhatsAppAttachment[]; onClose: () => void }) {
   const { t } = useTranslation();
   const whatsappConfigured = useWhatsAppConfigured();
+  const whatsappMode = useWhatsAppMode();
+  const metaMode = whatsappMode === "META_CLOUD_API";
   const qc = useQueryClient();
   const [phone, setPhone] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -45,11 +48,21 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const draft = useQuery({
     queryKey: ["whatsapp-body", companyId, kind, period],
     queryFn: loadBody!,
-    enabled: !!loadBody,
+    enabled: !!loadBody && !metaMode,
+  });
+  const metaPreview = useQuery({
+    queryKey: ["whatsapp-meta-preview", companyId, kind, period],
+    queryFn: () => whatsappApi.metaPreview(companyId, kind),
+    enabled: metaMode,
+    retry: false,
   });
   useEffect(() => {
-    if (!bodyEdited && draft.data != null) setBody(draft.data);
-  }, [draft.data, bodyEdited]);
+    if (metaMode && metaPreview.data?.body != null) {
+      setBody(metaPreview.data.body);
+    } else if (!metaMode && !bodyEdited && draft.data != null) {
+      setBody(draft.data);
+    }
+  }, [draft.data, metaMode, metaPreview.data, bodyEdited]);
   const history = useQuery({
     queryKey: rk,
     queryFn: () => whatsappApi.history(companyId, kind, period),
@@ -83,7 +96,19 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           <input type="tel" value={phone ?? ""} readOnly
             placeholder="+40…" style={input} />
           <label style={{ ...fieldLabel, marginTop: 10 }}>{t("channel.message")}</label>
-          <textarea value={body} onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}
+          {metaMode && metaPreview.data && (
+            <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 5 }}>
+              {t("channel.metaTemplateUsed", { name: metaPreview.data.name, language: metaPreview.data.metaLanguage })}
+              {metaPreview.data.variableNames.length > 0 && ` ${t("channel.metaVariablesUnavailable")}`}
+            </div>
+          )}
+          {metaMode && metaPreview.isError && (
+            <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 5 }}>
+              {metaPreview.error instanceof ApiError ? metaPreview.error.message : t("common.error")}
+            </div>
+          )}
+          <textarea value={body} readOnly={metaMode}
+            onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}
             placeholder={loadBody && draft.isLoading ? t("common.loading") : undefined}
             style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
           {attachments.length > 0 && (
@@ -102,7 +127,9 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>}
           <div style={{ marginTop: 10 }}>
             <button className="primary"
-              disabled={send.isPending || !body.trim() || !(phone ?? "").trim() || !whatsappConfigured}
+              disabled={send.isPending || !body.trim() || !(phone ?? "").trim() || !whatsappConfigured
+                || (metaMode && (metaPreview.isLoading || metaPreview.isError
+                  || (metaPreview.data?.variableNames.length ?? 0) > 0))}
               title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}
               onClick={() => send.mutate()}>
               <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsapp")}

@@ -17,13 +17,14 @@ public interface WhatsAppSender {
 
     record Message(String fromName, String toPhone, String body, String templateName,
                    String templateLanguage, Map<String, String> templateVariables,
-                   UUID companyId, List<Attachment> attachments) {
+                   List<String> templateVariableOrder, UUID companyId, List<Attachment> attachments) {
         public Message(String fromName, String toPhone, String body) {
-            this(fromName, toPhone, body, null, null, Map.of(), null, List.of());
+            this(fromName, toPhone, body, null, null, Map.of(), List.of(), null, List.of());
         }
 
         public Message {
             templateVariables = templateVariables == null ? Map.of() : Map.copyOf(templateVariables);
+            templateVariableOrder = templateVariableOrder == null ? List.of() : List.copyOf(templateVariableOrder);
             attachments = attachments == null ? List.of() : List.copyOf(attachments);
         }
     }
