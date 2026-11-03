@@ -19,10 +19,12 @@ import ro.myfinance.settings.adapter.web.MessagingSettingsDtos.UpdateWhatsAppReq
 import ro.myfinance.settings.adapter.web.MessagingSettingsDtos.WhatsAppProviderResponse;
 import ro.myfinance.settings.application.MessagingSettingsService;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingService;
+import ro.myfinance.settings.application.MetaWhatsAppTemplateDraftService;
 import ro.myfinance.settings.application.WhatsAppTemplateService;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.whatsapp.MetaWhatsAppTemplateCatalog;
 import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 
 /**
  * Per-tenant messaging provider settings (email SMTP + WhatsApp), managed by the firm admin. TENANT_ADMIN
@@ -37,15 +39,18 @@ public class MessagingSettingsController {
     private final MetaWhatsAppOnboardingService metaOnboarding;
     private final WhatsAppTemplateService templates;
     private final MetaWhatsAppTemplateCatalog metaTemplates;
+    private final MetaWhatsAppTemplateDraftService metaTemplateDrafts;
 
     public MessagingSettingsController(MessagingSettingsService service,
                                        MetaWhatsAppOnboardingService metaOnboarding,
                                        WhatsAppTemplateService templates,
-                                       MetaWhatsAppTemplateCatalog metaTemplates) {
+                                       MetaWhatsAppTemplateCatalog metaTemplates,
+                                       MetaWhatsAppTemplateDraftService metaTemplateDrafts) {
         this.service = service;
         this.metaOnboarding = metaOnboarding;
         this.templates = templates;
         this.metaTemplates = metaTemplates;
+        this.metaTemplateDrafts = metaTemplateDrafts;
     }
 
     @GetMapping("/email")
@@ -100,6 +105,27 @@ public class MessagingSettingsController {
     @GetMapping("/whatsapp/templates/meta")
     public java.util.List<MetaWhatsAppTemplateCatalog.MetaTemplate> listMetaWhatsAppTemplates() {
         return metaTemplates.list();
+    }
+
+    @PostMapping("/whatsapp/templates/meta")
+    public MetaWhatsAppTemplateCatalog.MetaTemplateMutation createMetaWhatsAppTemplate(
+            @Valid @RequestBody CreateMetaWhatsAppTemplate request) {
+        return metaTemplates.create(request.name(), request.language(), request.body(), request.exampleValues());
+    }
+
+    /** Deletes the Meta template name and all of its translations. */
+    @DeleteMapping("/whatsapp/templates/meta")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMetaWhatsAppTemplate(@org.springframework.web.bind.annotation.RequestParam String name) {
+        metaTemplates.delete(name);
+    }
+
+    @GetMapping("/whatsapp/templates/meta/draft")
+    public MetaWhatsAppTemplateDraftService.Draft draftMetaWhatsAppTemplate(
+            @org.springframework.web.bind.annotation.RequestParam EmailKind kind,
+            @org.springframework.web.bind.annotation.RequestParam(required = false)
+                    MessageTemplateKind reminderKind) {
+        return metaTemplateDrafts.create(kind, reminderKind);
     }
 
     @PutMapping("/whatsapp/templates")
@@ -157,5 +183,14 @@ public class MessagingSettingsController {
                     template.getMetaTemplateName(), template.getCategory(), template.getStatus(),
                     template.getVersion(), template.getVariableSchema(), template.getApprovedAt());
         }
+    }
+
+    public record CreateMetaWhatsAppTemplate(
+            @jakarta.validation.constraints.NotBlank
+            @jakarta.validation.constraints.Pattern(regexp = "[a-z][a-z0-9_]{1,511}") String name,
+            @jakarta.validation.constraints.NotBlank
+            @jakarta.validation.constraints.Pattern(regexp = "ro_RO|en_US") String language,
+            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 1024) String body,
+            java.util.List<@jakarta.validation.constraints.NotBlank String> exampleValues) {
     }
 }

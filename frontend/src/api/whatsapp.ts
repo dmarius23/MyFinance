@@ -21,10 +21,22 @@ export interface WhatsAppAttachment {
   filename: string;
 }
 
+export interface WhatsAppMetaPreview {
+  name: string;
+  appLanguage: string;
+  metaLanguage: string;
+  status: string;
+  body: string | null;
+  variableNames: string[];
+}
+
 export const whatsappApi = {
   /** The resolved recipient phone (the company's representative), to pre-fill the compose form. */
   recipient: (companyId: string) =>
     api<{ phone: string | null }>(`/api/v1/companies/${companyId}/whatsapp/recipient`),
+  metaPreview: (companyId: string, kind: WhatsAppKind, language = "ro_RO") =>
+    api<WhatsAppMetaPreview>(
+      `/api/v1/companies/${companyId}/whatsapp/preview?kind=${kind}&language=${language}`),
   /** WhatsApp send history for a module + company + period (newest first). */
   history: (companyId: string, kind: WhatsAppKind, period: string) =>
     api<WhatsAppView[]>(`/api/v1/companies/${companyId}/whatsapp?kind=${kind}&period=${period}`),

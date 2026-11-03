@@ -124,7 +124,7 @@ class MetaWhatsAppSenderTest {
 
     private WhatsAppSender.Message message() {
         return new WhatsAppSender.Message("MyFinance", "+40700000000", "body", "tax_notice", "ro_RO",
-                Map.of("companyName", "Acme"), UUID.randomUUID(), List.of());
+                Map.of("companyName", "Acme"), List.of(), UUID.randomUUID(), List.of());
     }
 
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body)

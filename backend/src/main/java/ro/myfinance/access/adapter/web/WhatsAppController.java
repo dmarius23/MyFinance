@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ro.myfinance.access.application.WhatsAppDispatchService;
+import ro.myfinance.access.application.WhatsAppPreviewService;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailStatus;
 import ro.myfinance.common.whatsapp.WhatsAppMessage;
@@ -37,9 +38,11 @@ import ro.myfinance.common.whatsapp.WhatsAppMessage;
 public class WhatsAppController {
 
     private final WhatsAppDispatchService whatsapp;
+    private final WhatsAppPreviewService preview;
 
-    public WhatsAppController(WhatsAppDispatchService whatsapp) {
+    public WhatsAppController(WhatsAppDispatchService whatsapp, WhatsAppPreviewService preview) {
         this.whatsapp = whatsapp;
+        this.preview = preview;
     }
 
     /** Send a WhatsApp message for a module + company + period. */
@@ -64,6 +67,13 @@ public class WhatsAppController {
     @GetMapping("/recipient")
     public RecipientView recipient(@PathVariable UUID companyId) {
         return new RecipientView(whatsapp.resolveRecipient(companyId));
+    }
+
+    /** The live Meta template that will actually be sent, for the pre-send staff preview. */
+    @GetMapping("/preview")
+    public WhatsAppPreviewService.Preview preview(@RequestParam EmailKind kind,
+                                                   @RequestParam(required = false) String language) {
+        return preview.preview(kind, language);
     }
 
     public record SendRequest(@NotNull EmailKind kind, @NotNull LocalDate period,

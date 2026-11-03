@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
@@ -29,23 +29,38 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
   const { t } = useTranslation();
   const whatsappConfigured = useWhatsAppConfigured();
   const clickToChat = useWhatsAppMode() === "CLICK_TO_CHAT";
+  const metaMode = useWhatsAppMode() === "META_CLOUD_API";
   const qc = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>(
     () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false, excluded: [] }])),
   );
   const [sending, setSending] = useState(false);
+  const metaPreview = useQuery({
+    queryKey: ["whatsapp-meta-preview", targets[0]?.companyId, kind, period],
+    queryFn: () => whatsappApi.metaPreview(targets[0].companyId, kind),
+    enabled: metaMode && targets.length > 0,
+    retry: false,
+  });
 
   // Prefill each company's recipient phone + standard body once on open.
   useEffect(() => {
     let cancelled = false;
     targets.forEach((x) => {
-      Promise.all([whatsappApi.recipient(x.companyId), loadBody(x.companyId)])
+      Promise.all([whatsappApi.recipient(x.companyId), metaMode ? Promise.resolve("") : loadBody(x.companyId)])
         .then(([r, body]) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], phone: r.phone ?? "", body, loading: false } })); })
         .catch((e) => { if (!cancelled) setDrafts((d) => ({ ...d, [x.companyId]: { ...d[x.companyId], loading: false, error: e instanceof ApiError ? e.message : "Failed" } })); });
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targets, period]);
+  }, [targets, period, metaMode]);
+
+  useEffect(() => {
+    if (!metaMode || metaPreview.data?.body == null) return;
+    const templateBody = metaPreview.data.body;
+    setDrafts((all) => Object.fromEntries(
+      Object.entries(all).map(([id, draft]) => [id, { ...draft, body: templateBody }]),
+    ));
+  }, [metaMode, metaPreview.data]);
 
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
@@ -120,7 +135,13 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
                       <input type="tel" placeholder="+40…" value={d.phone}
                         onChange={(e) => patch(x.companyId, { phone: e.target.value })}
                         style={input} disabled={d.sent} />
-                      <textarea value={d.body} disabled={d.sent}
+                      {metaMode && metaPreview.data && (
+                        <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>
+                          {t("channel.metaTemplateUsed", { name: metaPreview.data.name, language: metaPreview.data.metaLanguage })}
+                          {metaPreview.data.variableNames.length > 0 && ` ${t("channel.metaVariablesUnavailable")}`}
+                        </div>
+                      )}
+                      <textarea value={d.body} disabled={d.sent} readOnly={metaMode}
                         onChange={(e) => patch(x.companyId, { body: e.target.value })}
                         style={{ ...input, minHeight: 150, marginTop: 8, fontFamily: "inherit", resize: "vertical" }} />
                       {!clickToChat && files.length > 0 && (
@@ -151,6 +172,11 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
           })}
         </div>
 
+        {metaMode && metaPreview.isError && (
+          <div style={{ color: "#dc2626", fontSize: 12, padding: "0 16px 8px" }}>
+            {metaPreview.error instanceof ApiError ? metaPreview.error.message : t("common.error")}
+          </div>
+        )}
         <div style={footer}>
           <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
             {clickToChat ? t("channel.openWhatsapp") : t("taxes.eachLogged")}
@@ -159,7 +185,9 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, onClose, on
             <button onClick={onClose}>{t("common.cancel")}</button>
             {!clickToChat && (
               <button style={waBtnPrimary} onClick={sendAll}
-                disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured}
+                disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured
+                  || metaPreview.isLoading || metaPreview.isError
+                  || (metaPreview.data?.variableNames.length ?? 0) > 0}
                 title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}>
                 <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
                 {sending ? t("taxes.sending") : t("channel.sendWhatsappN", { n: sendableCount })}

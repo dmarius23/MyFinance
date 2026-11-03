@@ -37,7 +37,7 @@ class MetaWhatsAppTemplateCatalogTest {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         provider = new TenantWhatsAppProvider(TENANT);
         provider.setMode(TenantWhatsAppProvider.Mode.META_CLOUD_API);
-        provider.setMetaWabaId("waba-a");
+        provider.setMetaWabaId("123456789");
         provider.setMetaPhoneNumberId("phone-a");
         provider.setMetaAccessTokenEnc(new SecretCipher(key()).encrypt("token-a"));
         when(providers.findById(TENANT)).thenReturn(Optional.of(provider));
@@ -54,7 +54,7 @@ class MetaWhatsAppTemplateCatalogTest {
     void listsTheTenantsWabaTemplatesAcrossPagesWithAppLanguage() {
         var auth = new AtomicReference<String>();
         String base = "http://localhost:" + server.getAddress().getPort();
-        server.createContext("/waba-a/message_templates", exchange -> {
+        server.createContext("/123456789/message_templates", exchange -> {
             auth.set(exchange.getRequestHeaders().getFirst("Authorization"));
             boolean second = exchange.getRequestURI().getQuery().contains("after=p2");
             respond(exchange, 200, second
@@ -66,7 +66,7 @@ class MetaWhatsAppTemplateCatalogTest {
                       {"data":[{"name":"document_reminder","language":"ro","status":"APPROVED",
                                 "category":"UTILITY",
                                 "components":[{"type":"BODY","text":"Buna {{1}}"}]}],
-                       "paging":{"next":"%s/waba-a/message_templates?after=p2"}}
+                      "paging":{"next":"%s/123456789/message_templates?after=p2"}}
                       """.formatted(base));
         });
         server.start();
@@ -84,7 +84,7 @@ class MetaWhatsAppTemplateCatalogTest {
 
     @Test
     void doesNotFollowPagingLinksOffTheGraphHost() {
-        server.createContext("/waba-a/message_templates", exchange -> respond(exchange, 200, """
+        server.createContext("/123456789/message_templates", exchange -> respond(exchange, 200, """
                 {"data":[],"paging":{"next":"https://evil.example/steal"}}
                 """));
         server.start();

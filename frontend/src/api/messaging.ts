@@ -80,6 +80,19 @@ export interface MetaWhatsAppTemplate {
   body: string | null;
 }
 
+export interface CreateMetaWhatsAppTemplateInput {
+  name: string;
+  language: WhatsAppTemplateLanguage;
+  body: string;
+  exampleValues: string[];
+}
+
+export interface MetaWhatsAppTemplateDraft {
+  sourceKind: string;
+  body: string;
+  variableNames: string[];
+}
+
 /** Upserts by kind + language. */
 export interface SaveWhatsAppTemplateInput {
   kind: WhatsAppTemplateKind;
@@ -87,6 +100,7 @@ export interface SaveWhatsAppTemplateInput {
   metaTemplateName: string;
   category: "UTILITY";
   status: WhatsAppTemplateStatus;
+  variableSchema?: string;
 }
 
 export const messagingApi = {
@@ -130,6 +144,20 @@ export const messagingApi = {
   listWhatsAppTemplates: () => api<WhatsAppTemplate[]>("/api/v1/settings/messaging/whatsapp/templates"),
   listMetaWhatsAppTemplates: () =>
     api<MetaWhatsAppTemplate[]>("/api/v1/settings/messaging/whatsapp/templates/meta"),
+  createMetaWhatsAppTemplate: (input: CreateMetaWhatsAppTemplateInput) =>
+    api<{ name: string; language: string; id: string | null; status: string; category: string }>(
+      "/api/v1/settings/messaging/whatsapp/templates/meta",
+      { method: "POST", body: JSON.stringify(input) }),
+  draftMetaWhatsAppTemplate: (kind: WhatsAppTemplateKind, reminderKind?: string) => {
+    const params = new URLSearchParams({ kind });
+    if (reminderKind) params.set("reminderKind", reminderKind);
+    return api<MetaWhatsAppTemplateDraft>(
+      `/api/v1/settings/messaging/whatsapp/templates/meta/draft?${params.toString()}`);
+  },
+  deleteMetaWhatsAppTemplate: (name: string) =>
+    api<void>(`/api/v1/settings/messaging/whatsapp/templates/meta?name=${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }),
   saveWhatsAppTemplate: (input: SaveWhatsAppTemplateInput) =>
     api<WhatsAppTemplate>("/api/v1/settings/messaging/whatsapp/templates", {
       method: "PUT",

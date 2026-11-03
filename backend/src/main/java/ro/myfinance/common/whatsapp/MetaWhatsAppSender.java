@@ -81,9 +81,20 @@ public class MetaWhatsAppSender {
         template.put("language", Map.of("code", metaLanguageCode(message.templateLanguage())));
         if (!message.templateVariables().isEmpty()) {
             var parameters = new ArrayList<Map<String, Object>>();
-            message.templateVariables().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(entry -> parameters.add(Map.of("type", "text", "text", entry.getValue())));
+            if (!message.templateVariableOrder().isEmpty()) {
+                message.templateVariableOrder().stream()
+                        .filter(message.templateVariables()::containsKey)
+                        .forEach(name -> parameters.add(Map.of("type", "text",
+                                "text", message.templateVariables().get(name))));
+                message.templateVariables().entrySet().stream()
+                        .filter(entry -> !message.templateVariableOrder().contains(entry.getKey()))
+                        .sorted(Map.Entry.comparingByKey())
+                        .forEach(entry -> parameters.add(Map.of("type", "text", "text", entry.getValue())));
+            } else {
+                message.templateVariables().entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey())
+                        .forEach(entry -> parameters.add(Map.of("type", "text", "text", entry.getValue())));
+            }
             template.put("components", java.util.List.of(Map.of("type", "body", "parameters", parameters)));
         }
 
