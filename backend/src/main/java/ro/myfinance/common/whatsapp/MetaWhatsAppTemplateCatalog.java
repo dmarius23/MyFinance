@@ -96,6 +96,7 @@ public class MetaWhatsAppTemplateCatalog {
         }
         JsonNode response = post("/" + provider().getMetaWabaId() + "/message_templates",
                 Map.of("name", name, "language", language, "category", "UTILITY",
+                        "parameter_format", "POSITIONAL",
                         "components", List.of(component)), token());
         return new MetaTemplateMutation(name, language, response.path("id").asText(null),
                 response.path("status").asText("PENDING"), "UTILITY");
@@ -287,8 +288,15 @@ public class MetaWhatsAppTemplateCatalog {
                 return "";
             }
             String detail = error.path("error_data").path("details").asText("");
-            return ": #" + error.path("code").asText("?") + " " + error.path("message").asText("")
-                    + (detail.isBlank() ? "" : " — " + detail);
+            String userTitle = error.path("error_user_title").asText("");
+            String userMessage = error.path("error_user_msg").asText("");
+            String subcode = error.path("error_subcode").asText("");
+            String explanation = !userMessage.isBlank() ? userMessage
+                    : !detail.isBlank() ? detail : userTitle;
+            return ": #" + error.path("code").asText("?")
+                    + (subcode.isBlank() ? "" : "/" + subcode) + " "
+                    + error.path("message").asText("")
+                    + (explanation.isBlank() ? "" : " — " + explanation);
         } catch (Exception e) {
             return "";
         }
