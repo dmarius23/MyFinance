@@ -17,7 +17,6 @@ import {
 } from "../api/messaging";
 import { ApiError } from "../lib/apiClient";
 import { Field } from "./Field";
-import { templatesApi, type MessageTemplate, type TemplateKind } from "../api/templates";
 
 const errStyle: React.CSSProperties = { color: "#dc2626", marginTop: 8 };
 const okStyle: React.CSSProperties = { color: "#059669", marginTop: 8 };
@@ -252,7 +251,6 @@ export function WhatsAppProviderSection() {
 
 const TEMPLATE_KINDS: WhatsAppTemplateKind[] = ["TAX", "PAYROLL", "REPORT", "DOCUMENT_REMINDER"];
 const TEMPLATE_LANGUAGES: WhatsAppTemplateLanguage[] = ["ro_RO", "en_US"];
-const REMINDER_SOURCE_KINDS = ["REMINDER_NOTHING_RECEIVED", "REMINDER_DOCS_MISSING", "REMINDER_DOCS_ONLY"] as const;
 const emptyTemplate = { kind: "TAX" as WhatsAppTemplateKind, language: "ro_RO" as WhatsAppTemplateLanguage,
   metaTemplateName: "", status: "PENDING" as WhatsAppTemplateStatus };
 
@@ -264,11 +262,6 @@ export function WhatsAppTemplatesSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const provider = useQuery({ queryKey: ["messaging", "whatsapp"], queryFn: messagingApi.getWhatsApp });
-  const messageTemplates = useQuery({
-    queryKey: ["templates"],
-    queryFn: templatesApi.list,
-    enabled: provider.data?.mode === "META_CLOUD_API",
-  });
   const isMeta = provider.data?.mode === "META_CLOUD_API";
   const list = useQuery({
     queryKey: ["messaging", "whatsapp-templates"],
@@ -283,10 +276,6 @@ export function WhatsAppTemplatesSection() {
   });
   const [form, setForm] = useState(emptyTemplate);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
-  const [metaName, setMetaName] = useState("");
-  const [metaLanguage, setMetaLanguage] = useState<WhatsAppTemplateLanguage>("ro_RO");
-  const [metaBody, setMetaBody] = useState("");
-  const [metaExamples, setMetaExamples] = useState("");
   const [metaDraftVariables, setMetaDraftVariables] = useState<string[]>([]);
   const [reminderSourceKind, setReminderSourceKind] = useState<string>("REMINDER_DOCS_MISSING");
   const whatsappSourceKind: WhatsAppTemplateSourceKind = form.kind === "DOCUMENT_REMINDER"
@@ -309,38 +298,11 @@ export function WhatsAppTemplatesSection() {
     onSuccess: () => { void refresh(); setMsg({}); },
     onError: fail,
   });
-  const createMeta = useMutation({
-    mutationFn: () => messagingApi.createMetaWhatsAppTemplate({
-      name: metaName.trim(),
-      language: metaLanguage,
-      body: metaBody.trim(),
-      exampleValues: metaExamples.split(",").map((x) => x.trim()).filter(Boolean),
-    }),
-    onSuccess: () => {
-      void refreshMeta();
-      setMetaName("");
-      setMetaBody("");
-      setMetaExamples("");
-      setMsg({ ok: t("settings.tpl.metaCreated") });
-    },
-    onError: fail,
-  });
   const deleteMeta = useMutation({
     mutationFn: messagingApi.deleteMetaWhatsAppTemplate,
     onSuccess: () => { void refreshMeta(); setMsg({ ok: t("settings.tpl.metaDeleted") }); },
     onError: fail,
   });
-  const draftMeta = useMutation({
-    mutationFn: () => messagingApi.draftMetaWhatsAppTemplate(form.kind,
-      form.kind === "DOCUMENT_REMINDER" ? reminderSourceKind : undefined),
-    onSuccess: (draft) => {
-      setMetaBody(draft.body);
-      setMetaDraftVariables(draft.variableNames);
-      setMsg({ ok: t("settings.tpl.metaDraftReady") });
-    },
-    onError: fail,
-  });
-
   if (!isMeta) return null;
   const edit = (x: WhatsAppTemplate) => {
     setMsg({});
@@ -357,11 +319,6 @@ export function WhatsAppTemplatesSection() {
   };
   const templates = list.data ?? [];
   const metaTemplates = metaList.data;
-  const sourceKind: TemplateKind = form.kind === "DOCUMENT_REMINDER"
-    ? reminderSourceKind as TemplateKind
-    : form.kind;
-  const sourceTemplate: MessageTemplate | undefined =
-    messageTemplates.data?.find((x) => x.kind === sourceKind);
   /** Why Meta would reject a registered template, judged against the live list; null if it looks sendable. */
   const metaProblem = (x: WhatsAppTemplate): string | null => {
     if (!metaTemplates || x.status !== "APPROVED") return null;
@@ -437,6 +394,15 @@ export function WhatsAppTemplatesSection() {
               {TEMPLATE_LANGUAGES.map((l) => <option key={l} value={l}>{t(`settings.tpl.lang.${l}`)}</option>)}
             </select>
           </Field>
+          {form.kind === "DOCUMENT_REMINDER" && (
+            <Field label={t("settings.tpl.sourceKind")}>
+              <select value={reminderSourceKind} onChange={(e) => setReminderSourceKind(e.target.value)}>
+                {["REMINDER_NOTHING_RECEIVED", "REMINDER_DOCS_MISSING", "REMINDER_DOCS_ONLY"].map((k) => (
+                  <option key={k} value={k}>{t(`settings.tpl.reminder.${k}`)}</option>
+                ))}
+              </select>
+            </Field>
+          )}
         </div>
         <Field label={t("settings.tpl.name")}>
           <input type="text" required pattern="[a-z][a-z0-9_]{1,511}" placeholder="document_reminder"
@@ -513,68 +479,6 @@ export function WhatsAppTemplatesSection() {
               </tbody>
             </table>
           )}
-          <form
-            onSubmit={(e) => { e.preventDefault(); setMsg({}); createMeta.mutate(); }}
-            style={{ display: "grid", gap: 10, maxWidth: 620, marginTop: 20 }}
-          >
-            <h4 style={{ margin: 0 }}>{t("settings.tpl.metaCreateTitle")}</h4>
-            <p style={hint}>{t("settings.tpl.metaCreateDesc")}</p>
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-              {form.kind === "DOCUMENT_REMINDER" && (
-                <Field label={t("settings.tpl.metaReminderSource")}>
-                  <select value={reminderSourceKind} onChange={(e) => setReminderSourceKind(e.target.value)}>
-                    {REMINDER_SOURCE_KINDS.map((k) => (
-                      <option key={k} value={k}>{t(`settings.tpl.reminder.${k}`)}</option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-              <button type="button" disabled={draftMeta.isPending}
-                onClick={() => { setMsg({}); draftMeta.mutate(); }}>
-                {draftMeta.isPending ? "…" : t("settings.tpl.metaUseCurrent")}
-              </button>
-            </div>
-            {sourceTemplate && (
-              <div style={{ display: "grid", gap: 8, padding: 12, background: "var(--th-bg)", borderRadius: 8 }}>
-                <strong>{t("settings.tpl.currentSource")}</strong>
-                <p style={hint}>{t("settings.tpl.currentSourceHint", { kind: sourceKind })}</p>
-                <textarea value={sourceTemplate.body} readOnly rows={7}
-                  style={{ fontFamily: "monospace", fontSize: 13, resize: "vertical" }} />
-                <div>
-                  {(sourceTemplate.placeholders ?? []).concat(sourceTemplate.blocks ?? [], "signOff").map((name) => (
-                    <code key={name} style={{ marginRight: 6 }}>{`{{${name}}}`}</code>
-                  ))}
-                </div>
-                <p style={hint}>{t("settings.tpl.currentSourceImmutable")}</p>
-              </div>
-            )}
-            {metaDraftVariables.length > 0 && (
-              <p style={hint}>{t("settings.tpl.metaVariables", { values: metaDraftVariables.join(", ") })}</p>
-            )}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Field label={t("settings.tpl.name")}>
-                <input required pattern="[a-z][a-z0-9_]{1,511}" value={metaName}
-                  onChange={(e) => setMetaName(e.target.value)} />
-              </Field>
-              <Field label={t("settings.tpl.language")}>
-                <select value={metaLanguage} onChange={(e) => setMetaLanguage(e.target.value as WhatsAppTemplateLanguage)}>
-                  {TEMPLATE_LANGUAGES.map((l) => <option key={l} value={l}>{t(`settings.tpl.lang.${l}`)}</option>)}
-                </select>
-              </Field>
-            </div>
-            <Field label={t("settings.tpl.metaBody")}>
-              <textarea required maxLength={1024} rows={4} value={metaBody}
-                onChange={(e) => setMetaBody(e.target.value)} />
-            </Field>
-            <Field label={t("settings.tpl.metaExamples")}>
-              <input placeholder="noiembrie 2026, Acme SRL" value={metaExamples}
-                onChange={(e) => setMetaExamples(e.target.value)} />
-            </Field>
-            <p style={hint}>{t("settings.tpl.metaExamplesHint")}</p>
-            <button className="primary" type="submit" disabled={createMeta.isPending || !metaName.trim() || !metaBody.trim()}>
-              {createMeta.isPending ? "…" : t("settings.tpl.metaCreate")}
-            </button>
-          </form>
         </div>
       )}
     </div>
