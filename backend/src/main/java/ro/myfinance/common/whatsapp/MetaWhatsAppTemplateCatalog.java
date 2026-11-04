@@ -34,6 +34,7 @@ public class MetaWhatsAppTemplateCatalog {
     private static final int MAX_PAGES = 10;
     private static final Pattern META_TEMPLATE_NAME = Pattern.compile("[a-z][a-z0-9_]{1,511}");
     private static final Pattern META_ASSET_ID = Pattern.compile("[0-9]+");
+    private static final Pattern META_VARIABLE = Pattern.compile("\\{\\{([1-9][0-9]*)\\}\\}");
 
     private final TenantWhatsAppProviderRepository providers;
     private final SecretCipher cipher;
@@ -85,6 +86,7 @@ public class MetaWhatsAppTemplateCatalog {
                                        List<String> exampleValues) {
         validateTemplateName(name);
         validateAssetId(provider().getMetaWabaId(), "WABA ID");
+        validateBody(body, exampleValues);
         String language = MetaWhatsAppSender.metaLanguageCode(appLanguage);
         Map<String, Object> component = new LinkedHashMap<>();
         component.put("type", "BODY");
@@ -195,6 +197,35 @@ public class MetaWhatsAppTemplateCatalog {
         }
     }
 
+    private static void validateBody(String body, List<String> exampleValues) {
+        if (body == null || body.isBlank() || body.length() > 1024) {
+            throw new IllegalArgumentException("Meta template body must contain 1–1024 characters");
+        }
+        java.util.Set<Integer> positions = new java.util.TreeSet<>();
+        java.util.regex.Matcher matcher = META_VARIABLE.matcher(body);
+        int cursor = 0;
+        while (matcher.find()) {
+            if (matcher.start() != cursor && body.substring(cursor, matcher.start()).contains("{{")) {
+                throw new IllegalArgumentException("Meta template variables must use {{1}}, {{2}}, ...");
+            }
+            positions.add(Integer.parseInt(matcher.group(1)));
+            cursor = matcher.end();
+        }
+        if (body.substring(cursor).contains("{{")) {
+            throw new IllegalArgumentException("Meta template variables must use {{1}}, {{2}}, ...");
+        }
+        int expected = 1;
+        for (Integer position : positions) {
+            if (position != expected++) {
+                throw new IllegalArgumentException("Meta template variables must be consecutive from {{1}}");
+            }
+        }
+        int examples = exampleValues == null ? 0 : exampleValues.size();
+        if (examples != positions.size()) {
+            throw new IllegalArgumentException("Provide exactly one example for each Meta body variable");
+        }
+    }
+
     private static void validateAssetId(String id, String label) {
         if (id == null || !META_ASSET_ID.matcher(id).matches()) {
             throw new IllegalStateException("Invalid Meta " + label);
@@ -252,8 +283,12 @@ public class MetaWhatsAppTemplateCatalog {
     private String metaError(String body) {
         try {
             JsonNode error = json.readTree(body).path("error");
-            return error.isMissingNode() ? "" : ": #" + error.path("code").asText("?") + " "
-                    + error.path("message").asText("");
+            if (error.isMissingNode()) {
+                return "";
+            }
+            String detail = error.path("error_data").path("details").asText("");
+            return ": #" + error.path("code").asText("?") + " " + error.path("message").asText("")
+                    + (detail.isBlank() ? "" : " — " + detail);
         } catch (Exception e) {
             return "";
         }
