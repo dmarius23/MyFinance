@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { templatesApi, type MessageTemplate, type TemplateKind } from "../api/templates";
+import { messagingApi, type WhatsAppTemplateLanguage, type WhatsAppTemplateKind } from "../api/messaging";
 import { ApiError } from "../lib/apiClient";
 import { Field } from "./Field";
 
@@ -31,12 +32,17 @@ export function MessageTemplatesSection() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: templatesApi.list });
+  const whatsapp = useQuery({ queryKey: ["messaging", "whatsapp"], queryFn: messagingApi.getWhatsApp });
 
   const [kind, setKind] = useState<TemplateKind>("TAX");
   // undefined = not edited yet, so the server's text shows through.
   const [draft, setDraft] = useState<{ subject?: string; body?: string }>({});
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
   const [preview, setPreview] = useState<string | null>(null);
+  const [metaName, setMetaName] = useState("");
+  const [metaLanguage, setMetaLanguage] = useState<WhatsAppTemplateLanguage>("ro_RO");
+  const [metaExamples, setMetaExamples] = useState("");
+  const [metaMsg, setMetaMsg] = useState<{ ok?: string; err?: string }>({});
 
   const current: MessageTemplate | undefined = data?.find((x) => x.kind === kind);
   const subject = draft.subject ?? current?.subject ?? "";
@@ -72,6 +78,37 @@ export function MessageTemplatesSection() {
     mutationFn: () => templatesApi.preview(kind, { subject, body }),
     onSuccess: (p) => { setPreview(`${p.subject}\n\n${p.body}`); setMsg({}); },
     onError: fail,
+  });
+
+  const createMeta = useMutation({
+    mutationFn: async () => {
+      const values = new Map<string, number>();
+      const converted = body.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g, (_, name: string) => {
+        const position = values.get(name) ?? values.size + 1;
+        values.set(name, position);
+        return `{{${position}}}`;
+      });
+      const exampleValues = metaExamples.split(",").map((x) => x.trim()).filter(Boolean);
+      if (exampleValues.length !== values.size) {
+        throw new Error(t("templates.metaExamplesCount", { n: values.size }));
+      }
+      const whatsappKind: WhatsAppTemplateKind = kind === "REMINDER_NOTHING_RECEIVED" || kind === "REMINDER_DOCS_MISSING"
+        || kind === "REMINDER_DOCS_ONLY" ? "DOCUMENT_REMINDER" : kind;
+      const created = await messagingApi.createMetaWhatsAppTemplate({
+        name: metaName.trim(), language: metaLanguage, body: converted, exampleValues,
+      });
+      await messagingApi.saveWhatsAppTemplate({
+        kind: whatsappKind, sourceKind: kind,
+        language: metaLanguage, metaTemplateName: metaName.trim(), category: "UTILITY",
+        status: "PENDING", variableSchema: [...values.keys()].join(","),
+      });
+      return created;
+    },
+    onSuccess: () => {
+      setMetaName(""); setMetaExamples(""); setMetaMsg({ ok: t("templates.metaCreated") });
+      void qc.invalidateQueries({ queryKey: ["messaging", "whatsapp-templates"] });
+    },
+    onError: (e) => setMetaMsg({ err: e instanceof ApiError ? e.message : String(e) }),
   });
 
   if (isLoading) return <div className="card">…</div>;
@@ -144,6 +181,34 @@ export function MessageTemplatesSection() {
         <div>
           <p style={hint}>{t("templates.previewNote")}</p>
           <pre style={pre}>{preview}</pre>
+        </div>
+      )}
+
+      {whatsapp.data?.mode === "META_CLOUD_API" && (
+        <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+          <h4 style={{ margin: 0 }}>{t("templates.metaTitle")}</h4>
+          <p style={hint}>{t("templates.metaDesc")}</p>
+          <Field label={t("templates.metaName")}>
+            <input value={metaName} required pattern="[a-z][a-z0-9_]{1,511}"
+              onChange={(e) => setMetaName(e.target.value)} />
+          </Field>
+          <Field label={t("templates.metaLanguage")}>
+            <select value={metaLanguage} onChange={(e) => setMetaLanguage(e.target.value as WhatsAppTemplateLanguage)}>
+              <option value="ro_RO">{t("settings.tpl.lang.ro_RO")}</option>
+              <option value="en_US">{t("settings.tpl.lang.en_US")}</option>
+            </select>
+          </Field>
+          <Field label={t("templates.metaExamples")}>
+            <input value={metaExamples} placeholder="Exemplu SRL, noiembrie 2026"
+              onChange={(e) => setMetaExamples(e.target.value)} />
+          </Field>
+          <p style={hint}>{t("templates.metaExamplesHint")}</p>
+          <button className="primary" type="button" disabled={createMeta.isPending || !metaName.trim() || !body.trim()}
+            onClick={() => { setMetaMsg({}); createMeta.mutate(); }}>
+            {createMeta.isPending ? "…" : t("templates.metaCreate")}
+          </button>
+          {metaMsg.err && <div style={errStyle}>{metaMsg.err}</div>}
+          {metaMsg.ok && <div style={okStyle}>{metaMsg.ok}</div>}
         </div>
       )}
 

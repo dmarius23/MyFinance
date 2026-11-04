@@ -616,7 +616,9 @@ export function ReconcileWorkspace() {
       )}
       {waOpen && c && (
         <WhatsAppModal companyId={companyId} companyName={c.legalName} kind="DOCUMENT_REMINDER" period={period}
-          loadBody={waLoadBody} onClose={() => setWaOpen(false)} />
+          loadBody={waLoadBody}
+          loadSourceKind={() => remindersApi.body(companyId, period).then((r) => r.state)}
+          onClose={() => setWaOpen(false)} />
       )}
       {requesting && c && (
         <SendReminderModal companies={[{ id: companyId, name: c.legalName, hasBankStatement: hasStatement, hasInvoiceOrReceipt: true }]} period={period} onClose={() => setRequesting(false)} />

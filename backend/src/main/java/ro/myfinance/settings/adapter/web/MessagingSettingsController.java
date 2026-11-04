@@ -131,7 +131,7 @@ public class MessagingSettingsController {
     @PutMapping("/whatsapp/templates")
     public WhatsAppTemplateResponse updateWhatsAppTemplate(
             @Valid @RequestBody UpdateWhatsAppTemplate request) {
-        return WhatsAppTemplateResponse.from(templates.upsert(request.kind(), request.language(),
+        return WhatsAppTemplateResponse.from(templates.upsert(request.kind(), request.sourceKind(), request.language(),
                 request.metaTemplateName(), request.category(), request.version(),
                 request.variableSchema(), request.status()));
     }
@@ -166,6 +166,7 @@ public class MessagingSettingsController {
 
     public record UpdateWhatsAppTemplate(
             @jakarta.validation.constraints.NotNull EmailKind kind,
+            @jakarta.validation.constraints.NotNull MessageTemplateKind sourceKind,
             @jakarta.validation.constraints.NotBlank String language,
             @jakarta.validation.constraints.NotBlank String metaTemplateName,
             TenantWhatsAppTemplate.Category category,
@@ -174,12 +175,14 @@ public class MessagingSettingsController {
             TenantWhatsAppTemplate.Status status) {
     }
 
-    public record WhatsAppTemplateResponse(java.util.UUID id, EmailKind kind, String language,
+    public record WhatsAppTemplateResponse(java.util.UUID id, EmailKind kind, MessageTemplateKind sourceKind,
+                                           String language,
                                            String metaTemplateName, TenantWhatsAppTemplate.Category category,
                                            TenantWhatsAppTemplate.Status status, String version,
                                            String variableSchema, java.time.Instant approvedAt) {
         static WhatsAppTemplateResponse from(TenantWhatsAppTemplate template) {
-            return new WhatsAppTemplateResponse(template.getId(), template.getKind(), template.getLanguage(),
+            return new WhatsAppTemplateResponse(template.getId(), template.getKind(), template.getSourceKind(),
+                    template.getLanguage(),
                     template.getMetaTemplateName(), template.getCategory(), template.getStatus(),
                     template.getVersion(), template.getVariableSchema(), template.getApprovedAt());
         }

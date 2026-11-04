@@ -2,6 +2,7 @@ package ro.myfinance.access.application;
 
 import java.util.List;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.whatsapp.MetaWhatsAppTemplateCatalog;
 import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
@@ -25,7 +26,7 @@ public class WhatsAppPreviewService {
         this.meta = meta;
     }
 
-    public Preview preview(EmailKind kind, String language) {
+    public Preview preview(EmailKind kind, MessageTemplateKind sourceKind, String language) {
         var tenant = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
         var provider = providers.findById(tenant)
@@ -33,9 +34,10 @@ public class WhatsAppPreviewService {
                 .orElseThrow(() -> new ConflictException("Meta WhatsApp is not configured"));
         String requested = language == null || language.isBlank() ? "ro_RO" : language;
         String fallback = "ro_RO".equals(requested) ? "en_US" : "ro_RO";
-        TenantWhatsAppTemplate local = templates.findByKindAndLanguage(kind, requested)
+        MessageTemplateKind selectedSource = sourceKind == null ? defaultSource(kind) : sourceKind;
+        TenantWhatsAppTemplate local = templates.findByKindAndSourceKindAndLanguage(kind, selectedSource, requested)
                 .filter(t -> t.getStatus() == TenantWhatsAppTemplate.Status.APPROVED)
-                .or(() -> templates.findByKindAndLanguage(kind, fallback)
+                .or(() -> templates.findByKindAndSourceKindAndLanguage(kind, selectedSource, fallback)
                         .filter(t -> t.getStatus() == TenantWhatsAppTemplate.Status.APPROVED))
                 .orElseThrow(() -> new ConflictException("No approved WhatsApp template is configured for "
                         + kind + "/" + requested));
@@ -47,6 +49,11 @@ public class WhatsAppPreviewService {
                         + "in Meta for " + local.getLanguage()));
         return new Preview(local.getMetaTemplateName(), local.getLanguage(), live.language(), live.status(),
                 live.body(), variableNames(local.getVariableSchema()));
+    }
+
+    private static MessageTemplateKind defaultSource(EmailKind kind) {
+        return kind == EmailKind.DOCUMENT_REMINDER ? MessageTemplateKind.REMINDER_DOCS_MISSING
+                : MessageTemplateKind.valueOf(kind.name());
     }
 
     private static List<String> variableNames(String schema) {

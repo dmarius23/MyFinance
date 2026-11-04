@@ -104,9 +104,9 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
                 values (?, 'META_CLOUD_API', 'waba', 'phone', 'token', now())
                 """, tenant);
         jdbc.update("""
-                insert into tenant_whatsapp_template(tenant_id, kind, language, meta_template_name, status)
-                values (?, 'DOCUMENT_REMINDER', 'en_US', 'hello_world', 'APPROVED'),
-                       (?, 'DOCUMENT_REMINDER', 'ro_RO', 'pending_ro', 'PENDING')
+                insert into tenant_whatsapp_template(tenant_id, kind, source_kind, language, meta_template_name, status)
+                values (?, 'DOCUMENT_REMINDER', 'REMINDER_DOCS_MISSING', 'en_US', 'hello_world', 'APPROVED'),
+                       (?, 'DOCUMENT_REMINDER', 'REMINDER_DOCS_MISSING', 'ro_RO', 'pending_ro', 'PENDING')
                 """, tenant, tenant);
 
         WhatsAppMessage sent = whatsapp.dispatch(EmailKind.DOCUMENT_REMINDER, company, PERIOD,
@@ -128,8 +128,8 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
                 values (?, 'META_CLOUD_API', 'waba', 'phone', 'not-a-ciphertext', now())
                 """, tenant);
         jdbc.update("""
-                insert into tenant_whatsapp_template(tenant_id, kind, language, meta_template_name, status)
-                values (?, 'TAX', 'ro_RO', 'tax_notice', 'APPROVED')
+                insert into tenant_whatsapp_template(tenant_id, kind, source_kind, language, meta_template_name, status)
+                values (?, 'TAX', 'TAX', 'ro_RO', 'tax_notice', 'APPROVED')
                 """, tenant);
 
         WhatsAppMessage sent = whatsapp.dispatch(EmailKind.TAX, company, PERIOD, "Taxe.", null,

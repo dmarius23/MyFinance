@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
 import ro.myfinance.common.whatsapp.TenantWhatsAppTemplateRepository;
@@ -30,16 +31,16 @@ public class WhatsAppTemplateService {
         return templates.findAllByOrderByKindAscLanguageAsc();
     }
 
-    public TenantWhatsAppTemplate upsert(EmailKind kind, String language, String name,
+    public TenantWhatsAppTemplate upsert(EmailKind kind, MessageTemplateKind sourceKind, String language, String name,
                                          TenantWhatsAppTemplate.Category category, String version,
                                          String variableSchema, TenantWhatsAppTemplate.Status status) {
-        validate(kind, language, name);
+        validate(kind, sourceKind, language, name);
         UUID tenantId = TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
-        TenantWhatsAppTemplate template = templates.findByKindAndLanguage(kind, language)
-                .orElseGet(() -> new TenantWhatsAppTemplate(tenantId, kind, language, name, category,
+        TenantWhatsAppTemplate template = templates.findByKindAndSourceKindAndLanguage(kind, sourceKind, language)
+                .orElseGet(() -> new TenantWhatsAppTemplate(tenantId, kind, sourceKind, language, name, category,
                         version, variableSchema));
-        template.update(name, category, version, variableSchema, status);
+        template.update(sourceKind, name, category, version, variableSchema, status);
         return templates.save(template);
     }
 
@@ -49,9 +50,15 @@ public class WhatsAppTemplateService {
         templates.delete(template);
     }
 
-    private static void validate(EmailKind kind, String language, String name) {
+    private static void validate(EmailKind kind, MessageTemplateKind sourceKind, String language, String name) {
         if (kind == null) {
             throw new IllegalArgumentException("Template kind is required");
+        }
+        boolean matches = kind == EmailKind.DOCUMENT_REMINDER
+                ? sourceKind != null && sourceKind.isReminder()
+                : sourceKind != null && sourceKind.name().equals(kind.name());
+        if (!matches) {
+            throw new IllegalArgumentException("WhatsApp source message type does not match its module");
         }
         if (language == null || !LANGUAGE.matcher(language).matches()
                 || (!"ro_RO".equals(language) && !"en_US".equals(language))) {

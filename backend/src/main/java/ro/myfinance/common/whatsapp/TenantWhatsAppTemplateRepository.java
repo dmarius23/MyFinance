@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 
 /** Tenant-scoped WhatsApp template registry. */
 public interface TenantWhatsAppTemplateRepository extends JpaRepository<TenantWhatsAppTemplate, UUID> {
@@ -12,4 +13,7 @@ public interface TenantWhatsAppTemplateRepository extends JpaRepository<TenantWh
     List<TenantWhatsAppTemplate> findAllByOrderByKindAscLanguageAsc();
 
     Optional<TenantWhatsAppTemplate> findByKindAndLanguage(EmailKind kind, String language);
+
+    Optional<TenantWhatsAppTemplate> findByKindAndSourceKindAndLanguage(
+            EmailKind kind, MessageTemplateKind sourceKind, String language);
 }

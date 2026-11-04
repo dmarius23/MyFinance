@@ -256,8 +256,10 @@ export function Statements() {
       {sendList && <SendReminderModal companies={sendList} period={period} onClose={() => setSendList(null)} />}
       {waFor && <WhatsAppModal companyId={waFor.id} companyName={waFor.name} kind="DOCUMENT_REMINDER" period={period}
         loadBody={() => waBody(waFor.id)}
+        loadSourceKind={() => remindersApi.body(waFor.id, period).then((r) => r.state)}
         onClose={() => setWaFor(null)} />}
       {waBulk && <WhatsAppBulkModal targets={waBulk} kind="DOCUMENT_REMINDER" period={period} loadBody={waBody}
+        loadSourceKind={(id) => remindersApi.body(id, period).then((r) => r.state)}
         onClose={() => setWaBulk(null)} onSent={() => { setSelected(new Set()); qc.invalidateQueries({ queryKey: ["doc-reminders", period] }); }} />}
       {logFor && <ReminderLogModal companyId={logFor.id} companyName={logFor.name} period={period}
         onClose={() => setLogFor(null)}

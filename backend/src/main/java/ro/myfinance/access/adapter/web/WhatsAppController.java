@@ -26,6 +26,7 @@ import ro.myfinance.access.application.WhatsAppDispatchService;
 import ro.myfinance.access.application.WhatsAppPreviewService;
 import ro.myfinance.common.email.EmailKind;
 import ro.myfinance.common.email.EmailStatus;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.whatsapp.WhatsAppMessage;
 
 /**
@@ -53,7 +54,8 @@ public class WhatsAppController {
         return WhatsAppView.from(whatsapp.dispatch(req.kind(), companyId, req.period(),
                 req.body(), null, idempotencyKey, req.language(),
                 req.templateVariables() == null ? Map.of() : req.templateVariables(),
-                req.attachmentDocumentIds() == null ? List.of() : req.attachmentDocumentIds(), null));
+                req.attachmentDocumentIds() == null ? List.of() : req.attachmentDocumentIds(),
+                req.sourceKind(), null));
     }
 
     /** WhatsApp send history for a module + company + period (newest first). */
@@ -72,12 +74,14 @@ public class WhatsAppController {
     /** The live Meta template that will actually be sent, for the pre-send staff preview. */
     @GetMapping("/preview")
     public WhatsAppPreviewService.Preview preview(@RequestParam EmailKind kind,
+                                                   @RequestParam(required = false) MessageTemplateKind sourceKind,
                                                    @RequestParam(required = false) String language) {
-        return preview.preview(kind, language);
+        return preview.preview(kind, sourceKind, language);
     }
 
     public record SendRequest(@NotNull EmailKind kind, @NotNull LocalDate period,
                               @Pattern(regexp = "[a-z]{2}_[A-Z]{2}") String language,
+                              MessageTemplateKind sourceKind,
                               Map<String, String> templateVariables,
                               List<UUID> attachmentDocumentIds,
                               @NotBlank @Size(max = 10_000) String body) {

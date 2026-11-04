@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind } from "../api/whatsapp";
+import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind, type WhatsAppSourceKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
@@ -16,13 +16,22 @@ const tm = (iso: string) => new Date(iso).toLocaleTimeString("ro-RO", { hour: "2
  * edit the message, sends it, and shows the send timeline. Delivery is the backend stub for
  * now; a real provider (Twilio) plugs in behind the port later.
  */
-export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, attachments = [], onClose }:
+export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, loadSourceKind,
+  attachments = [], onClose }:
   { companyId: string; companyName: string; kind: WhatsAppKind; period: string;
-    loadBody?: () => Promise<string>; attachments?: WhatsAppAttachment[]; onClose: () => void }) {
+    loadBody?: () => Promise<string>; loadSourceKind?: () => Promise<WhatsAppSourceKind>;
+    attachments?: WhatsAppAttachment[]; onClose: () => void }) {
   const { t } = useTranslation();
   const whatsappConfigured = useWhatsAppConfigured();
   const whatsappMode = useWhatsAppMode();
   const metaMode = whatsappMode === "META_CLOUD_API";
+  const sourceKindQuery = useQuery({
+    queryKey: ["whatsapp-source-kind", companyId, period],
+    queryFn: loadSourceKind!,
+    enabled: metaMode && kind === "DOCUMENT_REMINDER" && !!loadSourceKind,
+    retry: false,
+  });
+  const sourceKind = kind === "DOCUMENT_REMINDER" ? sourceKindQuery.data : undefined;
   const qc = useQueryClient();
   const [phone, setPhone] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -52,8 +61,8 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   });
   const metaPreview = useQuery({
     queryKey: ["whatsapp-meta-preview", companyId, kind, period],
-    queryFn: () => whatsappApi.metaPreview(companyId, kind),
-    enabled: metaMode,
+    queryFn: () => whatsappApi.metaPreview(companyId, kind, sourceKind),
+    enabled: metaMode && (kind !== "DOCUMENT_REMINDER" || !!sourceKind),
     retry: false,
   });
   useEffect(() => {
@@ -71,7 +80,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
 
   const send = useMutation({
     mutationFn: () => whatsappApi.send(companyId, {
-      kind, period, body,
+      kind, period, body, sourceKind,
       attachmentDocumentIds: attachments.filter((a) => !excluded.has(a.id)).map((a) => a.id),
     }),
     onSuccess: () => { setBody(""); setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk }); },

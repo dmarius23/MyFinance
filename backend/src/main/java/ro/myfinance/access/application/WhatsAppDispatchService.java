@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.myfinance.company.adapter.persistence.CompanyRepository;
 import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.email.EmailStatus;
 import ro.myfinance.common.outbox.OutboxWriter;
 import ro.myfinance.common.security.TenantContext;
@@ -90,20 +91,28 @@ public class WhatsAppDispatchService {
     public WhatsAppMessage dispatch(EmailKind kind, UUID companyId, LocalDate period, String body,
                                  List<UUID> relatedIds, String idempotencyKey, Runnable onSent) {
         return dispatch(kind, companyId, period, body, relatedIds, idempotencyKey, "ro_RO", Map.of(),
-                List.of(), onSent);
+                List.of(), null, onSent);
     }
 
     public WhatsAppMessage dispatch(EmailKind kind, UUID companyId, LocalDate period, String body,
                                  List<UUID> relatedIds, String idempotencyKey, String language,
                                  Runnable onSent) {
         return dispatch(kind, companyId, period, body, relatedIds, idempotencyKey, language, Map.of(),
-                List.of(), onSent);
+                List.of(), null, onSent);
     }
 
     public WhatsAppMessage dispatch(EmailKind kind, UUID companyId, LocalDate period, String body,
                                  List<UUID> relatedIds, String idempotencyKey, String language,
                                  Map<String, String> templateVariables, List<UUID> attachmentIds,
                                  Runnable onSent) {
+        return dispatch(kind, companyId, period, body, relatedIds, idempotencyKey, language,
+                templateVariables, attachmentIds, null, onSent);
+    }
+
+    public WhatsAppMessage dispatch(EmailKind kind, UUID companyId, LocalDate period, String body,
+                                 List<UUID> relatedIds, String idempotencyKey, String language,
+                                 Map<String, String> templateVariables, List<UUID> attachmentIds,
+                                 MessageTemplateKind sourceKind, Runnable onSent) {
         UUID tenantId = TenantContext.tenantId().orElseThrow(() -> new IllegalStateException("No tenant bound"));
         UUID userId = TenantContext.current().map(TenantContext.Identity::userId).orElse(null);
         if (kind == null || companyId == null || period == null || body == null || body.isBlank()) {
@@ -136,7 +145,7 @@ public class WhatsAppDispatchService {
             }
             return prior;
         }
-        TenantWhatsAppTemplate template = validateProviderAndTemplate(tenantId, kind, language);
+        TenantWhatsAppTemplate template = validateProviderAndTemplate(tenantId, kind, sourceKind, language);
         YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
         Instant quotaStart = currentMonth.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant quotaEnd = currentMonth.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
@@ -194,12 +203,15 @@ public class WhatsAppDispatchService {
                 .orElseThrow(() -> new NotFoundException("Company not found: " + companyId));
     }
 
-    private java.util.Optional<TenantWhatsAppTemplate> approvedTemplate(EmailKind kind, String language) {
-        return templates.findByKindAndLanguage(kind, language)
+    private java.util.Optional<TenantWhatsAppTemplate> approvedTemplate(EmailKind kind,
+                                                                        MessageTemplateKind sourceKind,
+                                                                        String language) {
+        return templates.findByKindAndSourceKindAndLanguage(kind, sourceKind, language)
                 .filter(t -> t.getStatus() == TenantWhatsAppTemplate.Status.APPROVED);
     }
 
-    private TenantWhatsAppTemplate validateProviderAndTemplate(UUID tenantId, EmailKind kind, String language) {
+    private TenantWhatsAppTemplate validateProviderAndTemplate(UUID tenantId, EmailKind kind,
+                                                               MessageTemplateKind sourceKind, String language) {
         TenantWhatsAppProvider provider = providers.findById(tenantId).orElse(null);
         if (provider == null) {
             if (loggingFallbackEnabled) {
@@ -217,8 +229,9 @@ public class WhatsAppDispatchService {
             }
             String locale = language == null || language.isBlank() ? "ro_RO" : language;
             String fallback = "ro_RO".equals(locale) ? "en_US" : "ro_RO";
-            TenantWhatsAppTemplate template = approvedTemplate(kind, locale)
-                    .or(() -> approvedTemplate(kind, fallback))
+            MessageTemplateKind selectedSource = sourceKind == null ? defaultSource(kind) : sourceKind;
+            TenantWhatsAppTemplate template = approvedTemplate(kind, selectedSource, locale)
+                    .or(() -> approvedTemplate(kind, selectedSource, fallback))
                     .orElseThrow(() -> new ConflictException(
                             "No approved Meta WhatsApp template is configured for " + kind + "/" + locale));
             if (template.getMetaTemplateName().isBlank()) {
@@ -227,6 +240,11 @@ public class WhatsAppDispatchService {
             return template;
         }
         return null;
+    }
+
+    private static MessageTemplateKind defaultSource(EmailKind kind) {
+        return kind == EmailKind.DOCUMENT_REMINDER ? MessageTemplateKind.REMINDER_DOCS_MISSING
+                : MessageTemplateKind.valueOf(kind.name());
     }
 
     private static String fingerprint(EmailKind kind, UUID companyId, LocalDate month,
