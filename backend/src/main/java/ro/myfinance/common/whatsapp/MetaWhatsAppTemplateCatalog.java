@@ -202,6 +202,12 @@ public class MetaWhatsAppTemplateCatalog {
         if (body == null || body.isBlank() || body.length() > 1024) {
             throw new IllegalArgumentException("Meta template body must contain 1–1024 characters");
         }
+        String trimmed = body.trim();
+        if (META_VARIABLE.matcher(trimmed).lookingAt()
+                || trimmed.matches("(?s).*\\{\\{[1-9][0-9]*\\}\\}$")) {
+            throw new IllegalArgumentException(
+                    "Meta template variables cannot be at the beginning or end; add literal text around them");
+        }
         java.util.Set<Integer> positions = new java.util.TreeSet<>();
         java.util.regex.Matcher matcher = META_VARIABLE.matcher(body);
         int cursor = 0;
