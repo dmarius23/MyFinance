@@ -43,6 +43,7 @@ export function MessageTemplatesSection() {
   const [metaLanguage, setMetaLanguage] = useState<WhatsAppTemplateLanguage>("ro_RO");
   const [metaExamples, setMetaExamples] = useState("");
   const [metaMsg, setMetaMsg] = useState<{ ok?: string; err?: string }>({});
+  const [fillingExamples, setFillingExamples] = useState(false);
 
   const current: MessageTemplate | undefined = data?.find((x) => x.kind === kind);
   const subject = draft.subject ?? current?.subject ?? "";
@@ -80,17 +81,52 @@ export function MessageTemplatesSection() {
     onError: fail,
   });
 
+  const convertedMetaBody = () => {
+    const values = new Map<string, number>();
+    const converted = body.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g, (_, name: string) => {
+      const position = values.get(name) ?? values.size + 1;
+      values.set(name, position);
+      return `{{${position}}}`;
+    });
+    return { converted, names: [...values.keys()] };
+  };
+
+  const fillMetaExamples = async () => {
+    const { names } = convertedMetaBody();
+    if (names.length === 0) {
+      setMetaMsg({ err: t("templates.metaExamplesNone") });
+      return;
+    }
+    setFillingExamples(true);
+    setMetaMsg({});
+    try {
+      const preview = await templatesApi.preview(kind, { subject, body });
+      const examples = names.map((name) => (preview.sampleValues[name] ?? name)
+        .replaceAll(",", ";")
+        .replace(/\s+/g, " ")
+        .trim());
+      setMetaExamples(examples.join(", "));
+    } catch (e) {
+      setMetaMsg({ err: e instanceof ApiError ? e.message : String(e) });
+    } finally {
+      setFillingExamples(false);
+    }
+  };
+
   const createMeta = useMutation({
     mutationFn: async () => {
-      const values = new Map<string, number>();
-      const converted = body.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g, (_, name: string) => {
-        const position = values.get(name) ?? values.size + 1;
-        values.set(name, position);
-        return `{{${position}}}`;
-      });
-      const exampleValues = metaExamples.split(",").map((x) => x.trim()).filter(Boolean);
-      if (exampleValues.length !== values.size) {
-        throw new Error(t("templates.metaExamplesCount", { n: values.size }));
+      const { converted, names } = convertedMetaBody();
+      let exampleValues = metaExamples.split(",").map((x) => x.trim()).filter(Boolean);
+      if (!metaExamples.trim()) {
+        const preview = await templatesApi.preview(kind, { subject, body });
+        exampleValues = names.map((name) => (preview.sampleValues[name] ?? name)
+          .replaceAll(",", ";")
+          .replace(/\s+/g, " ")
+          .trim());
+        setMetaExamples(exampleValues.join(", "));
+      }
+      if (exampleValues.length !== names.length) {
+        throw new Error(t("templates.metaExamplesCount", { n: names.length }));
       }
       const whatsappKind: WhatsAppTemplateKind = kind === "REMINDER_NOTHING_RECEIVED" || kind === "REMINDER_DOCS_MISSING"
         || kind === "REMINDER_DOCS_ONLY" ? "DOCUMENT_REMINDER" : kind;
@@ -100,7 +136,7 @@ export function MessageTemplatesSection() {
       await messagingApi.saveWhatsAppTemplate({
         kind: whatsappKind, sourceKind: kind,
         language: metaLanguage, metaTemplateName: metaName.trim(), category: "UTILITY",
-        status: "PENDING", variableSchema: [...values.keys()].join(","),
+        status: "PENDING", variableSchema: names.join(","),
       });
       return created;
     },
@@ -203,6 +239,10 @@ export function MessageTemplatesSection() {
               onChange={(e) => setMetaExamples(e.target.value)} />
           </Field>
           <p style={hint}>{t("templates.metaExamplesHint")}</p>
+          <button type="button" disabled={fillingExamples || createMeta.isPending}
+            onClick={() => { void fillMetaExamples(); }}>
+            {fillingExamples ? "…" : t("templates.metaExamplesAuto")}
+          </button>
           <button className="primary" type="button" disabled={createMeta.isPending || !metaName.trim() || !body.trim()}
             onClick={() => { setMetaMsg({}); createMeta.mutate(); }}>
             {createMeta.isPending ? "…" : t("templates.metaCreate")}
