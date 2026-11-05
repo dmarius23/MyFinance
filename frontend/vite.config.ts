@@ -18,6 +18,9 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/],
         importScripts: ["push-sw.js"],
+        // woff2 is absent from Workbox's default glob. The fonts are self-hosted rather than on a
+        // CDN, so without this the installed PWA loses its typography offline.
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,webmanifest}"],
       },
       manifest: {
         name: "MyFinance",
