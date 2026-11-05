@@ -193,3 +193,72 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 .pill.teal { background: var(--teal-chip-bg); color: var(--teal-chip-fg); border-color: var(--teal-chip-bd); }
 .pill.muted { background: var(--th-bg); color: var(--text-muted); border-color: var(--hair); }
 .pill.purple { background: var(--purple-bg); color: var(--purple-fg); }
+
+/* ---- Legal links (login, firm sidebar, rep PWA) -------------------------- */
+.legal-links {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 12px;
+}
+.legal-links a { text-decoration: underline; }
+.legal-links-light { margin-top: 12px; color: var(--text-muted); }
+.legal-links-light a { color: var(--text-secondary); }
+.legal-links-dark { padding: 10px 12px; color: var(--chrome-muted); }
+.legal-links-dark a { color: var(--chrome-text); }
+.legal-links-dark a:hover { color: var(--chrome-text-active); }
+
+/* ---- Legal document page ------------------------------------------------- */
+.legal-page { min-height: 100vh; background: var(--bg); }
+.legal-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: var(--topbar-height);
+  background: var(--chrome-bg); color: var(--chrome-text-active);
+  position: sticky; top: 0; z-index: 10;
+}
+.legal-bar-brand { font-weight: 700; font-size: 14px; }
+.legal-back, .legal-lang {
+  background: none; border: none; padding: 6px 8px; border-radius: 8px;
+  color: var(--chrome-text); font-size: 13px; cursor: pointer;
+}
+.legal-back:hover, .legal-lang:hover { background: var(--chrome-active); color: var(--chrome-text-active); }
+.legal-lang { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+
+.legal-main { padding: 24px 16px 64px; }
+/* ~70ch keeps legal prose in the comfortable reading range. */
+.legal-doc { max-width: 70ch; margin: 0 auto; }
+.legal-doc h1 { font-size: 22px; line-height: 1.3; margin: 0 0 6px; color: var(--text); }
+.legal-doc h2 { font-size: 16px; margin: 28px 0 8px; color: var(--primary-dark); }
+.legal-doc p { font-size: 14.5px; line-height: 1.65; color: var(--text); margin: 0 0 12px; }
+.legal-subtitle { color: var(--text-secondary); font-size: 13px !important; }
+.legal-list { margin: 0 0 12px; padding-left: 22px; }
+.legal-list li { font-size: 14.5px; line-height: 1.6; margin-bottom: 6px; }
+
+.legal-banner {
+  border: 1px solid transparent; border-radius: var(--radius);
+  padding: 11px 13px; font-size: 13px !important; line-height: 1.55 !important;
+}
+.legal-banner-warn { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-fg) !important; }
+.legal-banner-info { background: var(--info-bg); border-color: var(--info-bd); color: var(--info-fg) !important; }
+
+/* Clauses that must not be skimmed past (e.g. extracted amounts are non-authoritative). */
+.legal-callout {
+  background: var(--hair); border-left: 3px solid var(--primary);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 12px 14px; font-weight: 600;
+}
+
+/* Unfilled [DE COMPLETAT] markers — visible on purpose, so draft text reads as draft. */
+.legal-todo {
+  background: var(--warn-bg); color: var(--warn-fg);
+  border-radius: 4px; padding: 0 4px; font-size: 0.92em; font-weight: 600;
+}
+
+.legal-toc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 16px; margin: 20px 0 28px;
+}
+.legal-toc h2 { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.legal-toc ul { margin: 0; padding: 0; list-style: none; }
+.legal-toc li { font-size: 13px; line-height: 1.7; }
+/* Anchor jumps must clear the sticky bar. */
+.legal-section { scroll-margin-top: calc(var(--topbar-height) + 12px); }
+.legal-footnote { margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px !important; color: var(--text-secondary) !important; }

@@ -7,6 +7,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
 import { GranularitySelector } from "../components/GranularitySelector";
+import { LegalLinks } from "../components/LegalLinks";
 import { PortalPreviewModal } from "../components/PortalPreviewModal";
 import { currentPushState, enablePush, disablePush, type PushState } from "../lib/push";
 
@@ -438,6 +439,9 @@ export function RepHome() {
               </div>
             )}
           </>)}
+
+          {/* Legal links sit at the end of the scroll on both screens, above the tab bar. */}
+          <LegalLinks />
         </div>
 
         {/* ===== bottom tab bar ===== */}
