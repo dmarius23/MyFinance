@@ -22,7 +22,7 @@ jobs:
         run: mvn -B -e verify
 
   frontend:
-    name: Frontend (build + lint)
+    name: Frontend (build + lint + test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         working-directory: frontend
         run: npm run lint
+      - name: Test
+        working-directory: frontend
+        run: npm test
       - name: Type-check & build
         working-directory: frontend
         run: npm run build
