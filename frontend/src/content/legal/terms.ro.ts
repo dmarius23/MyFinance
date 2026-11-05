@@ -25,7 +25,7 @@ export const termsRo: LegalDocument = {
           },
           {
             "kind": "p",
-            "text": "Date de contact: e-mail dmarius23@gmail.com, telefon [DE COMPLETAT]. Adresa web la care este disponibilă Aplicația: [DE COMPLETAT]."
+            "text": "Date de contact: e-mail contact@myfinance.ro, telefon [DE COMPLETAT]. Adresa web la care este disponibilă Aplicația: [DE COMPLETAT]."
           },
           {
             "kind": "p",
@@ -540,7 +540,7 @@ export const termsRo: LegalDocument = {
           },
           {
             "kind": "p",
-            "text": "E-mail: dmarius23@gmail.com"
+            "text": "E-mail: contact@myfinance.ro"
           }
         ]
       },

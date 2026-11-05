@@ -20,7 +20,7 @@ export const privacyRo: LegalDocument = {
           },
           {
             "kind": "p",
-            "text": "Pentru întrebări privind protecția datelor ne puteți contacta la: dmarius23@gmail.com"
+            "text": "Pentru întrebări privind protecția datelor ne puteți contacta la: contact@myfinance.ro"
           }
         ]
       },
@@ -295,7 +295,7 @@ export const privacyRo: LegalDocument = {
           },
           {
             "kind": "p",
-            "text": "Operator: INNOVATE CODE SRLAdresă: Cluj-Napoca, Strada Stefan Augustin Doinas, nr 2b-2cE-mail: dmarius23@gmail.com"
+            "text": "Operator: INNOVATE CODE SRLAdresă: Cluj-Napoca, Strada Stefan Augustin Doinas, nr 2b-2cE-mail: contact@myfinance.ro"
           }
         ]
       },
