@@ -38,7 +38,12 @@ It does not repeat the root — read that too.
 
 ## Testing & definition of done
 
-Vitest + React Testing Library (to be stood up); cover the security-sensitive flows (logout-clears-state,
-`RequireRole`, `apiClient` auth/401). `eslint` (with `jsx-a11y`) + typecheck + build green; SCA in CI; no
-secrets in the bundle. **Accessibility is part of DoD:** semantic HTML, focus-trapped modals with
-Escape-to-close, labelled inputs, WCAG-AA contrast.
+Vitest + React Testing Library: `npm test` (watch: `npm run test:watch`). Config in `vitest.config.ts`
+(separate from `vite.config.ts` so the PWA plugin stays out of test runs); matchers and RTL cleanup in
+`src/test/setup.ts`. `globals` is off — import `describe`/`it`/`expect` from `vitest` explicitly. Tests
+live beside the code as `*.test.ts(x)`. Pinned to Vitest 2.x: v4+ requires Vite 6.
+
+Still to cover: the security-sensitive flows (logout-clears-state, `RequireRole`, `apiClient` auth/401).
+`eslint` (with `jsx-a11y`) + typecheck + build green; SCA in CI; no secrets in the bundle.
+**Accessibility is part of DoD:** semantic HTML, focus-trapped modals with Escape-to-close, labelled
+inputs, WCAG-AA contrast.
