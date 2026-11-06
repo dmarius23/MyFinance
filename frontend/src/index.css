@@ -202,9 +202,25 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 .legal-links a { text-decoration: underline; }
 .legal-links-light { justify-content: center; margin-top: 12px; color: var(--text-muted); }
 .legal-links-light a { color: var(--text-secondary); }
-/* Left-aligned, and padded to match `.sidebar nav a` (7px 9px) so the links sit on the same
-   vertical edge as the navigation above and the account row below. */
-.legal-links-dark { padding: 7px 9px; color: var(--chrome-muted); }
+/* LegalLinks renders a <nav>, so inside the sidebar it ALSO matches `.sidebar nav a`, which sets
+   font-size 13px and outranks a plain `.legal-links-dark a` (1 class + 2 elements beats 1 + 1).
+   These rules therefore carry the `.sidebar` prefix so they actually win the cascade.
+
+   Layout: the sidebar is 210px, far too narrow for both Romanian labels side by side — the flex
+   row shrank each item until its text broke mid-phrase. Stack them one per row instead, on the
+   same 9px left edge as the navigation above. 11px matches `.who-role` / `.brand-sub`, the
+   sidebar's other secondary text, and leaves slack so the longer label cannot wrap. */
+.sidebar .legal-links-dark {
+  flex-direction: column; align-items: stretch; gap: 0;
+  padding: 4px 0; color: var(--chrome-muted);
+}
+.sidebar .legal-links-dark a {
+  padding: 4px 9px; font-size: 11px; font-weight: 400;
+  color: var(--chrome-text); border-radius: 0;
+}
+.sidebar .legal-links-dark a:hover { color: var(--chrome-text-active); }
+/* The "·" only separates links sitting on one line; stacked, it is noise. */
+.sidebar .legal-links-dark > span[aria-hidden="true"] { display: none; }
 .legal-links-dark a { color: var(--chrome-text); }
 .legal-links-dark a:hover { color: var(--chrome-text-active); }
 
