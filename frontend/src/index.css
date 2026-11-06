@@ -196,13 +196,15 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 
 /* ---- Legal links (login, firm sidebar, rep PWA) -------------------------- */
 .legal-links {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   font-size: 12px;
 }
 .legal-links a { text-decoration: underline; }
-.legal-links-light { margin-top: 12px; color: var(--text-muted); }
+.legal-links-light { justify-content: center; margin-top: 12px; color: var(--text-muted); }
 .legal-links-light a { color: var(--text-secondary); }
-.legal-links-dark { padding: 10px 12px; color: var(--chrome-muted); }
+/* Left-aligned, and padded to match `.sidebar nav a` (7px 9px) so the links sit on the same
+   vertical edge as the navigation above and the account row below. */
+.legal-links-dark { padding: 7px 9px; color: var(--chrome-muted); }
 .legal-links-dark a { color: var(--chrome-text); }
 .legal-links-dark a:hover { color: var(--chrome-text-active); }
 
@@ -262,3 +264,11 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 /* Anchor jumps must clear the sticky bar. */
 .legal-section { scroll-margin-top: calc(var(--topbar-height) + 12px); }
 .legal-footnote { margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px !important; color: var(--text-secondary) !important; }
+
+/* ---- Utilities ----------------------------------------------------------- */
+/* Visible to assistive technology only. clip-path + 1px box is the variant that survives
+   `display:flex` parents; `display:none` or `visibility:hidden` would hide it from AT too. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
