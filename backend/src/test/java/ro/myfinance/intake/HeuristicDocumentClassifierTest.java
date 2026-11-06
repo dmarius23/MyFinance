@@ -156,10 +156,59 @@ class HeuristicDocumentClassifierTest {
 
     @Test
     void revolutStatementIsBankStatement() throws Exception {
-        // "revolut" is unambiguous — a Revolut-branded PDF classifies as a statement even without
-        // the Romanian ("extras de cont") or English ("Transactions List") markers.
+        // A Revolut statement carries no Romanian ("extras de cont") or English ("Transactions List")
+        // title marker, so it is recognised by its transaction-table header instead.
         assertThat(classifier.classify("x.pdf", "application/pdf",
                 pdfWithText("Revolut Bank UAB Monthly statement Money out Money in Balance")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
+    void invoiceMentioningRevolutIsInvoiceNotStatement() throws Exception {
+        // A company that banks with Revolut prints "Revolut Bank UAB" and its IBAN in the payment
+        // details of every invoice it issues. The brand name alone must not outrank "factura" —
+        // otherwise every invoice of a Revolut-banked company is filed as a bank statement.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("FACTURA nr 104 Cont Revolut Bank UAB RO04 BREL0000000000000001 Total de plata 1200.00")))
+                .isEqualTo(DocumentType.INVOICE);
+        // Same for an English-language invoice paid into a Revolut account.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("INVOICE 2026-104 Beneficiary Revolut Bank UAB IBAN RO04 BREL0000000000000001")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void revolutStatementWithInvoiceWordInDescriptionIsStillStatement() throws Exception {
+        // Statement transaction descriptions routinely mention an invoice ("Payment for invoice 104").
+        // The statement-table signature must be checked BEFORE the invoice rule so this still files
+        // as a statement.
+        assertThat(classifier.classify("account-statement_01-Sep-2026_30-Sep-2026.pdf", "application/pdf",
+                pdfWithText("Revolut Bank UAB Monthly statement Date Description Money out Money in Balance "
+                        + "4 Sep 2026 MOS To Codesio Software SRL Payment for invoice 104 1200.00 RON")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
+    void foreignSupplierInvoicePayableToRevolutIsInvoice() throws Exception {
+        // Real shape from the firm's Drive: "ATT_41_OC_EMEA_Limited.pdf" / "ATT_38_Next_Ventures_Limited.pdf"
+        // — English invoices from UK suppliers that bank with Revolut, so the remittance block names
+        // Revolut while the document itself never says "factura". Only the "invoice" marker identifies it.
+        assertThat(classifier.classify("ATT_41_OC_EMEA_Limited.pdf", "application/pdf",
+                pdfWithText("OC EMEA Limited INVOICE No 41 Date 15 Oct 2026 Services rendered "
+                        + "Please remit to Revolut Bank UAB Beneficiary OC EMEA Limited Total due 2400.00 EUR")))
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("ATT_38_Next_Ventures_Limited.pdf", "application/pdf",
+                pdfWithText("Next Ventures Limited Invoice 38 Bank Revolut IBAN LT12 3250 0123 4567 8901 "
+                        + "Amount payable 5100.00 EUR")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void revolutBrandedDocumentWithNoInvoiceSignalIsStatement() throws Exception {
+        // A Revolut-branded PDF with neither the money-in/out table nor any invoice signal still falls
+        // to the weak bank-name fallback, exactly like the other banks.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Revolut Bank UAB account activity 01 Sep 2026 - 30 Sep 2026")))
                 .isEqualTo(DocumentType.BANK_STATEMENT);
     }
 }

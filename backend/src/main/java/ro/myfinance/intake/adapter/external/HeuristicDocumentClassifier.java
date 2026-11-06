@@ -74,9 +74,14 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
             return DocumentType.TRIAL_BALANCE;
         }
         // Strong, statement-specific markers next (so a statement is never mistaken for anything else).
-        // "revolut" is unambiguous — only appears in Revolut-branded PDFs and exports.
-        if (containsAny(text, "extras de cont", "transactions list", "sold anterior",
-                "sold final", "rulaj zi", "rulaj total cont", "revolut")) {
+        // A Revolut statement has no "extras de cont" / "Transactions List" title, so it is matched on
+        // its transaction-table header — the same signature RevolutStatementParser.supports() uses. The
+        // bare brand name is NOT a statement marker: a company banking with Revolut prints "Revolut Bank
+        // UAB" and its IBAN in the payment details of every invoice it issues, and those are invoices.
+        boolean revolutStatement = text.contains("revolut")
+                && text.contains("money out") && text.contains("money in");
+        if (revolutStatement || containsAny(text, "extras de cont", "transactions list",
+                "sold anterior", "sold final", "rulaj zi", "rulaj total cont")) {
             return DocumentType.BANK_STATEMENT;
         }
         // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
@@ -88,7 +93,8 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
         }
         // Weak fallback: a bank name with NO invoice signal → most likely a statement. An invoice-like
         // document (incl. a proforma) that merely prints its bank/IBAN must not be caught here.
-        if (!invoiceLike && containsAny(text, "brd", "banca transilvania", "bcr", "ing bank", "raiffeisen")) {
+        if (!invoiceLike && containsAny(text, "brd", "banca transilvania", "bcr", "ing bank",
+                "raiffeisen", "revolut")) {
             return DocumentType.BANK_STATEMENT;
         }
         return DocumentType.UNCLASSIFIED;
