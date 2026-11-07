@@ -742,6 +742,13 @@ public class IngestionService {
         if (ct == DocumentType.UNCLASSIFIED) {
             ct = reclassifier.tryClassify(mime(f), bytes).orElse(ct);
         }
+        // Still unknown: fall back to how the firm itself filed it. A document sitting in "Facturi
+        // achizitii" is an invoice even when its text is in a language the markers don't cover, and
+        // refusing it threw away the one signal that was already there in the path. Content still wins
+        // whenever it is confident — this only rescues what would otherwise be rejected just below.
+        if (ct == DocumentType.UNCLASSIFIED) {
+            ct = FolderMapper.resolveType(f).orElse(ct);
+        }
         if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE && ct != DocumentType.RECEIPT) {
             String reason = "Doar extrase de cont, facturi și chitanțe/OP sunt acceptate din acest folder (detectat: " + ct + ")";
             writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
