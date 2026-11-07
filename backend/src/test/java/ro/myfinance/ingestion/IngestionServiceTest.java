@@ -255,6 +255,41 @@ class IngestionServiceTest {
     }
 
     @Test
+    void accountingSyncScopedToAMonthIgnoresTheSameMonthOfAnotherYear() {
+        // The reps keep several years side by side, so "Ianuarie" exists for 2026, 2027, 2028… A sync asked
+        // for January 2027 must take only that one. This used to collapse: the month folder's own year was
+        // ignored in favour of the first 20xx anywhere in the path, so both folders resolved to the same
+        // month and the scope filter could not tell them apart.
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.files = List.of(
+                new CloudFolderConnector.RemoteFile("old", "factura-a.pdf",
+                        "Contabilitate ACME SRL/Facturi achizitii/2026/Ianuarie 2026", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("new", "factura-b.pdf",
+                        "Contabilitate ACME SRL/Facturi achizitii/2027/Ianuarie 2027", "application/pdf", 100, "e2", null));
+        when(classifier.classify(any(), any(), any())).thenReturn(DocumentType.INVOICE);
+        when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+        Document doc = mock(Document.class);
+        lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
+        lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2027, 1, 1));
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2027, 1, 1)), eq("factura-b.pdf"), any(), any(),
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
+        verify(documents, never()).upload(any(), any(), eq("factura-a.pdf"), any(), any(), any(), any());
+    }
+
+    @Test
     void accountingDriveStillRefusesMisfiledPayrollDeclarationsAndBalances() {
         // The flip side: a payroll file, a D-form or a trial balance sitting in the accounting folder is a
         // genuine filing mistake in Drive — those stay refused so the mistake stays visible, rather than
