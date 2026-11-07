@@ -749,7 +749,16 @@ public class IngestionService {
         if (ct == DocumentType.UNCLASSIFIED) {
             ct = FolderMapper.resolveType(f).orElse(ct);
         }
-        if (ct != DocumentType.BANK_STATEMENT && ct != DocumentType.INVOICE && ct != DocumentType.RECEIPT) {
+        // Refuse only what is positively mis-filed: a payroll file, a D-form or a trial balance in the
+        // accounting folder is a filing mistake in Drive, and the "not imported" warning is how the
+        // accountant gets to see it (those documents also belong to the declarations drive, which owns
+        // them — importing here would duplicate them onto the invoices screen).
+        //
+        // An UNCLASSIFIED document is NOT refused. Being unrecognised is not a filing error, and refusing
+        // it left the accountant with no way forward: a refused file exists only as a ledger row in the
+        // "not imported" card, which has no type picker, whereas an imported one appears in the Files list
+        // where the type can be set — and setting it re-validates and re-runs extraction for the new type.
+        if (ct == DocumentType.PAYROLL || ct == DocumentType.DECLARATION || ct == DocumentType.TRIAL_BALANCE) {
             String reason = "Doar extrase de cont, facturi și chitanțe/OP sunt acceptate din acest folder (detectat: " + ct + ")";
             writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
             issues.add(new SyncResult.Issue(f.name(), reason));
