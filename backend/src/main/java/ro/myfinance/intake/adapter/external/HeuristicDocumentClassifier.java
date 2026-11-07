@@ -80,16 +80,34 @@ public class HeuristicDocumentClassifier implements DocumentClassifier {
         // UAB" and its IBAN in the payment details of every invoice it issues, and those are invoices.
         boolean revolutStatement = text.contains("revolut")
                 && text.contains("money out") && text.contains("money in");
+        // "kontoauszug" is the German statement title. It is listed here, ABOVE the invoice rule, because
+        // that rule now matches "rechnung" — and a German statement's transaction lines routinely name an
+        // invoice ("Zahlung Rechnung 456"), which would otherwise flip the whole statement to INVOICE.
         if (revolutStatement || containsAny(text, "extras de cont", "transactions list",
-                "sold anterior", "sold final", "rulaj zi", "rulaj total cont")) {
+                "sold anterior", "sold final", "rulaj zi", "rulaj total cont", "kontoauszug")) {
             return DocumentType.BANK_STATEMENT;
         }
         // An invoice ("factura"), including a copy or duplicate, must win over a mere bank-name mention
         // (e.g. a BT Leasing invoice contains "Banca Transilvania" but is NOT a statement). A PROFORMA
         // invoice is not a fiscal document, so it stays unclassified.
-        boolean invoiceLike = containsAny(text, "factur", "invoice");
+        //
+        // The word list is multilingual because the clients buy abroad: a Bolt ride in Berlin or a German
+        // hotel bill says "Rechnung" and never "factura"/"invoice", and such a document used to fall through
+        // to UNCLASSIFIED and be refused at the Drive gate. "factur" also covers the French "facture" and
+        // the Spanish "factura"; Dutch "factuur" and Hungarian "szamla" (diacritics already folded) do not
+        // share that stem and are listed separately. A German proforma reads "Proformarechnung", so the
+        // proforma guard below still catches it.
+        boolean invoiceLike = containsAny(text, "factur", "invoice", "rechnung", "fattura", "factuur", "szamla");
         if (invoiceLike && !containsAny(text, "proforma", "pro forma")) {
             return DocumentType.INVOICE;
+        }
+        // A plain receipt — the word itself, in the languages the clients actually receive. Until now
+        // RECEIPT was only reachable through the payment-order phrasing tested at the top, so an ordinary
+        // "Here's your receipt …" (Uber Eats, Stripe) matched nothing at all and was refused even though
+        // the Drive gate accepts receipts. Tested AFTER the invoice rule on purpose: invoices routinely
+        // say "receipt" ("please retain this receipt", "receipt of goods") and must stay invoices.
+        if (containsAny(text, "receipt", "chitanta", "bon fiscal", "quittung", "ricevuta", "recibo")) {
+            return DocumentType.RECEIPT;
         }
         // Weak fallback: a bank name with NO invoice signal → most likely a statement. An invoice-like
         // document (incl. a proforma) that merely prints its bank/IBAN must not be caught here.

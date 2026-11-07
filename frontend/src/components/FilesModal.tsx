@@ -8,6 +8,7 @@ import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { useSyncTracker } from "./SyncTracker";
+import { typeAdvisory } from "./documentTypeAdvisory";
 import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
@@ -230,7 +231,9 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 const isStmt = d.type === "BANK_STATEMENT";
                 const showHeader = i === 0 || (ordered[i - 1].type === "BANK_STATEMENT") !== isStmt;
                 const isInvoice = d.type === "INVOICE" || d.type === "RECEIPT";
-                const wrongType = !["BANK_STATEMENT", "INVOICE", "RECEIPT"].includes(d.type);
+                const advisory = typeAdvisory(d.type);
+                const needsType = advisory === "needsType";
+                const wrongType = advisory === "wrongType";
                 const pay = st?.paymentStatus; // UNPAID | PARTIAL | PAID | null
                 const payStyle = pay === "PAID" ? { bg: "#dcfce7", bd: "#16a34a" }
                   : pay === "PARTIAL" ? { bg: "#fef3c7", bd: "#d97706" }
@@ -262,6 +265,11 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 // Advisory labels shown on the last line (duplicate / wrong party / outside period).
                 const labels = (
                   <>
+                    {needsType && (
+                      <span title={t("doc.warn.needsType")} style={chip("#fef3c7", "#92400e", "#fde68a")}>
+                        {t("doc.needsTypeChip")}
+                      </span>
+                    )}
                     {wrongType && (
                       <span title={t("doc.warn.wrongType")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
                         {t("doc.wrongTypeChip")}

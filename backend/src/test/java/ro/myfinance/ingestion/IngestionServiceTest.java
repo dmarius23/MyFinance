@@ -210,9 +210,11 @@ class IngestionServiceTest {
     }
 
     @Test
-    void accountingDriveClassifiesByContentAndAcceptsOnlyBankAndInvoice() {
-        // The ACCOUNTING (contabilitate clienti) drive: Company/year-month/mixed. Type is decided by CONTENT;
-        // only bank statements & invoices are accepted, anything else goes to review.
+    void accountingDriveImportsAnUnrecognisedFileForManualTyping() {
+        // The ACCOUNTING (contabilitate clienti) drive: Company/year-month/mixed. Type is decided by CONTENT,
+        // but a file the classifier cannot place is IMPORTED as UNCLASSIFIED rather than refused — otherwise
+        // it never becomes a document and the accountant has nothing to re-type. (A refused file only exists
+        // as a ledger row in the "not imported" card, which carries no type picker.)
         TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
         SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
         acct.setPurpose("ACCOUNTING");
@@ -241,12 +243,50 @@ class IngestionServiceTest {
 
         var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
 
-        assertThat(r.imported()).isEqualTo(2);    // extras (bank) + factura (invoice)
-        assertThat(r.needsReview()).isEqualTo(1); // random → not a bank/invoice
+        assertThat(r.imported()).isEqualTo(3);    // extras (bank) + factura (invoice) + random (unclassified)
+        assertThat(r.needsReview()).isZero();
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("extras.pdf"), any(), any(),
                 eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE));
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("factura.pdf"), any(), any(),
                 eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
+        // Imported with the type left UNCLASSIFIED, so the Files list shows it with the type picker.
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("random.pdf"), any(), any(),
+                eq(DocumentType.UNCLASSIFIED), eq(DocumentSource.DRIVE));
+    }
+
+    @Test
+    void accountingDriveStillRefusesMisfiledPayrollDeclarationsAndBalances() {
+        // The flip side: a payroll file, a D-form or a trial balance sitting in the accounting folder is a
+        // genuine filing mistake in Drive — those stay refused so the mistake stays visible, rather than
+        // being imported and silently showing up on the invoices screen (and doubling with the
+        // declarations drive, which owns them).
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        fake.files = List.of(
+                new CloudFolderConnector.RemoteFile("p", "fluturas.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null),
+                new CloudFolderConnector.RemoteFile("d", "d112.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e2", null),
+                new CloudFolderConnector.RemoteFile("t", "balanta.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e3", null));
+        when(classifier.classify(any(), any(), any())).thenAnswer(inv -> {
+            String name = inv.getArgument(0);
+            if (name.startsWith("fluturas")) return DocumentType.PAYROLL;
+            if (name.startsWith("d112")) return DocumentType.DECLARATION;
+            return DocumentType.TRIAL_BALANCE;
+        });
+        when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
+
+        assertThat(r.imported()).isZero();
+        assertThat(r.needsReview()).isEqualTo(3);
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

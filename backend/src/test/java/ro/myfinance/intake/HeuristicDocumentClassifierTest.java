@@ -204,6 +204,97 @@ class HeuristicDocumentClassifierTest {
     }
 
     @Test
+    void germanInvoiceIsInvoice() throws Exception {
+        // Real file from the firm's Drive: "Ride invoice from Bolt 32.pdf" is a GERMAN Bolt ride invoice —
+        // it says "Rechnung", never "factura"/"invoice", so it used to end up UNCLASSIFIED and the Drive
+        // gate refused it. The word "invoice" is only in the FILENAME, which the marker rules never see.
+        assertThat(classifier.classify("Ride invoice from Bolt 32.pdf", "application/pdf",
+                pdfWithText("Rechnung Rechnungsnummer 2759309-DE1126-197583 Datum: 24-09-2026 "
+                        + "Bolt Operations OU im Auftrag von: Agile transformation trailblazers SRL "
+                        + "Fahrpreis 49.13 MwSt. 19% Bruttobetrag (EUR): 59.90")))
+                .isEqualTo(DocumentType.INVOICE);
+        // Real file: "Invoice-GINNBP-GBP-260923075.pdf" — a German hotel bill for the same company.
+        assertThat(classifier.classify("Invoice-GINNBP-GBP-260923075.pdf", "application/pdf",
+                pdfWithText("Rechnungsnr.: GBP-260923075 Datum: 23.09.2026 Rechnung fur Ihren Aufenthalt "
+                        + "Komfort Zimmer Fruhstuck Zwischensumme (inkl. MwSt.) 1247.40 EUR "
+                        + "GINN Hotelmanagement GmbH Bankverbindung: Berliner Volksbank eG")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void germanStatementListingAnInvoiceIsStillStatement() throws Exception {
+        // A German statement's transaction lines name invoices ("Zahlung Rechnung 456"). Because the
+        // invoice rule now matches "rechnung", the German statement title must be checked before it or
+        // the whole statement flips to INVOICE.
+        assertThat(classifier.classify("kontoauszug.pdf", "application/pdf",
+                pdfWithText("Kontoauszug Nr. 9 Commerzbank Buchung Zahlung Rechnung 456 "
+                        + "Alter Saldo 1000.00 Neuer Saldo 940.00 EUR")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
+    void invoiceInOtherEuLanguagesIsInvoice() throws Exception {
+        // The clients buy across the EU, so the invoice word list is multilingual.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("FACTURE n 2026-14 Montant total 450.00 EUR")))      // French
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("FATTURA n. 77 Imponibile 300.00 EUR IVA 22%")))      // Italian
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Factuur nummer 2026-9 Totaal 120.00 EUR BTW 21%")))  // Dutch
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("SZAMLA sorszam 2026/55 Osszesen 40000 HUF")))        // Hungarian
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void germanProformaIsStillNotAFiscalDocument() throws Exception {
+        // "Proformarechnung" contains both "rechnung" and "proforma" — the proforma guard must still win.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Proformarechnung Nr 5 Gesamtbetrag 100.00 EUR")))
+                .isEqualTo(DocumentType.UNCLASSIFIED);
+    }
+
+    @Test
+    void plainReceiptIsReceipt() throws Exception {
+        // Real file: "receipt_f1dc7032-….pdf" is an Uber Eats receipt in English. RECEIPT used to be
+        // reachable only via the payment-order phrasing, so this matched nothing and was refused even
+        // though the Drive gate accepts receipts.
+        assertThat(classifier.classify("receipt_f1dc7032-edfd-51ad-a5db-1bbf5c1375fc 2.pdf", "application/pdf",
+                pdfWithText("Thanks for ordering, Mihaela Here's your receipt for Sushi For You "
+                        + "Kleinmachnow Total 21.82 Item Subtotal 20.20 Marketplace Fee 1.62 Uber Delivery")))
+                .isEqualTo(DocumentType.RECEIPT);
+        // Romanian and German equivalents.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("CHITANTA nr 12 Suma 150.00 RON")))
+                .isEqualTo(DocumentType.RECEIPT);
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Quittung Betrag 25.00 EUR Vielen Dank")))
+                .isEqualTo(DocumentType.RECEIPT);
+    }
+
+    @Test
+    void invoiceMentioningAReceiptIsStillInvoice() throws Exception {
+        // Invoices routinely use the word "receipt", so the receipt rule must rank BELOW the invoice rule.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("INVOICE no 88 Please retain this receipt for your records Total 90.00 EUR")))
+                .isEqualTo(DocumentType.INVOICE);
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Rechnung Nr 4 Beleg bitte aufbewahren receipt Gesamt 60.00 EUR")))
+                .isEqualTo(DocumentType.INVOICE);
+    }
+
+    @Test
+    void statementMentioningAReceiptIsStillStatement() throws Exception {
+        // The statement markers are tested before both, so a statement listing a receipt stays a statement.
+        assertThat(classifier.classify("x.pdf", "application/pdf",
+                pdfWithText("Extras de cont SOLD ANTERIOR receipt payment 120.00 SOLD FINAL")))
+                .isEqualTo(DocumentType.BANK_STATEMENT);
+    }
+
+    @Test
     void revolutBrandedDocumentWithNoInvoiceSignalIsStatement() throws Exception {
         // A Revolut-branded PDF with neither the money-in/out table nor any invoice signal still falls
         // to the weak bank-name fallback, exactly like the other banks.
