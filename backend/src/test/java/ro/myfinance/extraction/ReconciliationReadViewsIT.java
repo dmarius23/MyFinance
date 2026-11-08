@@ -99,7 +99,7 @@ class ReconciliationReadViewsIT extends AbstractPostgresIT {
                 docId, TENANT, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
         var inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
                 TENANT, docId, companyId, LocalDate.of(2026, 6, 1), supplierName, iban,
-                new BigDecimal(amount), date, "inv.pdf", "EXTRACTED"));
+                new BigDecimal(amount), date, "inv.pdf", "EXTRACTED", "RON")); // placeholder: Task 3/4 supplies the real currency
         return inv.getId();
     }
 

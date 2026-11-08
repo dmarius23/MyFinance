@@ -209,7 +209,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                 docId, tenantId, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
         ro.myfinance.extraction.domain.Invoice inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
                 tenantId, docId, companyId, LocalDate.of(2026, 6, 1), supplierName, iban,
-                new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED"));
+                new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED", "RON")); // placeholder: Task 3/4 supplies the real currency
         return inv.getId();
     }
 

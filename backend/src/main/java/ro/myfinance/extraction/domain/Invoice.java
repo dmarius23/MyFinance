@@ -62,6 +62,9 @@ public class Invoice {
     @Column(nullable = false)
     private String status;
 
+    @Column(nullable = false)
+    private String currency = "RON";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -71,7 +74,7 @@ public class Invoice {
 
     public Invoice(UUID tenantId, UUID documentId, UUID companyId, LocalDate periodMonth,
                    String supplierName, String supplierIban, BigDecimal totalAmount,
-                   LocalDate invoiceDate, String originalFilename, String status) {
+                   LocalDate invoiceDate, String originalFilename, String status, String currency) {
         this.tenantId = tenantId;
         this.documentId = documentId;
         this.companyId = companyId;
@@ -82,17 +85,22 @@ public class Invoice {
         this.invoiceDate = invoiceDate;
         this.originalFilename = originalFilename;
         this.status = status;
+        // NOT NULL in the schema; a caller that cannot determine one means RON.
+        this.currency = currency == null ? "RON" : currency;
     }
 
     /** Refresh the extracted fields in place (re-scan), preserving id/document_id and any matches. */
     public void updateExtraction(String supplierName, String supplierIban, BigDecimal totalAmount,
-                                 LocalDate invoiceDate, String originalFilename, String status) {
+                                 LocalDate invoiceDate, String originalFilename, String status,
+                                 String currency) {
         this.supplierName = supplierName;
         this.supplierIban = supplierIban;
         this.totalAmount = totalAmount;
         this.invoiceDate = invoiceDate;
         this.originalFilename = originalFilename;
         this.status = status;
+        // NOT NULL in the schema; a caller that cannot determine one means RON.
+        this.currency = currency == null ? "RON" : currency;
     }
 
     public void setPeriodMonth(LocalDate periodMonth) {
@@ -121,4 +129,6 @@ public class Invoice {
     public LocalDate getInvoiceDate() { return invoiceDate; }
     public String getOriginalFilename() { return originalFilename; }
     public String getStatus() { return status; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency == null ? "RON" : currency; }
 }

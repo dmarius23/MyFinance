@@ -94,12 +94,14 @@ public class InvoiceExtractionService {
         invoices.findByDocumentId(documentId).ifPresentOrElse(
                 existing -> {
                     existing.setPeriodMonth(targetPeriod);
-                    existing.updateExtraction(f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
+                    existing.updateExtraction(f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status(),
+                            "RON"); // placeholder: Task 3/4 supplies the real currency
                     existing.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                 },
                 () -> {
                     Invoice inv = new Invoice(tenantId, documentId, companyId, targetPeriod,
-                            f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status());
+                            f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status(),
+                            "RON"); // placeholder: Task 3/4 supplies the real currency
                     inv.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                     invoices.save(inv);
                 });
