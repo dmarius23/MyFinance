@@ -24,7 +24,10 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     // Money token. The look-behind/ahead stop it from matching INSIDE a date or a longer number — e.g.
     // "30.12.2025" must not yield "30.12.20" (which parseMoney would read as 3012.20).
     private static final Pattern MONEY = Pattern.compile("(?<![\\d./,])\\d[\\d.,]*[.,]\\d{2}(?![./]?\\d)");
-    private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{4})");
+    // dd.MM.yyyy / dd/MM/yyyy / dd-MM-yyyy. The dash form is what Bolt prints ("Datum: 24-09-2026");
+    // without it such an invoice carried no date at all. A longer number cannot match, because the
+    // pattern is anchored on two-digit day and month groups ("2759309-DE1126-197583" yields nothing).
+    private static final Pattern DATE = Pattern.compile("(\\d{2})[-/.](\\d{2})[-/.](\\d{4})");
 
     @Override
     public ParsedInvoice extract(byte[] pdf, String ownCompanyName) {
@@ -76,33 +79,83 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
 
     private static final Pattern CIF = Pattern.compile("(?i)\\bRO\\s?\\d{2,10}\\b|\\b\\d{2,10}\\b");
 
+    /** Buyer-block headings: Romanian first, then the German/English ones on foreign invoices.
+     *  Both "empfanger" and "empfaenger" are listed — PDFBox yields "Empfänger", which diacritic
+     *  folding turns into "empfanger", while a document transliterating ä as "ae" gives "empfaenger". */
+    private static final String[] BUYER_MARKERS = {
+        "cumparator", "client", "beneficiar",
+        "empfanger", "empfaenger", "rechnungsempfanger", "rechnungsempfaenger", "kunde",
+        "bill to", "billed to", "buyer", "customer", "invoiced to", "recipient",
+    };
+    /** Supplier-block headings — used only to tell a Romanian invoice apart from a foreign one. */
+    private static final String[] SUPPLIER_MARKERS = {"furnizor", "prestator", "vanzator"};
+    /** Fiscal-code labels. A foreign invoice prints the Romanian CUI under a VAT heading instead. */
+    private static final String[] CIF_LABELS = {
+        "cif", "cui", "cod fiscal", "cod de identificare", "c.i.f",
+        "vat no", "vat id", "vat number", "vat reg",
+        "ust-id", "ust.-id", "ustid", "ust id", "ust.id",
+    };
+
     /**
-     * The buyer's fiscal code (CIF/CUI) from the "Cumpărător"/"Client"/"Beneficiar" block — used to
-     * verify the invoice is addressed to this company. Looks for a CIF-labelled line within the buyer
-     * block; returns null if the block or a labelled code can't be found (don't guess the supplier's).
+     * The buyer's fiscal code (CIF/CUI), used to verify the invoice is addressed to this company.
+     * Prefers a code on a fiscal-code-labelled line at or after the buyer heading, so the supplier's own
+     * code is never returned.
+     *
+     * <p>Foreign invoices have no Romanian party structure at all — a Bolt ride invoice heads the block
+     * "Empfänger" and labels the code "VAT no.:", and a German hotel bill has neither heading and writes
+     * "USt.-ID.: RO 50109730". Both used to yield nothing, so an imported invoice carried no buyer code.
      */
     private String clientCif(String text) {
         String[] lines = text.split("\\R");
-        int buyer = -1;
-        for (int i = 0; i < lines.length; i++) {
-            String n = norm(lines[i]);
-            if (n.contains("cumparator") || n.contains("client") || n.contains("beneficiar")) {
-                buyer = i;
-                break;
+        int buyer = firstLineContaining(lines, BUYER_MARKERS);
+        if (buyer >= 0) {
+            String hit = labelledCui(lines, buyer);
+            if (hit != null) {
+                return hit;
             }
         }
-        if (buyer < 0) {
-            return null;
+        // Neither a buyer nor a supplier heading: a foreign document with no Romanian party structure.
+        // Any control-digit-valid Romanian CUI on such a page is the client's, because the foreign
+        // supplier does not hold one — its DE/EE/LT VAT id fails isValidCui. Requiring the supplier
+        // heading to be absent is what keeps a Romanian invoice out of here, so this can never pick up
+        // the supplier's CUI on the layouts the buyer-block rule above is meant for.
+        if (buyer < 0 && firstLineContaining(lines, SUPPLIER_MARKERS) < 0) {
+            return labelledCui(lines, 0);
         }
-        for (int i = buyer; i < lines.length; i++) {
+        return null;
+    }
+
+    /** Index of the first line containing any of {@code markers}, or -1. */
+    private static int firstLineContaining(String[] lines, String[] markers) {
+        for (int i = 0; i < lines.length; i++) {
             String n = norm(lines[i]);
-            if (n.contains("cif") || n.contains("cui") || n.contains("cod fiscal")
-                    || n.contains("cod de identificare") || n.contains("c.i.f")) {
-                for (Matcher m = CIF.matcher(lines[i]); m.find(); ) {
-                    String cand = m.group().trim();
-                    if (ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cand)) {
-                        return cand; // a real CUI (control-digit valid), not a stray number
-                    }
+            for (String marker : markers) {
+                if (n.contains(marker)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** First control-digit-valid Romanian CUI on a fiscal-code-labelled line at or after {@code from}. */
+    private String labelledCui(String[] lines, int from) {
+        for (int i = Math.max(0, from); i < lines.length; i++) {
+            String n = norm(lines[i]);
+            boolean labelled = false;
+            for (String label : CIF_LABELS) {
+                if (n.contains(label)) {
+                    labelled = true;
+                    break;
+                }
+            }
+            if (!labelled) {
+                continue;
+            }
+            for (Matcher m = CIF.matcher(lines[i]); m.find(); ) {
+                String cand = m.group().trim();
+                if (ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cand)) {
+                    return cand; // a real CUI (control-digit valid), not a stray number
                 }
             }
         }
@@ -115,8 +168,12 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
                 .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
     }
 
+    // Romanian company forms, then the foreign ones the clients actually buy from — a German GmbH, an
+    // Estonian OÜ, a Lithuanian UAB. Without these a foreign supplier's name was never recognised as a
+    // company name at all, so the supplier came back null.
     private static final java.util.Set<String> COMPANY_SUFFIX = java.util.Set.of(
-            "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii");
+            "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii",
+            "gmbh", "ag", "kg", "ou", "uab", "ltd", "limited", "bv", "nv", "sarl", "sas", "spa", "oy");
 
     /** A short line whose last tokens carry a Romanian company-form suffix (SRL, SA, IFN, PFA, …). */
     private boolean looksLikeCompany(String rawLine) {
@@ -277,7 +334,10 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         // 1) Date near an issue-date label.
         for (int i = 0; i < lines.length; i++) {
             String n = norm(lines[i]);
-            boolean issueLabel = n.contains("data") && !n.contains("scaden") && !n.contains("termen");
+            // "datum" is the German issue-date label; without it a German invoice fell through to the
+            // earliest-date-anywhere fallback, which on a hotel bill is the ARRIVAL date, not the issue date.
+            boolean issueLabel = (n.contains("data") || n.contains("datum"))
+                    && !n.contains("scaden") && !n.contains("termen");
             if (!issueLabel) {
                 continue;
             }
@@ -326,7 +386,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     }
 
     private LocalDate parseDate(String token) {
-        for (String pat : new String[] {"dd.MM.uuuu", "dd/MM/uuuu"}) {
+        for (String pat : new String[] {"dd.MM.uuuu", "dd/MM/uuuu", "dd-MM-uuuu"}) {
             try {
                 return LocalDate.parse(token, DateTimeFormatter.ofPattern(pat));
             } catch (RuntimeException ignored) {

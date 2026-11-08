@@ -102,6 +102,26 @@ public class DocumentService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Document upload(UUID companyId, LocalDate periodMonth, String filename,
                            String contentType, byte[] bytes, DocumentType forcedType, DocumentSource source) {
+        return upload(companyId, periodMonth, filename, contentType, bytes, forcedType, source, null);
+    }
+
+    /**
+     * As above, but with the validation verdict already computed by the caller.
+     *
+     * <p>The Drive importer runs the full per-type checks itself — it needs them to decide whether to
+     * refuse a wrong-company file — so handing its verdict over avoids extracting the same PDF twice and,
+     * more importantly, lets a NON-blocking verdict reach the document as a label. A month mismatch is
+     * one of those: the document stays in the month it was filed under and is flagged, rather than being
+     * moved or refused. Without this the Drive path fell back to the duplicate-only check below and the
+     * mismatch was silently lost.
+     *
+     * <p>Annotated like the overload above because that one self-invokes this method: the proxy is
+     * bypassed on the inner call, so the outer annotation is what actually opens the transaction.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Document upload(UUID companyId, LocalDate periodMonth, String filename, String contentType,
+                           byte[] bytes, DocumentType forcedType, DocumentSource source,
+                           DocumentValidator.Result validation) {
         validate(contentType, bytes);
         UUID tenantId = currentTenant();
         var company = companies.findById(companyId)
@@ -130,9 +150,10 @@ public class DocumentService {
                 == ro.myfinance.settings.domain.InvoicePeriodMode.PREVIOUS_MONTH) {
             validationPeriod = validator.contentPeriod(type, bytes, company).orElse(period);
         }
-        applyValidation(doc, source == DocumentSource.DRIVE
-                ? validator.duplicateOnly(company, bytes)
-                : validator.validate(company, validationPeriod, type, filename, contentType, bytes, null));
+        applyValidation(doc, validation != null ? validation
+                : source == DocumentSource.DRIVE
+                        ? validator.duplicateOnly(company, bytes)
+                        : validator.validate(company, validationPeriod, type, filename, contentType, bytes, null));
         Document saved = documents.save(doc);
         audit.record("DOCUMENT_UPLOADED", "document", saved.getId());
         events.publishEvent(new DocumentUploadedEvent(saved.getId(), companyId, period, type, filename, bytes));

@@ -275,6 +275,15 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                         {t("doc.wrongTypeChip")}
                       </span>
                     )}
+                    {/* The document's own date falls outside the month it is filed under. It STAYS in this
+                        month — where it was filed is what decides, not its issue date — so this is a
+                        warning, not an error. driveBlockDetail names the document's own month. */}
+                    {d.driveBlockReason === "WRONG_PERIOD" && (
+                      <span title={d.driveBlockDetail ?? t("doc.warn.wrongDate")}
+                            style={chip("#fef3c7", "#92400e", "#fde68a")}>
+                        {t("doc.wrongDateChip")}
+                      </span>
+                    )}
                     {st?.duplicate && (
                       <span title={t("doc.warn.duplicate")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
                         {t("doc.duplicateChip")}

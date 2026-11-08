@@ -777,14 +777,22 @@ public class IngestionService {
                 return Outcome.PASS; // deferred month filter, now that the real month is known
             }
         }
+        DocumentValidator.Result validation = null;
         if (company != null) {
-            DocumentValidator.Result v = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
-            if (v != null && (v.blockReason() == DriveBlockReason.WRONG_COMPANY || v.blockReason() == DriveBlockReason.WRONG_PERIOD)) {
-                // Not imported. The accountant just gets a warning to check the Drive folder — the document
-                // sits in the wrong company's folder (wrong party) or is for another month.
-                String reason = v.blockReason() == DriveBlockReason.WRONG_COMPANY
-                        ? "Parte greșită — document pentru altă firmă în Drive (neimportat); verificați folderul. " + v.blockDetail()
-                        : v.blockDetail();
+            validation = validator.validate(company, period, ct, f.name(), mime(f), bytes, null);
+            // Only a WRONG PARTY is refused: that document belongs to another company, so importing it
+            // here would file one client's paperwork under another. The accountant gets a warning to fix
+            // the Drive folder.
+            //
+            // A month mismatch is NOT refused. The month a document belongs to is where it was FILED —
+            // the Drive folder, or the month the representative uploaded it for — and the document's own
+            // issue date never moves it: a September invoice dropped in the October folder is October's,
+            // because that is when the client booked it. Refusing it meant the accountant never saw the
+            // document at all, which is strictly worse than seeing it with a date warning. The verdict is
+            // carried into upload() below so it lands on the document as a label instead.
+            if (validation != null && validation.blockReason() == DriveBlockReason.WRONG_COMPANY) {
+                String reason = "Parte greșită — document pentru altă firmă în Drive (neimportat); "
+                        + "verificați folderul. " + validation.blockDetail();
                 writeLedger(prior, tenantId, conn, f, sha, cid.get(), period, null, ImportFile.Status.NEEDS_REVIEW, reason);
                 issues.add(new SyncResult.Issue(f.name(), reason));
                 return Outcome.NEEDS_REVIEW;
@@ -792,7 +800,8 @@ public class IngestionService {
         }
         // As in doSync: the per-connection content check is gone. DocumentService dedupes centrally against
         // the document table, so a duplicate is imported and flagged (visible DUP chip) instead of dropped.
-        var doc = documents.upload(cid.get(), period, f.name(), mime(f), bytes, ct, DocumentSource.DRIVE);
+        var doc = documents.upload(cid.get(), period, f.name(), mime(f), bytes, ct,
+                DocumentSource.DRIVE, validation);
         if (prior != null && ImportFile.Status.IMPORTED.name().equals(prior.getStatus())
                 && prior.getDocumentId() != null && !prior.getDocumentId().equals(doc.getId())) {
             try {
