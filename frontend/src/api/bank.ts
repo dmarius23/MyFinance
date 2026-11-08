@@ -56,6 +56,7 @@ export interface Invoice {
   totalAmount: number | null;
   invoiceDate: string | null;
   status: string;
+  currency: string;
 }
 
 export interface BankTransaction {
@@ -77,6 +78,7 @@ export interface BankTransaction {
   category: string | null;
   decisionSource: string | null;
   reason: string;
+  currency: string;
 }
 
 export interface CompanyCompleteness {
@@ -133,6 +135,7 @@ export interface OpenInvoice {
   wrongParty: boolean | null;
   issuerCif: string | null;
   clientCif: string | null;
+  currency: string;
 }
 
 export interface OpenTransaction {
@@ -143,6 +146,7 @@ export interface OpenTransaction {
   partnerIban: string | null;
   allocatedAmount: number;
   remaining: number;
+  currency: string;
 }
 
 export interface InvoicePayment {
