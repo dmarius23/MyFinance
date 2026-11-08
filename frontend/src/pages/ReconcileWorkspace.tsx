@@ -7,6 +7,7 @@ import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { usePeriod, monthLabel as monthLabelLong } from "../lib/period";
+import { invalidateDocumentQueries, refetchWhileExtracting } from "../lib/documentQueries";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
 import { FilesModal } from "../components/FilesModal";
@@ -86,16 +87,9 @@ export function ReconcileWorkspace() {
   const fileRef = useRef<HTMLInputElement>(null);
   const stmtFileRef = useRef<HTMLInputElement>(null);
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["open-invoices", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["match-suggestions", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["bank-files", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["bank-stmts", companyId, period] });
-  };
+  // Shared with FilesModal — this list used to be duplicated here and had drifted, omitting "documents"
+  // and "invoices", so an upload from this screen left the files list on a stale cache.
+  const invalidate = () => invalidateDocumentQueries(qc, companyId, period);
   const onErr = (e: unknown) => window.alert(`${t("recon.linkFailed")}: ${e instanceof Error ? e.message : String(e)}`);
   // Delete a bank-statement file the accountant uploaded — cascades to its statement, transactions and any
   // reconciliation links; the confirm spells out that impact.
@@ -123,6 +117,10 @@ export function ReconcileWorkspace() {
     },
     onSuccess: async (docs) => {
       invalidate();
+      // Keep re-invalidating briefly so the fields extraction fills in — supplier, amount, date —
+      // appear without a manual browser refresh. The poll below already did this for BANK_STATEMENT
+      // only, which is why a statement showed up immediately and an invoice did not.
+      refetchWhileExtracting(qc, companyId, period);
       const pendingStmt = (d: Document) => !d.driveBlockReason && d.type === "BANK_STATEMENT";
       let stmts = await bankApi.statements(companyId, period);
       for (let i = 0; i < 4 && docs.some((d) => pendingStmt(d) && !stmts.some((s) => s.documentId === d.id)); i++) {
