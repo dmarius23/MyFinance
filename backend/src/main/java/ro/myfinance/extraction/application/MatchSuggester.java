@@ -68,7 +68,7 @@ public class MatchSuggester {
                     continue;
                 }
                 for (OpenInvoiceView i : invs) {
-                    if (usedInvs.contains(i.invoiceId()) || !dateOk(t, i)) {
+                    if (usedInvs.contains(i.invoiceId()) || !dateOk(t, i) || !sameCurrency(t, i)) {
                         continue;
                     }
                     if (i.remaining().subtract(t.remaining()).abs().compareTo(TOLERANCE) <= 0) {
@@ -85,7 +85,8 @@ public class MatchSuggester {
                 if (usedTxns.contains(t.id())) {
                     continue;
                 }
-                List<OpenInvoiceView> cand = invs.stream()
+                List<OpenInvoiceView> sameCcy = invs.stream().filter(i -> sameCurrency(t, i)).toList();
+                List<OpenInvoiceView> cand = sameCcy.stream()
                         .filter(i -> !usedInvs.contains(i.invoiceId()) && dateOk(t, i)).toList();
                 List<Integer> subset = subsetSum(cand.stream().map(OpenInvoiceView::remaining).toList(), t.remaining());
                 if (subset != null) {
@@ -126,6 +127,15 @@ public class MatchSuggester {
     private SuggestionLink link(OpenTxnView t, OpenInvoiceView i, BigDecimal amount) {
         return new SuggestionLink(t.id(), t.txnDate(), t.partnerName(), t.amount(),
                 i.invoiceId(), i.filename(), i.supplierName(), amount);
+    }
+
+    /**
+     * Two amounts are only comparable in the same currency. There is no FX rate anywhere in the system,
+     * and at ~5 RON/EUR a numeric coincidence is a five-fold error — so a cross-currency pair is not a
+     * candidate at any confidence. Manual linking stays allowed: the accountant knows the day's rate.
+     */
+    private static boolean sameCurrency(OpenTxnView t, OpenInvoiceView i) {
+        return t.currency().equalsIgnoreCase(i.currency());
     }
 
     private boolean dateOk(OpenTxnView t, OpenInvoiceView i) {

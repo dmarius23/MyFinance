@@ -327,7 +327,7 @@ public class ReconciliationView {
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
                         i.getPeriodMonth(), p, remaining, duplicate, i.getWrongParty(),
-                        i.getIssuerCif(), i.getClientCif()));
+                        i.getIssuerCif(), i.getClientCif(), i.getCurrency()));
             }
         }
         return out;
@@ -397,7 +397,7 @@ public class ReconciliationView {
             BigDecimal remaining = t.getAmount().abs().subtract(alloc);
             if (remaining.compareTo(TOLERANCE) > 0) {
                 out.add(new OpenTxnView(t.getId(), t.getTxnDate(), t.getAmount(), t.getPartnerName(),
-                        t.getPartnerIban(), alloc, remaining));
+                        t.getPartnerIban(), alloc, remaining, t.getCurrency()));
             }
         }
         return out;

@@ -43,7 +43,8 @@ public class ReconciliationService {
                                   String supplierIban, java.math.BigDecimal totalAmount,
                                   java.time.LocalDate invoiceDate, java.time.LocalDate periodMonth,
                                   java.math.BigDecimal paidAmount, java.math.BigDecimal remaining,
-                                  boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif) {
+                                  boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif,
+                                  String currency) {
     }
 
     /**
@@ -75,7 +76,7 @@ public class ReconciliationService {
     /** A transaction still open for allocation (needs a document, remaining &gt; 0). */
     public record OpenTxnView(UUID id, java.time.LocalDate txnDate, java.math.BigDecimal amount,
                               String partnerName, String partnerIban, java.math.BigDecimal allocatedAmount,
-                              java.math.BigDecimal remaining) {
+                              java.math.BigDecimal remaining, String currency) {
     }
 
     /**
