@@ -63,7 +63,7 @@ class ReconciliationReadViewsIT extends AbstractPostgresIT {
                             new ParsedTransaction(LocalDate.of(2026, 6, 4), new BigDecimal("-30.00"),
                                     "Trezoreria Cluj", "RO54TREZ21620A470300", "CAM", "r2", new BigDecimal("770.00")),
                             new ParsedTransaction(LocalDate.of(2026, 6, 5), new BigDecimal("400.00"),
-                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))));
+                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))), "RON");
                 }
             };
         }

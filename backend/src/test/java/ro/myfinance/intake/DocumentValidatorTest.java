@@ -177,7 +177,7 @@ class DocumentValidatorTest {
         when(statements.extractText(any())).thenReturn(text);
         when(statements.find(text)).thenReturn(Optional.of(parser));
         when(parser.parse(text)).thenReturn(new ParsedStatement("BT", "RO49", BigDecimal.ZERO, BigDecimal.TEN,
-                List.of(new ParsedTransaction(LocalDate.of(2026, 3, 5), BigDecimal.TEN, null, null, "x", null, null))));
+                List.of(new ParsedTransaction(LocalDate.of(2026, 3, 5), BigDecimal.TEN, null, null, "x", null, null)), "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.BANK_STATEMENT,
                 "extras.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_PERIOD);

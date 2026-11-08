@@ -73,7 +73,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                             new ParsedTransaction(d3.plusDays(1), new BigDecimal("-30.00"),
                                     "Trezoreria Cluj", "RO54TREZ21620A470300", "CAM", "r2", new BigDecimal("770.00")),
                             new ParsedTransaction(d3.plusDays(2), new BigDecimal("400.00"),
-                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))));
+                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))), "RON");
                 }
             };
         }

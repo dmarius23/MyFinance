@@ -48,11 +48,24 @@ public class Camt053StatementParser implements BankStatementParser {
             Document doc = parseXmlSecurely(xml);
             List<Element> stmts = descendants(doc.getDocumentElement(), "Stmt");
             if (stmts.isEmpty()) {
-                return new ParsedStatement("CAMT", null, null, null, List.of());
+                return new ParsedStatement("CAMT", null, null, null, List.of(), null);
             }
             String accountIban = firstText(stmts.get(0), "Acct", "Id", "IBAN");
             BigDecimal opening = balance(stmts.get(0), "OPBD", "PRCD");
             BigDecimal closing = balance(stmts.get(stmts.size() - 1), "CLBD", "CLAV");
+
+            // Currency: prefer the first Bal element's Amt@Ccy, fall back to the first Ntry's Amt@Ccy.
+            String currency = null;
+            List<Element> balEls = children(stmts.get(0), "Bal");
+            if (!balEls.isEmpty()) {
+                currency = currencyOf(balEls.get(0));
+            }
+            if (currency == null) {
+                List<Element> ntryEls = children(stmts.get(0), "Ntry");
+                if (!ntryEls.isEmpty()) {
+                    currency = currencyOf(ntryEls.get(0));
+                }
+            }
 
             List<ParsedTransaction> txns = new ArrayList<>();
             for (Element stmt : stmts) {
@@ -63,10 +76,10 @@ public class Camt053StatementParser implements BankStatementParser {
                     }
                 }
             }
-            return new ParsedStatement("CAMT", accountIban, opening, closing, txns);
+            return new ParsedStatement("CAMT", accountIban, opening, closing, txns, currency);
         } catch (RuntimeException e) {
             log.warn("CAMT.053 parse failed", e);
-            return new ParsedStatement("CAMT", null, null, null, List.of());
+            return new ParsedStatement("CAMT", null, null, null, List.of(), null);
         }
     }
 
@@ -126,6 +139,16 @@ public class Camt053StatementParser implements BankStatementParser {
             }
         }
         return null;
+    }
+
+    /** CAMT.053 puts the currency in the Ccy ATTRIBUTE of &lt;Amt&gt;, not in its text. */
+    private String currencyOf(Element parent) {
+        Element amt = firstChild(parent, "Amt");
+        if (amt == null) {
+            return null;
+        }
+        String ccy = amt.getAttribute("Ccy");
+        return ccy == null || ccy.isBlank() ? null : ccy;
     }
 
     // ---- XML helpers (namespace-agnostic; DOM) ----
