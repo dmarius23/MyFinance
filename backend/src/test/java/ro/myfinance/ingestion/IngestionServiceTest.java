@@ -239,19 +239,58 @@ class IngestionServiceTest {
         when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
         Document doc = mock(Document.class);
         when(doc.getId()).thenReturn(UUID.randomUUID());
-        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), any(), any(), any(), any(), eq(DocumentSource.DRIVE))).thenReturn(doc);
+        when(documents.upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), any(), any(), any(), any(),
+                eq(DocumentSource.DRIVE), any())).thenReturn(doc);
 
         var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
 
         assertThat(r.imported()).isEqualTo(3);    // extras (bank) + factura (invoice) + random (unclassified)
         assertThat(r.needsReview()).isZero();
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("extras.pdf"), any(), any(),
-                eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE));
+                eq(DocumentType.BANK_STATEMENT), eq(DocumentSource.DRIVE), any());
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("factura.pdf"), any(), any(),
-                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE), any());
         // Imported with the type left UNCLASSIFIED, so the Files list shows it with the type picker.
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("random.pdf"), any(), any(),
-                eq(DocumentType.UNCLASSIFIED), eq(DocumentSource.DRIVE));
+                eq(DocumentType.UNCLASSIFIED), eq(DocumentSource.DRIVE), any());
+    }
+
+    @Test
+    void accountingSyncImportsAWrongMonthDocumentAndLabelsItInsteadOfRefusing() {
+        // The month a document belongs to is where it was FILED, not what its own date says. A September
+        // invoice dropped in the October folder is October's — the client booked it then. It used to be
+        // refused outright, so the accountant never saw it; now it is imported and the verdict is carried
+        // through so it lands on the document as a date warning.
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        when(companies.findById(COMPANY)).thenReturn(Optional.of(a));
+        fake.files = List.of(new CloudFolderConnector.RemoteFile(
+                "i", "factura.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null));
+        when(classifier.classify(any(), any(), any())).thenReturn(DocumentType.INVOICE);
+        when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+        var wrongPeriod = new ro.myfinance.intake.application.DocumentValidator.Result(
+                "sha", ro.myfinance.intake.domain.DriveBlockReason.WRONG_PERIOD,
+                "Factura este din februarie 2026, nu martie 2026.", null, null);
+        when(validator.validate(any(), any(), any(), any(), any(), any(), any())).thenReturn(wrongPeriod);
+        Document doc = mock(Document.class);
+        lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
+        lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
+
+        assertThat(r.imported()).isEqualTo(1);
+        assertThat(r.needsReview()).isZero();
+        // Filed under the FOLDER's month, with the verdict handed over so it becomes a label.
+        verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2026, 3, 1)), eq("factura.pdf"), any(), any(),
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE), eq(wrongPeriod));
     }
 
     @Test
@@ -279,14 +318,14 @@ class IngestionServiceTest {
         when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
         Document doc = mock(Document.class);
         lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
-        lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
+        lenient().when(documents.upload(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
 
         var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2027, 1, 1));
 
         assertThat(r.imported()).isEqualTo(1);
         verify(documents).upload(eq(COMPANY), eq(LocalDate.of(2027, 1, 1)), eq("factura-b.pdf"), any(), any(),
-                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE));
-        verify(documents, never()).upload(any(), any(), eq("factura-a.pdf"), any(), any(), any(), any());
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE), any());
+        verify(documents, never()).upload(any(), any(), eq("factura-a.pdf"), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -321,7 +360,7 @@ class IngestionServiceTest {
 
         assertThat(r.imported()).isZero();
         assertThat(r.needsReview()).isEqualTo(3);
-        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -353,7 +392,7 @@ class IngestionServiceTest {
 
         assertThat(r.needsReview()).isEqualTo(1);
         assertThat(r.imported()).isZero();
-        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any());
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
