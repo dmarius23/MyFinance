@@ -7,8 +7,9 @@ import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
 import { syncFinishedNote } from "../lib/syncStatus";
+import { invalidateDocumentQueries, refetchWhileExtracting } from "../lib/documentQueries";
 import { useSyncTracker } from "./SyncTracker";
-import { typeAdvisory } from "./documentTypeAdvisory";
+import { typeAdvisory, isRecentUpload } from "./documentTypeAdvisory";
 import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
@@ -83,6 +84,8 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
       return sortBy === "date-asc" ? da.localeCompare(db) : db.localeCompare(da);
     });
   const ordered = [...statementDocs, ...invoiceDocs];
+  // Recomputed each render; the "just added" badge simply stops showing on a later render.
+  const nowMs = Date.now();
 
   const selected: Document | undefined = docs.find((d) => d.id === selId) ?? docs[0];
 
@@ -100,24 +103,22 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
     return () => { if (revoked) URL.revokeObjectURL(revoked); };
   }, [companyId, selected?.id]);
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["documents", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
-    // type changes affect extraction/matching too
-    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["invoices", companyId, period] });
-  };
+  // Shared with ReconcileWorkspace so the two lists cannot drift again (that drift is what left an
+  // upload from the reconcile screen invisible until a manual browser refresh).
+  const invalidate = () => invalidateDocumentQueries(qc, companyId, period);
   const upload = useMutation({
-    // Upload sequentially: each upload triggers synchronous extraction + reconciliation for the
-    // period, so serializing avoids races on the shared matching state. Invalidate once at the end.
+    // Upload sequentially so the uploads don't race on the shared matching state for the period.
     mutationFn: async (files: File[]) => {
       for (const f of files) {
         await documentsApi.upload(companyId, period, f);
       }
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Extraction runs after the response and off the request thread, so the supplier/amount/date are
+      // still empty on this first refetch. Re-invalidate briefly so they fill in by themselves.
+      refetchWhileExtracting(qc, companyId, period);
+    },
   });
   const remove = useMutation({
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
@@ -265,6 +266,11 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 // Advisory labels shown on the last line (duplicate / wrong party / outside period).
                 const labels = (
                   <>
+                    {isRecentUpload(d.uploadedAt, nowMs) && (
+                      <span title={t("doc.warn.justAdded")} style={chip("#dcfce7", "#166534", "#86efac")}>
+                        {t("doc.justAddedChip")}
+                      </span>
+                    )}
                     {needsType && (
                       <span title={t("doc.warn.needsType")} style={chip("#fef3c7", "#92400e", "#fde68a")}>
                         {t("doc.needsTypeChip")}
