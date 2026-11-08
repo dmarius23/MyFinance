@@ -45,7 +45,7 @@ public class InvoiceExtractionService {
     /** Extracted fields, from either the PDF parser or the receipt-image OCR/LLM. */
     record Fields(String supplierName, String supplierIban, BigDecimal total, LocalDate date,
                   String status, String issuerCif, String clientCif, String receiptNumber,
-                  Boolean wrongParty) {
+                  Boolean wrongParty, String currency) {
     }
 
     public void process(UUID documentId, UUID companyId, LocalDate periodMonth, String filename, byte[] bytes) {
@@ -95,13 +95,13 @@ public class InvoiceExtractionService {
                 existing -> {
                     existing.setPeriodMonth(targetPeriod);
                     existing.updateExtraction(f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status(),
-                            "RON"); // placeholder: Task 3/4 supplies the real currency
+                            f.currency());
                     existing.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                 },
                 () -> {
                     Invoice inv = new Invoice(tenantId, documentId, companyId, targetPeriod,
                             f.supplierName(), f.supplierIban(), f.total(), f.date(), filename, f.status(),
-                            "RON"); // placeholder: Task 3/4 supplies the real currency
+                            f.currency());
                     inv.updateReceiptFields(f.issuerCif(), f.clientCif(), f.receiptNumber(), f.wrongParty());
                     invoices.save(inv);
                 });
@@ -135,7 +135,7 @@ public class InvoiceExtractionService {
         // Invoice client CIF is checksum-valid (extractor guarantees), so a direct digit compare is sound.
         Boolean wrongParty = wrongPartyFromCif(p.clientCif(), ownCui);
         return new Fields(p.supplierName(), p.supplierIban(), p.totalAmount(), p.invoiceDate(), status,
-                p.issuerCif(), p.clientCif(), p.invoiceNumber(), wrongParty);
+                p.issuerCif(), p.clientCif(), p.invoiceNumber(), wrongParty, p.currency());
     }
 
     private Fields fromReceiptImage(byte[] bytes, String filename, String ownCui) {
@@ -151,8 +151,10 @@ public class InvoiceExtractionService {
         boolean ok = r.total() != null && r.issueDate() != null && r.confidence() >= receiptProps.confidenceThreshold();
         // Receipt CIFs are easily misread; trust the model's match verdict (tolerant of a misread digit).
         Boolean wrongParty = r.clientMatchesCompany() == null ? null : !r.clientMatchesCompany();
+        // Receipt currency is out of scope (spec, "Out of scope") — ParsedReceipt carries one, but
+        // nothing reads it yet. RON keeps receipts at today's behaviour.
         return new Fields(r.issuerName(), null, r.total(), r.issueDate(), ok ? "EXTRACTED" : "NEEDS_REVIEW",
-                r.issuerCif(), r.clientCif(), r.receiptNumber(), wrongParty);
+                r.issuerCif(), r.clientCif(), r.receiptNumber(), wrongParty, "RON");
     }
 
     /**
@@ -179,7 +181,7 @@ public class InvoiceExtractionService {
                 || (f.supplierName() != null && ownName != null && f.supplierName().trim().equalsIgnoreCase(ownName.trim()));
         String supplier = supplierIsUs ? null : f.supplierName();
         return new Fields(supplier, f.supplierIban(), f.total(), f.date(), f.status(),
-                issuerCif, ownCui, f.receiptNumber(), Boolean.FALSE);
+                issuerCif, ownCui, f.receiptNumber(), Boolean.FALSE, f.currency());
     }
 
     /**
@@ -191,7 +193,7 @@ public class InvoiceExtractionService {
         String supplierName = isBlank(text.supplierName()) ? ocr.supplierName() : text.supplierName();
         String issuerCif = isBlank(text.issuerCif()) ? ocr.issuerCif() : text.issuerCif();
         return new Fields(supplierName, text.supplierIban(), text.total(), text.date(), text.status(),
-                issuerCif, text.clientCif(), text.receiptNumber(), text.wrongParty());
+                issuerCif, text.clientCif(), text.receiptNumber(), text.wrongParty(), text.currency());
     }
 
     /** true when both codes are present and differ, false when they match, null when undeterminable. */
