@@ -107,7 +107,7 @@ public class MatchSuggester {
                     continue;
                 }
                 List<OpenTxnView> cand = txns.stream()
-                        .filter(t -> !usedTxns.contains(t.id()) && dateOk(t, i)).toList();
+                        .filter(t -> !usedTxns.contains(t.id()) && dateOk(t, i) && sameCurrency(t, i)).toList();
                 List<Integer> subset = subsetSum(cand.stream().map(OpenTxnView::remaining).toList(), i.remaining());
                 if (subset != null) {
                     List<SuggestionLink> links = new java.util.ArrayList<>();
