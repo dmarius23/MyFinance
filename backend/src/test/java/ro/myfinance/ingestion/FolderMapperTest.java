@@ -211,6 +211,49 @@ class FolderMapperTest {
     }
 
     @Test
+    void parsesMonthNameFolderThatCarriesItsOwnYear() {
+        // The real accounting layout: "<company>/Facturi achizitii/<year>/<Monthname> <year>". Every month
+        // must resolve — the five long names (Februarie, Septembrie, Octombrie, Noiembrie, Decembrie) used
+        // to be skipped by a length guard meant to avoid matching a month inside a company name, so their
+        // documents silently inherited the file's UPLOAD month instead.
+        String[] names = {"Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
+                          "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie"};
+        for (int m = 1; m <= 12; m++) {
+            assertThat(FolderMapper.resolvePeriod(
+                    file("Contabilitate ACME SRL/Facturi achizitii/2026/" + names[m - 1] + " 2026")))
+                    .as(names[m - 1] + " 2026")
+                    .isEqualTo(LocalDate.of(2026, m, 1));
+        }
+    }
+
+    @Test
+    void monthFolderYearWinsOverAnAncestorFolderYear() {
+        // Year and month used to be harvested from DIFFERENT segments independently — the first segment
+        // naming a 20xx won the year — so a month folder stating its own year was paired with an ancestor's.
+        // With several years archived side by side that silently files documents a year out.
+        assertThat(FolderMapper.resolvePeriod(file("Contabilitate ACME SRL/Arhiva 2026/Ianuarie 2027")))
+                .isEqualTo(LocalDate.of(2027, 1, 1));
+        assertThat(FolderMapper.resolvePeriod(file("Contabilitate ACME SRL/2026/Martie 2028")))
+                .isEqualTo(LocalDate.of(2028, 3, 1));
+        // The consistent case keeps working, and so does a combined YYYY-MM segment under another year.
+        assertThat(FolderMapper.resolvePeriod(file("Contabilitate ACME SRL/Facturi achizitii/2027/Ianuarie 2027")))
+                .isEqualTo(LocalDate.of(2027, 1, 1));
+        assertThat(FolderMapper.resolvePeriod(file("Contabilitate ACME SRL/Arhiva 2026/2028-03")))
+                .isEqualTo(LocalDate.of(2028, 3, 1));
+    }
+
+    @Test
+    void doesNotReadAMonthNameThatIsPartOfACompanyName() {
+        // What the length guard was really protecting against. Matching was by SUBSTRING on a string with
+        // spaces stripped, so any short segment containing "mai" read as May. Now a month must be a whole
+        // token with nothing left over besides its year. No month → fall back to the modified month (June).
+        assertThat(FolderMapper.resolvePeriod(file("MAI CONSTRUCT SRL/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(FolderMapper.resolvePeriod(file("MAI SRL/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(FolderMapper.resolvePeriod(file("MAIN/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
+        assertThat(FolderMapper.resolvePeriod(file("Facturi achizitii/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
+    }
+
+    @Test
     void doesNotMistakeAYearFolderForAMonth() {
         // "2026" alone must not be read as month 2 (February); with no month → fall back to modified month.
         assertThat(FolderMapper.resolvePeriod(file("INNOVATECODE IT SRL/2026"))).isEqualTo(LocalDate.of(2026, 6, 1));
