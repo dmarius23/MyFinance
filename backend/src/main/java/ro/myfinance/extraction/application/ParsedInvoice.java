@@ -5,5 +5,5 @@ import java.time.LocalDate;
 
 public record ParsedInvoice(String supplierName, String supplierIban, BigDecimal totalAmount,
                             LocalDate invoiceDate, String clientCif, String invoiceNumber,
-                            String issuerCif) {
+                            String issuerCif, String currency) {
 }

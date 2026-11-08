@@ -144,7 +144,7 @@ class DocumentValidatorTest {
     @Test
     void invoice_on_neither_party_is_wrong_company() {
         when(invoices.extract(any(), any()))
-                .thenReturn(new ParsedInvoice("Supplier", null, BigDecimal.TEN, JUNE, "222", "F1", "111"));
+                .thenReturn(new ParsedInvoice("Supplier", null, BigDecimal.TEN, JUNE, "222", "F1", "111", "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.INVOICE,
                 "f.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_COMPANY);
@@ -154,7 +154,7 @@ class DocumentValidatorTest {
     void invoice_from_another_month_is_wrong_period() {
         // Issuer matches the company (not wrong-company), but the invoice date is March, filed under June.
         when(invoices.extract(any(), any()))
-                .thenReturn(new ParsedInvoice("ACME", null, BigDecimal.TEN, LocalDate.of(2026, 3, 20), "222", "F2", "999"));
+                .thenReturn(new ParsedInvoice("ACME", null, BigDecimal.TEN, LocalDate.of(2026, 3, 20), "222", "F2", "999", "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.INVOICE,
                 "f.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_PERIOD);

@@ -147,4 +147,67 @@ class HeuristicInvoiceExtractorTest {
         assertThat(inv.supplierIban()).isEqualTo("RO49AAAA1B31007593840000");
         assertThat(inv.invoiceDate()).isEqualTo(java.time.LocalDate.of(2026, 3, 10));
     }
+
+    @Test
+    void readsTheCurrencyFromTheTotalLine() throws Exception {
+        // Real text from "Ride invoice from Bolt 32.pdf" — the currency sits on the total's own line.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Rechnung",
+                "Datum: 24-09-2026",
+                "Fahrpreis 49.13 9.34 58.47",
+                "Nettobetrag (EUR): 50.33 MwSt. 19%: 9.57 Bruttobetrag (EUR): 59.90"),
+                "AGILE TRANSFORMATION TRAILBLAZERS SRL");
+        assertThat(inv.currency()).isEqualTo("EUR");
+    }
+
+    @Test
+    void readsTheCurrencyWhenOnlyNamedElsewhereInTheDocument() throws Exception {
+        // Real shape from the GINN hotel bill: the grand total's line carries no code, but the document
+        // names exactly one currency, so it is unambiguous.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Rechnungsnr.: GBP-260923075  Datum: 23.09.2026",
+                "21.09.2026 Komfort Zimmer 1 137.92 EUR 7 % 9.65 EUR 147.57 EUR",
+                "Zwischensumme (inkl. MwSt.) 1247.40 EUR"),
+                "AGILE TRANSFORMATION TRAILBLAZERS SRL");
+        assertThat(inv.currency()).isEqualTo("EUR");
+    }
+
+    @Test
+    void treatsLeiAsRon() throws Exception {
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Factura fiscala nr 5 din 12.09.2026",
+                "Total de plata 1.190,00 LEI"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("RON");
+    }
+
+    @Test
+    void defaultsToRonWhenNoCurrencyIsNamed() throws Exception {
+        // Romanian invoices frequently name no currency at all.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Factura fiscala nr 6 din 12.09.2026",
+                "Total de plata 1.190,00"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("RON");
+    }
+
+    @Test
+    void theTotalsLineWinsWhenTwoCurrenciesAppear() throws Exception {
+        // An invoice that quotes an EUR reference price but is payable in RON.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Factura fiscala nr 7 din 12.09.2026",
+                "Valoare informativa 240,00 EUR",
+                "Total de plata 1.190,00 RON"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("RON");
+    }
+
+    @Test
+    void readsACurrencySymbol() throws Exception {
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Invoice 9 dated 12.09.2026",
+                "Total due 1,190.00 EUR"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("EUR");
+    }
 }
