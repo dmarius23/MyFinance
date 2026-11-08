@@ -410,6 +410,25 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void manualLinkAllowsCrossCurrencyBecauseAccountantKnowsTheFxRate() throws Exception {
+        // Spec: "Matching — never across currencies" permits manual linking. The accountant knows the
+        // day's FX rate; the system does not. TransactionMatcher.link() must NOT block a EUR invoice
+        // against a RON transaction. This test guards that guard against future over-tightening.
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        BankTransaction supplier = companyTxns(companyId).stream()
+                .filter(t -> "SELGROS".equals(t.getPartnerName())).findFirst().orElseThrow();
+        // EUR invoice, RON transaction — different currencies, same numeric amount.
+        UUID invId = seedInvoice(companyId, "SELGROS Cash & Carry SRL", "RO21SUPP", "200.00",
+                LocalDate.of(2026, 6, 1), "EUR");
+
+        // Manual link must succeed: the accountant has decided to associate them.
+        reconciliation.link(companyId, supplier.getId(), invId, null);
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).hasSize(1);
+    }
+
+    @Test
     void tier3DoesNotAutoMatchEurInvoiceAgainstRonTransactionOfSameAmount() throws Exception {
         UUID companyId = asTenantWithCompany(TENANT_A);
         documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));

@@ -33,11 +33,9 @@ describe("formatMoney", () => {
     expect(formatMoney(10, "", "en")).not.toContain("undefined");
   });
 
-  // Regression guard for the FilesModal / InvoicePaymentsModal gap fixed in this follow-up.
-  // Both surfaces previously hardcoded "RON" because DocumentStatus and InvoicePaymentsResponse
-  // did not carry a currency field — a EUR invoice would render as a bare number, indistinguishable
-  // from RON amounts (which deliberately have no suffix).
-  describe("DocumentStatus and InvoicePayments currency surface regression", () => {
+  // Formatting contract for currencies that DocumentStatus and InvoicePaymentsResponse now carry.
+  // These tests exercise the formatMoney function only — component rendering is out of scope here.
+  describe("formatMoney contract for non-RON currencies", () => {
     it("EUR from DocumentStatus.currency renders with EUR suffix — was bare before the gap fix", () => {
       // Simulates: formatMoney(st.total, st.currency, lang) where st.currency comes from
       // the new DocumentStatus.currency field populated from Invoice.getCurrency().

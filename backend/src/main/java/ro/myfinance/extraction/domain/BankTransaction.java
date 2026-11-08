@@ -93,7 +93,7 @@ public class BankTransaction {
         this.description = description;
         this.ref = ref;
         this.balanceAfter = balanceAfter;
-        this.currency = currency == null ? "RON" : currency;
+        this.currency = currency == null ? "RON" : currency.toUpperCase(java.util.Locale.ROOT);
         this.requiresDocument = false;
     }
 

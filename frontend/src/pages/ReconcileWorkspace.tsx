@@ -533,10 +533,12 @@ export function ReconcileWorkspace() {
                         ) : (
                           <div key={si.invoiceId} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                             <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, ...clip }}>{si.filename ?? si.supplierName ?? "factura"}</span>
+                            {/* Spec-B TODO: si.amount has no currency here (SuggestionLink carries none); assumes RON. Revisit when multi-currency statement ingestion lands. */}
                             <span className="mono" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>{money(si.amount)}</span>
                           </div>
                         );
                       })}
+                      {/* Spec-B TODO: sg.total has no currency here (SuggestionLink carries none); assumes RON. Revisit when multi-currency statement ingestion lands. */}
                       {sg.invoices.length > 1 && <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>= {money(sg.total)}</div>}
                     </div>
                     <button className="primary" disabled={match.isPending || applySuggestion.isPending} onClick={sg.apply} style={{ flex: "none", marginTop: 2 }}>{t("recon.accept")}</button>
@@ -681,6 +683,7 @@ function InvoiceInfo({ inv, amount, amountTone = "default", secondaryAmount = nu
         </div>
         <div style={{ flex: "none", textAlign: "right" }}>
           <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: mismatch ? "var(--danger-fg, #dc2626)" : amtColor }}>{formatMoney(amount, inv.currency, lang)}</div>
+          {/* Spec-B TODO: secondaryAmount is the *transaction* remaining, formatted here with inv.currency; assumes a single currency. Revisit when multi-currency statement ingestion lands. */}
           {mismatch && <div className="mono" style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)" }}>{formatMoney(secondaryAmount, inv.currency, lang)}</div>}
         </div>
       </div>

@@ -204,10 +204,23 @@ class HeuristicInvoiceExtractorTest {
 
     @Test
     void readsACurrencySymbol() throws Exception {
+        // PDFBox Standard14 Helvetica uses WinAnsiEncoding which includes '€' at cp1252 position 0x80.
+        // The '€' symbol must be detected and mapped to EUR.
         ParsedInvoice inv = extractor.extract(pdf(
                 "Invoice 9 dated 12.09.2026",
-                "Total due 1,190.00 EUR"),
+                "Total due 1,190.00 €"),
                 "ACME SRL");
         assertThat(inv.currency()).isEqualTo("EUR");
+    }
+
+    @Test
+    void readsUsdDollarSymbol() throws Exception {
+        // A USD invoice that prints only '$' adjacent to the amount (no ISO code anywhere).
+        // '$' preceding a number must be detected; a bare '$' elsewhere must not trigger a false positive.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Invoice 10 dated 12.09.2026",
+                "Total due $1,190.00"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("USD");
     }
 }

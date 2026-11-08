@@ -327,9 +327,11 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         return labelled != null ? new Total(labelled, labelledLine) : new Total(largest, largestLine);
     }
 
-    /** Recognised currency tokens. "LEI" is how Romanian invoices often write RON. */
+    /** Recognised currency tokens. "LEI" is how Romanian invoices often write RON.
+     * "$" requires numeric adjacency to avoid matching shell/template variables: a leading "$" must be
+     * followed by a digit, and a trailing "$" must be preceded by a digit. */
     private static final Pattern CURRENCY_TOKEN = Pattern.compile(
-            "(?i)(?<![a-z])(RON|LEI|EUR|USD|GBP|CHF|HUF)(?![a-z])|([€£])");
+            "(?i)(?<![a-z])(RON|LEI|EUR|USD|GBP|CHF|HUF)(?![a-z])|([€£])|\\$(?=[\\d])|(?<=[\\d])\\$");
 
     private static String normaliseCurrency(String token) {
         String t = token.trim().toUpperCase(java.util.Locale.ROOT);
@@ -337,6 +339,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             case "LEI" -> "RON";
             case "€" -> "EUR";
             case "£" -> "GBP";
+            case "$" -> "USD";
             default -> t;
         };
     }

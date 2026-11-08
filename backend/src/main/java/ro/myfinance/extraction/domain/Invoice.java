@@ -86,7 +86,7 @@ public class Invoice {
         this.originalFilename = originalFilename;
         this.status = status;
         // NOT NULL in the schema; a caller that cannot determine one means RON.
-        this.currency = currency == null ? "RON" : currency;
+        this.currency = currency == null ? "RON" : currency.toUpperCase(java.util.Locale.ROOT);
     }
 
     /** Refresh the extracted fields in place (re-scan), preserving id/document_id and any matches. */
@@ -100,7 +100,7 @@ public class Invoice {
         this.originalFilename = originalFilename;
         this.status = status;
         // NOT NULL in the schema; a caller that cannot determine one means RON.
-        this.currency = currency == null ? "RON" : currency;
+        this.currency = currency == null ? "RON" : currency.toUpperCase(java.util.Locale.ROOT);
     }
 
     public void setPeriodMonth(LocalDate periodMonth) {
@@ -130,5 +130,4 @@ public class Invoice {
     public String getOriginalFilename() { return originalFilename; }
     public String getStatus() { return status; }
     public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency == null ? "RON" : currency; }
 }
