@@ -370,7 +370,7 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                           <div style={{ flex: "none", textAlign: "right" }}>
                             <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
                               color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                              {formatMoney(st?.total ?? null, "RON", i18n.language)}
+                              {formatMoney(st?.total ?? null, st?.currency ?? "RON", i18n.language)}
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                               📅 {st?.invoiceDate ?? "—"}

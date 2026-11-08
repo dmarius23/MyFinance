@@ -68,9 +68,9 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
               {inv.supplierName && <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>🏢 {inv.supplierName}</div>}
               <div style={{ color: "var(--text-muted)", fontSize: 12.5, marginTop: 2 }}>📅 {inv.invoiceDate ?? "—"}</div>
               <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13, flexWrap: "wrap", alignItems: "center" }}>
-                <span>{t("recon.total")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.totalAmount, "RON", i18n.language)}</b></span>
-                <span>{t("recon.paid")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.paidAmount, "RON", i18n.language)}</b></span>
-                <span>{t("recon.remaining")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.remaining, "RON", i18n.language)}</b></span>
+                <span>{t("recon.total")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.totalAmount, inv.currency, i18n.language)}</b></span>
+                <span>{t("recon.paid")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.paidAmount, inv.currency, i18n.language)}</b></span>
+                <span>{t("recon.remaining")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.remaining, inv.currency, i18n.language)}</b></span>
                 <span style={{ ...statusColors[inv.status], borderRadius: 999, padding: "2px 10px", fontSize: 12 }}>
                   {t(`recon.status.${inv.status}`)}
                 </span>
@@ -89,9 +89,9 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
                     <div style={{ color: "var(--text-muted)", fontSize: 12 }}>📅 {p.txnDate}</div>
                   </div>
                   <div style={{ textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    <b>{formatMoney(p.allocatedAmount, "RON", i18n.language)}</b>
+                    <b>{formatMoney(p.allocatedAmount, p.txnCurrency, i18n.language)}</b>
                     {Math.abs(p.allocatedAmount - Math.abs(p.amount)) > 0.005 && (
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("recon.of", { total: formatMoney(Math.abs(p.amount), "RON", i18n.language) })}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("recon.of", { total: formatMoney(Math.abs(p.amount), p.txnCurrency, i18n.language) })}</div>
                     )}
                   </div>
                   <button onClick={() => remove.mutate(p.txnId)} disabled={remove.isPending}
@@ -116,7 +116,7 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
           companyId={companyId}
           period={period}
           invoiceRemaining={inv.remaining}
-          invoiceCurrency="RON"
+          invoiceCurrency={inv.currency}
           pending={add.isPending}
           onPick={(txnId) => add.mutate(txnId)}
           onClose={() => setAdding(false)}

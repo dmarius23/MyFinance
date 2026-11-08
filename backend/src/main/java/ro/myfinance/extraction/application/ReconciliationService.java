@@ -55,22 +55,34 @@ public class ReconciliationService {
      * - wrongParty: TRUE (different fiscal code), FALSE (matches), null (undetermined / unidentified).
      * - clientCif: the buyer fiscal code read off the document (for display).
      * - issuer: the supplier/issuer name read off the invoice or receipt (null for statements).
+     * - currency: the invoice's ISO-4217 currency code (null for bank statements).
      */
     public record DocumentStatus(UUID documentId, String dateFlag, String dateReason, boolean duplicate,
                                  String paymentStatus, Boolean wrongParty, String clientCif, String issuer,
-                                 String issuerCif, BigDecimal total, java.time.LocalDate invoiceDate) {
+                                 String issuerCif, BigDecimal total, java.time.LocalDate invoiceDate,
+                                 String currency) {
     }
 
-    /** A single payment (transaction allocation) applied to an invoice. */
+    /**
+     * A single payment (transaction allocation) applied to an invoice. {@code txnCurrency} is the
+     * bank transaction's own currency — a payment is a bank transaction, and its currency may differ
+     * from the invoice's (the accountant must see both to reconcile a foreign-currency invoice).
+     */
     public record InvoicePaymentView(UUID txnId, java.time.LocalDate txnDate, String partnerName,
-                                     java.math.BigDecimal amount, java.math.BigDecimal allocatedAmount) {
+                                     java.math.BigDecimal amount, java.math.BigDecimal allocatedAmount,
+                                     String txnCurrency) {
     }
 
-    /** Invoice-centric view: the invoice plus the payments applied to it and its remaining balance. */
+    /**
+     * Invoice-centric view: the invoice plus the payments applied to it and its remaining balance.
+     * {@code currency} is the invoice's own ISO-4217 currency code (from {@code Invoice.getCurrency()},
+     * never null).
+     */
     public record InvoicePaymentsView(UUID invoiceId, UUID documentId, String filename, String supplierName,
                                       java.math.BigDecimal totalAmount, java.time.LocalDate invoiceDate,
                                       java.math.BigDecimal paidAmount, java.math.BigDecimal remaining,
-                                      String status, java.util.List<InvoicePaymentView> payments) {
+                                      String status, java.util.List<InvoicePaymentView> payments,
+                                      String currency) {
     }
 
     /** A transaction still open for allocation (needs a document, remaining &gt; 0). */

@@ -115,19 +115,29 @@ public final class BankStatementDtos {
         }
     }
 
+    /**
+     * A payment row in the invoice-centric view. {@code txnCurrency} is the bank transaction's own
+     * currency (from {@code BankTransaction.getCurrency()}) — it may differ from the invoice's currency,
+     * so each row carries its own rather than inheriting from the parent.
+     */
     public record PaymentResponse(UUID txnId, LocalDate txnDate, String partnerName,
-                                  BigDecimal amount, BigDecimal allocatedAmount) {
+                                  BigDecimal amount, BigDecimal allocatedAmount, String txnCurrency) {
     }
 
+    /**
+     * Invoice-centric view returned by the payments endpoint. {@code currency} is the invoice's own
+     * ISO-4217 currency code (from {@code Invoice.getCurrency()}, never null).
+     */
     public record InvoicePaymentsResponse(UUID invoiceId, UUID documentId, String filename, String supplierName,
                                           BigDecimal totalAmount, LocalDate invoiceDate, BigDecimal paidAmount,
-                                          BigDecimal remaining, String status, java.util.List<PaymentResponse> payments) {
+                                          BigDecimal remaining, String status, java.util.List<PaymentResponse> payments,
+                                          String currency) {
         public static InvoicePaymentsResponse from(ro.myfinance.extraction.application.ReconciliationService.InvoicePaymentsView v) {
             java.util.List<PaymentResponse> p = v.payments().stream()
-                    .map(x -> new PaymentResponse(x.txnId(), x.txnDate(), x.partnerName(), x.amount(), x.allocatedAmount()))
+                    .map(x -> new PaymentResponse(x.txnId(), x.txnDate(), x.partnerName(), x.amount(), x.allocatedAmount(), x.txnCurrency()))
                     .toList();
             return new InvoicePaymentsResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
-                    v.totalAmount(), v.invoiceDate(), v.paidAmount(), v.remaining(), v.status(), p);
+                    v.totalAmount(), v.invoiceDate(), v.paidAmount(), v.remaining(), v.status(), p, v.currency());
         }
     }
 

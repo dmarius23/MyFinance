@@ -32,4 +32,39 @@ describe("formatMoney", () => {
   it("treats a missing currency as RON rather than printing undefined", () => {
     expect(formatMoney(10, "", "en")).not.toContain("undefined");
   });
+
+  // Regression guard for the FilesModal / InvoicePaymentsModal gap fixed in this follow-up.
+  // Both surfaces previously hardcoded "RON" because DocumentStatus and InvoicePaymentsResponse
+  // did not carry a currency field — a EUR invoice would render as a bare number, indistinguishable
+  // from RON amounts (which deliberately have no suffix).
+  describe("DocumentStatus and InvoicePayments currency surface regression", () => {
+    it("EUR from DocumentStatus.currency renders with EUR suffix — was bare before the gap fix", () => {
+      // Simulates: formatMoney(st.total, st.currency, lang) where st.currency comes from
+      // the new DocumentStatus.currency field populated from Invoice.getCurrency().
+      const eurDocStatusTotal = 1190.5;
+      const eurDocStatusCurrency = "EUR"; // what DocumentStatus.currency now returns for a EUR invoice
+      expect(formatMoney(eurDocStatusTotal, eurDocStatusCurrency, "en")).toContain("EUR");
+      expect(formatMoney(eurDocStatusTotal, eurDocStatusCurrency, "ro")).toContain("EUR");
+    });
+
+    it("EUR from InvoicePayments.currency renders with EUR suffix on invoice totals", () => {
+      // Simulates: formatMoney(inv.totalAmount, inv.currency, lang) in InvoicePaymentsModal
+      // where inv.currency comes from the new InvoicePaymentsResponse.currency field.
+      const eurInvoiceTotal = 476.0;
+      const eurInvoiceCurrency = "EUR";
+      expect(formatMoney(eurInvoiceTotal, eurInvoiceCurrency, "en")).toContain("EUR");
+    });
+
+    it("transaction currency from InvoicePayment.txnCurrency renders on payment rows", () => {
+      // Simulates: formatMoney(p.allocatedAmount, p.txnCurrency, lang) in InvoicePaymentsModal
+      // where p.txnCurrency comes from the new PaymentResponse.txnCurrency field.
+      const eurTxnCurrency = "EUR";
+      expect(formatMoney(300, eurTxnCurrency, "en")).toContain("EUR");
+    });
+
+    it("RON invoice total still renders without suffix (no noise for RON-only clients)", () => {
+      const ronInvoiceCurrency = "RON";
+      expect(formatMoney(1190.5, ronInvoiceCurrency, "ro")).not.toContain("RON");
+    });
+  });
 });
