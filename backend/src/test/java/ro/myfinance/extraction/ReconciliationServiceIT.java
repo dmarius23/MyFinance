@@ -200,6 +200,11 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
     }
 
     private UUID seedInvoice(UUID companyId, String supplierName, String iban, String amount, LocalDate date) {
+        return seedInvoice(companyId, supplierName, iban, amount, date, "RON");
+    }
+
+    private UUID seedInvoice(UUID companyId, String supplierName, String iban, String amount, LocalDate date,
+                             String currency) {
         UUID tenantId = TENANT_A; // bound tenant in the active test
         // a document row is required (FK). Insert a minimal INVOICE document via jdbc, then an invoice row.
         UUID docId = UUID.randomUUID();
@@ -209,7 +214,7 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
                 docId, tenantId, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
         ro.myfinance.extraction.domain.Invoice inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
                 tenantId, docId, companyId, LocalDate.of(2026, 6, 1), supplierName, iban,
-                new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED", "RON")); // placeholder: Task 3/4 supplies the real currency
+                new java.math.BigDecimal(amount), date, "inv.pdf", "EXTRACTED", currency));
         return inv.getId();
     }
 
@@ -370,5 +375,51 @@ class ReconciliationServiceIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                 reconciliation.link(companyId, supplier.getId(), inv2, null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    // --- Currency guard tests for auto-match (TransactionMatcher) ---
+    // The stub parser emits RON transactions. A EUR invoice of the same numeric amount must never be
+    // auto-matched in any tier, because at ~5 RON/EUR it represents a completely different payment.
+
+    @Test
+    void tier1DoesNotAutoMatchEurInvoiceAgainstRonTransactionOfSameAmount() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // Stub: SELGROS debit is RON -200.00, partnerIban RO21SUPP. Invoice is EUR 200.00 with matching IBAN.
+        // Tier-1 path (IBAN + amount + date) must reject the cross-currency pair.
+        UUID invId = seedInvoice(companyId, "SELGROS Cash & Carry SRL", "RO21SUPP", "200.00",
+                LocalDate.of(2026, 6, 1), "EUR");
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).isEmpty();
+    }
+
+    @Test
+    void tier2DoesNotAutoMatchEurInvoiceAgainstRonTransactionOfSameAmount() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // Stub: SELGROS debit is RON -200.00, no IBAN on the invoice. Tier-2 path (amount + name) must
+        // reject the cross-currency pair.
+        UUID invId = seedInvoice(companyId, "SELGROS Cash & Carry SRL", null, "200.00",
+                LocalDate.of(2026, 6, 1), "EUR");
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).isEmpty();
+    }
+
+    @Test
+    void tier3DoesNotAutoMatchEurInvoiceAgainstRonTransactionOfSameAmount() throws Exception {
+        UUID companyId = asTenantWithCompany(TENANT_A);
+        documents.upload(companyId, LocalDate.of(2026, 6, 1), "extras.pdf", "application/pdf", pdf("RECONSTUB"));
+        // Stub: SELGROS debit is RON -200.00, no IBAN and no name overlap. Tier-3 (unique amount) would
+        // normally match — but the invoice is EUR 200.00 so the currency key differs; no match must occur.
+        UUID invId = seedInvoice(companyId, "SOME UNRELATED VENDOR SRL", null, "200.00",
+                LocalDate.of(2026, 6, 1), "EUR");
+
+        reconciliation.matchPeriod(companyId, LocalDate.of(2026, 6, 1));
+
+        assertThat(matchRepo.findByInvoiceIdIn(List.of(invId))).isEmpty();
     }
 }
