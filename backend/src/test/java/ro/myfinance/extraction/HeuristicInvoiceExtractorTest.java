@@ -223,4 +223,29 @@ class HeuristicInvoiceExtractorTest {
                 "ACME SRL");
         assertThat(inv.currency()).isEqualTo("USD");
     }
+
+    @Test
+    void readsATrailingDollarSymbolSeparatedByASpace() throws Exception {
+        // "1,190.00 $" — a trailing symbol with a space before it. The first pass required a digit
+        // IMMEDIATELY before the '$', so this form was read as RON, and a USD invoice stored as RON
+        // becomes auto-matchable against a RON payment of the same number.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Invoice 11 dated 12.09.2026",
+                "Total due 1,190.00 $"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("USD");
+    }
+
+    @Test
+    void doesNotReadABareDollarSignAsACurrency() throws Exception {
+        // The dangerous direction: a '$' with no adjacent amount must NOT set the currency, or a
+        // Romanian invoice mentioning a dollar rate would be stored as USD and stop matching its
+        // own RON payment. Widening the lookbehind to allow a space must not break this.
+        ParsedInvoice inv = extractor.extract(pdf(
+                "Factura fiscala nr 12 din 12.09.2026",
+                "Observatii: tarif exprimat in $ conform contract",
+                "Total de plata 1.190,00"),
+                "ACME SRL");
+        assertThat(inv.currency()).isEqualTo("RON");
+    }
 }

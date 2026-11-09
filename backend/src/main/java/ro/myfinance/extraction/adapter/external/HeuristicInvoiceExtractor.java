@@ -331,7 +331,14 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
      * "$" requires numeric adjacency to avoid matching shell/template variables: a leading "$" must be
      * followed by a digit, and a trailing "$" must be preceded by a digit. */
     private static final Pattern CURRENCY_TOKEN = Pattern.compile(
-            "(?i)(?<![a-z])(RON|LEI|EUR|USD|GBP|CHF|HUF)(?![a-z])|([€£])|\\$(?=[\\d])|(?<=[\\d])\\$");
+            // "$" counts only next to an amount, on either side, with at most one space between:
+            // "$1,190.00", "$ 1,190.00", "1,190.00$", "1,190.00 $". A bare "$" in prose ("tarif in $
+            // conform contract") must NOT set the currency — mislabelling a RON invoice as USD would
+            // stop it matching its own RON payment, so the false-positive direction is the costly one.
+            // Note the lookbehind anchors on a DIGIT and allows the space after it; anchoring on
+            // "[\d.,\s]" instead would match a bare "$" preceded by a space.
+            "(?i)(?<![a-z])(RON|LEI|EUR|USD|GBP|CHF|HUF)(?![a-z])|([€£])"
+                    + "|\\$(?=\\s?[\\d])|(?<=\\d\\s?)\\$");
 
     private static String normaliseCurrency(String token) {
         String t = token.trim().toUpperCase(java.util.Locale.ROOT);
