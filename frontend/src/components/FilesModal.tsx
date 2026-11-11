@@ -6,6 +6,7 @@ import { reconciliationApi } from "../api/bank";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
+import { formatMoney } from "../lib/money";
 import { syncFinishedNote } from "../lib/syncStatus";
 import { invalidateDocumentQueries, refetchWhileExtracting } from "../lib/documentQueries";
 import { useSyncTracker } from "./SyncTracker";
@@ -369,8 +370,7 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                           <div style={{ flex: "none", textAlign: "right" }}>
                             <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
                               color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                              {st?.total != null ? st.total.toFixed(2) : "—"}
-                              {st?.total != null && <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text-muted)", marginLeft: 3 }}>RON</span>}
+                              {formatMoney(st?.total ?? null, st?.currency ?? "RON", i18n.language)}
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                               📅 {st?.invoiceDate ?? "—"}

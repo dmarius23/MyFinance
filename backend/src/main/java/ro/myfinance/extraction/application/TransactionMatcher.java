@@ -75,7 +75,7 @@ public class TransactionMatcher {
             }
             Invoice hit = firstInvoice(periodInvoices, inv ->
                     inv.getSupplierIban() != null && inv.getSupplierIban().equals(t.getPartnerIban())
-                            && amountMatches(inv, t) && dateOk(inv, t));
+                            && sameCurrency(t, inv) && amountMatches(inv, t) && dateOk(inv, t));
             if (hit != null) {
                 autoMatch(tenantId, t, hit, matchedTxnIds, periodInvoices);
             }
@@ -89,7 +89,8 @@ public class TransactionMatcher {
                 continue;
             }
             Invoice hit = firstInvoice(periodInvoices, inv ->
-                    amountMatches(inv, t) && dateOk(inv, t) && nameMatches(inv.getSupplierName(), t));
+                    sameCurrency(t, inv) && amountMatches(inv, t) && dateOk(inv, t)
+                            && nameMatches(inv.getSupplierName(), t));
             if (hit != null) {
                 autoMatch(tenantId, t, hit, matchedTxnIds, periodInvoices);
             }
@@ -100,21 +101,23 @@ public class TransactionMatcher {
         // supplier (a common POS case: EMBER SOFTWARE billed as "REVISALPLUS", SELGROS as "SG150").
         // Requiring uniqueness on BOTH sides avoids ambiguous pairings (e.g. two payments at the same
         // amount); the resulting link is a suggestion the accountant can review or unlink.
-        java.util.Map<BigDecimal, List<Invoice>> invByAmount = new java.util.HashMap<>();
+        // Index invoices by (currency, amount) so a EUR invoice never falls in the same bucket as a RON
+        // transaction of the same numeric value — a currency coincidence is not evidence of a match.
+        java.util.Map<String, List<Invoice>> invByCcyAmount = new java.util.HashMap<>();
         for (Invoice inv : periodInvoices) {
-            invByAmount.computeIfAbsent(inv.getTotalAmount().stripTrailingZeros(),
-                    k -> new java.util.ArrayList<>()).add(inv);
+            String key = inv.getCurrency() + ":" + inv.getTotalAmount().stripTrailingZeros().toPlainString();
+            invByCcyAmount.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(inv);
         }
-        java.util.Map<BigDecimal, List<BankTransaction>> txnByAmount = new java.util.HashMap<>();
+        java.util.Map<String, List<BankTransaction>> txnByCcyAmount = new java.util.HashMap<>();
         for (BankTransaction t : txns) {
             if (t.isRequiresDocument() && !matchedTxnIds.contains(t.getId()) && t.getAmount().signum() < 0) {
-                txnByAmount.computeIfAbsent(t.getAmount().abs().stripTrailingZeros(),
-                        k -> new java.util.ArrayList<>()).add(t);
+                String key = t.getCurrency() + ":" + t.getAmount().abs().stripTrailingZeros().toPlainString();
+                txnByCcyAmount.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(t);
             }
         }
-        for (var e : invByAmount.entrySet()) {
+        for (var e : invByCcyAmount.entrySet()) {
             List<Invoice> is = e.getValue();
-            List<BankTransaction> ts = txnByAmount.get(e.getKey());
+            List<BankTransaction> ts = txnByCcyAmount.get(e.getKey());
             if (is.size() == 1 && ts != null && ts.size() == 1 && dateOk(is.get(0), ts.get(0))) {
                 autoMatch(tenantId, ts.get(0), is.get(0), matchedTxnIds, periodInvoices);
             }
@@ -137,6 +140,16 @@ public class TransactionMatcher {
                 inv.getTotalAmount()));
         matchedTxnIds.add(t.getId());
         periodInvoices.remove(inv);
+    }
+
+    /**
+     * Two amounts are only comparable in the same currency. There is no FX rate anywhere in the system,
+     * and at ~5 RON/EUR a numeric coincidence is a five-fold error — so a cross-currency pair is not a
+     * candidate at any confidence. Manual linking ({@link #link}) stays allowed: the accountant knows the
+     * day's rate.
+     */
+    private static boolean sameCurrency(BankTransaction t, Invoice inv) {
+        return t.getCurrency().equalsIgnoreCase(inv.getCurrency());
     }
 
     private boolean amountMatches(Invoice inv, BankTransaction t) {

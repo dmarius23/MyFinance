@@ -7,6 +7,7 @@ import { companiesApi } from "../api/companies";
 import { documentsApi, type Document } from "../api/documents";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { usePeriod, monthLabel as monthLabelLong } from "../lib/period";
+import { formatMoney } from "../lib/money";
 import { invalidateDocumentQueries, refetchWhileExtracting } from "../lib/documentQueries";
 import { Icon } from "../components/Icon";
 import { DocumentPreviewModal } from "../components/DocumentPreviewModal";
@@ -319,7 +320,7 @@ export function ReconcileWorkspace() {
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                       <span style={{ fontWeight: 600, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.partnerName ?? "—"}</span>
                       {tx.category && <span className="pill round muted" style={{ flex: "none" }}>{tx.category}</span>}
-                      <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{money(Math.abs(tx.amount))}</span>
+                      <span className="mono" style={{ flex: "none", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: tx.amount < 0 ? "var(--text)" : "#15803d" }}>{tx.amount < 0 ? "−" : "+"}{formatMoney(Math.abs(tx.amount), tx.currency, i18n.language)}</span>
                     </div>
                     <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.txnDate} · {tx.description ?? maskIban(tx.partnerIban)}</div>
                     {/* status */}
@@ -334,7 +335,7 @@ export function ReconcileWorkspace() {
                           </div>
                         ))}
                         {!tx.fullyAllocated && (
-                          <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {money(tx.remainingAmount)} {t("recon.stillUnallocated")} →</div>
+                          <div style={{ fontSize: 11.5, color: "var(--warn-fg, #92400e)" }}>⚠ {formatMoney(tx.remainingAmount, tx.currency, i18n.language)} {t("recon.stillUnallocated")} →</div>
                         )}
                       </div>
                     ) : tx.requiresDocument ? (
@@ -509,7 +510,7 @@ export function ReconcileWorkspace() {
             ) : txnSuggestions.length > 0 ? (
               <div style={{ margin: 12, border: "1px solid var(--info-bd, #c7d2fe)", background: "var(--info-bg, #e0e7ff)", borderRadius: 10, padding: 10 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--info-fg, #3730a3)", marginBottom: 7 }}>
-                  {t("recon.suggestions")}{selectedTxn.matched ? ` · ${t("recon.remaining").toLowerCase()} ${money(selectedTxn.remainingAmount)}` : ""}
+                  {t("recon.suggestions")}{selectedTxn.matched ? ` · ${t("recon.remaining").toLowerCase()} ${formatMoney(selectedTxn.remainingAmount, selectedTxn.currency, i18n.language)}` : ""}
                 </div>
                 {txnSuggestions.map((sg) => (
                   <div key={sg.key} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 0", borderTop: "1px solid var(--info-bd, #c7d2fe)" }}>
@@ -526,16 +527,18 @@ export function ReconcileWorkspace() {
                           <div key={si.invoiceId} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                             <InvoiceInfo inv={full} amount={invAmount}
                               secondaryAmount={single ? (selectedTxn?.remainingAmount ?? null) : null}
-                              amountTone="info" companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
+                              amountTone="info" companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} lang={i18n.language} t={t} />
                             {docId && <button onClick={() => setPreview({ documentId: docId, filename: si.filename })} style={eyeBtn} title={t("recon.viewDoc")}><Icon name="eye" size={14} /></button>}
                           </div>
                         ) : (
                           <div key={si.invoiceId} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                             <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, ...clip }}>{si.filename ?? si.supplierName ?? "factura"}</span>
+                            {/* Spec-B TODO: si.amount has no currency here (SuggestionLink carries none); assumes RON. Revisit when multi-currency statement ingestion lands. */}
                             <span className="mono" style={{ flex: "none", fontSize: 12, fontWeight: 700 }}>{money(si.amount)}</span>
                           </div>
                         );
                       })}
+                      {/* Spec-B TODO: sg.total has no currency here (SuggestionLink carries none); assumes RON. Revisit when multi-currency statement ingestion lands. */}
                       {sg.invoices.length > 1 && <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>= {money(sg.total)}</div>}
                     </div>
                     <button className="primary" disabled={match.isPending || applySuggestion.isPending} onClick={sg.apply} style={{ flex: "none", marginTop: 2 }}>{t("recon.accept")}</button>
@@ -564,7 +567,7 @@ export function ReconcileWorkspace() {
                       {mapped ? <span className="pill round ok" style={{ flex: "none", marginTop: 2 }}>{t("recon.mapped")}</span>
                         : <input type="checkbox" checked={isChecked} disabled={!selectedTxn} onChange={() => toggleCheck(inv.id)} onClick={(e) => e.stopPropagation()} style={{ flex: "none", marginTop: 3 }} />}
                       <InvoiceInfo inv={inv} amount={(mapped ? inv.totalAmount : inv.remaining) ?? inv.totalAmount ?? 0}
-                        amountTone={mapped ? "muted" : suggested ? "info" : "default"} companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} t={t} />
+                        amountTone={mapped ? "muted" : suggested ? "info" : "default"} companyName={c?.legalName ?? null} companyCui={c?.cui ?? null} lang={i18n.language} t={t} />
                       <button onClick={(e) => { e.stopPropagation(); setPreview({ documentId: inv.documentId, filename: inv.filename }); }}
                         style={{ ...eyeBtn, marginTop: 1 }} title={t("recon.viewDoc")} aria-label={t("recon.viewDoc")}><Icon name="eye" size={15} /></button>
                     </div>
@@ -657,9 +660,9 @@ const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", te
  *   2) buyer (current company) · buyer CUI
  *   3) file name · labels (DUP / wrong party)
  */
-function InvoiceInfo({ inv, amount, amountTone = "default", secondaryAmount = null, companyName, companyCui, t }: {
+function InvoiceInfo({ inv, amount, amountTone = "default", secondaryAmount = null, companyName, companyCui, lang, t }: {
   inv: OpenInvoice; amount: number; amountTone?: "default" | "info" | "muted";
-  secondaryAmount?: number | null; companyName: string | null; companyCui: string | null; t: (k: string) => string;
+  secondaryAmount?: number | null; companyName: string | null; companyCui: string | null; lang: string; t: (k: string) => string;
 }) {
   const amtColor = amountTone === "muted" ? "var(--text-muted)" : amountTone === "info" ? "var(--info-fg, #3730a3)" : "var(--text)";
   // On a suggestion where the invoice amount differs from the transaction's (a supplier-name match), show
@@ -679,8 +682,9 @@ function InvoiceInfo({ inv, amount, amountTone = "default", secondaryAmount = nu
           {inv.invoiceDate && <span className="mono" style={{ color: "var(--text-muted)" }}> · {inv.invoiceDate}</span>}
         </div>
         <div style={{ flex: "none", textAlign: "right" }}>
-          <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: mismatch ? "var(--danger-fg, #dc2626)" : amtColor }}>{money(amount)}</div>
-          {mismatch && <div className="mono" style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)" }}>{money(secondaryAmount)}</div>}
+          <div className="mono" style={{ fontSize: 12.5, fontWeight: 700, color: mismatch ? "var(--danger-fg, #dc2626)" : amtColor }}>{formatMoney(amount, inv.currency, lang)}</div>
+          {/* Spec-B TODO: secondaryAmount is the *transaction* remaining, formatted here with inv.currency; assumes a single currency. Revisit when multi-currency statement ingestion lands. */}
+          {mismatch && <div className="mono" style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-muted)" }}>{formatMoney(secondaryAmount, inv.currency, lang)}</div>}
         </div>
       </div>
       <div style={{ fontSize: 11, color: inv.wrongParty ? "var(--warn-fg, #b45309)" : "var(--text-muted)", ...clip }}>{buyerLine}</div>

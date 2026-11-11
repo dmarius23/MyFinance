@@ -19,7 +19,7 @@ class InvoiceExtractionPartyTest {
 
     private static Fields fields(String supplierName, String issuerCif, String clientCif) {
         return new Fields(supplierName, null, new BigDecimal("884.53"), LocalDate.of(2026, 6, 5),
-                "EXTRACTED", issuerCif, clientCif, "F1293999", null);
+                "EXTRACTED", issuerCif, clientCif, "F1293999", null, "RON");
     }
 
     @Test
@@ -72,9 +72,9 @@ class InvoiceExtractionPartyTest {
         // Hybrid: readable text gave total/date/buyer but no supplier (logo-only); OCR of page 1 supplies
         // the name + CIF. Money/date/party must stay the text values, not the OCR's.
         Fields text = new Fields(null, null, new BigDecimal("731.02"), LocalDate.of(2026, 5, 29),
-                "EXTRACTED", null, OWN_CUI, "F123", Boolean.FALSE);
+                "EXTRACTED", null, OWN_CUI, "F123", Boolean.FALSE, "RON");
         Fields ocr = new Fields("S.C. COMPEXIT TRADING SRL", null, new BigDecimal("999.99"),
-                LocalDate.of(2000, 1, 1), "EXTRACTED", "RO8008913", OWN_CUI, "OTHER", Boolean.FALSE);
+                LocalDate.of(2000, 1, 1), "EXTRACTED", "RO8008913", OWN_CUI, "OTHER", Boolean.FALSE, "RON");
 
         Fields out = InvoiceExtractionService.mergeSupplier(text, ocr);
 

@@ -55,7 +55,7 @@ class BankStatementExtractionServiceIT extends AbstractPostgresIT {
                             new ParsedTransaction(LocalDate.of(2026, 6, 3), new BigDecimal("-50.00"),
                                     "Supplier SRL", "RO11", "achizitie", "r1", new BigDecimal("50.00")),
                             new ParsedTransaction(LocalDate.of(2026, 6, 4), new BigDecimal("20.00"),
-                                    "Client SRL", "RO22", "incasare", "r2", new BigDecimal("70.00"))));
+                                    "Client SRL", "RO22", "incasare", "r2", new BigDecimal("70.00"))), "RON");
                 }
             };
         }

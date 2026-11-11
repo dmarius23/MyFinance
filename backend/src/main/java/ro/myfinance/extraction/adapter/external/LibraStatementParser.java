@@ -166,9 +166,9 @@ public class LibraStatementParser implements BankStatementParser {
             // Amounts feed reconciliation, so a parse that disagrees with the bank's own totals must
             // not be published. Returning no transactions marks the statement NEEDS_REVIEW upstream.
             return new ParsedStatement("LIBRA", iban(text), opening,
-                    totals == null ? null : totals[3], List.of());
+                    totals == null ? null : totals[3], List.of(), "RON");
         }
-        return new ParsedStatement("LIBRA", iban(text), opening, totals[3], List.copyOf(txns));
+        return new ParsedStatement("LIBRA", iban(text), opening, totals[3], List.copyOf(txns), "RON");
     }
 
     /**

@@ -76,7 +76,7 @@ public class GenericRunningBalanceParser implements BankStatementParser {
             BigDecimal signed = (prev != null) ? r.balance.subtract(prev) : null;
             txns.add(new ParsedTransaction(r.date, signed, null, r.iban, r.desc, null, r.balance));
         }
-        return new ParsedStatement(null, firstIban(lines), opening, closing, txns);
+        return new ParsedStatement(null, firstIban(lines), opening, closing, txns, "RON");
     }
 
     /** Rows where the date, amount and running balance all sit on one line (the common statement shape). */

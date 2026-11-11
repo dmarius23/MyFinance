@@ -123,7 +123,7 @@ public class BancaTransilvaniaStatementParser implements BankStatementParser {
             txns.add(new ParsedTransaction(dateAt[i], amount, partnerName(detail), partnerIban, detail, ref,
                     nextBalance(lines, i, next)));
         }
-        return new ParsedStatement("BTRL", iban, opening, closing, txns);
+        return new ParsedStatement("BTRL", iban, opening, closing, txns, "RON");
     }
 
     /** An operation line: a trailing money amount, not a summary, and either dated or type-prefixed. */
