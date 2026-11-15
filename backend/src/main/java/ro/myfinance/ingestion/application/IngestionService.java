@@ -38,6 +38,16 @@ public class IngestionService {
     private static final Logger log = LoggerFactory.getLogger(IngestionService.class);
     private static final long MAX_BYTES = 25L * 1024 * 1024;
 
+    /** How many months back an unattended run looks, counting the current one. See {@link #recentMonths()}. */
+    private static final int RECENT_MONTHS = 4;
+
+    /**
+     * Image types DocumentService.ALLOWED_CONTENT_TYPES accepts. Keep the two in step: a type accepted
+     * here but refused there is downloaded only to be thrown away.
+     */
+    private static final java.util.Set<String> STORABLE_IMAGE_TYPES =
+            java.util.Set.of("image/png", "image/jpeg", "image/webp");
+
     private final SourceConnectionRepository connections;
     private final ImportFileRepository ledger;
     private final CompanyDirectory companies;
@@ -187,27 +197,43 @@ public class IngestionService {
         SourceConnection conn = connections.findById(connectionId)
                 .orElseThrow(() -> new NotFoundException("Connection not found: " + connectionId));
         LocalDate prev = previousMonth();
-        LocalDate current = java.time.YearMonth.now(java.time.ZoneOffset.UTC).atDay(1);
-        SyncResult r = doSync(conn, null, java.util.Set.of(current, prev), null, prev, true,
+        java.util.Set<LocalDate> window = recentMonths();
+        SyncResult r = doSync(conn, null, window, null, prev, true,
                 conn.getRootFolderId(), false, null, null);
-        // Refresh the per-(module, month) sync status the module screens display, for both months this run
+        // Refresh the per-(module, month) sync status the module screens display, for every month this run
         // covered — so an unattended nightly run shows "last synced = tonight", not the last manual sync.
-        recordAutoSyncStatus(conn, r, current, prev);
+        recordAutoSyncStatus(conn, r, window);
         return r;
     }
 
+    /**
+     * The months an unattended run looks at. Clients file late: a September invoice is routinely dropped
+     * into the September folder on 20 October, by which time a current+previous window has already moved
+     * past it — and since no scheduled run ever revisits a closed month, that file could never be imported
+     * by itself again. Looking RECENT_MONTHS back is what makes the poll self-healing; the crawl is a full
+     * re-list either way, so the extra months cost matching, not traffic.
+     */
+    private static java.util.Set<LocalDate> recentMonths() {
+        java.time.YearMonth current = java.time.YearMonth.now(java.time.ZoneOffset.UTC);
+        java.util.Set<LocalDate> months = new java.util.LinkedHashSet<>();
+        for (int back = 0; back < RECENT_MONTHS; back++) {
+            months.add(current.minusMonths(back).atDay(1));
+        }
+        return months;
+    }
+
     /** Mark the module-month slots this connection's nightly poll covered as synced-now. */
-    private void recordAutoSyncStatus(SourceConnection conn, SyncResult r, LocalDate current, LocalDate prev) {
+    private void recordAutoSyncStatus(SourceConnection conn, SyncResult r, java.util.Set<LocalDate> window) {
         String summary = r.summary();
-        if ("ACCOUNTING".equalsIgnoreCase(conn.getPurpose())) {
-            syncStatus.markSyncedNow(ACCOUNTING_SLOT, current.withDayOfMonth(1), summary);
-            syncStatus.markSyncedNow(ACCOUNTING_SLOT, prev.withDayOfMonth(1), summary);
-        } else {
-            // The declarations drive carries payroll, fiscal declarations and interim trial balances.
-            for (DocumentType module : java.util.List.of(
-                    DocumentType.PAYROLL, DocumentType.DECLARATION, DocumentType.TRIAL_BALANCE)) {
-                syncStatus.markSyncedNow(module.name(), statusPeriod(module, current), summary);
-                syncStatus.markSyncedNow(module.name(), statusPeriod(module, prev), summary);
+        for (LocalDate month : window) {
+            if ("ACCOUNTING".equalsIgnoreCase(conn.getPurpose())) {
+                syncStatus.markSyncedNow(ACCOUNTING_SLOT, month.withDayOfMonth(1), summary);
+            } else {
+                // The declarations drive carries payroll, fiscal declarations and interim trial balances.
+                for (DocumentType module : java.util.List.of(
+                        DocumentType.PAYROLL, DocumentType.DECLARATION, DocumentType.TRIAL_BALANCE)) {
+                    syncStatus.markSyncedNow(module.name(), statusPeriod(module, month), summary);
+                }
             }
         }
     }
@@ -511,6 +537,15 @@ public class IngestionService {
 
         for (RemoteFile f : listing.files()) {
             try {
+                // A photographed receipt arrives as an iPhone .HEIC, which the document store cannot keep.
+                // Flag it rather than skip it, so the client can be asked for a JPEG — see reviewUnstorableImage.
+                if (accountingMixed && isUnstorableImage(f) && f.size() <= MAX_BYTES) {
+                    if (reviewUnstorableImage(conn, f, tenantId, onlyCompany, onlyPeriods,
+                            companyKnown, tenantCompanies, issues) == Outcome.NEEDS_REVIEW) {
+                        review++;
+                    }
+                    continue;
+                }
                 if (!isSupported(f) || f.size() > MAX_BYTES) {
                     if (onlyCompany == null) skipped++;
                     continue;
@@ -661,6 +696,7 @@ public class IngestionService {
                 }
             } catch (RuntimeException e) {
                 log.warn("Failed to ingest file {} (conn {})", f.id(), conn.getId(), e);
+                recordFailure(tenantId, conn, f, tenantCompanies, companyKnown ? onlyCompany : null, issues, e);
                 failed++;
             }
         }
@@ -683,9 +719,68 @@ public class IngestionService {
         return result;
     }
 
-    /** Upsert a ledger row: re-record the existing one on re-sync (unique per connection + file), else insert. */
+    /**
+     * Record a file that threw on the way in. Until now such a file was only counted ("failed") and
+     * logged: no ledger row, no issue — so it existed on Drive and the app mentioned it absolutely
+     * nowhere, which is exactly the case the accountant cannot diagnose. Write it as NEEDS_REVIEW with
+     * the reason, so it shows up in the "not imported" list next to every other unimported file.
+     *
+     * Best-effort on purpose, and wrapped in its own try: whatever threw may have left the surrounding
+     * transaction unusable, and failing to record a failure must not abort the rest of the run.
+     */
+    private void recordFailure(UUID tenantId, SourceConnection conn, RemoteFile f, List<Company> tenantCompanies,
+                               UUID knownCompany, List<SyncResult.Issue> issues, RuntimeException cause) {
+        String reason = failureReason(cause);
+        issues.add(new SyncResult.Issue(f.name(), reason));
+        try {
+            ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
+            UUID companyId = knownCompany != null ? knownCompany
+                    : FolderMapper.resolveAccountingCompany(f, tenantCompanies).orElse(null);
+            writeLedger(prior, tenantId, conn, f, null, companyId, FolderMapper.resolvePeriod(f), null,
+                    ImportFile.Status.NEEDS_REVIEW, reason);
+        } catch (RuntimeException ledgerFailure) {
+            log.warn("Could not record the failed import of file {} (conn {})", f.id(), conn.getId(), ledgerFailure);
+        }
+    }
+
+    /** The exception's own message, capped so one long technical string can't fill the review card. */
+    private static String failureReason(RuntimeException e) {
+        String msg = e.getMessage() == null || e.getMessage().isBlank()
+                ? e.getClass().getSimpleName() : e.getMessage();
+        return msg.length() <= 300 ? msg : msg.substring(0, 297) + "...";
+    }
+
     /** Per-file outcome of the ACCOUNTING mixed-layout import, mapped to the run's counters by the caller. */
     private enum Outcome { IMPORTED, NEEDS_REVIEW, SKIPPED, FAILED, PASS }
+
+    /**
+     * An image in a format the document store cannot keep — an iPhone .HEIC above all, which is exactly
+     * what a receipt photographed by a client arrives as. The gate used to wave through any image/*, so
+     * such a file was downloaded and then refused deep inside the upload, where the exception was counted
+     * and forgotten: the photo existed on Drive and nowhere in the app. Flag it here, before spending a
+     * download on it, so it lands in the "not imported" list and the client can be asked for a JPEG.
+     */
+    private Outcome reviewUnstorableImage(SourceConnection conn, RemoteFile f, UUID tenantId, UUID onlyCompany,
+                                          java.util.Set<LocalDate> onlyPeriods, boolean companyKnown,
+                                          List<Company> tenantCompanies, List<SyncResult.Issue> issues) {
+        Optional<UUID> cid = companyKnown ? Optional.of(onlyCompany)
+                : FolderMapper.resolveAccountingCompany(f, tenantCompanies);
+        Optional<LocalDate> stated = FolderMapper.statedAccountingPeriod(f);
+        LocalDate period = stated.orElseGet(() -> FolderMapper.resolvePeriod(f));
+        // Same scoping as importMixedFile: a run asked for one company/month must stay silent about the rest.
+        if (onlyCompany != null && (cid.isEmpty() || !cid.get().equals(onlyCompany))) {
+            return Outcome.PASS;
+        }
+        if (onlyPeriods != null && stated.isPresent() && !onlyPeriods.contains(period)) {
+            return Outcome.PASS;
+        }
+        ImportFile prior = ledger.findByConnectionIdAndSourceRef(conn.getId(), f.id()).orElse(null);
+        String reason = "Format de imagine neacceptat (" + mime(f) + ") — încărcați fotografia ca JPEG sau PDF";
+        writeLedger(prior, tenantId, conn, f, null, cid.orElse(null), period, null,
+                ImportFile.Status.NEEDS_REVIEW, reason);
+        issues.add(new SyncResult.Issue(f.name(), reason));
+        return Outcome.NEEDS_REVIEW;
+    }
 
     /**
      * Import one file from the ACCOUNTING (contabilitate clienti) drive: resolve company + period from the
@@ -814,6 +909,7 @@ public class IngestionService {
         return Outcome.IMPORTED;
     }
 
+    /** Upsert a ledger row: re-record the existing one on re-sync (unique per connection + file), else insert. */
     private void writeLedger(ImportFile prior, UUID tenantId, SourceConnection conn, RemoteFile f, String sha,
                              UUID companyId, LocalDate period, UUID documentId, ImportFile.Status status, String detail) {
         if (prior != null) {
@@ -1052,7 +1148,13 @@ public class IngestionService {
 
     private static boolean isSupported(RemoteFile f) {
         String m = mime(f).toLowerCase();
-        return m.contains("pdf") || m.startsWith("image/");
+        return m.contains("pdf") || STORABLE_IMAGE_TYPES.contains(m);
+    }
+
+    /** An image we can recognise as an image but cannot store — .HEIC, .tiff, .bmp and the like. */
+    private static boolean isUnstorableImage(RemoteFile f) {
+        String m = mime(f).toLowerCase();
+        return m.startsWith("image/") && !STORABLE_IMAGE_TYPES.contains(m);
     }
 
     private static String mime(RemoteFile f) {
@@ -1064,6 +1166,9 @@ public class IngestionService {
         if (n.endsWith(".png")) return "image/png";
         if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
         if (n.endsWith(".webp")) return "image/webp";
+        // Named so the gate above can tell an unstorable photo from an unknown blob and say which it is.
+        if (n.endsWith(".heic")) return "image/heic";
+        if (n.endsWith(".heif")) return "image/heif";
         return "application/octet-stream";
     }
 
