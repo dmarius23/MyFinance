@@ -91,11 +91,16 @@ public class PortalService {
      * A document in the rep's view. For invoices/receipts the reconciliation-derived fields are filled:
      * {@code issuer} (who issued it), {@code paymentStatus} (PAID/PARTIAL/UNPAID), {@code duplicate}, and
      * {@code outsidePeriod} (its date falls outside the selected month). Null/false for other types.
+     *
+     * <p>{@code currency} is the currency of {@code total}. It is null when there is no total to label
+     * (a bank statement, a trial balance, an invoice that has not been extracted yet). The rep's screen
+     * used to hardcode "RON" next to every total, which labelled a EUR invoice as RON — the one failure
+     * the currency work exists to prevent — so the real currency has to travel with the amount.
      */
     public record DocView(UUID id, String filename, String type, String status, Instant uploadedAt,
                           String issuer, String paymentStatus, boolean duplicate, boolean outsidePeriod,
                           String issuerCif, java.math.BigDecimal total, java.time.LocalDate invoiceDate,
-                          boolean wrongParty, boolean canDelete) {
+                          String currency, boolean wrongParty, boolean canDelete) {
     }
 
     public record PayrollFile(UUID id, String filename) {
@@ -194,6 +199,7 @@ public class PortalService {
                             s == null ? null : s.issuerCif(),
                             s == null ? null : s.total(),
                             s == null ? null : s.invoiceDate(),
+                            s == null ? null : s.currency(),
                             wrongParty(d), canDelete(d));
                 })
                 .toList();
@@ -285,7 +291,7 @@ public class PortalService {
 
     private DocView view(Document d) {
         return new DocView(d.getId(), d.getOriginalFilename(), d.getType().name(),
-                d.getStatus().name(), d.getUploadedAt(), null, null, false, false, null, null, null,
+                d.getStatus().name(), d.getUploadedAt(), null, null, false, false, null, null, null, null,
                 wrongParty(d), canDelete(d));
     }
 
