@@ -58,6 +58,8 @@ export interface PortalDoc {
   issuerCif?: string | null;
   total?: number | null;
   invoiceDate?: string | null;
+  /** Currency of `total`; null when there is no total to label. Never assume RON. */
+  currency?: string | null;
   /** Filed for another company (CUI mismatch) — shown with a "wrong party" label. */
   wrongParty?: boolean;
   /** The current rep uploaded this and may delete it (not a Drive-managed file). */
