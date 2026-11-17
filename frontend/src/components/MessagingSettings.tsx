@@ -405,8 +405,20 @@ export function WhatsAppTemplatesSection() {
           )}
         </div>
         <Field label={t("settings.tpl.name")}>
-          <input type="text" required pattern="[a-z][a-z0-9_]{1,511}" placeholder="document_reminder"
-            value={form.metaTemplateName} onChange={(e) => setForm((f) => ({ ...f, metaTemplateName: e.target.value }))} />
+          <select required value={form.metaTemplateName}
+            onChange={(e) => setForm((f) => ({ ...f, metaTemplateName: e.target.value }))}>
+            <option value="">{t("settings.tpl.metaSelectPlaceholder")}</option>
+            {(metaTemplates ?? [])
+              .filter((m) => m.appLanguage === form.language)
+              .map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name} — {m.status}
+                </option>
+              ))}
+            {form.metaTemplateName && !(metaTemplates ?? []).some(
+              (m) => m.name === form.metaTemplateName && m.appLanguage === form.language,
+            ) && <option value={form.metaTemplateName}>{form.metaTemplateName}</option>}
+          </select>
         </Field>
         <p style={hint}>{t("settings.tpl.nameHint")}</p>
         <div style={{ display: "flex", gap: 8 }}>
@@ -422,13 +434,16 @@ export function WhatsAppTemplatesSection() {
       {msg.ok && <p style={okStyle}>{msg.ok}</p>}
 
       {provider.data?.hasMetaToken && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0 }}>{t("settings.tpl.metaTitle")}</h3>
+        <details style={{ marginTop: 24 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+            {t("settings.tpl.metaTitle")}
+          </summary>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <button type="button" disabled={metaList.isFetching} onClick={() => void metaList.refetch()}>
               {metaList.isFetching ? "…" : t("settings.tpl.metaReload")}
             </button>
-          </div>
+            </div>
           <p style={hint}>{t("settings.tpl.metaDesc")}</p>
           {metaList.isLoading && <p>{t("common.loading")}</p>}
           {metaList.isError && (
@@ -479,7 +494,8 @@ export function WhatsAppTemplatesSection() {
               </tbody>
             </table>
           )}
-        </div>
+          </div>
+        </details>
       )}
     </div>
   );
