@@ -17,7 +17,7 @@ It does not repeat the root — read that too.
 
 ## Stack & conventions
 
-- **React 18, Vite 5, TypeScript `strict`** (hold the line: **zero `any`/`@ts-ignore`**), React Router 6.
+- **React 18, Vite 7, TypeScript `strict`** (hold the line: **zero `any`/`@ts-ignore`**), React Router 7.
 - **TanStack React Query** is the single server-state source; **Supabase JS for auth only**; react-i18next
   (RO default / EN fallback); vite-plugin-pwa. (Zustand is a dependency but **unused** — slated for removal.)
 - **Two shells:** `FirmLayout` (staff console) and `RepHome` (rep mobile PWA). Every API call goes through
@@ -41,7 +41,7 @@ It does not repeat the root — read that too.
 Vitest + React Testing Library: `npm test` (watch: `npm run test:watch`). Config in `vitest.config.ts`
 (separate from `vite.config.ts` so the PWA plugin stays out of test runs); matchers and RTL cleanup in
 `src/test/setup.ts`. `globals` is off — import `describe`/`it`/`expect` from `vitest` explicitly. Tests
-live beside the code as `*.test.ts(x)`. Pinned to Vitest 2.x: v4+ requires Vite 6.
+live beside the code as `*.test.ts(x)`. Vitest 4.x on Vite 7.x.
 
 Still to cover: the security-sensitive flows (logout-clears-state, `RequireRole`, `apiClient` auth/401).
 `eslint` (with `jsx-a11y`) + typecheck + build green; SCA in CI; no secrets in the bundle.

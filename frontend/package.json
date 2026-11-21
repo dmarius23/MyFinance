@@ -18,7 +18,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^15.0.2",
-    "react-router-dom": "^6.26.2",
+    "react-router-dom": "^7.18.6",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
@@ -35,9 +35,16 @@
     "globals": "^15.9.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.6.2",
-    "typescript-eslint": "^8.72.0",
-    "vite": "^5.4.8",
-    "vite-plugin-pwa": "^0.20.5",
-    "vitest": "^2.1.9"
+    "typescript-eslint": "^8.73.0",
+    "vite": "^7.3.8",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "brace-expansion@1": "^1.1.22",
+    "brace-expansion@2": "^2.1.8",
+    "brace-expansion@5": "^5.0.13",
+    "minimatch@10": "^11.0.9",
+    "glob": "^14.0.6"
   }
 }
