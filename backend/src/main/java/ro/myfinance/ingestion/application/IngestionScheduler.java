@@ -20,9 +20,10 @@ import ro.myfinance.common.security.TenantContext;
  * The tick fires ONCE per hour (Europe/Bucharest); each firing syncs only the tenants whose per-tenant
  * schedule ({@code general_settings.auto_sync_enabled} + {@code auto_sync_hour}) matches the current local
  * hour. Tenants without a settings row yet inherit the defaults (enabled, 02:00). For each matching Drive
- * connection it syncs the current + previous month — every module type: payroll, declarations, trial
- * balance, and (via the accounting connection) bank statements + invoices — under that tenant's RLS
- * context. New previous-month payroll notifies the company's representatives.
+ * connection it syncs the last few months (see {@code IngestionService.RECENT_MONTHS} — a closed month is
+ * revisited because clients file late) — every module type: payroll, declarations, trial balance, and (via
+ * the accounting connection) bank statements + invoices — under that tenant's RLS context. New
+ * previous-month payroll notifies the company's representatives.
  *
  * <p>Multi-instance safe (S6): the tick is guarded by a ShedLock {@code @SchedulerLock}, so with several
  * web/worker instances up exactly one runs the poll and the rest skip it — no duplicate Drive imports.
