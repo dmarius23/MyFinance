@@ -222,6 +222,10 @@ jobs:
           GMAIL_PUBSUB_SERVICE_ACCOUNT: ${{ secrets.GMAIL_PUBSUB_SERVICE_ACCOUNT || vars.GMAIL_PUBSUB_SERVICE_ACCOUNT }}
           # Gmail watches expire after 7 days; without renewal push silently stops after a week.
           GMAIL_WATCH_RENEWAL_ENABLED: ${{ vars.GMAIL_WATCH_RENEWAL_ENABLED || 'true' }}
+          # MOD-15 nightly Drive poll. Off in application.yml, so without this line nothing ever
+          # re-reads a Drive folder unless someone presses Sync — which is how a late-filed invoice
+          # stayed invisible. Set the repo variable to 'false' to stop the poll without a code change.
+          MYFINANCE_INGESTION_POLL_ENABLED: ${{ vars.MYFINANCE_INGESTION_POLL_ENABLED || 'true' }}
           # Meta app/config IDs and the OAuth redirect ship in the browser, so they are public.
           # The app secret and webhook verify token are synced in the step above.
           META_WHATSAPP_APP_ID: ${{ secrets.META_WHATSAPP_APP_ID || vars.META_WHATSAPP_APP_ID }}
@@ -234,7 +238,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,GMAIL_PUBSUB_AUDIENCE,GMAIL_PUBSUB_SERVICE_ACCOUNT,GMAIL_WATCH_RENEWAL_ENABLED,META_WHATSAPP_APP_ID,META_WHATSAPP_CONFIG_ID,META_WHATSAPP_REDIRECT_URI,SECRET_CHANGED
+          envs: GMAIL_CLIENT_ID,GMAIL_REDIRECT_URI,GMAIL_PUBSUB_TOPIC,GMAIL_PUBSUB_AUDIENCE,GMAIL_PUBSUB_SERVICE_ACCOUNT,GMAIL_WATCH_RENEWAL_ENABLED,MYFINANCE_INGESTION_POLL_ENABLED,META_WHATSAPP_APP_ID,META_WHATSAPP_CONFIG_ID,META_WHATSAPP_REDIRECT_URI,SECRET_CHANGED
           script: |
             set -euo pipefail
             cd /opt/myfinance
@@ -250,6 +254,7 @@ jobs:
             env_before=$(sha256sum .env | cut -d' ' -f1)
             for key in GMAIL_CLIENT_ID GMAIL_REDIRECT_URI GMAIL_PUBSUB_TOPIC \
                        GMAIL_PUBSUB_AUDIENCE GMAIL_PUBSUB_SERVICE_ACCOUNT GMAIL_WATCH_RENEWAL_ENABLED \
+                       MYFINANCE_INGESTION_POLL_ENABLED \
                        META_WHATSAPP_APP_ID META_WHATSAPP_CONFIG_ID META_WHATSAPP_REDIRECT_URI; do
               eval "val=\${$key:-}"
               if [ -z "$val" ]; then

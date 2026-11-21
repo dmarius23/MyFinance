@@ -140,11 +140,13 @@ myfinance:
     key: ${MYFINANCE_SECRET_KEY:}
   # Gmail OAuth web-client credentials. The client secret stays in environment/config only.
   ingestion:
-    # MOD-15 automatic Drive polling (IngestionScheduler). Off unless the environment turns it on: with it
-    # off, a Drive folder is only ever read when someone presses Sync on a screen, so a document dropped
-    # into a month nobody re-syncs is never imported.
     poll:
-      enabled: ${INGESTION_POLL_ENABLED:false}
+      # MOD-15 automatic Drive polling (IngestionScheduler). Off here and turned on per deployment by
+      # MYFINANCE_INGESTION_POLL_ENABLED=true (see deploy/env.prod.example), which outranks this value —
+      # one switch, and it lives with the rest of the deployment's config rather than in the jar. With the
+      # poll off a Drive folder is only ever read when someone presses Sync on a screen, so a document
+      # dropped into a month nobody re-syncs is never imported.
+      enabled: false
     gmail:
       client-id: ${GMAIL_CLIENT_ID:}
       client-secret: ${GMAIL_CLIENT_SECRET:}
