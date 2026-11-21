@@ -18,7 +18,7 @@ overview.
 - **`backend/`** — Java 21 / Spring Boot 3 modular monolith + worker. **See [`backend/CLAUDE.md`](backend/CLAUDE.md)**
   for the backend stack, conventions, golden rules, and `backend/docs/` (design spec, clean-code guide,
   improvement plan, per-module design-history).
-- **`frontend/`** — React 18 / Vite 5 / TypeScript PWA. **See [`frontend/CLAUDE.md`](frontend/CLAUDE.md)**
+- **`frontend/`** — React 18 / Vite 7 / TypeScript PWA. **See [`frontend/CLAUDE.md`](frontend/CLAUDE.md)**
   for the frontend stack, conventions, and `frontend/docs/` (design spec, clean-code guide, improvement plan).
 - **`docs/`** — repo-**global** source-of-truth (listed below).
 - **`archive/`** — historical / pre-app artifacts (the original AirTable design). Not live; never required to build.
