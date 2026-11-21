@@ -57,7 +57,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const draft = useQuery({
     queryKey: ["whatsapp-body", companyId, kind, period],
     queryFn: loadBody!,
-    enabled: !!loadBody && !metaMode,
+    enabled: !!loadBody,
   });
   const metaPreview = useQuery({
     queryKey: ["whatsapp-meta-preview", companyId, kind, period],
@@ -66,10 +66,10 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
     retry: false,
   });
   useEffect(() => {
-    if (metaMode && metaPreview.data?.body != null) {
-      setBody(metaPreview.data.body);
-    } else if (!metaMode && !bodyEdited && draft.data != null) {
+    if (!bodyEdited && draft.data != null) {
       setBody(draft.data);
+    } else if (metaMode && metaPreview.data?.body != null && !bodyEdited) {
+      setBody(metaPreview.data.body);
     }
   }, [draft.data, metaMode, metaPreview.data, bodyEdited]);
   const history = useQuery({

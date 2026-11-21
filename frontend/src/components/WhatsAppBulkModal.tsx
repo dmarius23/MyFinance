@@ -64,7 +64,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
     targets.forEach((x) => {
       Promise.all([
         whatsappApi.recipient(x.companyId),
-        metaMode ? Promise.resolve("") : loadBody(x.companyId),
+        loadBody(x.companyId),
         metaMode && kind === "DOCUMENT_REMINDER" && loadSourceKind
           ? loadSourceKind(x.companyId) : Promise.resolve(undefined),
       ])
@@ -80,14 +80,6 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targets, period, metaMode, kind, loadSourceKind]);
-
-  useEffect(() => {
-    if (!metaMode || metaPreview.data?.body == null) return;
-    const templateBody = metaPreview.data.body;
-    setDrafts((all) => Object.fromEntries(
-      Object.entries(all).map(([id, draft]) => [id, { ...draft, body: templateBody }]),
-    ));
-  }, [metaMode, metaPreview.data]);
 
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
