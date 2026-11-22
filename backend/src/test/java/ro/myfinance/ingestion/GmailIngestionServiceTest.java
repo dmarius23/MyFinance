@@ -8,11 +8,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import ro.myfinance.common.security.Role;
 import ro.myfinance.common.security.TenantContext;
 import ro.myfinance.ingestion.adapter.persistence.EmailConnectionRepository;
@@ -86,6 +89,84 @@ class GmailIngestionServiceTest {
         // syncClaimed persists twice by design: once to flag SYNCING, once with the final ACTIVE state
         // and the advanced cursor. The end state is asserted above, so don't pin the exact save count.
         verify(connections, atLeastOnce()).save(connection);
+        verify(claims).release(connection.getId());
+    }
+
+    @Test
+    void recoverAfterReconnectBackfillsFromLastSyncedAt() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(),
+                Role.TENANT_ADMIN, null));
+        EmailConnection connection = new EmailConnection(tenantId, "Mailbox", "mailbox@example.com");
+        Instant lastSynced = Instant.parse("2026-11-10T08:00:00Z");
+        connection.setLastSyncedAt(lastSynced);
+        when(connections.findById(connection.getId())).thenReturn(Optional.of(connection));
+        when(claims.tryClaim(any(), any(), any())).thenReturn(true);
+        when(gmail.watch(connection)).thenReturn(new GmailMailboxClient.WatchRegistration(
+                "watch-cursor", Instant.parse("2026-11-29T00:00:00Z")));
+        when(gmail.backfill(any(), any(), any())).thenReturn(List.of());
+        when(gmail.changes(connection, "watch-cursor")).thenReturn(List.of());
+        when(gmail.currentHistoryId(connection)).thenReturn("20");
+
+        new GmailIngestionService(connections, claims, gmail, attachments)
+                .recoverAfterReconnect(connection.getId());
+
+        ArgumentCaptor<LocalDate> from = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> to = ArgumentCaptor.forClass(LocalDate.class);
+        verify(gmail).backfill(any(), from.capture(), to.capture());
+        assertThat(from.getValue()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(to.getValue()).isEqualTo(LocalDate.now(ZoneOffset.UTC).plusDays(1));
+        assertThat(connection.getGmailHistoryId()).isEqualTo("20");
+        assertThat(connection.getStatus()).isEqualTo("ACTIVE");
+        verify(claims).release(connection.getId());
+    }
+
+    @Test
+    void recoverAfterReconnectDefaultsToThirtyDaysWhenNeverSynced() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(),
+                Role.TENANT_ADMIN, null));
+        EmailConnection connection = new EmailConnection(tenantId, "Mailbox", "mailbox@example.com");
+        when(connections.findById(connection.getId())).thenReturn(Optional.of(connection));
+        when(claims.tryClaim(any(), any(), any())).thenReturn(true);
+        when(gmail.watch(connection)).thenReturn(new GmailMailboxClient.WatchRegistration(
+                "watch-cursor", Instant.parse("2026-11-29T00:00:00Z")));
+        when(gmail.backfill(any(), any(), any())).thenReturn(List.of());
+        when(gmail.changes(connection, "watch-cursor")).thenReturn(List.of());
+        when(gmail.currentHistoryId(connection)).thenReturn("21");
+
+        new GmailIngestionService(connections, claims, gmail, attachments)
+                .recoverAfterReconnect(connection.getId());
+
+        ArgumentCaptor<LocalDate> from = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> to = ArgumentCaptor.forClass(LocalDate.class);
+        verify(gmail).backfill(any(), from.capture(), to.capture());
+        assertThat(from.getValue()).isEqualTo(to.getValue().minusDays(30));
+        verify(claims).release(connection.getId());
+    }
+
+    @Test
+    void recoverAfterReconnectCapsLookbackAtNinetyDays() {
+        UUID tenantId = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenantId, UUID.randomUUID(),
+                Role.TENANT_ADMIN, null));
+        EmailConnection connection = new EmailConnection(tenantId, "Mailbox", "mailbox@example.com");
+        connection.setLastSyncedAt(Instant.parse("2025-01-01T00:00:00Z"));
+        when(connections.findById(connection.getId())).thenReturn(Optional.of(connection));
+        when(claims.tryClaim(any(), any(), any())).thenReturn(true);
+        when(gmail.watch(connection)).thenReturn(new GmailMailboxClient.WatchRegistration(
+                "watch-cursor", Instant.parse("2026-11-29T00:00:00Z")));
+        when(gmail.backfill(any(), any(), any())).thenReturn(List.of());
+        when(gmail.changes(connection, "watch-cursor")).thenReturn(List.of());
+        when(gmail.currentHistoryId(connection)).thenReturn("22");
+
+        new GmailIngestionService(connections, claims, gmail, attachments)
+                .recoverAfterReconnect(connection.getId());
+
+        ArgumentCaptor<LocalDate> from = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> to = ArgumentCaptor.forClass(LocalDate.class);
+        verify(gmail).backfill(any(), from.capture(), to.capture());
+        assertThat(from.getValue()).isEqualTo(to.getValue().minusDays(90));
         verify(claims).release(connection.getId());
     }
 }
