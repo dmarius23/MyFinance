@@ -82,10 +82,37 @@ public class MetaWhatsAppTemplateCatalog {
         return templates;
     }
 
+    /**
+     * The translations of ONE template, fetched by name — the pre-send preview needs a single template, so
+     * it must not page through the whole catalog (up to {@value #MAX_PAGES} Graph calls) on every open.
+     */
+    public List<MetaTemplate> find(String name) {
+        validateTemplateName(name);
+        TenantWhatsAppProvider provider = provider();
+        validateAssetId(provider.getMetaWabaId(), "WABA ID");
+        // name is restricted to Meta's template-name grammar and encoded as query data.
+        URI uri = UriComponentsBuilder.fromUriString(graphBaseUrl)
+                .pathSegment(provider.getMetaWabaId(), "message_templates")
+                .queryParam("fields", "name,language,status,category,components")
+                .queryParam("name", name)
+                .queryParam("limit", 100)
+                .build().encode().toUri();
+        JsonNode body = get(uri, cipher.decrypt(provider.getMetaAccessTokenEnc()));
+        List<MetaTemplate> matches = new ArrayList<>();
+        // Meta's name filter is not guaranteed to be exact, so keep only the exact name.
+        body.path("data").forEach(t -> {
+            if (name.equals(t.path("name").asText())) {
+                matches.add(toTemplate(t));
+            }
+        });
+        return matches;
+    }
+
     public MetaTemplateMutation create(String name, String appLanguage, String body,
                                        List<String> exampleValues) {
         validateTemplateName(name);
-        validateAssetId(provider().getMetaWabaId(), "WABA ID");
+        TenantWhatsAppProvider provider = provider();
+        validateAssetId(provider.getMetaWabaId(), "WABA ID");
         validateBody(body, exampleValues);
         String language = MetaWhatsAppSender.metaLanguageCode(appLanguage);
         Map<String, Object> component = new LinkedHashMap<>();
@@ -94,10 +121,10 @@ public class MetaWhatsAppTemplateCatalog {
         if (exampleValues != null && !exampleValues.isEmpty()) {
             component.put("example", Map.of("body_text", List.of(exampleValues)));
         }
-        JsonNode response = post("/" + provider().getMetaWabaId() + "/message_templates",
+        JsonNode response = post("/" + provider.getMetaWabaId() + "/message_templates",
                 Map.of("name", name, "language", language, "category", "UTILITY",
                         "parameter_format", "POSITIONAL",
-                        "components", List.of(component)), token());
+                        "components", List.of(component)), cipher.decrypt(provider.getMetaAccessTokenEnc()));
         return new MetaTemplateMutation(name, language, response.path("id").asText(null),
                 response.path("status").asText("PENDING"), "UTILITY");
     }
@@ -108,7 +135,8 @@ public class MetaWhatsAppTemplateCatalog {
      */
     public void delete(String name) {
         validateTemplateName(name);
-        String wabaId = provider().getMetaWabaId();
+        TenantWhatsAppProvider provider = provider();
+        String wabaId = provider.getMetaWabaId();
         validateAssetId(wabaId, "WABA ID");
         // graphBaseUrl is validated as a fixed server-side origin in the constructor; name is restricted
         // to Meta's template-name grammar and is encoded as data in the query, never as a URL component.
@@ -119,7 +147,7 @@ public class MetaWhatsAppTemplateCatalog {
         try {
             HttpRequest request = HttpRequest.newBuilder(uri)
                     .timeout(Duration.ofSeconds(20))
-                    .header("Authorization", "Bearer " + token())
+                    .header("Authorization", "Bearer " + cipher.decrypt(provider.getMetaAccessTokenEnc()))
                     .DELETE()
                     .build();
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
@@ -254,10 +282,6 @@ public class MetaWhatsAppTemplateCatalog {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid Meta Graph URL", e);
         }
-    }
-
-    private String token() {
-        return cipher.decrypt(provider().getMetaAccessTokenEnc());
     }
 
     /** Follows Meta's paging link only while it stays on the Graph host — the bearer token must not leak. */

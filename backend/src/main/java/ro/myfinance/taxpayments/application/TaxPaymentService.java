@@ -265,7 +265,53 @@ public class TaxPaymentService {
 
     // ---- core computation -------------------------------------------------------------------------
 
+    /**
+     * The TAX placeholder values for a company's whole month, used to fill a WhatsApp template. Unlike the
+     * email (which staff read and edit before sending), these figures go out verbatim, so they are refused
+     * unless every included declaration reconciles and re-extracts cleanly — extracted amounts are
+     * non-authoritative until verified.
+     */
+    public Map<String, String> templateValues(UUID companyId, LocalDate period) {
+        Company company = company(companyId);
+        List<TaxDeclaration> decls = declarations.findByCompanyIdAndPeriodMonthOrderByTypeAsc(
+                companyId, period.withDayOfMonth(1));
+        List<TaxDeclaration> included = decls.stream()
+                .filter(d -> !d.isWrongParty() && !d.isOutsidePeriod())
+                .toList();
+        if (included.isEmpty()) {
+            throw new ro.myfinance.common.web.ConflictException("No tax declaration for this month");
+        }
+        if (included.stream().anyMatch(TaxDeclaration::isMismatch)) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "A declaration's totals do not reconcile — verify it before sending amounts by WhatsApp");
+        }
+        Calculated c = calculate(company, decls);
+        if (c.failedExtractions() > 0) {
+            throw new ro.myfinance.common.web.ConflictException(
+                    "A declaration could not be re-read — its amounts cannot be sent by WhatsApp");
+        }
+        return c.values() == null ? Map.of() : c.values();
+    }
+
     private Computation compute(Company company, List<TaxDeclaration> decls) {
+        Calculated c = calculate(company, decls);
+        String body = null;
+        String subject = null;
+        if (c.values() != null) {
+            RenderedMessage msg = templates.render(MessageTemplateKind.TAX, c.values());
+            body = msg.body();
+            subject = msg.subject();
+        }
+        return new Computation(c.beneficiary(), c.configured(), c.unconfigured(), c.total(), body, subject);
+    }
+
+    /** Payment lines + totals; {@code values} is null when there is not enough data to word a message. */
+    private record Calculated(String beneficiary, List<PaymentLine> configured, List<Unconfigured> unconfigured,
+                              BigDecimal total, Map<String, String> values, int failedExtractions) {
+    }
+
+    private Calculated calculate(Company company, List<TaxDeclaration> decls) {
+        int failed = 0;
         List<ParsedDeclaration> parsed = new ArrayList<>();
         for (TaxDeclaration d : decls) {
             if (d.isWrongParty()) {
@@ -278,6 +324,7 @@ public class TaxPaymentService {
                 parsed.add(extractor.extract(documents.getContent(d.getDocumentId()).bytes()));
             } catch (RuntimeException e) {
                 log.warn("Failed to re-extract declaration {} (doc {})", d.getId(), d.getDocumentId(), e);
+                failed++;
             }
         }
         // Resolve treasury IBANs for the declarations' period (effective-dated, global reference data).
@@ -306,16 +353,12 @@ public class TaxPaymentService {
 
         String beneficiary = beneficiary(company.getLocality());
         YearMonth emailPeriod = period == null ? null : YearMonth.from(period);
-        String body = null;
-        String subject = null;
+        Map<String, String> values = null;
         if (beneficiary != null && !configured.isEmpty() && emailPeriod != null) {
-            var values = emailBuilder.values(company.getLegalName(), company.getCui(), emailPeriod,
+            values = emailBuilder.values(company.getLegalName(), company.getCui(), emailPeriod,
                     beneficiary, configured, total, envelopes.currentUserName(), envelopes.firmName());
-            RenderedMessage msg = templates.render(MessageTemplateKind.TAX, values);
-            body = msg.body();
-            subject = msg.subject();
         }
-        return new Computation(beneficiary, configured, unconfigured, total, body, subject);
+        return new Calculated(beneficiary, configured, unconfigured, total, values, failed);
     }
 
     private Company company(UUID companyId) {

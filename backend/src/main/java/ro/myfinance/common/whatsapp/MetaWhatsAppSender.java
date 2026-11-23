@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,16 @@ public class MetaWhatsAppSender {
     }
 
     public WhatsAppSender.DeliveryReceipt send(WhatsAppSender.Message message) {
+        return send(message, WhatsAppSender.DeliveryProgress.none());
+    }
+
+    /**
+     * Sends the template, then each attachment, skipping whatever {@code progress} says an earlier attempt
+     * already delivered and recording each part as soon as Meta accepts it. A failed attachment upload is
+     * then retried on its own — the client never receives the template twice.
+     */
+    public WhatsAppSender.DeliveryReceipt send(WhatsAppSender.Message message,
+                                               WhatsAppSender.DeliveryProgress progress) {
         var tenant = ro.myfinance.common.security.TenantContext.tenantId()
                 .orElseThrow(() -> new IllegalStateException("No tenant bound"));
         TenantWhatsAppProvider provider = providers.findById(tenant)
@@ -75,62 +86,91 @@ public class MetaWhatsAppSender {
                 || message.templateLanguage() == null || message.templateLanguage().isBlank()) {
             throw new IllegalStateException("Meta WhatsApp message has no approved template");
         }
-
-        Map<String, Object> template = new LinkedHashMap<>();
-        template.put("name", message.templateName());
-        template.put("language", Map.of("code", metaLanguageCode(message.templateLanguage())));
-        if (!message.templateVariables().isEmpty()) {
-            var parameters = new ArrayList<Map<String, Object>>();
-            if (!message.templateVariableOrder().isEmpty()) {
-                message.templateVariableOrder().stream()
-                        .filter(message.templateVariables()::containsKey)
-                        .forEach(name -> parameters.add(Map.of("type", "text",
-                                "text", message.templateVariables().get(name))));
-                message.templateVariables().entrySet().stream()
-                        .filter(entry -> !message.templateVariableOrder().contains(entry.getKey()))
-                        .sorted(Map.Entry.comparingByKey())
-                        .forEach(entry -> parameters.add(Map.of("type", "text", "text", entry.getValue())));
-            } else {
-                message.templateVariables().entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .forEach(entry -> parameters.add(Map.of("type", "text", "text", entry.getValue())));
-            }
-            template.put("components", java.util.List.of(Map.of("type", "body", "parameters", parameters)));
-        }
-
-        Map<String, Object> payload = Map.of(
-                "messaging_product", "whatsapp",
-                "to", message.toPhone(),
-                "type", "template",
-                "template", template);
         try {
-            String body = json.writeValueAsString(payload);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(graphBaseUrl + "/" + provider.getMetaPhoneNumberId() + "/messages"))
-                    .timeout(Duration.ofSeconds(20))
-                    .header("Authorization", "Bearer " + cipher.decrypt(provider.getMetaAccessTokenEnc()))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) {
-                throw providerFailure("Meta WhatsApp send rejected", response);
-            }
-            String providerMessageId = json.readTree(response.body()).path("messages").path(0)
-                    .path("id").asText(null);
-            if (providerMessageId == null || providerMessageId.isBlank()) {
-                throw new WhatsAppProviderException("Meta WhatsApp response did not include a message id", false);
+            String messageId = progress.templateMessageId();
+            if (messageId == null) {
+                messageId = sendTemplate(message, provider);
+                progress.onTemplateDelivered(messageId);
             }
             for (WhatsAppSender.Attachment attachment : message.attachments()) {
-                sendMedia(message, provider, attachment);
+                if (!progress.isAttachmentDelivered(attachment.documentId())) {
+                    sendMedia(message, provider, attachment);
+                    progress.onAttachmentDelivered(attachment.documentId());
+                }
             }
             log.info("[whatsapp:meta] delivered");
-            return new WhatsAppSender.DeliveryReceipt(providerMessageId);
+            return new WhatsAppSender.DeliveryReceipt(messageId);
         } catch (WhatsAppProviderException e) {
             throw e;
         } catch (Exception e) {
             throw new WhatsAppProviderException("Meta WhatsApp request failed: " + e.getMessage(), e, true);
         }
+    }
+
+    private String sendTemplate(WhatsAppSender.Message message, TenantWhatsAppProvider provider) throws Exception {
+        Map<String, Object> template = new LinkedHashMap<>();
+        template.put("name", message.templateName());
+        template.put("language", Map.of("code", metaLanguageCode(message.templateLanguage())));
+        List<Map<String, Object>> parameters = bodyParameters(message);
+        if (!parameters.isEmpty()) {
+            template.put("components", List.of(Map.of("type", "body", "parameters", parameters)));
+        }
+        Map<String, Object> payload = Map.of(
+                "messaging_product", "whatsapp",
+                "to", message.toPhone(),
+                "type", "template",
+                "template", template);
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(graphBaseUrl + "/" + provider.getMetaPhoneNumberId() + "/messages"))
+                .timeout(Duration.ofSeconds(20))
+                .header("Authorization", "Bearer " + cipher.decrypt(provider.getMetaAccessTokenEnc()))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(payload)))
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() / 100 != 2) {
+            throw providerFailure("Meta WhatsApp send rejected", response);
+        }
+        String providerMessageId = json.readTree(response.body()).path("messages").path(0)
+                .path("id").asText(null);
+        if (providerMessageId == null || providerMessageId.isBlank()) {
+            throw new WhatsAppProviderException("Meta WhatsApp response did not include a message id", false);
+        }
+        return providerMessageId;
+    }
+
+    /**
+     * Positional body parameters, exactly one per name in the template's declared order. A missing or
+     * extra variable fails fast (permanently) instead of shifting values into the wrong {@code {{n}}}.
+     */
+    static List<Map<String, Object>> bodyParameters(WhatsAppSender.Message message) {
+        List<String> order = message.templateVariableOrder();
+        Map<String, String> variables = message.templateVariables();
+        if (order.isEmpty()) {
+            if (!variables.isEmpty()) {
+                throw new WhatsAppProviderException(
+                        "Template variables were supplied but the template declares none", false);
+            }
+            return List.of();
+        }
+        Set<String> declared = new java.util.LinkedHashSet<>(order);
+        Set<String> missing = new java.util.TreeSet<>(declared);
+        missing.removeAll(variables.keySet());
+        Set<String> extra = new java.util.TreeSet<>(variables.keySet());
+        extra.removeAll(declared);
+        if (!missing.isEmpty() || !extra.isEmpty()) {
+            throw new WhatsAppProviderException("Template variables do not match the template (missing "
+                    + missing + ", unexpected " + extra + ")", false);
+        }
+        var parameters = new ArrayList<Map<String, Object>>();
+        for (String name : order) {
+            String text = MetaTemplateText.parameter(variables.get(name));
+            if (text.isEmpty()) {
+                throw new WhatsAppProviderException("Template variable '" + name + "' is empty", false);
+            }
+            parameters.add(Map.of("type", "text", "text", text));
+        }
+        return parameters;
     }
 
     private void sendMedia(WhatsAppSender.Message message, TenantWhatsAppProvider provider,

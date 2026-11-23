@@ -113,11 +113,11 @@ public class MessagingSettingsController {
         return metaTemplates.create(request.name(), request.language(), request.body(), request.exampleValues());
     }
 
-    /** Deletes the Meta template name and all of its translations. */
+    /** Deletes the Meta template name and all of its translations, and disables mappings that used it. */
     @DeleteMapping("/whatsapp/templates/meta")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMetaWhatsAppTemplate(@org.springframework.web.bind.annotation.RequestParam String name) {
-        metaTemplates.delete(name);
+        templates.deleteMetaTemplate(name);
     }
 
     @GetMapping("/whatsapp/templates/meta/draft")

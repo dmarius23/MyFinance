@@ -83,6 +83,29 @@ class MetaWhatsAppTemplateCatalogTest {
     }
 
     @Test
+    void findsOneTemplateByNameInASingleRequestKeepingOnlyExactMatches() {
+        var queries = new java.util.ArrayList<String>();
+        server.createContext("/123456789/message_templates", exchange -> {
+            queries.add(exchange.getRequestURI().getQuery());
+            respond(exchange, 200, """
+                    {"data":[{"name":"tax_notice","language":"ro","status":"APPROVED","category":"UTILITY",
+                              "components":[{"type":"BODY","text":"Plata {{1}}"}]},
+                             {"name":"tax_notice_old","language":"ro","status":"APPROVED","category":"UTILITY",
+                              "components":[]}],
+                     "paging":{"next":"http://localhost/never-followed"}}
+                    """);
+        });
+        server.start();
+
+        var found = catalog().find("tax_notice");
+
+        assertThat(queries).hasSize(1);
+        assertThat(queries.get(0)).contains("name=tax_notice");
+        assertThat(found).extracting(MetaWhatsAppTemplateCatalog.MetaTemplate::name).containsExactly("tax_notice");
+        assertThat(found.get(0).appLanguage()).isEqualTo("ro_RO");
+    }
+
+    @Test
     void doesNotFollowPagingLinksOffTheGraphHost() {
         server.createContext("/123456789/message_templates", exchange -> respond(exchange, 200, """
                 {"data":[],"paging":{"next":"https://evil.example/steal"}}

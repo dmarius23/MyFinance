@@ -43,6 +43,7 @@ public class MetaWhatsAppOAuthState {
         this.expiresAt = expiresAt;
     }
 
+    public UUID getId() { return id; }
     public UUID getTenantId() { return tenantId; }
     public UUID getUserId() { return userId; }
     public String getStateHash() { return stateHash; }

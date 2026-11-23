@@ -108,4 +108,13 @@ public class TenantWhatsAppTemplate {
         this.status = status == null ? Status.PENDING : status;
         this.approvedAt = this.status == Status.APPROVED ? Instant.now() : null;
     }
+
+    /**
+     * Takes the mapping out of use — its Meta template was deleted, or the tenant connected a different
+     * WhatsApp Business Account that does not hold it. Kept (not deleted) so the admin sees what to remap.
+     */
+    public void disable() {
+        this.status = Status.DISABLED;
+        this.approvedAt = null;
+    }
 }

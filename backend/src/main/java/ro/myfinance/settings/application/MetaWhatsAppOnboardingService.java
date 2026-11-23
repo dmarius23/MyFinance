@@ -17,6 +17,8 @@ import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthState;
 import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthStateRepository;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProvider;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProviderRepository;
+import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
+import ro.myfinance.common.whatsapp.TenantWhatsAppTemplateRepository;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.common.web.NotFoundException;
 
@@ -30,6 +32,7 @@ public class MetaWhatsAppOnboardingService {
 
     private final MetaWhatsAppOAuthStateRepository states;
     private final TenantWhatsAppProviderRepository providers;
+    private final TenantWhatsAppTemplateRepository templates;
     private final MetaWhatsAppOnboardingClient meta;
     private final SecretCipher cipher;
     private final String appId;
@@ -41,6 +44,7 @@ public class MetaWhatsAppOnboardingService {
     public MetaWhatsAppOnboardingService(
             MetaWhatsAppOAuthStateRepository states,
             TenantWhatsAppProviderRepository providers,
+            TenantWhatsAppTemplateRepository templates,
             MetaWhatsAppOnboardingClient meta,
             SecretCipher cipher,
             @Value("${myfinance.whatsapp.meta.app-id:}") String appId,
@@ -52,6 +56,7 @@ public class MetaWhatsAppOnboardingService {
             String scopes) {
         this.states = states;
         this.providers = providers;
+        this.templates = templates;
         this.meta = meta;
         this.cipher = cipher;
         this.appId = appId;
@@ -101,12 +106,14 @@ public class MetaWhatsAppOnboardingService {
         MetaWhatsAppOAuthState pending = states.findByStateHash(hash(state))
                 .filter(s -> tenantId.equals(s.getTenantId()) && userId.equals(s.getUserId()))
                 .orElseThrow(() -> new NotFoundException("Meta WhatsApp onboarding state not found"));
-        if (!pending.isUsableAt(Instant.now())) {
-            throw new ConflictException("Meta WhatsApp onboarding state is expired or already used");
-        }
         if (redirectUri.isBlank()) {
             throw new ro.myfinance.common.web.MisconfiguredException(
                     "Meta WhatsApp redirect URI is not configured");
+        }
+        // Claim the state before any Meta call: a concurrent or replayed completion (e.g. the callback page
+        // firing twice) must lose here, not after exchanging the single-use code a second time.
+        if (!pending.isUsableAt(Instant.now()) || states.consumeIfUsable(pending.getId(), Instant.now()) == 0) {
+            throw new ConflictException("Meta WhatsApp onboarding state is expired or already used");
         }
         String token = meta.exchangeCode(code, redirectUri);
         String waba = trimToNull(wabaId);
@@ -126,14 +133,18 @@ public class MetaWhatsAppOnboardingService {
         }
         TenantWhatsAppProvider provider = providers.findById(tenantId)
                 .orElseGet(() -> new TenantWhatsAppProvider(tenantId));
+        String previousWaba = provider.getMetaWabaId();
+        if (previousWaba != null && !previousWaba.equals(waba)) {
+            // Templates live in a WABA: mappings made for the old account point at templates the new one
+            // does not have, so take them out of use rather than let every send be rejected by Meta.
+            templates.findAll().forEach(TenantWhatsAppTemplate::disable);
+        }
         provider.setMode(TenantWhatsAppProvider.Mode.META_CLOUD_API);
         String portfolio = trimToNull(businessPortfolioId);
         provider.setMetaBusinessPortfolioId(portfolio != null ? portfolio : ownerBusinessId);
         provider.setMetaWabaId(waba);
         provider.setMetaPhoneNumberId(phone);
         provider.setMetaAccessTokenEnc(cipher.encrypt(token));
-        pending.consume(Instant.now());
-        states.save(pending);
         return providers.save(provider);
     }
 

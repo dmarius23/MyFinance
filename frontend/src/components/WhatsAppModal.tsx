@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind, type WhatsAppSourceKind } from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
+import { createIdempotencyKeys } from "../lib/idempotency";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
 import { Icon } from "./Icon";
@@ -38,6 +39,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
   const [bodyEdited, setBodyEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [idempotency] = useState(createIdempotencyKeys);
   const toggleFile = (id: string) => setExcluded((s) => {
     const next = new Set(s);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -53,37 +55,48 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
       return r;
     },
   });
-  // Pre-fill the message with the same body the email uses (module- and file-specific). Only until edited.
+  // Free-text providers: pre-fill with the same body the email uses (module- and file-specific), until edited.
   const draft = useQuery({
     queryKey: ["whatsapp-body", companyId, kind, period],
     queryFn: loadBody!,
-    enabled: !!loadBody,
+    enabled: !!loadBody && !metaMode,
   });
+  // Meta: the client receives the approved template, filled server-side with this company's values — show
+  // exactly that, read-only, never the email wording.
   const metaPreview = useQuery({
-    queryKey: ["whatsapp-meta-preview", companyId, kind, period],
-    queryFn: () => whatsappApi.metaPreview(companyId, kind, sourceKind),
+    queryKey: ["whatsapp-meta-preview", companyId, kind, period, sourceKind],
+    queryFn: () => whatsappApi.metaPreview(companyId, kind, period, sourceKind),
     enabled: metaMode && (kind !== "DOCUMENT_REMINDER" || !!sourceKind),
     retry: false,
   });
   useEffect(() => {
-    if (!bodyEdited && draft.data != null) {
+    if (metaMode) {
+      setBody(metaPreview.data?.body ?? "");
+    } else if (!bodyEdited && draft.data != null) {
       setBody(draft.data);
-    } else if (metaMode && metaPreview.data?.body != null && !bodyEdited) {
-      setBody(metaPreview.data.body);
     }
   }, [draft.data, metaMode, metaPreview.data, bodyEdited]);
+  const metaBlocked = metaMode && (metaPreview.isLoading || metaPreview.isError
+    || !!metaPreview.data?.blockedReason);
   const history = useQuery({
     queryKey: rk,
     queryFn: () => whatsappApi.history(companyId, kind, period),
     refetchInterval: (q) => (q.state.data ?? []).some((m) => m.status === "QUEUED") ? 5000 : false,
   });
 
+  const sendInput = () => ({
+    kind, period, body, sourceKind,
+    language: metaMode ? metaPreview.data?.appLanguage : undefined,
+    attachmentDocumentIds: attachments.filter((a) => !excluded.has(a.id)).map((a) => a.id),
+  });
   const send = useMutation({
-    mutationFn: () => whatsappApi.send(companyId, {
-      kind, period, body, sourceKind,
-      attachmentDocumentIds: attachments.filter((a) => !excluded.has(a.id)).map((a) => a.id),
-    }),
-    onSuccess: () => { setBody(""); setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk }); },
+    mutationFn: (input: ReturnType<typeof sendInput>) =>
+      whatsappApi.send(companyId, input, idempotency.keyFor(input)),
+    onSuccess: (_sent, input) => {
+      idempotency.forget(input);
+      if (!metaMode) setBody("");
+      setBodyEdited(false); setError(null); void qc.invalidateQueries({ queryKey: rk });
+    },
     onError: (e) => setError(e instanceof ApiError ? e.message : t("channel.sendFailed")),
   });
 
@@ -108,7 +121,11 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           {metaMode && metaPreview.data && (
             <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 5 }}>
               {t("channel.metaTemplateUsed", { name: metaPreview.data.name, language: metaPreview.data.metaLanguage })}
-              {metaPreview.data.variableNames.length > 0 && ` ${t("channel.metaVariablesUnavailable")}`}
+            </div>
+          )}
+          {metaMode && metaPreview.data?.blockedReason && (
+            <div role="alert" style={{ color: "#dc2626", fontSize: 12, marginBottom: 5 }}>
+              {metaPreview.data.blockedReason}
             </div>
           )}
           {metaMode && metaPreview.isError && (
@@ -118,7 +135,7 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           )}
           <textarea value={body} readOnly={metaMode}
             onChange={(e) => { setBody(e.target.value); setBodyEdited(true); }} rows={6}
-            placeholder={loadBody && draft.isLoading ? t("common.loading") : undefined}
+            placeholder={(metaMode ? metaPreview.isLoading : loadBody && draft.isLoading) ? t("common.loading") : undefined}
             style={{ ...input, resize: "vertical", fontFamily: "inherit" }} />
           {attachments.length > 0 && (
             <fieldset style={fileSet}>
@@ -136,11 +153,9 @@ export function WhatsAppModal({ companyId, companyName, kind, period, loadBody, 
           {error && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6 }}>{error}</div>}
           <div style={{ marginTop: 10 }}>
             <button className="primary"
-              disabled={send.isPending || !body.trim() || !(phone ?? "").trim() || !whatsappConfigured
-                || (metaMode && (metaPreview.isLoading || metaPreview.isError
-                  || (metaPreview.data?.variableNames.length ?? 0) > 0))}
+              disabled={send.isPending || !body.trim() || !(phone ?? "").trim() || !whatsappConfigured || metaBlocked}
               title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}
-              onClick={() => send.mutate()}>
+              onClick={() => send.mutate(sendInput())}>
               <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />{t("channel.sendWhatsapp")}
             </button>
           </div>

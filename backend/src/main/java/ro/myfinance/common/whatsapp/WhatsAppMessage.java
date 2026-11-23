@@ -59,6 +59,11 @@ public class WhatsAppMessage {
     @Column(name = "attachment_document_ids", nullable = false)
     private List<UUID> attachmentDocumentIds;
 
+    /** Attachments Meta already accepted — a retry after a partial failure skips them. */
+    @Convert(converter = UuidListConverter.class)
+    @Column(name = "delivered_attachment_ids", nullable = false)
+    private List<UUID> deliveredAttachmentIds = List.of();
+
     @Column(name = "template_name")
     private String templateName;
 
@@ -136,6 +141,14 @@ public class WhatsAppMessage {
         applyProviderStatus("accepted", at);
     }
 
+    public void recordAttachmentDelivered(UUID documentId) {
+        if (documentId != null && !deliveredAttachmentIds.contains(documentId)) {
+            List<UUID> next = new java.util.ArrayList<>(deliveredAttachmentIds);
+            next.add(documentId);
+            deliveredAttachmentIds = next;
+        }
+    }
+
     public void applyProviderStatus(String nextStatus, Instant at) {
         if (nextStatus == null || nextStatus.isBlank()) {
             return;
@@ -178,6 +191,7 @@ public class WhatsAppMessage {
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getIdempotencyHash() { return idempotencyHash; }
     public String getProviderMessageId() { return providerMessageId; }
+    public List<UUID> getDeliveredAttachmentIds() { return deliveredAttachmentIds; }
     public String getProviderStatus() { return providerStatus; }
     public Instant getProviderStatusAt() { return providerStatusAt; }
 }

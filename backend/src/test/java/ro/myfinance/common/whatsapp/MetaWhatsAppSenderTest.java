@@ -116,6 +116,87 @@ class MetaWhatsAppSenderTest {
                         e -> assertThat(e.isRetryable()).isTrue());
     }
 
+    @Test
+    void sendsParametersInDeclaredOrderAndFlattensMultiLineValues() throws Exception {
+        var sentBody = new java.util.concurrent.atomic.AtomicReference<String>();
+        server.createContext("/phone/messages", exchange -> {
+            sentBody.set(new String(exchange.getRequestBody().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            respond(exchange, 200, """
+                    {"messages":[{"id":"wamid.test"}]}
+                    """);
+        });
+        server.start();
+
+        sender().send(message(Map.of("month", "aprilie 2026", "companyName", "Acme",
+                "paymentSummary", "CAS: 100\n\tCASS:   40"), List.of("companyName", "paymentSummary", "month"),
+                List.of()));
+
+        var params = new ObjectMapper().readTree(sentBody.get()).path("template").path("components")
+                .path(0).path("parameters");
+        assertThat(params).hasSize(3);
+        assertThat(params.get(0).path("text").asText()).isEqualTo("Acme");
+        assertThat(params.get(1).path("text").asText()).isEqualTo("CAS: 100; CASS: 40");
+        assertThat(params.get(2).path("text").asText()).isEqualTo("aprilie 2026");
+    }
+
+    @Test
+    void refusesMissingOrUnexpectedVariablesInsteadOfShiftingPositions() {
+        assertThatThrownBy(() -> sender().send(message(Map.of("companyName", "Acme", "extra", "x"),
+                List.of("companyName", "month"), List.of())))
+                .isInstanceOfSatisfying(WhatsAppProviderException.class, e -> {
+                    assertThat(e.isRetryable()).isFalse();
+                    assertThat(e.getMessage()).contains("month", "extra");
+                });
+    }
+
+    @Test
+    void retryAfterAFailedAttachmentDoesNotResendTheTemplate() throws Exception {
+        var templateSends = new java.util.concurrent.atomic.AtomicInteger();
+        var uploads = new java.util.concurrent.atomic.AtomicInteger();
+        server.createContext("/phone/messages", exchange -> {
+            String body = new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            if (body.contains("\"template\"")) {
+                templateSends.incrementAndGet();
+                respond(exchange, 200, """
+                        {"messages":[{"id":"wamid.template"}]}
+                        """);
+            } else {
+                respond(exchange, 200, """
+                        {"messages":[{"id":"wamid.media"}]}
+                        """);
+            }
+        });
+        server.createContext("/phone/media", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            if (uploads.incrementAndGet() == 1) {
+                respond(exchange, 500, "{}"); // first attempt: upload fails after the template went out
+            } else {
+                respond(exchange, 200, """
+                        {"id":"media-1"}
+                        """);
+            }
+        });
+        server.start();
+        UUID document = UUID.randomUUID();
+        when(media.load(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(document)))
+                .thenReturn(new WhatsAppMediaSource.Media(document, "stat.pdf", "application/pdf", new byte[]{1, 2}));
+        var msg = message(Map.of("companyName", "Acme"), List.of("companyName"),
+                List.of(new WhatsAppSender.Attachment(document)));
+        var progress = WhatsAppSender.DeliveryProgress.none();
+
+        assertThatThrownBy(() -> sender().send(msg, progress))
+                .isInstanceOfSatisfying(WhatsAppProviderException.class, e -> assertThat(e.isRetryable()).isTrue());
+        assertThat(progress.templateMessageId()).isEqualTo("wamid.template");
+
+        WhatsAppSender.DeliveryReceipt receipt = sender().send(msg, progress);
+
+        assertThat(templateSends.get()).isEqualTo(1);
+        assertThat(uploads.get()).isEqualTo(2);
+        assertThat(progress.isAttachmentDelivered(document)).isTrue();
+        assertThat(receipt.providerMessageId()).isEqualTo("wamid.template");
+    }
+
     private MetaWhatsAppSender sender() {
         return new MetaWhatsAppSender(providers, new SecretCipher(key()), new ObjectMapper(), media,
                 "http://localhost:" + server.getAddress().getPort(),
@@ -124,7 +205,13 @@ class MetaWhatsAppSenderTest {
 
     private WhatsAppSender.Message message() {
         return new WhatsAppSender.Message("MyFinance", "+40700000000", "body", "tax_notice", "ro_RO",
-                Map.of("companyName", "Acme"), List.of(), UUID.randomUUID(), List.of());
+                Map.of("companyName", "Acme"), List.of("companyName"), UUID.randomUUID(), List.of());
+    }
+
+    private WhatsAppSender.Message message(Map<String, String> variables, List<String> order,
+                                           List<WhatsAppSender.Attachment> attachments) {
+        return new WhatsAppSender.Message("MyFinance", "+40700000000", "body", "tax_notice", "ro_RO",
+                variables, order, UUID.randomUUID(), attachments);
     }
 
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body)
