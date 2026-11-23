@@ -29,6 +29,7 @@ import ro.myfinance.ingestion.adapter.persistence.SourceConnectionRepository;
 import ro.myfinance.ingestion.application.CloudFolderConnector;
 import ro.myfinance.ingestion.application.ConnectorRegistry;
 import ro.myfinance.ingestion.application.IngestionService;
+import ro.myfinance.ingestion.application.IngestionService.SyncResult;
 import ro.myfinance.ingestion.domain.ImportFile;
 import ro.myfinance.ingestion.domain.SourceConnection;
 import ro.myfinance.intake.application.DocumentService;
@@ -704,6 +705,91 @@ class IngestionServiceTest {
                 any(), any(), any(), any());
     }
 
+
+    /** An ACCOUNTING connection plus one client company, wired for a mixed-layout sync. */
+    private SourceConnection accountingConnWithAcme() {
+        TenantContext.set(new TenantContext.Identity(TENANT, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        SourceConnection acct = new SourceConnection(TENANT, "GOOGLE_DRIVE", "Contabilitate", "root", null);
+        acct.setPurpose("ACCOUNTING");
+        when(connections.findByOrderByCreatedAtDesc()).thenReturn(List.of(acct));
+        lenient().when(connections.findById(acct.getId())).thenReturn(Optional.of(acct));
+        when(registry.forProvider("GOOGLE_DRIVE")).thenReturn(fake);
+        Company a = mock(Company.class);
+        lenient().when(a.getId()).thenReturn(COMPANY);
+        lenient().when(a.getCui()).thenReturn("49443957");
+        lenient().when(a.getLegalName()).thenReturn("ACME SRL");
+        when(companies.findAll()).thenReturn(List.of(a));
+        lenient().when(companies.findById(COMPANY)).thenReturn(Optional.of(a));
+        lenient().when(ledger.findByConnectionIdAndSourceRef(eq(acct.getId()), any())).thenReturn(Optional.empty());
+        return acct;
+    }
+
+    @Test
+    void aFileThatThrowsDuringUploadIsRecordedInTheLedgerInsteadOfVanishing() {
+        // A file that blows up inside upload() used to be counted as "failed" and nothing else: no ledger
+        // row, no document, no issue. The accountant then saw a file sitting on Drive that the app simply
+        // never mentioned anywhere. Record it as NEEDS_REVIEW so it shows up in the "not imported" list.
+        SourceConnection acct = accountingConnWithAcme();
+        fake.files = List.of(new CloudFolderConnector.RemoteFile(
+                "i", "factura.pdf", "Contabilitate ACME SRL/2026/3. Martie", "application/pdf", 100, "e1", null));
+        when(classifier.classify(any(), any(), any())).thenReturn(DocumentType.INVOICE);
+        when(documents.upload(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new IllegalArgumentException("Document limit reached for this company and period"));
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
+
+        assertThat(r.failed()).isEqualTo(1);
+        var saved = org.mockito.ArgumentCaptor.forClass(ImportFile.class);
+        verify(ledger).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(ImportFile.Status.NEEDS_REVIEW.name());
+        assertThat(saved.getValue().getFilename()).isEqualTo("factura.pdf");
+        assertThat(saved.getValue().getDetail()).contains("Document limit reached");
+        assertThat(r.issues()).extracting(SyncResult.Issue::filename).contains("factura.pdf");
+    }
+
+    @Test
+    void aPhotoInAFormatWeCannotStoreIsFlaggedRatherThanSilentlySkipped() {
+        // Clients photograph receipts with an iPhone, so the month folder fills with .HEIC files. The
+        // ingestion gate accepted any image/*, but DocumentService stores only png/jpeg/webp — so each
+        // photo was downloaded, then thrown out by an exception nobody ever saw. Refuse it at the gate,
+        // without downloading it, and say why.
+        SourceConnection acct = accountingConnWithAcme();
+        fake.files = List.of(new CloudFolderConnector.RemoteFile(
+                "p", "IMG_0899.HEIC", "Contabilitate ACME SRL/2026/3. Martie", "image/heic", 2_000_000, "e1", null));
+
+        var r = service.syncCompanyMonth("MIXED", COMPANY, LocalDate.of(2026, 3, 1));
+
+        assertThat(r.needsReview()).isEqualTo(1);
+        assertThat(fake.downloads).isZero();
+        verify(documents, never()).upload(any(), any(), any(), any(), any(), any(), any(), any());
+        var saved = org.mockito.ArgumentCaptor.forClass(ImportFile.class);
+        verify(ledger).save(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(ImportFile.Status.NEEDS_REVIEW.name());
+        assertThat(saved.getValue().getDetail()).containsIgnoringCase("HEIC");
+    }
+
+    @Test
+    void theScheduledPollStillPicksUpAFileFiledUnderAnOlderMonth() {
+        // Clients drop a month's paperwork in late — a September invoice uploaded on 20 October. The poll
+        // only ever looked at the current + previous month, so once that month fell out of the window the
+        // file could never be imported by any unattended run. Look back far enough to catch it.
+        SourceConnection acct = accountingConnWithAcme();
+        java.time.YearMonth twoBack = java.time.YearMonth.now(java.time.ZoneOffset.UTC).minusMonths(2);
+        String folder = "Contabilitate ACME SRL/" + twoBack; // "Contabilitate ACME SRL/2026-09"
+        fake.files = List.of(new CloudFolderConnector.RemoteFile(
+                "i", "factura.pdf", folder, "application/pdf", 100, "e1", null));
+        when(classifier.classify(any(), any(), any())).thenReturn(DocumentType.INVOICE);
+        Document doc = mock(Document.class);
+        lenient().when(doc.getId()).thenReturn(UUID.randomUUID());
+        when(documents.upload(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(doc);
+
+        var r = service.syncRecent(acct.getId());
+
+        assertThat(r.imported()).isEqualTo(1);
+        verify(documents).upload(eq(COMPANY), eq(twoBack.atDay(1)), eq("factura.pdf"), any(), any(),
+                eq(DocumentType.INVOICE), eq(DocumentSource.DRIVE), any());
+    }
+
     static class FakeConnector implements CloudFolderConnector {
         List<RemoteFile> files = List.of();
         List<Folder> folders = List.of();                                   // root subfolders (scoped crawl)
@@ -714,6 +800,7 @@ class IngestionServiceTest {
             return new Listing(filesByFolder.getOrDefault(startFolderId, files), null);
         }
         @Override public List<Folder> subfolders(SourceConnection c, String parentId) { return folders; }
-        @Override public byte[] download(SourceConnection c, RemoteFile f) { return new byte[]{1, 2, 3}; }
+        int downloads;
+        @Override public byte[] download(SourceConnection c, RemoteFile f) { downloads++; return new byte[]{1, 2, 3}; }
     }
 }
