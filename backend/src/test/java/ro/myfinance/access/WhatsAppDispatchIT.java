@@ -168,7 +168,7 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
         String variables = jdbc.queryForObject("select template_variables from whatsapp_message where id = ?",
                 String.class, sent.getId());
         // Order follows the mapping's schema ({{1}} = month, {{2}} = company), values come from the server.
-        assertThat(variables).isEqualTo("{\"month\":\"aprilie 2026\",\"companyName\":\"Acme SRL\"}");
+        assertThat(variables).isEqualTo("{\"month\":\"Aprilie 2026\",\"companyName\":\"Acme SRL\"}");
     }
 
     @Test
