@@ -16,4 +16,6 @@ public interface TenantWhatsAppTemplateRepository extends JpaRepository<TenantWh
 
     Optional<TenantWhatsAppTemplate> findByKindAndSourceKindAndLanguage(
             EmailKind kind, MessageTemplateKind sourceKind, String language);
+
+    List<TenantWhatsAppTemplate> findByMetaTemplateName(String metaTemplateName);
 }

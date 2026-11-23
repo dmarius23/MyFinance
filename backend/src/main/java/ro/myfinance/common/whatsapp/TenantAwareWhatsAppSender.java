@@ -69,6 +69,17 @@ public class TenantAwareWhatsAppSender implements WhatsAppSender {
         return fallback().send(message);
     }
 
+    /** Meta sends template and attachments as separate calls, so it resumes from recorded progress. */
+    @Override
+    public DeliveryReceipt send(Message message, DeliveryProgress progress) {
+        UUID tenant = TenantContext.tenantId().orElse(null);
+        TenantWhatsAppProvider p = tenant == null ? null : providers.findById(tenant).orElse(null);
+        if (p != null && p.getMode() == TenantWhatsAppProvider.Mode.META_CLOUD_API) {
+            return metaSender.send(message, progress);
+        }
+        return WhatsAppSender.super.send(message, progress);
+    }
+
     private WhatsAppSender fallback() {
         return allSenders.stream().filter(s -> s instanceof LoggingWhatsAppSender).findFirst()
                 .orElseThrow(() -> new IllegalStateException("No fallback WhatsAppSender configured"));

@@ -24,6 +24,10 @@ import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthState;
 import ro.myfinance.common.whatsapp.MetaWhatsAppOAuthStateRepository;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProvider;
 import ro.myfinance.common.whatsapp.TenantWhatsAppProviderRepository;
+import ro.myfinance.common.whatsapp.TenantWhatsAppTemplate;
+import ro.myfinance.common.whatsapp.TenantWhatsAppTemplateRepository;
+import ro.myfinance.common.email.EmailKind;
+import ro.myfinance.common.messaging.MessageTemplateKind;
 import ro.myfinance.common.web.ConflictException;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingClient;
 import ro.myfinance.settings.application.MetaWhatsAppOnboardingService;
@@ -36,6 +40,7 @@ class MetaWhatsAppOnboardingServiceTest {
 
     @Mock MetaWhatsAppOAuthStateRepository states;
     @Mock TenantWhatsAppProviderRepository providers;
+    @Mock TenantWhatsAppTemplateRepository templates;
     @Mock MetaWhatsAppOnboardingClient meta;
 
     @BeforeEach
@@ -53,13 +58,14 @@ class MetaWhatsAppOnboardingServiceTest {
         MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
                 TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
         when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(1);
         when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
         when(providers.findById(TENANT)).thenReturn(Optional.empty());
         when(providers.save(any(TenantWhatsAppProvider.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MetaWhatsAppOnboardingService service = new MetaWhatsAppOnboardingService(
-                states, providers, meta, new SecretCipher(testKey()),
+                states, providers, templates, meta, new SecretCipher(testKey()),
                 "app-id", "config-id", "https://app.test/callback",
                 "https://www.facebook.com/v24.0/dialog/oauth",
                 "whatsapp_business_management,whatsapp_business_messaging");
@@ -77,6 +83,7 @@ class MetaWhatsAppOnboardingServiceTest {
         MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
                 TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
         when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(1);
         when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
         when(meta.grantedWabaIds("access-token")).thenReturn(List.of("waba-id"));
         when(meta.phoneNumberIds("access-token", "waba-id")).thenReturn(List.of("phone-id"));
@@ -100,6 +107,7 @@ class MetaWhatsAppOnboardingServiceTest {
         MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
                 TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
         when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(1);
         when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
         when(meta.grantedWabaIds("access-token")).thenReturn(List.of("waba-1", "waba-2"));
 
@@ -108,9 +116,68 @@ class MetaWhatsAppOnboardingServiceTest {
         verify(providers, never()).save(any());
     }
 
+    @Test
+    void concurrentCompletionLosesBeforeExchangingTheCode() {
+        MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
+                TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
+        when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(0); // another request already claimed it
+
+        assertThatThrownBy(() -> service().complete("state", "code", "waba-id", "phone-id", null))
+                .isInstanceOf(ConflictException.class);
+        verify(meta, never()).exchangeCode(any(), any());
+        verify(providers, never()).save(any());
+    }
+
+    @Test
+    void connectingADifferentWabaDisablesMappingsMadeForTheOldOne() {
+        MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
+                TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
+        when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(1);
+        when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
+        TenantWhatsAppProvider existing = new TenantWhatsAppProvider(TENANT);
+        existing.setMetaWabaId("old-waba");
+        when(providers.findById(TENANT)).thenReturn(Optional.of(existing));
+        when(providers.save(any(TenantWhatsAppProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        TenantWhatsAppTemplate mapping = approvedMapping();
+        when(templates.findAll()).thenReturn(List.of(mapping));
+
+        service().complete("state", "code", "new-waba", "phone-id", "business-id");
+
+        assertThat(mapping.getStatus()).isEqualTo(TenantWhatsAppTemplate.Status.DISABLED);
+    }
+
+    @Test
+    void reconnectingTheSameWabaKeepsMappings() {
+        MetaWhatsAppOAuthState pending = new MetaWhatsAppOAuthState(
+                TENANT, USER, "state-hash", Instant.now().plusSeconds(600));
+        when(states.findByStateHash(any())).thenReturn(Optional.of(pending));
+        when(states.consumeIfUsable(any(), any())).thenReturn(1);
+        when(meta.exchangeCode("code", "https://app.test/callback")).thenReturn("access-token");
+        TenantWhatsAppProvider existing = new TenantWhatsAppProvider(TENANT);
+        existing.setMetaWabaId("waba-id");
+        when(providers.findById(TENANT)).thenReturn(Optional.of(existing));
+        when(providers.save(any(TenantWhatsAppProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service().complete("state", "code", "waba-id", "phone-id", "business-id");
+
+        verify(templates, never()).findAll();
+    }
+
+    private static TenantWhatsAppTemplate approvedMapping() {
+        TenantWhatsAppTemplate t = new TenantWhatsAppTemplate(TENANT, EmailKind.TAX, MessageTemplateKind.TAX,
+                "ro_RO", "tax_notice", TenantWhatsAppTemplate.Category.UTILITY, "1", null);
+        t.update(MessageTemplateKind.TAX, "tax_notice", TenantWhatsAppTemplate.Category.UTILITY, "1", null,
+                TenantWhatsAppTemplate.Status.APPROVED);
+        return t;
+    }
+
     private MetaWhatsAppOnboardingService service() {
         return new MetaWhatsAppOnboardingService(
-                states, providers, meta, new SecretCipher(testKey()),
+                states, providers, templates, meta, new SecretCipher(testKey()),
                 "app-id", "config-id", "https://app.test/callback",
                 "https://www.facebook.com/v24.0/dialog/oauth",
                 "whatsapp_business_management,whatsapp_business_messaging");

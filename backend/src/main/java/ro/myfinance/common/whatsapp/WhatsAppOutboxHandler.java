@@ -49,22 +49,45 @@ public class WhatsAppOutboxHandler implements OutboxHandler {
     @Override
     public void handle(OutboxMessage message) {
         Payload payload = parse(message);
-        WhatsAppSender.DeliveryReceipt receipt;
+        WhatsAppMessage row = payload.historyId() == null ? null
+                : messages.findById(payload.historyId()).orElse(null);
+        WhatsAppSender.DeliveryProgress progress = row == null
+                ? WhatsAppSender.DeliveryProgress.none() : new RowProgress(row);
         try {
-            receipt = sender.send(payload.message());
+            sender.send(payload.message(), progress);
         } catch (RuntimeException e) {
-            if (payload.historyId() != null) {
-                messages.findById(payload.historyId()).ifPresent(row -> row.recordDeliveryError(e.getMessage()));
+            // Progress recorded on the row before the failure is committed with the attempt (the outbox
+            // delivery transaction survives a handler failure), so the retry resumes after it.
+            if (row != null) {
+                row.recordDeliveryError(e.getMessage());
             }
             throw e;
         }
-        if (payload.historyId() != null) {
-            messages.findById(payload.historyId()).ifPresent(row -> {
-                row.markSent();
-                if (receipt != null) {
-                    row.recordProviderMessage(receipt.providerMessageId(), java.time.Instant.now());
-                }
-            });
+        if (row != null) {
+            row.markSent();
+        }
+    }
+
+    /** Delivery progress persisted on the history row, so it outlives a failed attempt. */
+    private record RowProgress(WhatsAppMessage row) implements WhatsAppSender.DeliveryProgress {
+        @Override
+        public String templateMessageId() {
+            return row.getProviderMessageId();
+        }
+
+        @Override
+        public boolean isAttachmentDelivered(UUID documentId) {
+            return row.getDeliveredAttachmentIds().contains(documentId);
+        }
+
+        @Override
+        public void onTemplateDelivered(String providerMessageId) {
+            row.recordProviderMessage(providerMessageId, java.time.Instant.now());
+        }
+
+        @Override
+        public void onAttachmentDelivered(UUID documentId) {
+            row.recordAttachmentDelivered(documentId);
         }
     }
 

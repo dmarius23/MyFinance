@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { whatsappApi, type WhatsAppAttachment, type WhatsAppKind, type WhatsAppSourceKind } from "../api/whatsapp";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  whatsappApi, type WhatsAppAttachment, type WhatsAppKind, type WhatsAppSendInput, type WhatsAppSourceKind,
+} from "../api/whatsapp";
 import { ApiError } from "../lib/apiClient";
+import { createIdempotencyKeys } from "../lib/idempotency";
 import { useWhatsAppConfigured } from "../lib/useWhatsAppConfigured";
 import { useWhatsAppMode } from "../lib/useWhatsAppMode";
 import { waMeUrl } from "../lib/whatsapp";
@@ -22,6 +25,10 @@ interface Draft {
   sent: boolean;
   excluded: string[];
   sourceKind?: WhatsAppSourceKind;
+  /** Meta only: the matched template mapping's language (sent back), its name, and why it is blocked. */
+  language?: string;
+  template?: { name: string; metaLanguage: string };
+  blockedReason?: string;
   error?: string;
 }
 
@@ -45,33 +52,29 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
     () => Object.fromEntries(targets.map((x) => [x.companyId, { phone: "", body: "", loading: true, sent: false, excluded: [] }])),
   );
   const [sending, setSending] = useState(false);
-  const metaSourceKinds = targets.map((x) => drafts[x.companyId]?.sourceKind).filter(Boolean);
-  const singleMetaSourceKind = metaSourceKinds.length > 0 && new Set(metaSourceKinds).size === 1
-    ? metaSourceKinds[0] : undefined;
-  const mixedMetaSources = kind === "DOCUMENT_REMINDER" && metaSourceKinds.length === targets.length
-    && new Set(metaSourceKinds).size > 1;
-  const metaPreview = useQuery({
-    queryKey: ["whatsapp-meta-preview", targets[0]?.companyId, kind, period, singleMetaSourceKind],
-    queryFn: () => whatsappApi.metaPreview(targets[0].companyId, kind, singleMetaSourceKind),
-    enabled: metaMode && targets.length > 0
-      && (kind !== "DOCUMENT_REMINDER" || !!singleMetaSourceKind),
-    retry: false,
-  });
+  const [idempotency] = useState(createIdempotencyKeys);
 
-  // Prefill each company's recipient phone + standard body once on open.
+  /** Meta: the company's own filled template (values differ per company), else the email-style body. */
+  const prefill = async (companyId: string): Promise<Partial<Draft>> => {
+    if (!metaMode) return { body: await loadBody(companyId) };
+    const sourceKind = kind === "DOCUMENT_REMINDER" && loadSourceKind ? await loadSourceKind(companyId) : undefined;
+    const preview = await whatsappApi.metaPreview(companyId, kind, period, sourceKind);
+    return {
+      sourceKind, body: preview.body ?? "", language: preview.appLanguage,
+      template: { name: preview.name, metaLanguage: preview.metaLanguage },
+      blockedReason: preview.blockedReason ?? undefined,
+    };
+  };
+
+  // Prefill each company's recipient phone + message once on open.
   useEffect(() => {
     let cancelled = false;
     targets.forEach((x) => {
-      Promise.all([
-        whatsappApi.recipient(x.companyId),
-        loadBody(x.companyId),
-        metaMode && kind === "DOCUMENT_REMINDER" && loadSourceKind
-          ? loadSourceKind(x.companyId) : Promise.resolve(undefined),
-      ])
-        .then(([r, body, sourceKind]) => {
+      Promise.all([whatsappApi.recipient(x.companyId), prefill(x.companyId)])
+        .then(([r, content]) => {
           if (!cancelled) {
             setDrafts((d) => ({ ...d, [x.companyId]: {
-              ...d[x.companyId], phone: r.phone ?? "", body, sourceKind, loading: false,
+              ...d[x.companyId], ...content, phone: r.phone ?? "", loading: false,
             } }));
           }
         })
@@ -84,10 +87,12 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
   const patch = (id: string, p: Partial<Draft>) => setDrafts((d) => ({ ...d, [id]: { ...d[id], ...p } }));
 
   const sendOne = useMutation({
-    mutationFn: (v: { companyId: string; body: string; sourceKind?: WhatsAppSourceKind; attachmentDocumentIds: string[] }) =>
-      whatsappApi.send(v.companyId, { kind, period, body: v.body, sourceKind: v.sourceKind,
-        attachmentDocumentIds: v.attachmentDocumentIds }),
+    mutationFn: (v: { companyId: string; input: WhatsAppSendInput }) =>
+      whatsappApi.send(v.companyId, v.input, idempotency.keyFor(v)),
+    onSuccess: (_sent, v) => idempotency.forget(v),
   });
+  const canSend = (d: Draft | undefined) =>
+    !!d && !d.sent && !d.loading && !d.blockedReason && !!d.body.trim() && !!d.phone.trim();
   const selectedFiles = (x: WhatsAppTarget, d: Draft) =>
     (x.attachments ?? []).filter((a) => !d.excluded.includes(a.id)).map((a) => a.id);
   const toggleFile = (id: string, fileId: string) => setDrafts((all) => {
@@ -101,10 +106,11 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
     let anyError = false;
     for (const x of targets) {
       const d = drafts[x.companyId];
-      if (!d || d.sent || d.loading || !d.body.trim() || !d.phone.trim()) continue;
+      if (!canSend(d)) continue;
       try {
-        await sendOne.mutateAsync({ companyId: x.companyId, body: d.body, sourceKind: d.sourceKind,
-          attachmentDocumentIds: selectedFiles(x, d) });
+        await sendOne.mutateAsync({ companyId: x.companyId, input: {
+          kind, period, body: d.body, sourceKind: d.sourceKind, language: d.language,
+          attachmentDocumentIds: selectedFiles(x, d) } });
         patch(x.companyId, { sent: true, error: undefined });
         void qc.invalidateQueries({ queryKey: ["whatsapp", x.companyId, kind, period] });
       } catch (e) {
@@ -117,10 +123,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
     if (!anyError) onClose(); // all sent → close; keep open on failure to show the error
   };
 
-  const sendableCount = targets.filter((x) => {
-    const d = drafts[x.companyId];
-    return d && !d.sent && !d.loading && d.body.trim() && d.phone.trim();
-  }).length;
+  const sendableCount = targets.filter((x) => canSend(drafts[x.companyId])).length;
   const allSent = targets.every((x) => drafts[x.companyId]?.sent);
 
   return (
@@ -156,11 +159,13 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
                       <input type="tel" placeholder="+40…" value={d.phone}
                         onChange={(e) => patch(x.companyId, { phone: e.target.value })}
                         style={input} disabled={d.sent} />
-                      {metaMode && metaPreview.data && (
+                      {metaMode && d.template && (
                         <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>
-                          {t("channel.metaTemplateUsed", { name: metaPreview.data.name, language: metaPreview.data.metaLanguage })}
-                          {metaPreview.data.variableNames.length > 0 && ` ${t("channel.metaVariablesUnavailable")}`}
+                          {t("channel.metaTemplateUsed", { name: d.template.name, language: d.template.metaLanguage })}
                         </div>
+                      )}
+                      {metaMode && d.blockedReason && (
+                        <div role="alert" style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{d.blockedReason}</div>
                       )}
                       <textarea value={d.body} disabled={d.sent} readOnly={metaMode}
                         onChange={(e) => patch(x.companyId, { body: e.target.value })}
@@ -193,11 +198,6 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
           })}
         </div>
 
-        {metaMode && metaPreview.isError && (
-          <div style={{ color: "#dc2626", fontSize: 12, padding: "0 16px 8px" }}>
-            {metaPreview.error instanceof ApiError ? metaPreview.error.message : t("common.error")}
-          </div>
-        )}
         <div style={footer}>
           <span style={{ color: "var(--text-muted)", fontSize: 11.5 }}>
             {clickToChat ? t("channel.openWhatsapp") : t("taxes.eachLogged")}
@@ -206,9 +206,7 @@ export function WhatsAppBulkModal({ targets, kind, period, loadBody, loadSourceK
             <button onClick={onClose}>{t("common.cancel")}</button>
             {!clickToChat && (
               <button style={waBtnPrimary} onClick={sendAll}
-                disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured
-                  || metaPreview.isLoading || metaPreview.isError || mixedMetaSources
-                  || (metaPreview.data?.variableNames.length ?? 0) > 0}
+                disabled={sending || allSent || sendableCount === 0 || !whatsappConfigured}
                 title={whatsappConfigured ? undefined : t("channel.whatsappRequired")}>
                 <Icon name="whatsapp" size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />
                 {sending ? t("taxes.sending") : t("channel.sendWhatsappN", { n: sendableCount })}

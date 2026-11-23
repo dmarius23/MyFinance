@@ -28,40 +28,58 @@ export interface WhatsAppAttachment {
   filename: string;
 }
 
+/** One server-filled template variable: its {{position}}, placeholder name and value. */
+export interface WhatsAppTemplateVariable {
+  position: number;
+  name: string;
+  value: string;
+}
+
 export interface WhatsAppMetaPreview {
   name: string;
+  /** The mapping that matched (may be the fallback language) — pass it back on send. */
   appLanguage: string;
   metaLanguage: string;
   status: string;
+  /** The Meta template text with this company's values filled in — what the client will read. */
   body: string | null;
   variableNames: string[];
+  variables: WhatsAppTemplateVariable[];
+  /** Why this template cannot be sent yet; null when it can. */
+  blockedReason: string | null;
+}
+
+export interface WhatsAppSendInput {
+  kind: WhatsAppKind;
+  sourceKind?: WhatsAppSourceKind;
+  period: string;
+  language?: string;
+  attachmentDocumentIds?: string[];
+  body: string;
 }
 
 export const whatsappApi = {
   /** The resolved recipient phone (the company's representative), to pre-fill the compose form. */
   recipient: (companyId: string) =>
     api<{ phone: string | null }>(`/api/v1/companies/${companyId}/whatsapp/recipient`),
-  metaPreview: (companyId: string, kind: WhatsAppKind, sourceKind?: WhatsAppSourceKind, language = "ro_RO") =>
+  metaPreview: (companyId: string, kind: WhatsAppKind, period: string, sourceKind?: WhatsAppSourceKind,
+    language = "ro_RO") =>
     api<WhatsAppMetaPreview>(
       `/api/v1/companies/${companyId}/whatsapp/preview?kind=${kind}`
       + (sourceKind ? `&sourceKind=${sourceKind}` : "")
-      + `&language=${language}`),
+      + `&language=${language}&period=${encodeURIComponent(period)}`),
   /** WhatsApp send history for a module + company + period (newest first). */
   history: (companyId: string, kind: WhatsAppKind, period: string) =>
     api<WhatsAppView[]>(`/api/v1/companies/${companyId}/whatsapp?kind=${kind}&period=${period}`),
-  /** Send a WhatsApp message for a module + company + period. */
-  send: (companyId: string, input: {
-    kind: WhatsAppKind;
-    sourceKind?: WhatsAppSourceKind;
-    period: string;
-    language?: string;
-    templateVariables?: Record<string, string>;
-    attachmentDocumentIds?: string[];
-    body: string;
-  }) =>
+  /**
+   * Send a WhatsApp message for a module + company + period. Template variables are filled server-side.
+   * `idempotencyKey` must be reused when retrying the same request (see `createIdempotencyKeys`), so a
+   * retry after a lost response returns the original message instead of queueing a duplicate.
+   */
+  send: (companyId: string, input: WhatsAppSendInput, idempotencyKey: string) =>
     api<WhatsAppView>(`/api/v1/companies/${companyId}/whatsapp`, {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify(input),
     }),
 };

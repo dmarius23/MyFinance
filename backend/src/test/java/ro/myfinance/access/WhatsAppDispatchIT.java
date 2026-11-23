@@ -147,6 +147,46 @@ class WhatsAppDispatchIT extends AbstractPostgresIT {
     }
 
     @Test
+    void metaTemplateVariablesAreFilledServerSideInDeclaredOrder() {
+        UUID tenant = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        UUID company = seedCompanyWithRep(tenant, "+40700000000");
+        jdbc.update("""
+                insert into tenant_whatsapp_provider(tenant_id, mode, meta_waba_id, meta_phone_number_id,
+                    meta_access_token_enc, updated_at)
+                values (?, 'META_CLOUD_API', 'waba', 'phone', 'not-a-ciphertext', now())
+                """, tenant);
+        jdbc.update("""
+                insert into tenant_whatsapp_template(tenant_id, kind, source_kind, language, meta_template_name,
+                    status, variable_schema)
+                values (?, 'PAYROLL', 'PAYROLL', 'ro_RO', 'payroll_ready', 'APPROVED', 'month,companyName')
+                """, tenant);
+
+        WhatsAppMessage sent = whatsapp.dispatch(EmailKind.PAYROLL, company, PERIOD, "Statele sunt gata.",
+                null, "payroll-vars-" + company, null);
+
+        String variables = jdbc.queryForObject("select template_variables from whatsapp_message where id = ?",
+                String.class, sent.getId());
+        // Order follows the mapping's schema ({{1}} = month, {{2}} = company), values come from the server.
+        assertThat(variables).isEqualTo("{\"month\":\"aprilie 2026\",\"companyName\":\"Acme SRL\"}");
+    }
+
+    @Test
+    void reusingAnIdempotencyKeyForAnotherReminderStateIsRefused() {
+        UUID tenant = UUID.randomUUID();
+        TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));
+        UUID company = seedCompanyWithRep(tenant, "+40700000000");
+
+        whatsapp.dispatch(EmailKind.DOCUMENT_REMINDER, company, PERIOD, "Documente.", null, "reminder-key",
+                "ro_RO", List.of(), ro.myfinance.common.messaging.MessageTemplateKind.REMINDER_DOCS_ONLY, null);
+
+        assertThatThrownBy(() -> whatsapp.dispatch(EmailKind.DOCUMENT_REMINDER, company, PERIOD, "Documente.",
+                null, "reminder-key", "ro_RO", List.of(),
+                ro.myfinance.common.messaging.MessageTemplateKind.REMINDER_DOCS_MISSING, null))
+                .isInstanceOf(ro.myfinance.common.web.ConflictException.class);
+    }
+
+    @Test
     void repeatedIdempotencyKeyDoesNotCreateAnotherMessage() {
         UUID tenant = UUID.randomUUID();
         TenantContext.set(new TenantContext.Identity(tenant, UUID.randomUUID(), Role.TENANT_ADMIN, null));

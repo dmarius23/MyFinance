@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Pattern;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -53,7 +52,6 @@ public class WhatsAppController {
                              @RequestHeader("Idempotency-Key") String idempotencyKey) {
         return WhatsAppView.from(whatsapp.dispatch(req.kind(), companyId, req.period(),
                 req.body(), null, idempotencyKey, req.language(),
-                req.templateVariables() == null ? Map.of() : req.templateVariables(),
                 req.attachmentDocumentIds() == null ? List.of() : req.attachmentDocumentIds(),
                 req.sourceKind(), null));
     }
@@ -71,18 +69,22 @@ public class WhatsAppController {
         return new RecipientView(whatsapp.resolveRecipient(companyId));
     }
 
-    /** The live Meta template that will actually be sent, for the pre-send staff preview. */
+    /**
+     * The live Meta template that will actually be sent, filled with this company's values for
+     * {@code period}, for the pre-send staff preview.
+     */
     @GetMapping("/preview")
-    public WhatsAppPreviewService.Preview preview(@RequestParam EmailKind kind,
+    public WhatsAppPreviewService.Preview preview(@PathVariable UUID companyId, @RequestParam EmailKind kind,
                                                    @RequestParam(required = false) MessageTemplateKind sourceKind,
-                                                   @RequestParam(required = false) String language) {
-        return preview.preview(kind, sourceKind, language);
+                                                   @RequestParam(required = false) String language,
+                                                   @RequestParam(required = false)
+                                                   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period) {
+        return preview.preview(kind, sourceKind, language, companyId, period);
     }
 
     public record SendRequest(@NotNull EmailKind kind, @NotNull LocalDate period,
                               @Pattern(regexp = "[a-z]{2}_[A-Z]{2}") String language,
                               MessageTemplateKind sourceKind,
-                              Map<String, String> templateVariables,
                               List<UUID> attachmentDocumentIds,
                               @NotBlank @Size(max = 10_000) String body) {
     }

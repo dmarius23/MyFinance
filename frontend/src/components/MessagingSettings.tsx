@@ -251,6 +251,12 @@ export function WhatsAppProviderSection() {
 
 const TEMPLATE_KINDS: WhatsAppTemplateKind[] = ["TAX", "PAYROLL", "REPORT", "DOCUMENT_REMINDER"];
 const TEMPLATE_LANGUAGES: WhatsAppTemplateLanguage[] = ["ro_RO", "en_US"];
+const TEMPLATE_STATUSES: WhatsAppTemplateStatus[] = ["APPROVED", "PENDING", "DISABLED"];
+
+/** Distinct {{n}} positions in a Meta body — how many variable names the mapping must declare. */
+function metaVariableCount(body: string | null): number {
+  return new Set([...(body ?? "").matchAll(/\{\{\s*([1-9][0-9]*)\s*\}\}/g)].map((m) => m[1])).size;
+}
 const emptyTemplate = { kind: "TAX" as WhatsAppTemplateKind, language: "ro_RO" as WhatsAppTemplateLanguage,
   metaTemplateName: "", status: "PENDING" as WhatsAppTemplateStatus };
 
@@ -276,7 +282,8 @@ export function WhatsAppTemplatesSection() {
   });
   const [form, setForm] = useState(emptyTemplate);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
-  const [metaDraftVariables, setMetaDraftVariables] = useState<string[]>([]);
+  /** Ordered placeholder names filling {{1}}, {{2}}… — loaded from the mapping, never silently cleared. */
+  const [variables, setVariables] = useState("");
   const [reminderSourceKind, setReminderSourceKind] = useState<string>("REMINDER_DOCS_MISSING");
   const whatsappSourceKind: WhatsAppTemplateSourceKind = form.kind === "DOCUMENT_REMINDER"
     ? reminderSourceKind as WhatsAppTemplateSourceKind
@@ -289,8 +296,9 @@ export function WhatsAppTemplatesSection() {
     mutationFn: () => messagingApi.saveWhatsAppTemplate({ ...form, metaTemplateName: form.metaTemplateName.trim(),
       category: "UTILITY",
       sourceKind: whatsappSourceKind,
-      variableSchema: metaDraftVariables.join(",") || undefined }),
-    onSuccess: () => { void refresh(); setForm(emptyTemplate); setMsg({ ok: t("common.save") }); },
+      // Always explicit: "" clears, a list replaces — the server keeps the stored list only when omitted.
+      variableSchema: variables.split(",").map((v) => v.trim()).filter(Boolean).join(",") }),
+    onSuccess: () => { void refresh(); setForm(emptyTemplate); setVariables(""); setMsg({ ok: t("common.save") }); },
     onError: fail,
   });
   const remove = useMutation({
@@ -304,21 +312,34 @@ export function WhatsAppTemplatesSection() {
     onError: fail,
   });
   if (!isMeta) return null;
+  const templates = list.data ?? [];
+  const metaTemplates = metaList.data;
   const edit = (x: WhatsAppTemplate) => {
     setMsg({});
-    setMetaDraftVariables([]);
+    setVariables(x.variableSchema ?? "");
     if (x.kind === "DOCUMENT_REMINDER") setReminderSourceKind(x.sourceKind);
     setForm({ kind: x.kind, language: x.language, metaTemplateName: x.metaTemplateName, status: x.status });
   };
-  const pickMeta = (m: MetaWhatsAppTemplate) => {
-    if (!m.appLanguage) return;
+  /**
+   * Selecting a Meta template takes its status from Meta (an APPROVED template must be saved APPROVED, or
+   * sends ignore it) and keeps the variable names already stored for that template, if any.
+   */
+  const selectTemplate = (name: string, language: WhatsAppTemplateLanguage) => {
+    const live = (metaTemplates ?? []).find((m) => m.name === name && m.appLanguage === language);
+    const stored = templates.find((x) => x.kind === form.kind && x.sourceKind === whatsappSourceKind
+      && x.language === language && x.metaTemplateName === name);
     setMsg({});
-    setMetaDraftVariables([]);
-    setForm((f) => ({ ...f, language: m.appLanguage ?? f.language, metaTemplateName: m.name,
-      status: m.status === "APPROVED" ? "APPROVED" : "PENDING" }));
+    setForm((f) => ({ ...f, language, metaTemplateName: name,
+      status: live ? (live.status === "APPROVED" ? "APPROVED" : "PENDING") : f.status }));
+    setVariables(stored?.variableSchema ?? (live && metaVariableCount(live.body) === 0 ? "" : variables));
   };
-  const templates = list.data ?? [];
-  const metaTemplates = metaList.data;
+  const pickMeta = (m: MetaWhatsAppTemplate) => {
+    if (m.appLanguage) selectTemplate(m.name, m.appLanguage);
+  };
+  const selectedMeta = (metaTemplates ?? []).find(
+    (m) => m.name === form.metaTemplateName && m.appLanguage === form.language);
+  const declaredCount = variables.split(",").map((v) => v.trim()).filter(Boolean).length;
+  const expectedCount = selectedMeta ? metaVariableCount(selectedMeta.body) : null;
   /** Why Meta would reject a registered template, judged against the live list; null if it looks sendable. */
   const metaProblem = (x: WhatsAppTemplate): string | null => {
     if (!metaTemplates || x.status !== "APPROVED") return null;
@@ -406,7 +427,7 @@ export function WhatsAppTemplatesSection() {
         </div>
         <Field label={t("settings.tpl.name")}>
           <select required value={form.metaTemplateName}
-            onChange={(e) => setForm((f) => ({ ...f, metaTemplateName: e.target.value }))}>
+            onChange={(e) => selectTemplate(e.target.value, form.language)}>
             <option value="">{t("settings.tpl.metaSelectPlaceholder")}</option>
             {(metaTemplates ?? [])
               .filter((m) => m.appLanguage === form.language)
@@ -421,12 +442,33 @@ export function WhatsAppTemplatesSection() {
           </select>
         </Field>
         <p style={hint}>{t("settings.tpl.nameHint")}</p>
+        <Field label={t("settings.tpl.variables")}>
+          <input value={variables} onChange={(e) => setVariables(e.target.value)}
+            placeholder="companyName, month" aria-describedby="tpl-variables-hint" />
+        </Field>
+        <p id="tpl-variables-hint" style={hint}>
+          {t("settings.tpl.variablesHint")}
+          {expectedCount !== null && ` ${t("settings.tpl.variablesExpected", { n: expectedCount })}`}
+        </p>
+        {expectedCount !== null && expectedCount !== declaredCount && (
+          <p role="alert" style={errStyle}>
+            {t("settings.tpl.variablesMismatch", { expected: expectedCount, declared: declaredCount })}
+          </p>
+        )}
+        <Field label={t("settings.tpl.colStatus")}>
+          <select value={form.status}
+            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as WhatsAppTemplateStatus }))}>
+            {TEMPLATE_STATUSES.map((st) => <option key={st} value={st}>{t(`settings.tpl.status.${st}`)}</option>)}
+          </select>
+        </Field>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="primary" type="submit" disabled={save.isPending || !form.metaTemplateName.trim()}>
             {save.isPending ? "…" : t("common.save")}
           </button>
           {form !== emptyTemplate && (
-            <button type="button" onClick={() => { setForm(emptyTemplate); setMsg({}); }}>{t("common.cancel")}</button>
+            <button type="button" onClick={() => { setForm(emptyTemplate); setVariables(""); setMsg({}); }}>
+              {t("common.cancel")}
+            </button>
           )}
         </div>
       </form>

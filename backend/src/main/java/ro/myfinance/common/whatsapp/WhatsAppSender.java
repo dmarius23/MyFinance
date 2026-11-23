@@ -34,6 +34,50 @@ public interface WhatsAppSender {
 
     DeliveryReceipt send(Message message);
 
+    /**
+     * Resumable send: skips the parts an earlier attempt of the same message already delivered and reports
+     * each part as it is delivered, so a retry after a partial failure never re-sends the template (or an
+     * attachment) to the client. The default suits providers that deliver the whole message atomically.
+     */
+    default DeliveryReceipt send(Message message, DeliveryProgress progress) {
+        if (progress.templateMessageId() != null) {
+            return new DeliveryReceipt(progress.templateMessageId());
+        }
+        DeliveryReceipt receipt = send(message);
+        progress.onTemplateDelivered(receipt == null ? null : receipt.providerMessageId());
+        return receipt;
+    }
+
+    /** What earlier attempts of one message already delivered, and callbacks that record new progress. */
+    interface DeliveryProgress {
+
+        /** Provider id of the already-delivered template message, or null if it has not been delivered. */
+        String templateMessageId();
+
+        boolean isAttachmentDelivered(UUID documentId);
+
+        void onTemplateDelivered(String providerMessageId);
+
+        void onAttachmentDelivered(UUID documentId);
+
+        /** Fresh, in-memory progress for a one-shot send with nothing delivered yet. */
+        static DeliveryProgress none() {
+            return new DeliveryProgress() {
+                private String messageId;
+                private final java.util.Set<UUID> attachments = new java.util.HashSet<>();
+
+                @Override public String templateMessageId() { return messageId; }
+                @Override public boolean isAttachmentDelivered(UUID documentId) {
+                    return attachments.contains(documentId);
+                }
+                @Override public void onTemplateDelivered(String providerMessageId) {
+                    messageId = providerMessageId;
+                }
+                @Override public void onAttachmentDelivered(UUID documentId) { attachments.add(documentId); }
+            };
+        }
+    }
+
     record DeliveryReceipt(String providerMessageId) {
         public static DeliveryReceipt withoutProviderId() {
             return new DeliveryReceipt(null);

@@ -70,16 +70,26 @@ public class ReminderBodyService {
         boolean hasStatement = hasBankStatement(companyId, month);
         List<TxnWithMatches> missing = hasStatement ? missingTransactions(companyId, month) : List.of();
         MessageTemplateKind state = state(hasStatement, missing);
+        RenderedMessage msg = templates.render(state, values(companyId, month, missing));
+        return new ReminderMessage(state, msg.subject(), msg.body());
+    }
 
+    /** The reminder placeholder values for a company/period — shared by the email and WhatsApp templates. */
+    public Map<String, String> templateValues(UUID companyId, LocalDate period) {
+        LocalDate month = period.withDayOfMonth(1);
+        boolean hasStatement = hasBankStatement(companyId, month);
+        List<TxnWithMatches> missing = hasStatement ? missingTransactions(companyId, month) : List.of();
+        return values(companyId, month, missing);
+    }
+
+    private Map<String, String> values(UUID companyId, LocalDate month, List<TxnWithMatches> missing) {
         Map<String, String> values = new HashMap<>();
         values.put("companyName", companyName(companyId));
         values.put("month", RomanianMonths.monthYear(month));
         values.put("missingCount", String.valueOf(missing.size()));
         values.put("missingTransactions", missingBlock(missing));
         values.put("signOff", SignOff.names(envelopes.currentUserName(), envelopes.firmName()));
-
-        RenderedMessage msg = templates.render(state, values);
-        return new ReminderMessage(state, msg.subject(), msg.body());
+        return values;
     }
 
     /** Exposed for the reminder screens, which disable the button for a state the user should not send. */

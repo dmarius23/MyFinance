@@ -3,6 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { messagingApi } from "../api/messaging";
 import { ApiError } from "../lib/apiClient";
 
+/**
+ * OAuth states already submitted from this page. React StrictMode runs effects twice in development, and
+ * the authorization code is single-use, so a second POST would fail (the server also rejects it) and could
+ * replace a successful connection with an error message.
+ */
+const submittedStates = new Set<string>();
+
 /** Completes the server-bound Meta Embedded Signup callback without storing provider credentials in the browser. */
 export function MetaWhatsAppCallback() {
   const navigate = useNavigate();
@@ -28,6 +35,10 @@ export function MetaWhatsAppCallback() {
       setError("Meta returned an incomplete WhatsApp onboarding response.");
       return;
     }
+    if (submittedStates.has(state)) {
+      return;
+    }
+    submittedStates.add(state);
 
     void messagingApi.completeMetaOnboarding({
       state,

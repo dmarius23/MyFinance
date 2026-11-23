@@ -212,10 +212,15 @@ public class PayrollService {
      */
     @Transactional(readOnly = true)
     public RenderedMessage message(UUID companyId, LocalDate period) {
+        return templates.render(MessageTemplateKind.PAYROLL, templateValues(companyId, period));
+    }
+
+    /** The PAYROLL placeholder values for a company/period — shared by the email and WhatsApp templates. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, String> templateValues(UUID companyId, LocalDate period) {
         LocalDate deadline = deadlines.deadlineFor(java.time.YearMonth.from(period));
-        return templates.render(MessageTemplateKind.PAYROLL, PayrollEmailBuilder.values(
-                period, companyName(companyId), envelopes.currentUserName(), envelopes.firmName(),
-                deadline));
+        return PayrollEmailBuilder.values(period, companyName(companyId), envelopes.currentUserName(),
+                envelopes.firmName(), deadline);
     }
 
     private String companyName(UUID companyId) {

@@ -71,8 +71,18 @@ public class ReportEmailService {
 
     /** Same, when the caller already holds the report data — avoids re-running the aggregation. */
     public RenderedMessage message(LocalDate period, ReportData r) {
-        return templates.render(MessageTemplateKind.REPORT, ReportEmailBuilder.values(
-                period.withDayOfMonth(1), r, envelopes.currentUserName(), envelopes.firmName()));
+        return templates.render(MessageTemplateKind.REPORT, templateValues(period, r));
+    }
+
+    /** The REPORT placeholder values for a company/period — shared by the email and WhatsApp templates. */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, String> templateValues(UUID companyId, LocalDate period) {
+        return templateValues(period, reports.report(companyId, period));
+    }
+
+    private java.util.Map<String, String> templateValues(LocalDate period, ReportData r) {
+        return ReportEmailBuilder.values(period.withDayOfMonth(1), r, envelopes.currentUserName(),
+                envelopes.firmName());
     }
 
     @Transactional(readOnly = true)
