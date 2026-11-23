@@ -38,6 +38,9 @@ public class BankTransaction {
     @Column(nullable = false)
     private BigDecimal amount;
 
+    @Column(nullable = false)
+    private String currency = "RON";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TxnDirection direction;
@@ -77,7 +80,7 @@ public class BankTransaction {
     public BankTransaction(UUID tenantId, UUID companyId, UUID statementId, String accountIban,
                            LocalDate txnDate, BigDecimal amount, TxnDirection direction,
                            String partnerName, String partnerIban, String description, String ref,
-                           BigDecimal balanceAfter) {
+                           BigDecimal balanceAfter, String currency) {
         this.tenantId = tenantId;
         this.companyId = companyId;
         this.statementId = statementId;
@@ -90,6 +93,7 @@ public class BankTransaction {
         this.description = description;
         this.ref = ref;
         this.balanceAfter = balanceAfter;
+        this.currency = currency == null ? "RON" : currency.toUpperCase(java.util.Locale.ROOT);
         this.requiresDocument = false;
     }
 
@@ -99,6 +103,7 @@ public class BankTransaction {
     public String getAccountIban() { return accountIban; }
     public LocalDate getTxnDate() { return txnDate; }
     public BigDecimal getAmount() { return amount; }
+    public String getCurrency() { return currency; }
     public TxnDirection getDirection() { return direction; }
     public String getPartnerName() { return partnerName; }
     public String getPartnerIban() { return partnerIban; }

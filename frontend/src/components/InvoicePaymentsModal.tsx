@@ -3,12 +3,12 @@ import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bankApi, invoicesApi } from "../api/bank";
 import { LinkTransactionModal } from "./LinkTransactionModal";
+import { formatMoney } from "../lib/money";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 65,
 };
-const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const statusColors: Record<string, React.CSSProperties> = {
   PAID: { background: "#dcfce7", color: "#166534" },
@@ -19,7 +19,7 @@ const statusColors: Record<string, React.CSSProperties> = {
 /** Invoice-centric view: the invoice, its applied payments, remaining balance, and add/remove. */
 export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
   { companyId: string; period: string; documentId: string; onClose: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
 
@@ -68,9 +68,9 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
               {inv.supplierName && <div style={{ color: "var(--text-muted)", fontSize: 12.5 }}>🏢 {inv.supplierName}</div>}
               <div style={{ color: "var(--text-muted)", fontSize: 12.5, marginTop: 2 }}>📅 {inv.invoiceDate ?? "—"}</div>
               <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13, flexWrap: "wrap", alignItems: "center" }}>
-                <span>{t("recon.total")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{inv.totalAmount != null ? fmt(inv.totalAmount) : "—"}</b></span>
-                <span>{t("recon.paid")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(inv.paidAmount)}</b></span>
-                <span>{t("recon.remaining")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{inv.remaining != null ? fmt(inv.remaining) : "—"}</b></span>
+                <span>{t("recon.total")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.totalAmount, inv.currency, i18n.language)}</b></span>
+                <span>{t("recon.paid")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.paidAmount, inv.currency, i18n.language)}</b></span>
+                <span>{t("recon.remaining")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(inv.remaining, inv.currency, i18n.language)}</b></span>
                 <span style={{ ...statusColors[inv.status], borderRadius: 999, padding: "2px 10px", fontSize: 12 }}>
                   {t(`recon.status.${inv.status}`)}
                 </span>
@@ -89,9 +89,9 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
                     <div style={{ color: "var(--text-muted)", fontSize: 12 }}>📅 {p.txnDate}</div>
                   </div>
                   <div style={{ textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    <b>{fmt(p.allocatedAmount)} RON</b>
+                    <b>{formatMoney(p.allocatedAmount, p.txnCurrency, i18n.language)}</b>
                     {Math.abs(p.allocatedAmount - Math.abs(p.amount)) > 0.005 && (
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("recon.of", { total: fmt(Math.abs(p.amount)) })}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{t("recon.of", { total: formatMoney(Math.abs(p.amount), p.txnCurrency, i18n.language) })}</div>
                     )}
                   </div>
                   <button onClick={() => remove.mutate(p.txnId)} disabled={remove.isPending}
@@ -116,6 +116,7 @@ export function InvoicePaymentsModal({ companyId, period, documentId, onClose }:
           companyId={companyId}
           period={period}
           invoiceRemaining={inv.remaining}
+          invoiceCurrency={inv.currency}
           pending={add.isPending}
           onPick={(txnId) => add.mutate(txnId)}
           onClose={() => setAdding(false)}

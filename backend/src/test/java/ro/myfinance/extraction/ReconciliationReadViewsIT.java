@@ -63,7 +63,7 @@ class ReconciliationReadViewsIT extends AbstractPostgresIT {
                             new ParsedTransaction(LocalDate.of(2026, 6, 4), new BigDecimal("-30.00"),
                                     "Trezoreria Cluj", "RO54TREZ21620A470300", "CAM", "r2", new BigDecimal("770.00")),
                             new ParsedTransaction(LocalDate.of(2026, 6, 5), new BigDecimal("400.00"),
-                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))));
+                                    "AROBIS", "RO11CLI", "incasare", "r3", new BigDecimal("1170.00"))), "RON");
                 }
             };
         }
@@ -99,7 +99,7 @@ class ReconciliationReadViewsIT extends AbstractPostgresIT {
                 docId, TENANT, companyId, java.sql.Date.valueOf(LocalDate.of(2026, 6, 1)));
         var inv = invoiceRepo.save(new ro.myfinance.extraction.domain.Invoice(
                 TENANT, docId, companyId, LocalDate.of(2026, 6, 1), supplierName, iban,
-                new BigDecimal(amount), date, "inv.pdf", "EXTRACTED"));
+                new BigDecimal(amount), date, "inv.pdf", "EXTRACTED", "RON")); // placeholder: Task 3/4 supplies the real currency
         return inv.getId();
     }
 

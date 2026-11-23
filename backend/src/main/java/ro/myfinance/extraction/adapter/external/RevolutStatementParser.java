@@ -93,7 +93,9 @@ public class RevolutStatementParser implements BankStatementParser {
                 .sorted(Comparator.comparing(t -> t.date()))
                 .toList();
 
-        return new ParsedStatement("REVOLUT", iban, opening, closing, txns);
+        // Only RON sections are ingested (isRonSection filter above); currency is therefore always RON.
+        // Spec B (multi-currency ingestion) will branch here, passing the section's detected currency.
+        return new ParsedStatement("REVOLUT", iban, opening, closing, txns, "RON");
     }
 
     // ---- section splitting -----------------------------------------------------------------------

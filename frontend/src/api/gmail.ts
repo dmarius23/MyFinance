@@ -31,7 +31,10 @@ export const gmailApi = {
   startOAuth: (id: string) =>
     api<{ authorizationUrl: string; expiresAt: string }>(`${base}/${id}/oauth/start`, { method: "POST" }),
   completeOAuth: (id: string, input: { state: string; authorizationCode: string }) =>
-    api<void>(`${base}/${id}/oauth/complete`, { method: "POST", body: JSON.stringify(input) }),
+    api<GmailSyncResult>(`${base}/${id}/oauth/complete`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   sync: (id: string) =>
     api<GmailSyncResult>(`${base}/${id}/sync`, { method: "POST" }),
   backfill: (id: string, input?: { fromInclusive?: string; toExclusive?: string }) =>

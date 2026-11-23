@@ -124,7 +124,7 @@ public class BrdStatementParser implements BankStatementParser {
             txns.add(new ParsedTransaction(r.date, signed, r.partnerName, r.partnerIban,
                     blankToNull(r.description), null, r.balance));
         }
-        return new ParsedStatement("BRD", accountIban, opening, closing, txns);
+        return new ParsedStatement("BRD", accountIban, opening, closing, txns, "RON");
     }
 
     private boolean isAmountLine(String line) {

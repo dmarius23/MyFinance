@@ -70,10 +70,15 @@ public class EmailConnectionController {
         return oauth.start(id);
     }
 
+    /**
+     * Stores the new refresh token, then date-backfills from {@code last_synced_at} (or the last 30 days)
+     * so mail that arrived while the previous grant was expired is not skipped.
+     */
     @PostMapping("/{id}/oauth/complete")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void completeOAuth(@PathVariable UUID id, @Valid @RequestBody CompleteOAuthRequest request) {
+    public GmailIngestionService.SyncResult completeOAuth(@PathVariable UUID id,
+                                                          @Valid @RequestBody CompleteOAuthRequest request) {
         oauth.complete(id, request.state(), request.authorizationCode());
+        return ingestion.recoverAfterReconnect(id);
     }
 
     @PostMapping("/{id}/sync")

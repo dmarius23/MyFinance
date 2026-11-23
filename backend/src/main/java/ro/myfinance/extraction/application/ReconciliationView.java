@@ -327,7 +327,7 @@ public class ReconciliationView {
                 out.add(new OpenInvoiceView(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
                         i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(),
                         i.getPeriodMonth(), p, remaining, duplicate, i.getWrongParty(),
-                        i.getIssuerCif(), i.getClientCif()));
+                        i.getIssuerCif(), i.getClientCif(), i.getCurrency()));
             }
         }
         return out;
@@ -352,13 +352,13 @@ public class ReconciliationView {
             BankTransaction t = txById.get(m.getTransactionId());
             if (t != null) {
                 payments.add(new InvoicePaymentView(t.getId(), t.getTxnDate(), t.getPartnerName(),
-                        t.getAmount(), m.getAllocatedAmount()));
+                        t.getAmount(), m.getAllocatedAmount(), t.getCurrency()));
             }
         }
         BigDecimal remaining = inv.getTotalAmount() == null ? null : inv.getTotalAmount().subtract(paid);
         return new InvoicePaymentsView(inv.getId(), inv.getDocumentId(), inv.getOriginalFilename(),
                 inv.getSupplierName(), inv.getTotalAmount(), inv.getInvoiceDate(), paid, remaining,
-                paymentStatus(inv.getTotalAmount(), paid), payments);
+                paymentStatus(inv.getTotalAmount(), paid), payments, inv.getCurrency());
     }
 
     private String paymentStatus(BigDecimal total, BigDecimal paid) {
@@ -397,7 +397,7 @@ public class ReconciliationView {
             BigDecimal remaining = t.getAmount().abs().subtract(alloc);
             if (remaining.compareTo(TOLERANCE) > 0) {
                 out.add(new OpenTxnView(t.getId(), t.getTxnDate(), t.getAmount(), t.getPartnerName(),
-                        t.getPartnerIban(), alloc, remaining));
+                        t.getPartnerIban(), alloc, remaining, t.getCurrency()));
             }
         }
         return out;
@@ -449,7 +449,7 @@ public class ReconciliationView {
             boolean anyInMonth = txns.stream().anyMatch(t -> t.getTxnDate().withDayOfMonth(1).equals(period));
             out.add(new DocumentStatus(s.getDocumentId(), anyInMonth ? null : "RED",
                     anyInMonth ? null : "no_transactions_in_period", false, null, null, null, null,
-                    null, null, null));
+                    null, null, null, null));
         }
 
         List<Invoice> invs = invoices.findByCompanyIdAndPeriodMonth(companyId, period);
@@ -481,7 +481,7 @@ public class ReconciliationView {
                         dateOutside ? "RED" : null, dateOutside ? "date_outside_period" : null, duplicate,
                         paymentStatus(inv.getTotalAmount(), p),
                         inv.getWrongParty(), inv.getClientCif(), inv.getSupplierName(),
-                        inv.getIssuerCif(), inv.getTotalAmount(), inv.getInvoiceDate()));
+                        inv.getIssuerCif(), inv.getTotalAmount(), inv.getInvoiceDate(), inv.getCurrency()));
             }
         }
         return out;

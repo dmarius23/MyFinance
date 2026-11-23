@@ -99,7 +99,8 @@ PR, and build in one CI pipeline. See the chat history / commit for the rational
 ## Quickstart (local dev)
 
 Prerequisites: **JDK 21** (the project targets 21; it compiles on a newer JDK), **Maven 3.9+**,
-**Node 20+**, and **Docker** (for Postgres/Redis and the RLS test).
+**Node 24** (CI and the frontend image build on 24; Vite 7 needs >= 20.19), and **Docker**
+(for Postgres/Redis and the RLS test).
 
 ```bash
 # 1. Backing services (Postgres w/ pgvector + Redis)

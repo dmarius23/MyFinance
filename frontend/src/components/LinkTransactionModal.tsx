@@ -2,27 +2,29 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { bankApi, type OpenTransaction } from "../api/bank";
+import { formatMoney } from "../lib/money";
 
 const overlay: React.CSSProperties = {
   position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
   display: "grid", placeItems: "center", zIndex: 70,
 };
-const fmt = (n: number) => n.toLocaleString("ro-RO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Picks a bank transaction to apply as a payment to an invoice (invoice-centric flow). Lists the
  * company's open transactions (need a document, remaining > 0) across the rolling window, ranks the
  * one whose remaining matches the invoice's remaining first, and searches partner/amount.
  */
-export function LinkTransactionModal({ companyId, period, invoiceRemaining, pending, onPick, onClose }: {
+export function LinkTransactionModal({ companyId, period, invoiceRemaining, invoiceCurrency, pending, onPick, onClose }: {
   companyId: string;
   period: string;
   invoiceRemaining: number | null;
+  /** Currency of the invoice being paid. Shown beside each transaction's remaining so a cross-currency link is visible. */
+  invoiceCurrency: string;
   pending: boolean;
   onPick: (txnId: string) => void;
   onClose: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [q, setQ] = useState("");
 
   const open = useQuery({
@@ -54,6 +56,11 @@ export function LinkTransactionModal({ companyId, period, invoiceRemaining, pend
           <h2 style={{ margin: 0, fontSize: 17 }}>{t("recon.linkTxnTitle")}</h2>
           <button onClick={onClose}>✕</button>
         </div>
+        {invoiceRemaining != null && (
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            {t("recon.remaining")}: <b style={{ fontVariantNumeric: "tabular-nums" }}>{formatMoney(invoiceRemaining, invoiceCurrency, i18n.language)}</b>
+          </div>
+        )}
         <input
           autoFocus
           value={q}
@@ -86,10 +93,10 @@ export function LinkTransactionModal({ companyId, period, invoiceRemaining, pend
                 </div>
                 <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                   <div style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, color: amtMatch ? "#166534" : "inherit" }}>
-                    {fmt(tx.remaining)} RON{amtMatch ? " ✓" : ""}
+                    {formatMoney(tx.remaining, tx.currency, i18n.language)}{amtMatch ? " ✓" : ""}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                    {partlyAllocated ? `${t("recon.remaining")} ${t("recon.of", { total: fmt(Math.abs(tx.amount)) })}` : t("recon.remaining")}
+                    {partlyAllocated ? `${t("recon.remaining")} ${t("recon.of", { total: formatMoney(Math.abs(tx.amount), tx.currency, i18n.language) })}` : t("recon.remaining")}
                   </div>
                 </div>
               </div>

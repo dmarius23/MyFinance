@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { FirmLayout } from "./components/FirmLayout";
 import { RequireRole } from "./auth/RequireRole";
@@ -23,6 +24,12 @@ import { AdminTenants } from "./pages/AdminTenants";
 import { TreasurySyncAdmin } from "./pages/TreasurySyncAdmin";
 import { GmailOAuthCallback } from "./pages/GmailOAuthCallback";
 import { MetaWhatsAppCallback } from "./pages/MetaWhatsAppCallback";
+
+// The legal documents are several thousand words each — load them on demand so they stay out of
+// the app-shell bundle that every session (and the service worker precache) pays for.
+const LegalPage = lazy(() =>
+  import("./pages/legal/LegalPage").then((m) => ({ default: m.LegalPage })),
+);
 
 /** Where a signed-in user belongs based on their role (reps → portal, super admin → platform
  *  admin, tenant staff → dashboard). A super admin has no tenant, so it never lands on a
@@ -55,6 +62,17 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
+      {/* Legal documents — deliberately public: they must be readable before signing in, and the
+          same pair of routes serves the firm console and the representative PWA. */}
+      <Route
+        path="/legal/terms"
+        element={<Suspense fallback={<div className="centered">…</div>}><LegalPage doc="terms" /></Suspense>}
+      />
+      <Route
+        path="/legal/privacy"
+        element={<Suspense fallback={<div className="centered">…</div>}><LegalPage doc="privacy" /></Suspense>}
+      />
 
       {/* Representative PWA — scoped to their single company */}
       <Route element={<RequireRole allow={["REPRESENTATIVE"]} />}>

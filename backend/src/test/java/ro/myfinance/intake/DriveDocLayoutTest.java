@@ -32,6 +32,17 @@ class DriveDocLayoutTest {
     }
 
     @Test
+    void recognisesDescriptiveTypeFolders() {
+        // The alias set is an exact match (to avoid company-name clashes), so it misses the descriptive
+        // names the firms actually use. "Facturi achizitii" is the real folder the Bolt/hotel invoices
+        // sit in, and the mixed-drive import now falls back to it when the content is unrecognised.
+        assertThat(DriveDocLayout.typeOf("Facturi achizitii")).contains(DocumentType.INVOICE);
+        assertThat(DriveDocLayout.typeOf("Facturi emise")).contains(DocumentType.INVOICE);
+        assertThat(DriveDocLayout.typeOf("Extrase de cont 2026")).contains(DocumentType.BANK_STATEMENT);
+        assertThat(DriveDocLayout.typeOf("Chitante si bonuri")).contains(DocumentType.RECEIPT);
+    }
+
+    @Test
     void doesNotTypeGenericOrPeriodFolders() {
         assertThat(DriveDocLayout.typeOf("7. Iulie 2026")).isEmpty();
         assertThat(DriveDocLayout.typeOf("Bilant interimar T2 an 2026")).isEmpty();

@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { meApi } from "../api/me";
 import i18n from "../i18n";
 import { Icon } from "./Icon";
+import { LegalLinks } from "./LegalLinks";
 import { NotificationBell } from "./NotificationBell";
 import { PeriodProvider, usePeriod } from "../lib/period";
 
@@ -111,6 +112,7 @@ export function FirmLayout() {
             )}
           </nav>
           <div className="spacer" />
+          <LegalLinks tone="dark" />
           <div className="who">
             <div className="avatar">A</div>
             <div>

@@ -56,6 +56,7 @@ export interface Invoice {
   totalAmount: number | null;
   invoiceDate: string | null;
   status: string;
+  currency: string;
 }
 
 export interface BankTransaction {
@@ -77,6 +78,7 @@ export interface BankTransaction {
   category: string | null;
   decisionSource: string | null;
   reason: string;
+  currency: string;
 }
 
 export interface CompanyCompleteness {
@@ -133,6 +135,7 @@ export interface OpenInvoice {
   wrongParty: boolean | null;
   issuerCif: string | null;
   clientCif: string | null;
+  currency: string;
 }
 
 export interface OpenTransaction {
@@ -143,6 +146,7 @@ export interface OpenTransaction {
   partnerIban: string | null;
   allocatedAmount: number;
   remaining: number;
+  currency: string;
 }
 
 export interface InvoicePayment {
@@ -151,6 +155,8 @@ export interface InvoicePayment {
   partnerName: string | null;
   amount: number;
   allocatedAmount: number;
+  /** The bank transaction's own currency — may differ from the invoice's (e.g. EUR invoice paid via RON account). */
+  txnCurrency: string;
 }
 
 export interface InvoicePayments {
@@ -164,6 +170,8 @@ export interface InvoicePayments {
   remaining: number | null;
   status: "UNPAID" | "PARTIAL" | "PAID";
   payments: InvoicePayment[];
+  /** The invoice's own ISO-4217 currency code (never null — defaults to RON if unset on the entity). */
+  currency: string;
 }
 
 export const invoicesApi = {
@@ -193,6 +201,8 @@ export interface DocumentStatus {
   issuerCif: string | null;
   total: number | null;
   invoiceDate: string | null;
+  /** The invoice's own ISO-4217 currency code (null for bank statements). */
+  currency: string | null;
 }
 
 export interface SuggestionLink {

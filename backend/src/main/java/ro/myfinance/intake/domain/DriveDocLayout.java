@@ -57,6 +57,18 @@ public final class DriveDocLayout {
         if (n.startsWith("balanta") || n.startsWith("balante")) {
             return Optional.of(DocumentType.TRIAL_BALANCE);
         }
+        // The same descriptive-variant treatment for the folders the firms actually keep: "Facturi
+        // achizitii" / "Facturi emise", "Extrase de cont 2026", "Chitante si bonuri". The alias set above
+        // is an exact match (deliberately, to avoid company-name clashes), so it misses every one of these.
+        if (n.startsWith("facturi") || n.startsWith("factura")) {
+            return Optional.of(DocumentType.INVOICE);
+        }
+        if (n.startsWith("extrase")) {
+            return Optional.of(DocumentType.BANK_STATEMENT);
+        }
+        if (n.startsWith("chitante") || n.startsWith("bonuri")) {
+            return Optional.of(DocumentType.RECEIPT);
+        }
         return Optional.empty();
     }
 

@@ -28,10 +28,11 @@ public final class BankStatementDtos {
 
     public record InvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
                                   String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
-                                  String status) {
+                                  String status, String currency) {
         public static InvoiceResponse from(ro.myfinance.extraction.domain.Invoice i) {
             return new InvoiceResponse(i.getId(), i.getDocumentId(), i.getOriginalFilename(),
-                    i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(), i.getStatus());
+                    i.getSupplierName(), i.getSupplierIban(), i.getTotalAmount(), i.getInvoiceDate(), i.getStatus(),
+                    i.getCurrency());
         }
     }
 
@@ -41,11 +42,13 @@ public final class BankStatementDtos {
     public record OpenInvoiceResponse(UUID id, UUID documentId, String filename, String supplierName,
                                       String supplierIban, BigDecimal totalAmount, LocalDate invoiceDate,
                                       LocalDate periodMonth, BigDecimal paidAmount, BigDecimal remaining,
-                                      boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif) {
+                                      boolean duplicate, Boolean wrongParty, String issuerCif, String clientCif,
+                                      String currency) {
         public static OpenInvoiceResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenInvoiceView v) {
             return new OpenInvoiceResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
                     v.supplierIban(), v.totalAmount(), v.invoiceDate(), v.periodMonth(), v.paidAmount(),
-                    v.remaining(), v.duplicate(), v.wrongParty(), v.issuerCif(), v.clientCif());
+                    v.remaining(), v.duplicate(), v.wrongParty(), v.issuerCif(), v.clientCif(),
+                    v.currency());
         }
     }
 
@@ -54,7 +57,7 @@ public final class BankStatementDtos {
                                       String description, BigDecimal balanceAfter, boolean requiresDocument,
                                       boolean matched, String category, String decisionSource, String reason,
                                       BigDecimal allocatedAmount, BigDecimal remainingAmount, boolean fullyAllocated,
-                                      java.util.List<MatchedInvoiceResponse> matchedInvoices) {
+                                      java.util.List<MatchedInvoiceResponse> matchedInvoices, String currency) {
         public static TransactionResponse from(ro.myfinance.extraction.application.ReconciliationService.TxnWithMatches tw) {
             BankTransaction t = tw.txn();
             java.util.List<MatchedInvoiceResponse> mi = tw.invoices().stream()
@@ -70,7 +73,7 @@ public final class BankStatementDtos {
                     t.getBalanceAfter(), t.isRequiresDocument(), !mi.isEmpty(),
                     t.getCategory() == null ? null : t.getCategory().name(),
                     t.getDecisionSource() == null ? null : t.getDecisionSource().name(), reason(t),
-                    allocated, remaining, fullyAllocated, mi);
+                    allocated, remaining, fullyAllocated, mi, t.getCurrency());
         }
 
         private static String reason(BankTransaction t) {
@@ -112,27 +115,38 @@ public final class BankStatementDtos {
         }
     }
 
+    /**
+     * A payment row in the invoice-centric view. {@code txnCurrency} is the bank transaction's own
+     * currency (from {@code BankTransaction.getCurrency()}) — it may differ from the invoice's currency,
+     * so each row carries its own rather than inheriting from the parent.
+     */
     public record PaymentResponse(UUID txnId, LocalDate txnDate, String partnerName,
-                                  BigDecimal amount, BigDecimal allocatedAmount) {
+                                  BigDecimal amount, BigDecimal allocatedAmount, String txnCurrency) {
     }
 
+    /**
+     * Invoice-centric view returned by the payments endpoint. {@code currency} is the invoice's own
+     * ISO-4217 currency code (from {@code Invoice.getCurrency()}, never null).
+     */
     public record InvoicePaymentsResponse(UUID invoiceId, UUID documentId, String filename, String supplierName,
                                           BigDecimal totalAmount, LocalDate invoiceDate, BigDecimal paidAmount,
-                                          BigDecimal remaining, String status, java.util.List<PaymentResponse> payments) {
+                                          BigDecimal remaining, String status, java.util.List<PaymentResponse> payments,
+                                          String currency) {
         public static InvoicePaymentsResponse from(ro.myfinance.extraction.application.ReconciliationService.InvoicePaymentsView v) {
             java.util.List<PaymentResponse> p = v.payments().stream()
-                    .map(x -> new PaymentResponse(x.txnId(), x.txnDate(), x.partnerName(), x.amount(), x.allocatedAmount()))
+                    .map(x -> new PaymentResponse(x.txnId(), x.txnDate(), x.partnerName(), x.amount(), x.allocatedAmount(), x.txnCurrency()))
                     .toList();
             return new InvoicePaymentsResponse(v.invoiceId(), v.documentId(), v.filename(), v.supplierName(),
-                    v.totalAmount(), v.invoiceDate(), v.paidAmount(), v.remaining(), v.status(), p);
+                    v.totalAmount(), v.invoiceDate(), v.paidAmount(), v.remaining(), v.status(), p, v.currency());
         }
     }
 
     public record OpenTransactionResponse(UUID id, LocalDate txnDate, BigDecimal amount, String partnerName,
-                                          String partnerIban, BigDecimal allocatedAmount, BigDecimal remaining) {
+                                          String partnerIban, BigDecimal allocatedAmount, BigDecimal remaining,
+                                          String currency) {
         public static OpenTransactionResponse from(ro.myfinance.extraction.application.ReconciliationService.OpenTxnView v) {
             return new OpenTransactionResponse(v.id(), v.txnDate(), v.amount(), v.partnerName(),
-                    v.partnerIban(), v.allocatedAmount(), v.remaining());
+                    v.partnerIban(), v.allocatedAmount(), v.remaining(), v.currency());
         }
     }
 

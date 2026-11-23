@@ -7,7 +7,9 @@ import { useAuth } from "../auth/AuthProvider";
 import { ApiError } from "../lib/apiClient";
 import { ChartCard, PlBars, Donut, Trend, Kpis } from "../components/reportCharts";
 import { GranularitySelector } from "../components/GranularitySelector";
+import { LegalLinks } from "../components/LegalLinks";
 import { PortalPreviewModal } from "../components/PortalPreviewModal";
+import { docAmountLine } from "../components/docAmountLine";
 import { currentPushState, enablePush, disablePush, type PushState } from "../lib/push";
 
 /* ---- B · Console skin palette ---------------------------------------------------------------- */
@@ -263,7 +265,7 @@ export function RepHome() {
             {others.length === 0 && !hasBank && <div style={{ color: C.mut, fontSize: 13 }}>—</div>}
             {others.map((d) => (
               <DocRow key={d.id} filename={d.filename} label={docTypeLabel(d.type)} issuer={d.issuer}
-                issuerCif={d.issuerCif} total={d.total} invoiceDate={d.invoiceDate} badges={docBadges(d)}
+                issuerCif={d.issuerCif} total={d.total} currency={d.currency} invoiceDate={d.invoiceDate} badges={docBadges(d)}
                 invoice={d.type === "INVOICE" || d.type === "RECEIPT"}
                 iconBg="#e6f4f2" iconFg="#0f766e" onView={onView(d)} onDownload={onDownload(d)}
                 onDelete={d.canDelete ? onDelete(d) : undefined} />
@@ -287,6 +289,9 @@ export function RepHome() {
                           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.partnerName ?? m.description ?? "—"}</div>
                           <div style={{ ...mono, fontSize: 11, color: C.mut }}>{m.txnDate}</div>
                         </div>
+                        {/* Spec-B TODO: MissingItem carries no currency — a bank movement's currency is its
+                            statement's, and statement ingestion is still single-currency, so RON holds for
+                            now. Revisit with multi-currency statement ingestion. */}
                         <span style={{ ...mono, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", color: m.credit ? C.green : C.ink }}>{m.credit ? "+" : ""}{money(m.amount)} RON</span>
                       </div>
                     ))}
@@ -438,6 +443,9 @@ export function RepHome() {
               </div>
             )}
           </>)}
+
+          {/* Legal links sit at the end of the scroll on both screens, above the tab bar. */}
+          <LegalLinks />
         </div>
 
         {/* ===== bottom tab bar ===== */}
@@ -524,14 +532,14 @@ export function RepHome() {
 const chromeIcon: React.CSSProperties = { width: 34, height: 34, padding: 0, borderRadius: 10, background: C.panel, border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: C.onChromeMut, cursor: "pointer" };
 const stepBtn = (disabled: boolean): React.CSSProperties => ({ width: 30, height: 30, padding: 0, borderRadius: 8, background: disabled ? "transparent" : "#f5f6f6", color: disabled ? "#cbd5d2" : "#52605d", border: "none", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: disabled ? "default" : "pointer" });
 
-function DocRow({ filename, label, issuer, issuerCif, total, invoiceDate, badges, invoice, bank, companyName, companyCui, bankPeriod, iconBg, iconFg, onView, onDownload, onDelete }:
+function DocRow({ filename, label, issuer, issuerCif, total, currency, invoiceDate, badges, invoice, bank, companyName, companyCui, bankPeriod, iconBg, iconFg, onView, onDownload, onDelete }:
   { filename: string; label: string; issuer?: string | null; issuerCif?: string | null;
-    total?: number | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean;
+    total?: number | null; currency?: string | null; invoiceDate?: string | null; badges?: React.ReactNode; invoice?: boolean;
     bank?: boolean; companyName?: string | null; companyCui?: string | null; bankPeriod?: string;
     iconBg: string; iconFg: string; onView: () => void; onDownload: () => void; onDelete?: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const supplier = issuer ? `${issuer}${issuerCif ? ` (CUI ${issuerCif})` : ""}` : "—";
-  const amountDate = [total != null ? `${money(total)} RON` : null, invoiceDate || null].filter(Boolean).join(" · ");
+  const amountDate = docAmountLine(total, currency, invoiceDate, i18n.language);
   const clip: React.CSSProperties = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
   const periodLabel = (() => {
     if (!bankPeriod) return bankPeriod ?? "";

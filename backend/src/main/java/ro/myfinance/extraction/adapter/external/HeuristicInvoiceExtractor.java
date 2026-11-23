@@ -24,7 +24,10 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     // Money token. The look-behind/ahead stop it from matching INSIDE a date or a longer number — e.g.
     // "30.12.2025" must not yield "30.12.20" (which parseMoney would read as 3012.20).
     private static final Pattern MONEY = Pattern.compile("(?<![\\d./,])\\d[\\d.,]*[.,]\\d{2}(?![./]?\\d)");
-    private static final Pattern DATE = Pattern.compile("(\\d{2})[/.](\\d{2})[/.](\\d{4})");
+    // dd.MM.yyyy / dd/MM/yyyy / dd-MM-yyyy. The dash form is what Bolt prints ("Datum: 24-09-2026");
+    // without it such an invoice carried no date at all. A longer number cannot match, because the
+    // pattern is anchored on two-digit day and month groups ("2759309-DE1126-197583" yields nothing).
+    private static final Pattern DATE = Pattern.compile("(\\d{2})[-/.](\\d{2})[-/.](\\d{4})");
 
     @Override
     public ParsedInvoice extract(byte[] pdf, String ownCompanyName) {
@@ -37,9 +40,12 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             String clientCif = null;
             String invoiceNumber = null;
             String issuerCif = null;
+            String currency = "RON";
             try {
                 iban = firstMatch(IBAN, text);
-                total = totalAmount(text);
+                Total tot = total(text);
+                total = tot.amount();
+                currency = currency(text, tot.line());
                 date = invoiceDate(text);
                 supplier = supplierName(text, ownCompanyName);
                 clientCif = clientCif(text);
@@ -67,42 +73,92 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
             } catch (RuntimeException e) {
                 log.debug("Invoice field extraction failed", e); // best-effort; never throws to the caller
             }
-            return new ParsedInvoice(supplier, iban, total, date, clientCif, invoiceNumber, issuerCif);
+            return new ParsedInvoice(supplier, iban, total, date, clientCif, invoiceNumber, issuerCif, currency);
         } catch (IOException | RuntimeException e) {
             log.debug("Invoice text extraction failed", e);
-            return new ParsedInvoice(null, null, null, null, null, null, null);
+            return new ParsedInvoice(null, null, null, null, null, null, null, "RON");
         }
     }
 
     private static final Pattern CIF = Pattern.compile("(?i)\\bRO\\s?\\d{2,10}\\b|\\b\\d{2,10}\\b");
 
+    /** Buyer-block headings: Romanian first, then the German/English ones on foreign invoices.
+     *  Both "empfanger" and "empfaenger" are listed — PDFBox yields "Empfänger", which diacritic
+     *  folding turns into "empfanger", while a document transliterating ä as "ae" gives "empfaenger". */
+    private static final String[] BUYER_MARKERS = {
+        "cumparator", "client", "beneficiar",
+        "empfanger", "empfaenger", "rechnungsempfanger", "rechnungsempfaenger", "kunde",
+        "bill to", "billed to", "buyer", "customer", "invoiced to", "recipient",
+    };
+    /** Supplier-block headings — used only to tell a Romanian invoice apart from a foreign one. */
+    private static final String[] SUPPLIER_MARKERS = {"furnizor", "prestator", "vanzator"};
+    /** Fiscal-code labels. A foreign invoice prints the Romanian CUI under a VAT heading instead. */
+    private static final String[] CIF_LABELS = {
+        "cif", "cui", "cod fiscal", "cod de identificare", "c.i.f",
+        "vat no", "vat id", "vat number", "vat reg",
+        "ust-id", "ust.-id", "ustid", "ust id", "ust.id",
+    };
+
     /**
-     * The buyer's fiscal code (CIF/CUI) from the "Cumpărător"/"Client"/"Beneficiar" block — used to
-     * verify the invoice is addressed to this company. Looks for a CIF-labelled line within the buyer
-     * block; returns null if the block or a labelled code can't be found (don't guess the supplier's).
+     * The buyer's fiscal code (CIF/CUI), used to verify the invoice is addressed to this company.
+     * Prefers a code on a fiscal-code-labelled line at or after the buyer heading, so the supplier's own
+     * code is never returned.
+     *
+     * <p>Foreign invoices have no Romanian party structure at all — a Bolt ride invoice heads the block
+     * "Empfänger" and labels the code "VAT no.:", and a German hotel bill has neither heading and writes
+     * "USt.-ID.: RO 50109730". Both used to yield nothing, so an imported invoice carried no buyer code.
      */
     private String clientCif(String text) {
         String[] lines = text.split("\\R");
-        int buyer = -1;
-        for (int i = 0; i < lines.length; i++) {
-            String n = norm(lines[i]);
-            if (n.contains("cumparator") || n.contains("client") || n.contains("beneficiar")) {
-                buyer = i;
-                break;
+        int buyer = firstLineContaining(lines, BUYER_MARKERS);
+        if (buyer >= 0) {
+            String hit = labelledCui(lines, buyer);
+            if (hit != null) {
+                return hit;
             }
         }
-        if (buyer < 0) {
-            return null;
+        // Neither a buyer nor a supplier heading: a foreign document with no Romanian party structure.
+        // Any control-digit-valid Romanian CUI on such a page is the client's, because the foreign
+        // supplier does not hold one — its DE/EE/LT VAT id fails isValidCui. Requiring the supplier
+        // heading to be absent is what keeps a Romanian invoice out of here, so this can never pick up
+        // the supplier's CUI on the layouts the buyer-block rule above is meant for.
+        if (buyer < 0 && firstLineContaining(lines, SUPPLIER_MARKERS) < 0) {
+            return labelledCui(lines, 0);
         }
-        for (int i = buyer; i < lines.length; i++) {
+        return null;
+    }
+
+    /** Index of the first line containing any of {@code markers}, or -1. */
+    private static int firstLineContaining(String[] lines, String[] markers) {
+        for (int i = 0; i < lines.length; i++) {
             String n = norm(lines[i]);
-            if (n.contains("cif") || n.contains("cui") || n.contains("cod fiscal")
-                    || n.contains("cod de identificare") || n.contains("c.i.f")) {
-                for (Matcher m = CIF.matcher(lines[i]); m.find(); ) {
-                    String cand = m.group().trim();
-                    if (ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cand)) {
-                        return cand; // a real CUI (control-digit valid), not a stray number
-                    }
+            for (String marker : markers) {
+                if (n.contains(marker)) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /** First control-digit-valid Romanian CUI on a fiscal-code-labelled line at or after {@code from}. */
+    private String labelledCui(String[] lines, int from) {
+        for (int i = Math.max(0, from); i < lines.length; i++) {
+            String n = norm(lines[i]);
+            boolean labelled = false;
+            for (String label : CIF_LABELS) {
+                if (n.contains(label)) {
+                    labelled = true;
+                    break;
+                }
+            }
+            if (!labelled) {
+                continue;
+            }
+            for (Matcher m = CIF.matcher(lines[i]); m.find(); ) {
+                String cand = m.group().trim();
+                if (ro.myfinance.extraction.application.RoFiscalCode.isValidCui(cand)) {
+                    return cand; // a real CUI (control-digit valid), not a stray number
                 }
             }
         }
@@ -115,8 +171,12 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
                 .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
     }
 
+    // Romanian company forms, then the foreign ones the clients actually buy from — a German GmbH, an
+    // Estonian OÜ, a Lithuanian UAB. Without these a foreign supplier's name was never recognised as a
+    // company name at all, so the supplier came back null.
     private static final java.util.Set<String> COMPANY_SUFFIX = java.util.Set.of(
-            "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii");
+            "srl", "srld", "sa", "sca", "snc", "scs", "ifn", "pfa", "ii",
+            "gmbh", "ag", "kg", "ou", "uab", "ltd", "limited", "bv", "nv", "sarl", "sas", "spa", "oy");
 
     /** A short line whose last tokens carry a Romanian company-form suffix (SRL, SA, IFN, PFA, …). */
     private boolean looksLikeCompany(String rawLine) {
@@ -219,12 +279,13 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         return hit != null ? hit : firstCounterparty(lines, 0, lines.length, ownKey);
     }
 
-    private BigDecimal totalAmount(String text) {
+    /** The chosen total and the line it was read from — the currency is taken from that same line. */
+    private record Total(BigDecimal amount, String line) {
+    }
+
+    private Total total(String text) {
         String[] lines = text.split("\\R");
-        // 1) The authoritative pay total: the amount on (or just after) a "total de plată" /
-        //    "total general" line. The label and its value(s) are often on separate lines, and the
-        //    grand total sits below a value+VAT breakdown — so take the LARGEST money in a short
-        //    window after the label (the grand total is ≥ its components).
+        // 1) The authoritative pay total (unchanged selection logic).
         for (int i = 0; i < lines.length; i++) {
             String n = norm(lines[i]);
             boolean payTotal = (n.contains("total") && n.contains("plata")) || n.contains("total general");
@@ -232,34 +293,90 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
                 continue;
             }
             BigDecimal best = null;
+            String bestLine = null;
             for (int j = i; j < Math.min(lines.length, i + 4); j++) {
                 for (Matcher m = MONEY.matcher(lines[j]); m.find(); ) {
                     BigDecimal v = parseMoney(m.group());
                     if (best == null || v.compareTo(best) > 0) {
                         best = v;
+                        bestLine = lines[j];
                     }
                 }
             }
             if (best != null) {
-                return best;
+                return new Total(best, bestLine);
             }
         }
         // 2) Else the largest money on any "total" line; 3) else the largest money overall.
-        BigDecimal labelled = null;
-        BigDecimal largest = null;
+        BigDecimal labelled = null, largest = null;
+        String labelledLine = null, largestLine = null;
         for (String line : lines) {
             boolean totalLine = norm(line).contains("total");
             for (Matcher m = MONEY.matcher(line); m.find(); ) {
                 BigDecimal v = parseMoney(m.group());
                 if (largest == null || v.compareTo(largest) > 0) {
                     largest = v;
+                    largestLine = line;
                 }
                 if (totalLine && (labelled == null || v.compareTo(labelled) > 0)) {
                     labelled = v;
+                    labelledLine = line;
                 }
             }
         }
-        return labelled != null ? labelled : largest;
+        return labelled != null ? new Total(labelled, labelledLine) : new Total(largest, largestLine);
+    }
+
+    /** Recognised currency tokens. "LEI" is how Romanian invoices often write RON.
+     * "$" requires numeric adjacency to avoid matching shell/template variables: a leading "$" must be
+     * followed by a digit, and a trailing "$" must be preceded by a digit. */
+    private static final Pattern CURRENCY_TOKEN = Pattern.compile(
+            // "$" counts only next to an amount, on either side, with at most one space between:
+            // "$1,190.00", "$ 1,190.00", "1,190.00$", "1,190.00 $". A bare "$" in prose ("tarif in $
+            // conform contract") must NOT set the currency — mislabelling a RON invoice as USD would
+            // stop it matching its own RON payment, so the false-positive direction is the costly one.
+            // Note the lookbehind anchors on a DIGIT and allows the space after it; anchoring on
+            // "[\d.,\s]" instead would match a bare "$" preceded by a space.
+            "(?i)(?<![a-z])(RON|LEI|EUR|USD|GBP|CHF|HUF)(?![a-z])|([€£])"
+                    + "|\\$(?=\\s?[\\d])|(?<=\\d\\s?)\\$");
+
+    private static String normaliseCurrency(String token) {
+        String t = token.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (t) {
+            case "LEI" -> "RON";
+            case "€" -> "EUR";
+            case "£" -> "GBP";
+            case "$" -> "USD";
+            default -> t;
+        };
+    }
+
+    private static String firstCurrencyIn(String line) {
+        if (line == null) {
+            return null;
+        }
+        Matcher m = CURRENCY_TOKEN.matcher(line);
+        return m.find() ? normaliseCurrency(m.group()) : null;
+    }
+
+    /**
+     * The invoice's currency: the code on the total's own line first, else the only code named anywhere
+     * in the document, else RON.
+     *
+     * <p>RON is the right default rather than "unknown": a Romanian invoice frequently names no currency,
+     * and the column is NOT NULL. Being wrong here degrades to today's behaviour, and the accountant can
+     * see the value and correct it.
+     */
+    private String currency(String text, String totalLine) {
+        String onTotalLine = firstCurrencyIn(totalLine);
+        if (onTotalLine != null) {
+            return onTotalLine;
+        }
+        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+        for (Matcher m = CURRENCY_TOKEN.matcher(text); m.find(); ) {
+            all.add(normaliseCurrency(m.group()));
+        }
+        return all.size() == 1 ? all.iterator().next() : "RON";
     }
 
     /**
@@ -277,7 +394,10 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
         // 1) Date near an issue-date label.
         for (int i = 0; i < lines.length; i++) {
             String n = norm(lines[i]);
-            boolean issueLabel = n.contains("data") && !n.contains("scaden") && !n.contains("termen");
+            // "datum" is the German issue-date label; without it a German invoice fell through to the
+            // earliest-date-anywhere fallback, which on a hotel bill is the ARRIVAL date, not the issue date.
+            boolean issueLabel = (n.contains("data") || n.contains("datum"))
+                    && !n.contains("scaden") && !n.contains("termen");
             if (!issueLabel) {
                 continue;
             }
@@ -326,7 +446,7 @@ public class HeuristicInvoiceExtractor implements InvoiceExtractor {
     }
 
     private LocalDate parseDate(String token) {
-        for (String pat : new String[] {"dd.MM.uuuu", "dd/MM/uuuu"}) {
+        for (String pat : new String[] {"dd.MM.uuuu", "dd/MM/uuuu", "dd-MM-uuuu"}) {
             try {
                 return LocalDate.parse(token, DateTimeFormatter.ofPattern(pat));
             } catch (RuntimeException ignored) {

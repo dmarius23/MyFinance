@@ -144,7 +144,7 @@ class DocumentValidatorTest {
     @Test
     void invoice_on_neither_party_is_wrong_company() {
         when(invoices.extract(any(), any()))
-                .thenReturn(new ParsedInvoice("Supplier", null, BigDecimal.TEN, JUNE, "222", "F1", "111"));
+                .thenReturn(new ParsedInvoice("Supplier", null, BigDecimal.TEN, JUNE, "222", "F1", "111", "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.INVOICE,
                 "f.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_COMPANY);
@@ -154,7 +154,7 @@ class DocumentValidatorTest {
     void invoice_from_another_month_is_wrong_period() {
         // Issuer matches the company (not wrong-company), but the invoice date is March, filed under June.
         when(invoices.extract(any(), any()))
-                .thenReturn(new ParsedInvoice("ACME", null, BigDecimal.TEN, LocalDate.of(2026, 3, 20), "222", "F2", "999"));
+                .thenReturn(new ParsedInvoice("ACME", null, BigDecimal.TEN, LocalDate.of(2026, 3, 20), "222", "F2", "999", "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.INVOICE,
                 "f.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_PERIOD);
@@ -177,7 +177,7 @@ class DocumentValidatorTest {
         when(statements.extractText(any())).thenReturn(text);
         when(statements.find(text)).thenReturn(Optional.of(parser));
         when(parser.parse(text)).thenReturn(new ParsedStatement("BT", "RO49", BigDecimal.ZERO, BigDecimal.TEN,
-                List.of(new ParsedTransaction(LocalDate.of(2026, 3, 5), BigDecimal.TEN, null, null, "x", null, null))));
+                List.of(new ParsedTransaction(LocalDate.of(2026, 3, 5), BigDecimal.TEN, null, null, "x", null, null)), "RON"));
         var r = validator.validate(company("999", "ACME SRL"), JUNE, DocumentType.BANK_STATEMENT,
                 "extras.pdf", "application/pdf", new byte[]{1}, null);
         assertThat(r.blockReason()).isEqualTo(DriveBlockReason.WRONG_PERIOD);

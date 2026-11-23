@@ -85,22 +85,16 @@ public class EmailAttachmentIngestionService {
                 .filter(candidate -> tenantId.equals(candidate.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Email connection is not in the current tenant"));
 
-        EmailMessage row = findOrCreateMessage(tenantId, ownedConnection, message);
         var links = representatives.findByRepresentativeEmail(message.senderEmail()).stream()
                 .map(link -> link.getCompanyId())
                 .distinct()
                 .toList();
+        // Unknown or ambiguous senders are intentionally silent and ephemeral. Do not persist the
+        // message/attachments or notify admins: email ingestion is reserved for linked representatives.
         if (links.size() != 1) {
-            String reason = links.isEmpty()
-                    ? "Sender is not linked to a representative in this tenant"
-                    : "Sender is linked to multiple companies";
-            boolean firstReview = row.getStatus() != EmailMessage.Status.NEEDS_REVIEW;
-            Result result = recordSenderReview(row, message.attachments(), reason);
-            if (firstReview) {
-                notifications.emailSenderNeedsReview(message.senderEmail(), message.subject(), reason);
-            }
-            return result;
+            return new Result(null, 0, 0, 0);
         }
+        EmailMessage row = findOrCreateMessage(tenantId, ownedConnection, message);
         return ingestResolved(ownedConnection, row, message, links.get(0), periodMonth);
     }
 
@@ -192,29 +186,6 @@ public class EmailAttachmentIngestionService {
                 .orElseGet(() -> messages.save(new EmailMessage(tenantId, connection.getId(),
                         message.gmailMessageId(), message.threadId(), message.senderEmail(),
                         message.subject(), message.receivedAt())));
-    }
-
-    private Result recordSenderReview(EmailMessage row, List<IncomingAttachment> inputs, String reason) {
-        int reviewCount = 0;
-        for (IncomingAttachment input : inputs) {
-            if (attachments.findByMessageIdAndGmailAttachmentId(row.getId(), input.gmailAttachmentId())
-                    .isPresent()) {
-                continue;
-            }
-            EmailAttachment attachment = new EmailAttachment(row.getTenantId(), row.getId(),
-                    input.gmailAttachmentId(), input.filename(), input.contentType());
-            if (input.bytes() != null && input.bytes().length > 0) {
-                attachment.setContentSha256(ContentHash.sha256(input.bytes()));
-            }
-            attachment.setStatus(EmailAttachment.Status.NEEDS_REVIEW);
-            attachment.setDetail(reason);
-            attachments.save(attachment);
-            reviewCount++;
-        }
-        row.setStatus(EmailMessage.Status.NEEDS_REVIEW);
-        row.setDetail(reason);
-        messages.save(row);
-        return new Result(row.getId(), 0, 0, reviewCount == 0 ? 1 : reviewCount);
     }
 
     public record IncomingMessage(String gmailMessageId, String threadId, String senderEmail,

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../lib/supabase";
 import { authApi } from "../api/auth";
+import { LegalLinks } from "../components/LegalLinks";
 
 /**
  * Email+password sign-in, plus self-service password reset.
@@ -103,6 +104,7 @@ export function Login() {
         >
           {t("auth.forgotPassword")}
         </button>
+        <LegalLinks />
       </form>
     </div>
   );

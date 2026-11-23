@@ -55,6 +55,7 @@ public class Mt940StatementParser implements BankStatementParser {
         String accountIban = null;
         BigDecimal opening = null;
         BigDecimal closing = null;
+        String currency = null;
         List<ParsedTransaction> txns = new ArrayList<>();
         ParsedTransaction pending = null; // a :61: line awaiting its :86: description
 
@@ -67,6 +68,7 @@ public class Mt940StatementParser implements BankStatementParser {
                     BigDecimal b = balance(value);
                     if (opening == null) {
                         opening = b; // opening = first opening balance (60M = intermediate on multi-page)
+                        currency = balanceCurrency(value); // same tag carries the statement's currency
                     }
                 }
                 case "62F", "62M" -> closing = balance(value); // closing = last closing balance
@@ -87,7 +89,7 @@ public class Mt940StatementParser implements BankStatementParser {
         if (pending != null) {
             txns.add(pending);
         }
-        return new ParsedStatement("MT940", accountIban, opening, closing, txns);
+        return new ParsedStatement("MT940", accountIban, opening, closing, txns, currency);
     }
 
     /** Split into (tag, value) fields, appending continuation lines (no leading ":NN:") to the value. */
@@ -161,6 +163,12 @@ public class Mt940StatementParser implements BankStatementParser {
         }
         BigDecimal v = money(m.group(4));
         return v != null && "D".equals(m.group(1)) ? v.negate() : v;
+    }
+
+    /** The 3-letter currency from a :60F:/:62F: balance tag — group 3 of BALANCE, which balance() drops. */
+    private String balanceCurrency(String value) {
+        Matcher m = BALANCE.matcher(value.trim());
+        return m.find() ? m.group(3) : null;
     }
 
     private boolean isDebit(String mark) {

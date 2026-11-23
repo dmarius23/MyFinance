@@ -5,6 +5,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -173,14 +174,19 @@ public final class FolderMapper {
      */
     public static Optional<LocalDate> periodFromPath(RemoteFile file) {
         List<String> segs = segments(file);
-        // 1) Year + month in one segment.
-        for (String s : segs) {
-            Matcher m = COMBINED.matcher(s);
-            if (m.find()) {
-                return Optional.of(ym(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2))));
+        // 1) A single segment stating BOTH month and year wins, and is read DEEPEST FIRST — the month
+        //    folder sits closest to the file, so "Arhiva 2026/Ianuarie 2027" is January 2027, not 2026.
+        //    Pairing them from one segment is the point: harvesting the year and the month independently
+        //    (step 2) lets an ancestor folder's year override the month folder's own, which silently files
+        //    a whole year's documents under the wrong year once several years sit side by side.
+        for (int i = segs.size() - 1; i >= 0; i--) {
+            Optional<LocalDate> stated = completePeriodOf(segs.get(i));
+            if (stated.isPresent()) {
+                return stated;
             }
         }
-        // 2) Separate year and month segments.
+        // 2) Separate year and month segments — the "<company>/2026/04 Aprilie" layout, where no single
+        //    segment names both. Only reached when step 1 found nothing, so there is no year to conflict.
         Integer year = null;
         Integer month = null;
         for (String s : segs) {
@@ -274,7 +280,36 @@ public final class FolderMapper {
         }
     }
 
-    /** A month from a folder segment: a leading 1–12 number, else a Romanian month name (short segs only). */
+    /**
+     * A COMPLETE period named by one segment on its own: {@code 2026-09} / {@code 202609} / {@code 2026_9},
+     * or a month beside its year ({@code Septembrie 2026}, {@code 9. Septembrie 2026}). Empty when the
+     * segment names only one of the two — a bare year folder, or a bare month folder.
+     */
+    private static Optional<LocalDate> completePeriodOf(String segment) {
+        Matcher c = COMBINED.matcher(segment);
+        if (c.find()) {
+            return Optional.of(ym(Integer.parseInt(c.group(1)), Integer.parseInt(c.group(2))));
+        }
+        Matcher y = YEAR.matcher(segment);
+        if (y.find()) {
+            Integer mo = monthOf(segment);
+            if (mo != null) {
+                return Optional.of(ym(Integer.parseInt(y.group(1)), mo));
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * A month from a folder segment: a leading 1–12 number ({@code 04 Aprilie}), else a Romanian month
+     * NAME as a whole token with nothing left over but its year ({@code Septembrie 2026}, {@code Decembrie}).
+     *
+     * <p>The whole-token rule is what stops a month word inside a company name from counting. Matching used
+     * to be a substring test against the segment with its spaces stripped, bounded by a 12-character guard
+     * — which both let {@code MAI SRL} and even {@code MAIN} read as May, and silently rejected the five
+     * long month names once a year was appended ({@code SEPTEMBRIE2026} is 14 characters), so those folders
+     * fell through to the file's upload month.
+     */
     private static Integer monthOf(String segment) {
         if (segment == null || segment.isBlank()) {
             return null;
@@ -283,15 +318,21 @@ public final class FolderMapper {
         if (m.find()) {
             return Integer.parseInt(m.group(1));
         }
-        String norm = StringNormalizer.alnumUpper(segment); // upper, diacritics & non-alnum stripped
-        if (norm.length() <= 12) {         // guard: don't match a month name inside a long company name
-            for (java.util.Map.Entry<String, Integer> e : RO_MONTHS.entrySet()) {
-                if (norm.contains(e.getKey())) {
-                    return e.getValue();
-                }
+        Integer month = null;
+        int others = 0;
+        for (String token : StringNormalizer.stripDiacritics(segment).toUpperCase(Locale.ROOT)
+                .split("[^A-Z0-9]+")) {
+            if (token.isEmpty() || YEAR.matcher(token).matches()) {
+                continue;                   // the year standing beside the month is expected, not a leftover
+            }
+            Integer mo = RO_MONTHS.get(token);
+            if (mo != null && month == null) {
+                month = mo;
+            } else {
+                others++;
             }
         }
-        return null;
+        return others == 0 ? month : null;  // any other word ⇒ a name that merely contains a month word
     }
 
     /** The trimester number (1–4) named in a segment, else null. */

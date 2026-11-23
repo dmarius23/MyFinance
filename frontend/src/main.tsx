@@ -8,6 +8,7 @@ import { ToastProvider } from "./components/Toast";
 import { SyncTrackerProvider } from "./components/SyncTracker";
 import { queryClient } from "./lib/queryClient";
 import "./i18n";
+import "./fonts.css"; // before index.css: @font-face must be declared before the rules that use it
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(

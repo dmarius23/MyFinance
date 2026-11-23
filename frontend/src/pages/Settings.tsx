@@ -69,19 +69,32 @@ function InvoicePeriodSection() {
       <h2 style={{ marginTop: 0 }}>{t("settings.invoicePeriodTitle")}</h2>
       <p style={hint}>{t("settings.invoicePeriodHint")}</p>
       {settings.isLoading ? <p>{t("common.loading")}</p> : (
-        <label style={{ display: "grid", gap: 6, maxWidth: 420 }}>
+        <div style={{ display: "grid", gap: 6, maxWidth: 560 }}>
           <span>{t("settings.invoicePeriodMode")}</span>
-          <select value={mode} disabled={save.isPending}
-            onChange={(e) => save.mutate(e.target.value as typeof mode)}>
-            <option value="INVOICE_DATE">{t("settings.invoicePeriodByDate")}</option>
-            <option value="PREVIOUS_MONTH">{t("settings.invoicePeriodPreviousMonth")}</option>
-          </select>
+          <div role="group" aria-label={t("settings.invoicePeriodMode")}
+            style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {([
+              ["INVOICE_DATE", t("settings.invoicePeriodByDate")],
+              ["PREVIOUS_MONTH", t("settings.invoicePeriodPreviousMonth")],
+            ] as const).map(([value, label]) => {
+              const active = mode === value;
+              return (
+                <button key={value} type="button" disabled={save.isPending}
+                  aria-pressed={active} onClick={() => save.mutate(value)}
+                  style={{ border: `1px solid ${active ? "var(--accent, #0f766e)" : "var(--border)"}`,
+                    background: active ? "var(--accent, #0f766e)" : "var(--surface)",
+                    color: active ? "#fff" : "var(--text-primary)", fontWeight: active ? 700 : 500 }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           {save.isError && (
             <span style={{ color: "#b91c1c", fontSize: 12.5 }}>
               {save.error instanceof ApiError ? save.error.message : t("common.error")}
             </span>
           )}
-        </label>
+        </div>
       )}
     </div>
   );

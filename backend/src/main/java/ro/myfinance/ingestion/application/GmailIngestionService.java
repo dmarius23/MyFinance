@@ -1,6 +1,7 @@
 package ro.myfinance.ingestion.application;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -102,6 +103,28 @@ public class GmailIngestionService {
                 .formatted(totals.messages(), totals.imported(), totals.needsReview()));
         connections.save(connection);
         return new SyncResult(totals.messages(), totals.imported(), totals.needsReview(), false);
+    }
+
+    /**
+     * After OAuth reconnect, import mail that arrived while the refresh token was dead. History sync
+     * alone is not enough: the stored cursor may have expired, or Disconnect may have cleared it so the
+     * next watch starts at "now" and skips the gap. Date backfill from {@code last_synced_at} (or the
+     * last 30 days on first connect) closes that window, capped at 90 days.
+     */
+    public SyncResult recoverAfterReconnect(UUID connectionId) {
+        EmailConnection connection = ownedConnection(connectionId);
+        LocalDate toExclusive = LocalDate.now(ZoneOffset.UTC).plusDays(1);
+        LocalDate fromInclusive = connection.getLastSyncedAt() == null
+                ? toExclusive.minusDays(30)
+                : connection.getLastSyncedAt().atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate earliest = toExclusive.minusDays(90);
+        if (fromInclusive.isBefore(earliest)) {
+            fromInclusive = earliest;
+        }
+        if (!fromInclusive.isBefore(toExclusive)) {
+            fromInclusive = toExclusive.minusDays(30);
+        }
+        return backfill(connectionId, fromInclusive, toExclusive);
     }
 
     /** Explicitly recovers an expired cursor by backfilling a bounded date interval. */

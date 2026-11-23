@@ -18,7 +18,7 @@ overview.
 - **`backend/`** — Java 21 / Spring Boot 3 modular monolith + worker. **See [`backend/CLAUDE.md`](backend/CLAUDE.md)**
   for the backend stack, conventions, golden rules, and `backend/docs/` (design spec, clean-code guide,
   improvement plan, per-module design-history).
-- **`frontend/`** — React 18 / Vite 5 / TypeScript PWA. **See [`frontend/CLAUDE.md`](frontend/CLAUDE.md)**
+- **`frontend/`** — React 18 / Vite 7 / TypeScript PWA. **See [`frontend/CLAUDE.md`](frontend/CLAUDE.md)**
   for the frontend stack, conventions, and `frontend/docs/` (design spec, clean-code guide, improvement plan).
 - **`docs/`** — repo-**global** source-of-truth (listed below).
 - **`archive/`** — historical / pre-app artifacts (the original AirTable design). Not live; never required to build.
@@ -44,6 +44,9 @@ overview.
 - `docs/MyFinance-notes-enriched.md` — all decisions and rationale (incl. PoC extraction findings).
 - `docs/MyFinance-architecture-review.md` — code-validated architecture walkthrough (a **dated snapshot**;
   §4 backend / §5–6 frontend/PWA / §7–11 cross-cutting).
+- `docs/MyFinance-data-privacy-residency-v1.md` — where personal/accounting data is processed, the
+  sub-processor list, and the production residency checklist (a **dated snapshot**). Read it before
+  adding any third-party service, script, font or CDN.
 - `docs/supabase-setup.md` — Supabase auth hook + JWT/RLS wiring; `docs/MyFinance-estimation-v1.xlsx` — effort.
 
 ## Product spine — module map & build order

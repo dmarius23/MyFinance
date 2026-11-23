@@ -6,8 +6,11 @@ import { reconciliationApi } from "../api/bank";
 import { ingestionApi, type SyncResult } from "../api/ingestion";
 import { ApiError } from "../lib/apiClient";
 import { monthLabel } from "../lib/period";
+import { formatMoney } from "../lib/money";
 import { syncFinishedNote } from "../lib/syncStatus";
+import { invalidateDocumentQueries, refetchWhileExtracting } from "../lib/documentQueries";
 import { useSyncTracker } from "./SyncTracker";
+import { typeAdvisory, isRecentUpload } from "./documentTypeAdvisory";
 import { Icon } from "./Icon";
 import { InvoicePaymentsModal } from "./InvoicePaymentsModal";
 
@@ -82,6 +85,8 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
       return sortBy === "date-asc" ? da.localeCompare(db) : db.localeCompare(da);
     });
   const ordered = [...statementDocs, ...invoiceDocs];
+  // Recomputed each render; the "just added" badge simply stops showing on a later render.
+  const nowMs = Date.now();
 
   const selected: Document | undefined = docs.find((d) => d.id === selId) ?? docs[0];
 
@@ -99,24 +104,22 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
     return () => { if (revoked) URL.revokeObjectURL(revoked); };
   }, [companyId, selected?.id]);
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ["documents", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["doc-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["doc-status", companyId, period] });
-    // type changes affect extraction/matching too
-    void qc.invalidateQueries({ queryKey: ["bank-txns", companyId, period] });
-    void qc.invalidateQueries({ queryKey: ["recon-summary", period] });
-    void qc.invalidateQueries({ queryKey: ["invoices", companyId, period] });
-  };
+  // Shared with ReconcileWorkspace so the two lists cannot drift again (that drift is what left an
+  // upload from the reconcile screen invisible until a manual browser refresh).
+  const invalidate = () => invalidateDocumentQueries(qc, companyId, period);
   const upload = useMutation({
-    // Upload sequentially: each upload triggers synchronous extraction + reconciliation for the
-    // period, so serializing avoids races on the shared matching state. Invalidate once at the end.
+    // Upload sequentially so the uploads don't race on the shared matching state for the period.
     mutationFn: async (files: File[]) => {
       for (const f of files) {
         await documentsApi.upload(companyId, period, f);
       }
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Extraction runs after the response and off the request thread, so the supplier/amount/date are
+      // still empty on this first refetch. Re-invalidate briefly so they fill in by themselves.
+      refetchWhileExtracting(qc, companyId, period);
+    },
   });
   const remove = useMutation({
     mutationFn: (id: string) => documentsApi.remove(companyId, id),
@@ -230,7 +233,9 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 const isStmt = d.type === "BANK_STATEMENT";
                 const showHeader = i === 0 || (ordered[i - 1].type === "BANK_STATEMENT") !== isStmt;
                 const isInvoice = d.type === "INVOICE" || d.type === "RECEIPT";
-                const wrongType = !["BANK_STATEMENT", "INVOICE", "RECEIPT"].includes(d.type);
+                const advisory = typeAdvisory(d.type);
+                const needsType = advisory === "needsType";
+                const wrongType = advisory === "wrongType";
                 const pay = st?.paymentStatus; // UNPAID | PARTIAL | PAID | null
                 const payStyle = pay === "PAID" ? { bg: "#dcfce7", bd: "#16a34a" }
                   : pay === "PARTIAL" ? { bg: "#fef3c7", bd: "#d97706" }
@@ -262,9 +267,28 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                 // Advisory labels shown on the last line (duplicate / wrong party / outside period).
                 const labels = (
                   <>
+                    {isRecentUpload(d.uploadedAt, nowMs) && (
+                      <span title={t("doc.warn.justAdded")} style={chip("#dcfce7", "#166534", "#86efac")}>
+                        {t("doc.justAddedChip")}
+                      </span>
+                    )}
+                    {needsType && (
+                      <span title={t("doc.warn.needsType")} style={chip("#fef3c7", "#92400e", "#fde68a")}>
+                        {t("doc.needsTypeChip")}
+                      </span>
+                    )}
                     {wrongType && (
                       <span title={t("doc.warn.wrongType")} style={chip("#fee2e2", "#b91c1c", "#fecaca")}>
                         {t("doc.wrongTypeChip")}
+                      </span>
+                    )}
+                    {/* The document's own date falls outside the month it is filed under. It STAYS in this
+                        month — where it was filed is what decides, not its issue date — so this is a
+                        warning, not an error. driveBlockDetail names the document's own month. */}
+                    {d.driveBlockReason === "WRONG_PERIOD" && (
+                      <span title={d.driveBlockDetail ?? t("doc.warn.wrongDate")}
+                            style={chip("#fef3c7", "#92400e", "#fde68a")}>
+                        {t("doc.wrongDateChip")}
                       </span>
                     )}
                     {st?.duplicate && (
@@ -346,8 +370,7 @@ export function FilesModal({ companyId, companyName, companyCui, period, onClose
                           <div style={{ flex: "none", textAlign: "right" }}>
                             <div style={{ fontWeight: 700, fontSize: 12.5, whiteSpace: "nowrap",
                               color: st?.wrongParty === true ? "#b91c1c" : "var(--text)" }}>
-                              {st?.total != null ? st.total.toFixed(2) : "—"}
-                              {st?.total != null && <span style={{ fontWeight: 400, fontSize: 11, color: "var(--text-muted)", marginLeft: 3 }}>RON</span>}
+                              {formatMoney(st?.total ?? null, st?.currency ?? "RON", i18n.language)}
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                               📅 {st?.invoiceDate ?? "—"}

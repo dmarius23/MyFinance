@@ -81,7 +81,7 @@ public class IngStatementParser implements BankStatementParser {
                 txns.add(t);
             }
         }
-        return new ParsedStatement("INGB", accountIban, summary[0], summary[1], txns);
+        return new ParsedStatement("INGB", accountIban, summary[0], summary[1], txns, "RON");
     }
 
     /**
